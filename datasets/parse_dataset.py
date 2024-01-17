@@ -27,9 +27,12 @@ def parse_args():
 
     parser.add_argument('--chapters', action='store_true')
     parser.add_argument('--numbers', action='store_true')
+    parser.add_argument('--table-of-contents', action='store_true')
 
     parser.add_argument('--output-render-dir', type=str)
     parser.add_argument('--output-label-studio-dir', type=str)
+    parser.add_argument('--label-studio-predictions-must-include', type=str)
+    parser.add_argument('--label-studio-predictions-always-include', type=str)
 
     parser.add_argument('--logging-level', default=logging.INFO)
 
@@ -56,13 +59,18 @@ def main():
     dataset = parse_dataset(mets=args.mets,
                             page_xml_dir=args.page_xml_dir,
                             parse_chapters=args.chapters,
-                            parse_numbers=args.numbers)
+                            parse_numbers=args.numbers,
+                            parse_table_of_contents=args.table_of_contents)
 
     if args.output_render_dir is not None:
         render_dataset(dataset, args.mastercopy_dir, args.output_render_dir)
 
     if args.output_label_studio_dir is not None:
-        save_label_studio_storage(dataset, args.mastercopy_dir, args.output_label_studio_dir)
+        save_label_studio_storage(dataset,
+                                  args.mastercopy_dir,
+                                  args.output_label_studio_dir,
+                                  must_include=[x.strip() for x in args.label_studio_predictions_must_include.split(",")],
+                                  always_include=[x.strip() for x in args.label_studio_predictions_always_include.split(",")])
 
 
 def parse_dataset(mets: str,
@@ -70,7 +78,8 @@ def parse_dataset(mets: str,
                   parse_chapters=False,
                   max_chapter_transcription_relative_distance: float = 0.2,
                   parse_numbers=False,
-                  max_number_transcription_relative_distance: float = 0.2):
+                  max_number_transcription_relative_distance: float = 0.2,
+                  parse_table_of_contents=False):
 
     dataset = defaultdict(dict)
 
@@ -127,12 +136,12 @@ def parse_dataset(mets: str,
             chapter_bbox = create_bounding_box_for_lines(mapped_lines)
 
             dataset_page_id = get_dateset_page_id(volume_uuid=volume_uuid_element_content, mastercopy_path=mastercopy_path)
-            dataset_chapter_id = f'{mastercopy_name}.{chapter_id}'
+            dataset_chapter_id = f'{mastercopy_name}.chapter.{chapter_id}'
             dataset[dataset_page_id]['mastercopy_path'] = mastercopy_path
             if 'chapters' in dataset[dataset_page_id]:
-                dataset[dataset_page_id]['chapters'].append([dataset_chapter_id, chapter_bbox])
+                dataset[dataset_page_id]['chapters'].append([dataset_chapter_id, chapter, chapter_bbox])
             else:
-                dataset[dataset_page_id]['chapters'] = [[dataset_chapter_id, chapter_bbox]]
+                dataset[dataset_page_id]['chapters'] = [[dataset_chapter_id, chapter, chapter_bbox]]
             logger.debug('')
             logger.debug('')
 
@@ -153,7 +162,7 @@ def parse_dataset(mets: str,
 
             if connect_number_out is None:
                 continue
-            chapter_id, chapter, mastercopy_path = connect_number_out
+            number_id, number, mastercopy_path = connect_number_out
             mastercopy_name = get_mastercopy_name(mastercopy_path)
 
             page_xml_path = f'{mastercopy_name}.xml'
@@ -164,7 +173,7 @@ def parse_dataset(mets: str,
             number_page_layout.from_pagexml(page_xml_path)
 
             map_number_out = map_number(
-                number_page_layout, chapter,
+                number_page_layout, number,
                 max_number_transcription_relative_distance=max_number_transcription_relative_distance)
             if map_number_out is None:
                 continue
@@ -177,12 +186,12 @@ def parse_dataset(mets: str,
 
             dataset_page_id = get_dateset_page_id(volume_uuid=volume_uuid_element_content,
                                                   mastercopy_path=mastercopy_path)
-            dataset_chapter_id = f'{mastercopy_name}.{chapter_id}'
+            dataset_number_id = f'{mastercopy_name}.number.{number_id}'
             dataset[dataset_page_id]['mastercopy_path'] = mastercopy_path
             if 'numbers' in dataset[dataset_page_id]:
-                dataset[dataset_page_id]['numbers'].append([dataset_chapter_id, number_bbox])
+                dataset[dataset_page_id]['numbers'].append([dataset_number_id, number, number_bbox])
             else:
-                dataset[dataset_page_id]['numbers'] = [[dataset_chapter_id, number_bbox]]
+                dataset[dataset_page_id]['numbers'] = [[dataset_number_id, number, number_bbox]]
             logger.debug('')
             logger.debug('')
 
@@ -190,6 +199,36 @@ def parse_dataset(mets: str,
         if mapped_number_elements_count > 0:
             logger.info(
                 f'{"ARS:":>20s} {mapped_number_transcription_relative_similarity / float(mapped_number_elements_count)}')
+        logger.info('')
+
+    if parse_table_of_contents:
+        table_of_contents_elements = tree.xpath(f"//mets:div[contains(@TYPE, 'tableOfContents')][contains(@ID, 'PAGE')]",
+                                                namespaces=namespaces)
+
+        mapped_table_of_contents_elements_count = 0
+
+        for table_of_contents_element in table_of_contents_elements:
+            connect_table_of_contents_out = connect_table_of_contents(table_of_contents_element, mastercopy_elements, namespaces)
+
+            if connect_table_of_contents_out is None:
+                continue
+            table_of_contents_id, mastercopy_path = connect_table_of_contents_out
+            mastercopy_name = get_mastercopy_name(mastercopy_path)
+
+            mapped_table_of_contents_elements_count += 1
+
+            dataset_page_id = get_dateset_page_id(volume_uuid=volume_uuid_element_content,
+                                                  mastercopy_path=mastercopy_path)
+            dataset_table_of_contents_id = f'{mastercopy_name}.table_of_contents.{table_of_contents_id}'
+            dataset[dataset_page_id]['mastercopy_path'] = mastercopy_path
+            if 'table_of_contents' in dataset[dataset_page_id]:
+                dataset[dataset_page_id]['table_of_contents'].append([dataset_table_of_contents_id])
+            else:
+                dataset[dataset_page_id]['table_of_contents'] = [[dataset_table_of_contents_id]]
+            logger.debug('')
+            logger.debug('')
+
+        logger.info(f'{"TOTAL MAPPED TABLE OF CONTENTS:":>20s} {mapped_table_of_contents_elements_count}/{len(table_of_contents_elements)}')
         logger.info('')
 
     return dataset
@@ -397,7 +436,17 @@ def map_number(page_layout: layout.PageLayout, number: str,
     return [TextLine(id='number_not_mapped')], 1
 
 
-def create_bounding_box_for_lines(lines: list[layout.TextLine], pad: int = 40):
+def connect_table_of_contents(table_of_contents_element, mastercopy_elements, namespaces: dict) -> None | tuple[str, str]:
+    table_of_contents_id = table_of_contents_element.get('ID')
+    logger.debug(f'{"TABLE OF CONTENTS ID:":>20s} {table_of_contents_id}')
+    mastercopy_id = table_of_contents_element[0].get('FILEID')
+    logger.debug(f'{"MASTER COPY ID:":>20s} {mastercopy_id}')
+    mastercopy_path = get_mastercopy_path(mastercopy_elements, mastercopy_id, namespaces)
+    logger.debug(f'{"MASTER COPY PATH:":>20s} {mastercopy_path}')
+    return table_of_contents_id, mastercopy_path
+
+
+def create_bounding_box_for_lines(lines: list[layout.TextLine], pad: int = 25):
     if not lines:
         return
     if lines[0].id == 'chapter_not_mapped':
@@ -448,13 +497,13 @@ def render_dataset(dataset, mastercopy_dir, output_render_dir):
         mastercopy_path = os.path.join(mastercopy_dir, mastercopy_name)
         img = cv2.imread(mastercopy_path, cv2.IMREAD_COLOR)
         if 'chapters' in data:
-            for chapter_id, chapter_bbox in data['chapters']:
+            for _, _, chapter_bbox in data['chapters']:
                 pts = np.asarray(chapter_bbox, dtype=np.int32)
                 pts = pts.reshape((-1, 1, 2))
                 img = cv2.polylines(img, pts=[pts],
                                     isClosed=True, color=(255, 0, 0), thickness=2)
         if 'numbers' in data:
-            for number_id, number_bbox in data['numbers']:
+            for _, _, number_bbox in data['numbers']:
                 pts = np.asarray(number_bbox, dtype=np.int32)
                 pts = pts.reshape((-1, 1, 2))
                 img = cv2.polylines(img, pts=[pts],
@@ -462,7 +511,8 @@ def render_dataset(dataset, mastercopy_dir, output_render_dir):
         cv2.imwrite(os.path.join(output_render_dir, f'{mastercopy_name}.jpg'), img)
 
 
-def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, label_studio_project_name='digilinka'):
+def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, label_studio_project_name='digilinka',
+                              must_include=None, always_include=None):
     images_dir = os.path.join(output_label_studio_dir, 'images')
     tasks_dir = os.path.join(output_label_studio_dir, 'tasks')
     os.makedirs(images_dir, exist_ok=True)
@@ -472,6 +522,19 @@ def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, 
     new_annotations = 0
 
     for page_id, data in dataset.items():
+        skip = False
+        if must_include is not None:
+            always_in = False
+            for a in always_include:
+                if a in data:
+                    always_in = True
+            if not always_in:
+                for m in must_include:
+                    if m not in data:
+                        skip = True
+                        break
+        if skip:
+            continue
         logger.debug(f'{"PROCESSING:":>20s} {page_id}')
         if 'mastercopy_path' not in data:
             logger.warning(f'{"MASTERCOPY PATH MISSING, SKIPPING":>20s} {page_id}')
@@ -497,13 +560,16 @@ def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, 
         results = []
 
         if 'chapters' in data:
-            for chapter_id, chapter_bbox in data['chapters']:
+            for chapter_id, chapter, chapter_bbox in data['chapters']:
                 if chapter_id in existing_ids:
                     skipped_annotations += 1
                     continue
                 x, y, width, height = get_label_studio_coords(chapter_bbox, img.shape)
                 result = {
                             "id": chapter_id,
+                            "meta": {
+                                "text": [chapter]
+                            },
                             "type": "rectanglelabels",
                             "from_name": "label",
                             "to_name": "image",
@@ -525,13 +591,16 @@ def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, 
                 results.append(result)
 
         if 'numbers' in data:
-            for number_id, number_bbox in data['numbers']:
+            for number_id, number, number_bbox in data['numbers']:
                 if number_id in existing_ids:
                     skipped_annotations += 1
                     continue
                 x, y, width, height = get_label_studio_coords(number_bbox, img.shape)
                 result = {
                     "id": number_id,
+                    "meta": {
+                        "text": [number]
+                    },
                     "type": "rectanglelabels",
                     "from_name": "label",
                     "to_name": "image",
@@ -545,7 +614,7 @@ def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, 
                         "width": width,
                         "height": height,
                         "rectanglelabels": [
-                            "cislo"
+                            "cislo strany"
                         ]
                     }
                 }
@@ -656,6 +725,7 @@ def get_mastercopy_path(mastercopy_elements, mastercopy_id, namespaces):
     mastercopy_element = mastercopy_element[0]
     mastercopy_path = str(mastercopy_element.get("{http://www.w3.org/1999/xlink}href"))
     return mastercopy_path
+
 
 def compare_orig_to_transcription(orig: str, transcription: str, transcription_edit_distance: float,
                                   max_transcription_relative_distance: float):
