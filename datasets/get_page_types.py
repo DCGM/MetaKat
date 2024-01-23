@@ -101,8 +101,21 @@ def get_page_types(mets, mastercopy_dir, output_dir):
     final_out_indexes = sorted(list(set(final_out_indexes)))
 
     for i in final_out_indexes:
-        export_page_to_output_dir_and_json(*out[i])
-
+        if i > 0:
+            previous_mastercopy_path = out[i - 1][1]
+        else:
+            previous_mastercopy_path = 'black'
+        previous_pages = i
+        if i < len(out) - 1:
+            next_mastercopy_path = out[i + 1][1]
+        else:
+            next_mastercopy_path = 'black'
+        next_pages = len(out) - i - 1
+        export_page_to_output_dir_and_json(*out[i],
+                                           previous_mastercopy_path=previous_mastercopy_path,
+                                           previous_pages=previous_pages,
+                                           next_mastercopy_path=next_mastercopy_path,
+                                           next_pages=next_pages)
 
 
 def get_doc_pad_type_pages(page_types, max_subsequent_normal_pages=5):
@@ -123,11 +136,49 @@ def get_doc_pad_type_pages(page_types, max_subsequent_normal_pages=5):
     return final_out_indexes
 
 
-def export_page_to_output_dir_and_json(mastercopy_dir, mastercopy_path, output_dir, page_type, dataset_page_id, max_height=1000):
+def export_page_to_output_dir_and_json(mastercopy_dir,
+                                       mastercopy_path,
+                                       output_dir,
+                                       page_type,
+                                       dataset_page_id,
+                                       max_height=1000,
+                                       previous_mastercopy_path=None,
+                                       previous_pages=None,
+                                       next_mastercopy_path=None,
+                                       next_pages=None):
     logger.info(f'{"COPYING:":>20s} {mastercopy_path} - {dataset_page_id} - {page_type}')
     img = cv2.imread(os.path.join(mastercopy_dir, os.path.basename(mastercopy_path)))
     if img.shape[0] > max_height:
         img = cv2.resize(img, [int(img.shape[1] * (max_height / img.shape[0])), max_height])
+    xy_left_top = [0, 0]
+    img_shape = img.shape
+    if previous_mastercopy_path is not None:
+        if previous_mastercopy_path == 'black':
+            img_prev = np.full(img_shape, 150.0)
+        else:
+            img_prev = cv2.imread(os.path.join(mastercopy_dir, os.path.basename(previous_mastercopy_path)))
+            if img_prev.shape[0] > max_height:
+                img_prev = cv2.resize(img_prev, [int(img_prev.shape[1] * (max_height / img_prev.shape[0])), max_height])
+        img = np.hstack((img_prev, img))
+        xy_left_top[0] = img_prev.shape[1]
+
+        if previous_pages is not None:
+            img = cv2.putText(img, str(previous_pages), (20, 100), cv2.FONT_HERSHEY_SIMPLEX,
+                              4, (255, 0, 0), 10, cv2.LINE_AA)
+
+    if next_mastercopy_path is not None:
+        if next_mastercopy_path == 'black':
+            img_next = np.full(img_shape, 150.0)
+        else:
+            img_next = cv2.imread(os.path.join(mastercopy_dir, os.path.basename(next_mastercopy_path)))
+            if img_next.shape[0] > max_height:
+                img_next = cv2.resize(img_next, [int(img_next.shape[1] * (max_height / img_next.shape[0])), max_height])
+        img = np.hstack((img, img_next))
+
+        if next_pages is not None:
+            img = cv2.putText(img, str(next_pages), (img.shape[1] - img_next.shape[1] + 20, 100), cv2.FONT_HERSHEY_SIMPLEX,
+                              4, (255, 0, 0), 10, cv2.LINE_AA)
+
     os.makedirs(os.path.join(output_dir, 'images', page_type), exist_ok=True)
     image_name = f'{dataset_page_id}.{page_type}.jpg'
     cv2.imwrite(os.path.join(output_dir, 'images', page_type, image_name), img)
@@ -136,7 +187,7 @@ def export_page_to_output_dir_and_json(mastercopy_dir, mastercopy_path, output_d
     annotation_dict['img_path'] = image_name
     annotation_dict['positions'] = [{'ignore': False,
                                      'uuid': str(uuid4()),
-                                     'rect': [0, 0, img.shape[1], img.shape[0]]}]
+                                     'rect': [xy_left_top[0], xy_left_top[1], img_shape[1], img_shape[0]]}]
     annotation_dict['path'] = image_name
     annotation_dict['image_name'] = image_name
     annotation_dict['aratio'] = 1.0
