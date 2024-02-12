@@ -9,16 +9,19 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
-from sklearn.model_selection import train_test_split
 
 classes = ["kapitola", "cislo strany", "text"]
+input_keys = ["line_width", "line_height", "relative_line_width", "relative_line_height", "padding_top", "padding_bottom", "padding_left", "padding_right", "transcription_length"]
 
 def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--dataset", required=True)
     
-    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--learning-rate", type=float, default=0.00001)
+    parser.add_argument("--decay-rate", type=float)
+    parser.add_argument("--decay-step", type=int)
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--model-path", required=True)
     
@@ -43,7 +46,7 @@ class BaselineNet(nn.Module):
         x = self.pool(F.relu(self.conv2(x)))
         x = torch.flatten(x, 1)
         x = F.relu(self.fc1(x))
-        x = self.fc2(x)    
+        x = self.fc2(x)
         
         return x
         
@@ -51,39 +54,44 @@ def map_label(label):
     return classes.index(label)
     
 class JsonDataset(Dataset):
-    def __init__(self, json_file, split_ratio=0.8, train=False, test=False):
+    def __init__(self, json_file, train=False, test=False):
         with open(json_file) as f:
             self.data = json.load(f)
-            
-        train_data, test_data = train_test_split(self.data, test_size=split_ratio, shuffle=True)
         
         if train:
-            self.data = train_data
+            self.data = self.data["train"]
         elif test:
-            self.data = test_data
+            self.data = self.data["test"]
         else:
-            self.data = self.data
+            self.data = self.data["train"].extend(self.data["test"])
             
     def __len__(self):
         return len(self.data)
     
     def __getitem__(self, idx):
-        input_keys = ["line_width", "line_height", "relative_line_width", "relative_line_height", "padding_top", "padding_bottom", "padding_left", "padding_right"]
         label = torch.tensor(map_label(self.data[idx]["label"]))
         input = torch.tensor([self.data[idx][key] for key in input_keys])
         input = input.unsqueeze(0)
         
-        return {"label":label, "input":input, "id":self.data[idx]["page_id"], "transcription":self.data[idx]["transcription"]}
+        return {"label":label, "input":input}
+    
+class JsonDatasetFull(JsonDataset):
+    def __getitem__(self, idx):
+        label = torch.tensor(map_label(self.data[idx]["label"]))
+        input = torch.tensor([self.data[idx][key] for key in input_keys])
+        input = input.unsqueeze(0)
+        
+        return {"label":label, "input":input, "id":self.data[idx]["page_id"]}
 
     def filter_by_page_id(self, page_id):
         self.data = [line for line in self.data if line["page_id"] == page_id]
 
-def test_accuracy(net, tst_loader, device):
+def test_accuracy(net, loader, device):
     correct = 0
     total = 0
 
     with torch.no_grad():
-        for data in tst_loader:
+        for data in loader:
             inputs, labels = data["input"], data["label"]
             inputs, labels = inputs.to(device), labels.to(device)
             
@@ -97,13 +105,37 @@ def test_accuracy(net, tst_loader, device):
         return 0    
     return correct / total * 100
 
-def train_net(writer, net, trn_loader, tst_loader, device, epochs):
+def test_class_accuracy(net, loader, device):
+    class_correct = [0] * len(classes)
+    class_total = [0] * len(classes)
+    
+    with torch.no_grad():
+        for data in loader:
+            inputs, labels = data["input"], data["label"]
+            inputs, labels = inputs.to(device), labels.to(device)
+            
+            outputs = net(inputs)
+            _, predicted = torch.max(outputs, 1)
+            
+            c = (predicted == labels)
+            if c.dim() > 1:
+                c = c.squeeze()
+            for i in range(len(labels)):
+                label = labels[i]
+                class_correct[label] += c[i].item()
+                class_total[label] += 1
+    
+    return [100 * class_correct[i] / class_total[i] for i in range(len(classes)) if class_total[i] > 0]
+        
+
+def train_net(writer, net, trn_loader, tst_loader, device, epochs, learning_rate, decay_rate, decay_step):
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(net.parameters(), lr=0.00001, momentum=0.9)
+    optimizer = optim.SGD(net.parameters(), lr=learning_rate, momentum=0.9)
+    if decay_rate and decay_step:
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=decay_step, gamma=decay_rate)
 
     running_loss = 0.0
-    for epoch in range(epochs):
-        
+    for epoch in range(epochs):        
         for i, data in enumerate(trn_loader, 0):
             inputs, labels = data["input"], data["label"]
             inputs, labels = inputs.to(device), labels.to(device)
@@ -119,9 +151,21 @@ def train_net(writer, net, trn_loader, tst_loader, device, epochs):
             if i % 20 == 19:
                 writer.add_scalar("Loss/train", running_loss / 20, epoch * len(trn_loader) + i)
                 running_loss = 0.0
-                
         
-        writer.add_scalar("Accuracy/test", test_accuracy(net, tst_loader, device), epoch)
+        if decay_rate and decay_step and epoch > 1000:
+            scheduler.step()
+        
+        if epoch % 1000 == 999:
+            progress_path = os.path.join(os.path.dirname(args.model_path), f"progress_{epoch}.pt")
+            torch.save(net.state_dict(), progress_path)
+		
+        if epoch % 10 == 9:
+            writer.add_scalar("Accuracy/train", test_accuracy(net, trn_loader, device), epoch)
+            writer.add_scalar("Accuracy/test", test_accuracy(net, tst_loader, device), epoch)
+            for i, class_accuracy in enumerate(test_class_accuracy(net, trn_loader, device)):
+                writer.add_scalar(f"Accuracy/train/{classes[i]}", class_accuracy, epoch)
+            for i, class_accuracy in enumerate(test_class_accuracy(net, tst_loader, device)):
+                writer.add_scalar(f"Accuracy/test/{classes[i]}", class_accuracy, epoch)
            
 
 def padding_to_bbox_pts(padding, img_width, img_height, bbox_padding=10):
@@ -170,7 +214,7 @@ def render_dir_bboxes(mastercopy_dir, output_render_dir, render_page_count, data
     os.makedirs(output_render_dir, exist_ok=True)
     for page_id in os.listdir(mastercopy_dir)[:render_page_count]:
         page_id = ".".join(page_id.split(".")[:-1])
-        full_dataset = JsonDataset(dataset)
+        full_dataset = JsonDatasetFull(dataset)
         full_dataset.filter_by_page_id(page_id)
         full_loader = DataLoader(full_dataset, batch_size=1, shuffle=False)
         render_page_bboxes(full_loader, page_id, mastercopy_dir, output_render_dir, net, device)
@@ -178,28 +222,34 @@ def render_dir_bboxes(mastercopy_dir, output_render_dir, render_page_count, data
 if __name__ == "__main__":
     args = parse_args()
     
+    print("Classes:", classes)
+    print("Input keys:", input_keys)
+    print("Args:", args)
+    
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     net = BaselineNet()
     
     net.to(device)    
     
     tst_data = JsonDataset(args.dataset, test=True)    
-    tst_loader = DataLoader(tst_data, batch_size=args.batch_size, shuffle=False, num_workers=2)
+    tst_loader = DataLoader(tst_data, batch_size=args.batch_size, shuffle=False, num_workers=8)
     
     if args.epochs:
         trn_data = JsonDataset(args.dataset, train=True)
-        trn_loader = DataLoader(trn_data, batch_size=args.batch_size, shuffle=True, num_workers=2)   
+        trn_loader = DataLoader(trn_data, batch_size=args.batch_size, shuffle=True, num_workers=8)   
         
         writer_path = os.path.join(os.path.dirname(args.model_path), "summary_writer")
         writer = SummaryWriter(writer_path)
              
-        train_net(writer, net, trn_loader, tst_loader, device, args.epochs)
+        train_net(writer, net, trn_loader, tst_loader, device, args.epochs, args.learning_rate, args.decay_rate, args.decay_step)
         torch.save(net.state_dict(), args.model_path)
     else:
         net.load_state_dict(torch.load(args.model_path, map_location=device))
     
-    if args.render_page_count > 0 and args.mastercopy_dir and args.output_render_dir:
+    if args.render_page_count and args.mastercopy_dir and args.output_render_dir:
         render_dir_bboxes(args.mastercopy_dir, args.output_render_dir, args.render_page_count, args.dataset, net, device)
     else:
         print(f"Test accuracy: {test_accuracy(net, tst_loader, device)}")
+        for i, class_accuracy in enumerate(test_class_accuracy(net, tst_loader, device)):
+            print(f"Test accuracy for {classes[i]}: {class_accuracy}")
             

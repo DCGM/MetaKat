@@ -42,6 +42,9 @@ def get_out_vector(line, page_layout, label=None):
     out_vector["padding_bottom"] = int(page_height - np.min(line.baseline[:, 1]))
     out_vector["padding_left"] = int(np.min(line.baseline[:, 0]))
     out_vector["padding_right"] = int(page_width - np.max(line.baseline[:, 0]))
+    out_vector["transcription_length"] = len(line.transcription)
+    # TODO add distace from other lines, angle / take n nearest lines
+    # TODO slovnik -> vektor
     return out_vector
 
 if __name__ == "__main__":
@@ -80,6 +83,8 @@ if __name__ == "__main__":
             for line in page_layout.lines_iterator():
                 line_label = [label for label in labels if baseline_in_labelbox(line.baseline, label)]
                 if len(line_label) == 0:
+                    if line.transcription_confidence < 0.5:
+                        continue
                     output.append(get_out_vector(line, page_layout))
                 else:
                     line_label = line_label[0]["value"]
@@ -95,24 +100,34 @@ if __name__ == "__main__":
         print(f"Page number lines in full dataset: {page_number_lines_cnt}")
         
         with open(os.path.join(args.output_dir, "dataset.json"), "w") as f:
-            json.dump(output, f)
-                     
+            json.dump(output, f)                     
 
         text_lines = [x for x in output if x["label"] == "text"]
-        if len(text_lines) > len(output) / 4:
+        if len(text_lines) > len(output) / 3:
             output = [x for x in output if x["label"] != "text"]
-            max_text_lines = int(len(output) * 3 / 4)
+            max_text_lines = int(len(output) * 2)
             if max_text_lines < 2:
                 max_text_lines = 2
-            text_lines = np.random.choice(text_lines, max_text_lines)
+            text_lines = np.random.choice(text_lines, max_text_lines, replace=False)
             output.extend(text_lines)
 
-        text_lines_cnt = len([x for x in output if x["label"] == "text"])
-        chapter_lines_cnt = len([x for x in output if x["label"] == "kapitola"])
-        page_number_lines_cnt = len([x for x in output if x["label"] == "cislo strany"])
-        print(f"Text lines in balanced dataset: {text_lines_cnt}")
-        print(f"Chapter lines in balanced dataset: {chapter_lines_cnt}")
-        print(f"Page number lines in balanced dataset: {page_number_lines_cnt}")
+        text_lines = [x for x in output if x["label"] == "text"]
+        chapter_lines = [x for x in output if x["label"] == "kapitola"]
+        page_number_lines = [x for x in output if x["label"] == "cislo strany"]
+        print(f"Text lines in balanced dataset: {len(text_lines)}")
+        print(f"Chapter lines in balanced dataset: {len(chapter_lines)}")
+        print(f"Page number lines in balanced dataset: {len(page_number_lines)}")
+        
+        train = []      
+        train.extend(np.random.choice(text_lines, int(len(text_lines) * 0.8), replace=False))
+        train.extend(np.random.choice(chapter_lines, int(len(chapter_lines) * 0.8), replace=False))
+        train.extend(np.random.choice(page_number_lines, int(len(page_number_lines) * 0.8), replace=False))
+        test = [x for x in output if x not in train]
+        
+        output = {
+            "train": train,
+            "test": test
+        }
         
         with open(os.path.join(args.output_dir, "dataset_balanced.json"), "w") as f:
             json.dump(output, f)
