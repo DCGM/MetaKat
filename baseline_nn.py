@@ -20,8 +20,8 @@ def parse_args():
     
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--learning-rate", type=float, default=0.00001)
-    parser.add_argument("--decay-rate", type=float)
-    parser.add_argument("--decay-step", type=int)
+    parser.add_argument("--decay-rate", type=float, default=0.0)
+    parser.add_argument("--decay-step", type=int, default=0)
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--model-path", required=True)
     
@@ -63,7 +63,10 @@ class JsonDataset(Dataset):
         elif test:
             self.data = self.data["test"]
         else:
-            self.data = self.data["train"].extend(self.data["test"])
+            try:
+                self.data = self.data["train"].extend(self.data["test"])
+            except KeyError:
+                self.data = self.data
             
     def __len__(self):
         return len(self.data)
@@ -229,8 +232,13 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     net = BaselineNet()
     
-    net.to(device)    
+    net.to(device)
     
+    if args.render_page_count and args.mastercopy_dir and args.output_render_dir:
+        net.load_state_dict(torch.load(args.model_path, map_location=device))
+        render_dir_bboxes(args.mastercopy_dir, args.output_render_dir, args.render_page_count, args.dataset, net, device)
+        exit()
+
     tst_data = JsonDataset(args.dataset, test=True)    
     tst_loader = DataLoader(tst_data, batch_size=args.batch_size, shuffle=False, num_workers=8)
     
@@ -246,10 +254,8 @@ if __name__ == "__main__":
     else:
         net.load_state_dict(torch.load(args.model_path, map_location=device))
     
-    if args.render_page_count and args.mastercopy_dir and args.output_render_dir:
-        render_dir_bboxes(args.mastercopy_dir, args.output_render_dir, args.render_page_count, args.dataset, net, device)
-    else:
-        print(f"Test accuracy: {test_accuracy(net, tst_loader, device)}")
-        for i, class_accuracy in enumerate(test_class_accuracy(net, tst_loader, device)):
-            print(f"Test accuracy for {classes[i]}: {class_accuracy}")
+    
+    print(f"Test accuracy: {test_accuracy(net, tst_loader, device)}")
+    for i, class_accuracy in enumerate(test_class_accuracy(net, tst_loader, device)):
+        print(f"Test accuracy for {classes[i]}: {class_accuracy}")
             
