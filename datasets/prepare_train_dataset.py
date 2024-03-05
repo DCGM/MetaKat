@@ -44,8 +44,19 @@ def get_out_vector(line, page_layout, label=None):
     out_vector["padding_right"] = int(page_width - np.max(line.baseline[:, 0]))
     out_vector["transcription_length"] = len(line.transcription)
     # TODO add distace from other lines, angle / take n nearest lines
-    # TODO slovnik -> vektor
+    # TODO dict -> vector
     return out_vector
+
+def normalize_feature(data):
+    # min-max normalization
+    data = np.array(data)
+    min = np.min(data)
+    max = np.max(data)
+    if min == max:
+        return data
+    normalized_data = (data - min) / (max - min)
+    return normalized_data
+    
 
 if __name__ == "__main__":
     args = parse_args()
@@ -91,6 +102,14 @@ if __name__ == "__main__":
                     if line_label not in ["kapitola", "cislo strany"]:
                         continue
                     output.append(get_out_vector(line, page_layout, line_label))
+                    
+        for key in output[0].keys():
+            if key in ["label", "page_id", "transcription"]:
+                continue
+            data = [x[key] for x in output]
+            data = normalize_feature(data)
+            for i, x in enumerate(data):
+                output[i][key] = x
         
         text_lines_cnt = len([x for x in output if x["label"] == "text"])
         chapter_lines_cnt = len([x for x in output if x["label"] == "kapitola"])

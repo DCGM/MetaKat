@@ -13,6 +13,7 @@ import torch.nn.functional as F
 classes = ["kapitola", "cislo strany", "text"]
 input_keys = ["line_width", "line_height", "relative_line_width", "relative_line_height", "padding_top", "padding_bottom", "padding_left", "padding_right", "transcription_length"]
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
 
@@ -22,6 +23,7 @@ def parse_args():
     parser.add_argument("--learning-rate", type=float, default=0.00001)
     parser.add_argument("--decay-rate", type=float, default=0.0)
     parser.add_argument("--decay-step", type=int, default=0)
+    parser.add_argument("--neighbour-lines-cnt", type=int, default=0)
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--model-path", required=True)
     
@@ -32,14 +34,18 @@ def parse_args():
     return parser.parse_args()
 
 class BaselineNet(nn.Module):
-    def __init__(self):
+    def __init__(self, neighbour_lines_cnt=0):
         super().__init__()
+        conv1_kernel_size = 3
+        conv1_stride = 1
+        conv2_kernel_size = 3
+        conv2_stride = 1
         
-        self.conv1 = nn.Conv1d(1, 6, 3)
-        self.conv2 = nn.Conv1d(6, 16, 3)
+        self.conv1 = nn.Conv1d(1, 6, conv1_kernel_size, stride=conv1_stride)
+        self.conv2 = nn.Conv1d(6, 16, conv2_kernel_size, stride=conv2_stride)
         self.pool = nn.MaxPool1d(2, 2)
-        self.fc1 = nn.Linear(16 * 2, 120)
-        self.fc2 = nn.Linear(120, 3)
+        self.fc1 = nn.Linear(16 * ((((neighbour_lines_cnt * 2 + 1) * len(input_keys)) - (conv1_kernel_size - conv1_stride) - (conv2_kernel_size - conv2_stride)) // 2), 120)
+        self.fc2 = nn.Linear(120, len(classes))
                
     def forward(self, x):
         x = F.relu(self.conv1(x))
@@ -54,7 +60,9 @@ def map_label(label):
     return classes.index(label)
     
 class JsonDataset(Dataset):
-    def __init__(self, json_file, train=False, test=False):
+    def __init__(self, json_file, neighbour_lines_cnt=0, train=False, test=False):
+        self.neighbour_lines_cnt = neighbour_lines_cnt
+        
         with open(json_file) as f:
             self.data = json.load(f)
         
@@ -73,7 +81,23 @@ class JsonDataset(Dataset):
     
     def __getitem__(self, idx):
         label = torch.tensor(map_label(self.data[idx]["label"]))
-        input = torch.tensor([self.data[idx][key] for key in input_keys])
+        current_line = torch.tensor([self.data[idx][key] for key in input_keys])
+
+        if self.neighbour_lines_cnt > 0:
+            neighbour_lines = torch.tensor([])
+            for i in range(self.neighbour_lines_cnt):
+                if idx - i - 1 < 0 or self.data[idx - i - 1]["page_id"] != self.data[idx]["page_id"]:
+                    neighbour_lines = torch.cat((neighbour_lines, torch.zeros(len(input_keys))))
+                else:
+                    neighbour_lines = torch.cat((neighbour_lines, torch.tensor([self.data[idx - i - 1][key] for key in input_keys])))
+                if idx + i + 1 >= len(self.data) or self.data[idx + i + 1]["page_id"] != self.data[idx]["page_id"]:
+                    neighbour_lines = torch.cat((neighbour_lines, torch.zeros(len(input_keys))))
+                else:
+                    neighbour_lines = torch.cat((neighbour_lines, torch.tensor([self.data[idx + i + 1][key] for key in input_keys])))
+            
+            input = torch.cat((current_line, neighbour_lines))
+        else:
+            input = current_line
         input = input.unsqueeze(0)
         
         return {"label":label, "input":input}
@@ -131,7 +155,7 @@ def test_class_accuracy(net, loader, device):
     return [100 * class_correct[i] / class_total[i] for i in range(len(classes)) if class_total[i] > 0]
         
 
-def train_net(writer, net, trn_loader, tst_loader, device, epochs, learning_rate, decay_rate, decay_step):
+def train_net(writer, net, trn_loader, tst_loader, device, epochs, batch_size, learning_rate, decay_rate, decay_step):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=learning_rate, momentum=0.9)
     if decay_rate and decay_step:
@@ -151,11 +175,12 @@ def train_net(writer, net, trn_loader, tst_loader, device, epochs, learning_rate
             optimizer.step()
             
             running_loss += loss.item()
-            if i % 20 == 19:
-                writer.add_scalar("Loss/train", running_loss / 20, epoch * len(trn_loader) + i)
+            if i % (len(trn_loader) / 4) == (len(trn_loader) / 4) - 1:
+                writer.add_scalar("Train/loss", running_loss / (len(trn_loader) / 4), epoch * len(trn_loader) + i)
                 running_loss = 0.0
         
-        if decay_rate and decay_step and epoch > 1000:
+        writer.add_scalar("Train/learning rate", optimizer.param_groups[0]["lr"], epoch)
+        if decay_rate and decay_step and epoch >= 600 - decay_step:
             scheduler.step()
         
         if epoch % 1000 == 999:
@@ -163,12 +188,12 @@ def train_net(writer, net, trn_loader, tst_loader, device, epochs, learning_rate
             torch.save(net.state_dict(), progress_path)
 		
         if epoch % 10 == 9:
-            writer.add_scalar("Accuracy/train", test_accuracy(net, trn_loader, device), epoch)
-            writer.add_scalar("Accuracy/test", test_accuracy(net, tst_loader, device), epoch)
+            writer.add_scalar("Train accuracy", test_accuracy(net, trn_loader, device), epoch)
             for i, class_accuracy in enumerate(test_class_accuracy(net, trn_loader, device)):
-                writer.add_scalar(f"Accuracy/train/{classes[i]}", class_accuracy, epoch)
+                writer.add_scalar(f"Train accuracy/{classes[i]}", class_accuracy, epoch)
+            writer.add_scalar("Test accuracy", test_accuracy(net, tst_loader, device), epoch)
             for i, class_accuracy in enumerate(test_class_accuracy(net, tst_loader, device)):
-                writer.add_scalar(f"Accuracy/test/{classes[i]}", class_accuracy, epoch)
+                writer.add_scalar(f"Test accuracy/{classes[i]}", class_accuracy, epoch)
            
 
 def padding_to_bbox_pts(padding, img_width, img_height, bbox_padding=10):
@@ -230,7 +255,8 @@ if __name__ == "__main__":
     print("Args:", args)
     
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    net = BaselineNet()
+    print("Device:", device)
+    net = BaselineNet(neighbour_lines_cnt=args.neighbour_lines_cnt)
     
     net.to(device)
     
@@ -239,17 +265,17 @@ if __name__ == "__main__":
         render_dir_bboxes(args.mastercopy_dir, args.output_render_dir, args.render_page_count, args.dataset, net, device)
         exit()
 
-    tst_data = JsonDataset(args.dataset, test=True)    
-    tst_loader = DataLoader(tst_data, batch_size=args.batch_size, shuffle=False, num_workers=8)
+    tst_data = JsonDataset(args.dataset, neighbour_lines_cnt=args.neighbour_lines_cnt, test=True)    
+    tst_loader = DataLoader(tst_data, batch_size=args.batch_size, shuffle=False, pin_memory=True)
     
     if args.epochs:
-        trn_data = JsonDataset(args.dataset, train=True)
-        trn_loader = DataLoader(trn_data, batch_size=args.batch_size, shuffle=True, num_workers=8)   
+        trn_data = JsonDataset(args.dataset, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
+        trn_loader = DataLoader(trn_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=1)   
         
         writer_path = os.path.join(os.path.dirname(args.model_path), "summary_writer")
         writer = SummaryWriter(writer_path)
              
-        train_net(writer, net, trn_loader, tst_loader, device, args.epochs, args.learning_rate, args.decay_rate, args.decay_step)
+        train_net(writer, net, trn_loader, tst_loader, device, args.epochs, args.batch_size, args.learning_rate, args.decay_rate, args.decay_step)
         torch.save(net.state_dict(), args.model_path)
     else:
         net.load_state_dict(torch.load(args.model_path, map_location=device))
