@@ -43,8 +43,10 @@ def get_out_vector(line, page_layout, label=None):
     out_vector["padding_left"] = int(np.min(line.baseline[:, 0]))
     out_vector["padding_right"] = int(page_width - np.max(line.baseline[:, 0]))
     out_vector["transcription_length"] = len(line.transcription)
-    # TODO add distace from other lines, angle / take n nearest lines
-    # TODO dict -> vector
+    out_vector["alpha_count"] = sum(c.isalpha() for c in line.transcription)
+    out_vector["digit_count"] = sum(c.isdigit() for c in line.transcription)
+    out_vector["space_count"] = sum(c.isspace() for c in line.transcription.strip())
+    out_vector["other_count"] = len(line.transcription.strip()) - out_vector["alpha_count"] - out_vector["digit_count"] - out_vector["space_count"]
     return out_vector
 
 def normalize_feature(data):

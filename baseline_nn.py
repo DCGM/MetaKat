@@ -10,10 +10,6 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 
-classes = ["kapitola", "cislo strany", "text"]
-input_keys = ["line_width", "line_height", "relative_line_width", "relative_line_height", "padding_top", "padding_bottom", "padding_left", "padding_right", "transcription_length"]
-
-
 def parse_args():
     parser = argparse.ArgumentParser()
 
@@ -23,6 +19,8 @@ def parse_args():
     parser.add_argument("--learning-rate", type=float, default=0.00001)
     parser.add_argument("--decay-rate", type=float, default=0.0)
     parser.add_argument("--decay-step", type=int, default=0)
+    parser.add_argument("--classes", nargs="+", required=True)
+    parser.add_argument("--input-keys", nargs="+", required=True)
     parser.add_argument("--neighbour-lines-cnt", type=int, default=0)
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--model-path", required=True)
@@ -34,12 +32,15 @@ def parse_args():
     return parser.parse_args()
 
 class BaselineNet(nn.Module):
-    def __init__(self, neighbour_lines_cnt=0):
+    def __init__(self, classes, input_keys, neighbour_lines_cnt=0):
         super().__init__()
         conv1_kernel_size = 3
         conv1_stride = 1
         conv2_kernel_size = 3
         conv2_stride = 1
+        
+        self.classes = classes
+        self.input_keys = input_keys
         
         self.conv1 = nn.Conv1d(1, 6, conv1_kernel_size, stride=conv1_stride)
         self.conv2 = nn.Conv1d(6, 16, conv2_kernel_size, stride=conv2_stride)
@@ -56,12 +57,14 @@ class BaselineNet(nn.Module):
         
         return x
         
-def map_label(label):
+def map_label(classes, label):
     return classes.index(label)
     
 class JsonDataset(Dataset):
-    def __init__(self, json_file, neighbour_lines_cnt=0, train=False, test=False):
+    def __init__(self, json_file, classes, input_keys, neighbour_lines_cnt=0, train=False, test=False):
         self.neighbour_lines_cnt = neighbour_lines_cnt
+        self.classes = classes
+        self.input_keys = input_keys
         
         with open(json_file) as f:
             self.data = json.load(f)
@@ -80,20 +83,20 @@ class JsonDataset(Dataset):
         return len(self.data)
     
     def __getitem__(self, idx):
-        label = torch.tensor(map_label(self.data[idx]["label"]))
-        current_line = torch.tensor([self.data[idx][key] for key in input_keys])
+        label = torch.tensor(map_label(self.classes, self.data[idx]["label"]))
+        current_line = torch.tensor([self.data[idx][key] for key in self.input_keys])
 
         if self.neighbour_lines_cnt > 0:
             neighbour_lines = torch.tensor([])
             for i in range(self.neighbour_lines_cnt):
                 if idx - i - 1 < 0 or self.data[idx - i - 1]["page_id"] != self.data[idx]["page_id"]:
-                    neighbour_lines = torch.cat((neighbour_lines, torch.zeros(len(input_keys))))
+                    neighbour_lines = torch.cat((neighbour_lines, torch.zeros(len(self.input_keys))))
                 else:
-                    neighbour_lines = torch.cat((neighbour_lines, torch.tensor([self.data[idx - i - 1][key] for key in input_keys])))
+                    neighbour_lines = torch.cat((neighbour_lines, torch.tensor([self.data[idx - i - 1][key] for key in self.input_keys])))
                 if idx + i + 1 >= len(self.data) or self.data[idx + i + 1]["page_id"] != self.data[idx]["page_id"]:
-                    neighbour_lines = torch.cat((neighbour_lines, torch.zeros(len(input_keys))))
+                    neighbour_lines = torch.cat((neighbour_lines, torch.zeros(len(self.input_keys))))
                 else:
-                    neighbour_lines = torch.cat((neighbour_lines, torch.tensor([self.data[idx + i + 1][key] for key in input_keys])))
+                    neighbour_lines = torch.cat((neighbour_lines, torch.tensor([self.data[idx + i + 1][key] for key in self.input_keys])))
             
             input = torch.cat((current_line, neighbour_lines))
         else:
@@ -104,8 +107,8 @@ class JsonDataset(Dataset):
     
 class JsonDatasetFull(JsonDataset):
     def __getitem__(self, idx):
-        label = torch.tensor(map_label(self.data[idx]["label"]))
-        input = torch.tensor([self.data[idx][key] for key in input_keys])
+        label = torch.tensor(map_label(self.classes, self.data[idx]["label"]))
+        input = torch.tensor([self.data[idx][key] for key in self.input_keys])
         input = input.unsqueeze(0)
         
         return {"label":label, "input":input, "id":self.data[idx]["page_id"]}
@@ -133,8 +136,8 @@ def test_accuracy(net, loader, device):
     return correct / total * 100
 
 def test_class_accuracy(net, loader, device):
-    class_correct = [0] * len(classes)
-    class_total = [0] * len(classes)
+    class_correct = [0] * len(net.classes)
+    class_total = [0] * len(net.classes)
     
     with torch.no_grad():
         for data in loader:
@@ -152,7 +155,7 @@ def test_class_accuracy(net, loader, device):
                 class_correct[label] += c[i].item()
                 class_total[label] += 1
     
-    return [100 * class_correct[i] / class_total[i] for i in range(len(classes)) if class_total[i] > 0]
+    return [100 * class_correct[i] / class_total[i] for i in range(len(net.classes)) if class_total[i] > 0]
         
 
 def train_net(writer, net, trn_loader, tst_loader, device, epochs, batch_size, learning_rate, decay_rate, decay_step):
@@ -190,10 +193,10 @@ def train_net(writer, net, trn_loader, tst_loader, device, epochs, batch_size, l
         if epoch % 10 == 9:
             writer.add_scalar("Train accuracy", test_accuracy(net, trn_loader, device), epoch)
             for i, class_accuracy in enumerate(test_class_accuracy(net, trn_loader, device)):
-                writer.add_scalar(f"Train accuracy/{classes[i]}", class_accuracy, epoch)
+                writer.add_scalar(f"Train accuracy/{net.classes[i]}", class_accuracy, epoch)
             writer.add_scalar("Test accuracy", test_accuracy(net, tst_loader, device), epoch)
             for i, class_accuracy in enumerate(test_class_accuracy(net, tst_loader, device)):
-                writer.add_scalar(f"Test accuracy/{classes[i]}", class_accuracy, epoch)
+                writer.add_scalar(f"Test accuracy/{net.classes[i]}", class_accuracy, epoch)
            
 
 def padding_to_bbox_pts(padding, img_width, img_height, bbox_padding=10):
@@ -226,7 +229,7 @@ def render_page_bboxes(loader, page_id, mastercopy_dir, output_render_dir, net, 
     for line in lines:
         pts = padding_to_bbox_pts(line["input"][0][0][4:8], img.shape[1], img.shape[0])
         
-        label = classes[line["predicted"]]
+        label = net.classes[line["predicted"]]
         if label == "kapitola":
             bbox_color = (255, 0, 0)
         elif label == "cislo strany":
@@ -238,11 +241,11 @@ def render_page_bboxes(loader, page_id, mastercopy_dir, output_render_dir, net, 
     page_id = page_id.split(".")[0]
     cv2.imwrite(os.path.join(output_render_dir, f'{page_id}_labeled.jpg'), img)
 
-def render_dir_bboxes(mastercopy_dir, output_render_dir, render_page_count, dataset, net, device):
+def render_dir_bboxes(mastercopy_dir, output_render_dir, render_page_count, dataset, input_keys, net, device):
     os.makedirs(output_render_dir, exist_ok=True)
     for page_id in os.listdir(mastercopy_dir)[:render_page_count]:
         page_id = ".".join(page_id.split(".")[:-1])
-        full_dataset = JsonDatasetFull(dataset)
+        full_dataset = JsonDatasetFull(dataset, args.classes, input_keys)
         full_dataset.filter_by_page_id(page_id)
         full_loader = DataLoader(full_dataset, batch_size=1, shuffle=False)
         render_page_bboxes(full_loader, page_id, mastercopy_dir, output_render_dir, net, device)
@@ -250,26 +253,25 @@ def render_dir_bboxes(mastercopy_dir, output_render_dir, render_page_count, data
 if __name__ == "__main__":
     args = parse_args()
     
-    print("Classes:", classes)
-    print("Input keys:", input_keys)
+    print("Classes:", args.classes)
+    print("Input keys:", args.input_keys)
     print("Args:", args)
     
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print("Device:", device)
-    net = BaselineNet(neighbour_lines_cnt=args.neighbour_lines_cnt)
+    net = BaselineNet(args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt)
     
     net.to(device)
     
     if args.render_page_count and args.mastercopy_dir and args.output_render_dir:
         net.load_state_dict(torch.load(args.model_path, map_location=device))
-        render_dir_bboxes(args.mastercopy_dir, args.output_render_dir, args.render_page_count, args.dataset, net, device)
+        render_dir_bboxes(args.mastercopy_dir, args.output_render_dir, args.render_page_count, args.dataset, args.input_keys, net, device)
         exit()
 
-    tst_data = JsonDataset(args.dataset, neighbour_lines_cnt=args.neighbour_lines_cnt, test=True)    
+    tst_data = JsonDataset(args.dataset, args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt, test=True)    
     tst_loader = DataLoader(tst_data, batch_size=args.batch_size, shuffle=False, pin_memory=True)
     
     if args.epochs:
-        trn_data = JsonDataset(args.dataset, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
+        trn_data = JsonDataset(args.dataset, args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
         trn_loader = DataLoader(trn_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=1)   
         
         writer_path = os.path.join(os.path.dirname(args.model_path), "summary_writer")
@@ -283,5 +285,5 @@ if __name__ == "__main__":
     
     print(f"Test accuracy: {test_accuracy(net, tst_loader, device)}")
     for i, class_accuracy in enumerate(test_class_accuracy(net, tst_loader, device)):
-        print(f"Test accuracy for {classes[i]}: {class_accuracy}")
+        print(f"Test accuracy for {args.classes[i]}: {class_accuracy}")
             
