@@ -8,6 +8,8 @@ import time
 from collections import defaultdict
 
 import Levenshtein
+import jaro
+
 import cv2
 import numpy as np
 from lxml import etree
@@ -28,6 +30,7 @@ def parse_args():
     parser.add_argument('--chapters', action='store_true')
     parser.add_argument('--numbers', action='store_true')
     parser.add_argument('--table-of-contents', action='store_true')
+    parser.add_argument('--periodical', action='store_true')
 
     parser.add_argument('--output-render-dir', type=str)
     parser.add_argument('--output-label-studio-dir', type=str)
@@ -53,14 +56,12 @@ def main():
 
     logger.info(' '.join(sys.argv))
 
-    # page_xml_dir=args.page_xml_dir,
-    # output_chapter_dir=args.output_chapter_dir,
-
     dataset = parse_dataset(mets=args.mets,
                             page_xml_dir=args.page_xml_dir,
                             parse_chapters=args.chapters,
                             parse_numbers=args.numbers,
-                            parse_table_of_contents=args.table_of_contents)
+                            parse_table_of_contents=args.table_of_contents,
+                            parse_peridical=args.periodical)
 
     if args.output_render_dir is not None:
         render_dataset(dataset, args.mastercopy_dir, args.output_render_dir)
@@ -79,157 +80,236 @@ def parse_dataset(mets: str,
                   max_chapter_transcription_relative_distance: float = 0.2,
                   parse_numbers=False,
                   max_number_transcription_relative_distance: float = 0.2,
-                  parse_table_of_contents=False):
+                  parse_table_of_contents=False,
+                  parse_peridical=False):
 
     dataset = defaultdict(dict)
 
     namespaces = {'mods': "http://www.loc.gov/mods/v3",
                   'mets': "http://www.loc.gov/METS/"}
-    tree = etree.parse(mets)
 
-    volume_elements = tree.xpath(f"//mods:mods[contains(@ID, 'VOLUME')]",
-                                 namespaces=namespaces)
-    volume_uuid_element_content = volume_elements[0].xpath(f"descendant::mods:identifier[contains(@type, 'uuid')]/text()",
-                                                           namespaces=namespaces)[0]
-    logger.debug(f'{"VOLUME UUID:":>20s} {volume_uuid_element_content}')
-    logger.debug('')
-    logger.debug('')
+    if parse_peridical:
+        periodical_dirs = [dir for dir in list_full_paths(mets) if os.path.isdir(dir)]
+        for periodical_dir in periodical_dirs:
+            periodical_metadata = [file for file in list_full_paths(periodical_dir) if file.endswith('.xml')][0]
+            periodical_uuid = os.path.basename(periodical_metadata)
+            periodical_tree = etree.parse(periodical_metadata)
 
-    mastercopy_elements = tree.xpath(f"//mets:fileGrp[contains(@ID, 'MC_IMGGRP')]",
-                                     namespaces=namespaces)[0]
+            title = periodical_tree.xpath(f"mods:mods/mods:titleInfo[not(contains(@type, 'alternative'))]/mods:title/text()", namespaces=namespaces)[0]
+            alternative_titles = periodical_tree.xpath(f"mods:mods/mods:titleInfo[contains(@type, 'alternative')]/mods:title/text()", namespaces=namespaces)
 
-    if parse_chapters:
-        chapter_elements = tree.xpath(f"//mods:mods[contains(@ID, 'CHAPTER')]",
-                                      namespaces=namespaces)
-        page_number_elements = tree.xpath(f"//mets:structMap[contains(@TYPE, 'PHYSICAL')]",
-                                          namespaces=namespaces)[0]
+            year_dirs = [dir for dir in list_full_paths(periodical_dir) if os.path.isdir(dir)]
+            for year_dir in year_dirs:
+                year_metadata = [file for file in list_full_paths(year_dir) if file.endswith('.xml')][0]
+                year_uuid = os.path.basename(year_metadata)
+                year_tree = etree.parse(year_metadata)
 
-        mapped_chapter_elements_count = 0
-        mapped_chapter_transcription_relative_similarity = 0
+                year = year_tree.xpath(f"mods:mods/mods:originInfo/mods:dateIssued/text()", namespaces=namespaces)[0]
 
-        for chapter_element in chapter_elements:
-            connect_chapter_out = connect_chapter(chapter_element,
-                                                  page_number_elements=page_number_elements,
-                                                  mastercopy_elements=mastercopy_elements,
-                                                  namespaces=namespaces)
-            if connect_chapter_out is None:
-                continue
-            chapter_id, chapter, mastercopy_path = connect_chapter_out
-            mastercopy_name = get_mastercopy_name(mastercopy_path)
+                volume_dirs = [dir for dir in list_full_paths(year_dir) if os.path.isdir(dir)]
+                for volume_dir in volume_dirs:
+                    volume_metadata = [file for file in list_full_paths(volume_dir) if file.endswith('.xml')][0]
+                    volume_uuid = os.path.basename(volume_metadata)
+                    volume_tree = etree.parse(volume_metadata)
 
-            page_xml_path = f'{mastercopy_name}.xml'
-            page_xml_path = os.path.join(page_xml_dir, page_xml_path)
-            logger.debug(f'{"PAGE XML PATH:":>20s} {page_xml_path}')
+                    publisher = volume_tree.xpath(f"//mods:publisher/text()", namespaces=namespaces)[0]
+                    place = volume_tree.xpath(f"//mods:placeTerm/text()", namespaces=namespaces)[0]
+                    date = volume_tree.xpath(f"//mods:dateIssued/text()", namespaces=namespaces)[0]
+                    volume_number = volume_tree.xpath(f"//mods:partNumber/text()", namespaces=namespaces)[0]
 
-            chapter_page_layout = layout.PageLayout()
-            chapter_page_layout.from_pagexml(page_xml_path)
+                    pages_dir = os.path.join(volume_dir, "pages")
+                    title_page_metadata = [file for file in list_full_paths(pages_dir) if file.endswith('.xml')][0]
+                    title_page_uuid = os.path.basename(title_page_metadata).split('_')[0].split('uuid:')[1]
 
-            map_chapter_out = map_chapter(chapter_page_layout, chapter,
-                                          max_chapter_transcription_relative_distance=max_chapter_transcription_relative_distance)
-            if map_chapter_out is None:
-                continue
-            mapped_lines, chapter_transcription_relative_similarity = map_chapter_out
+                    logger.debug(f'{"PERIODICAL UUID:":>20s} {periodical_uuid}')
+                    logger.debug(f'{"YEAR UUID:":>20s} {year_uuid}')
+                    logger.debug(f'{"VOLUME UUID:":>20s} {volume_uuid}')
+                    logger.debug(f'{"TITLE PAGE UUID:":>20s} {title_page_uuid}')
 
-            mapped_chapter_transcription_relative_similarity += chapter_transcription_relative_similarity
-            mapped_chapter_elements_count += 1
+                    title_page_layout = layout.PageLayout()
+                    title_page_layout.from_pagexml(os.path.join(page_xml_dir, f'{title_page_uuid}.xml'))
+                    map_title_out = map_title(title_page_layout, title)
+                    if map_title_out is not None:
+                        dataset_title_id = f'{title_page_uuid}.title'
+                        mapped_title_lines, _ = map_title_out
+                        mapped_title_bbox = create_bounding_box_for_lines(mapped_title_lines)
 
-            chapter_bbox = create_bounding_box_for_lines(mapped_lines)
+                    map_publisher_out = map_publisher(title_page_layout, publisher)
+                    if map_publisher_out is not None:
+                        dataset_publisher_id = f'{title_page_uuid}.publisher'
+                        mapped_publisher_lines, _ = map_publisher_out
+                        mapped_publisher_bbox = create_bounding_box_for_lines(mapped_publisher_lines)
 
-            dataset_page_id = get_dateset_page_id(volume_uuid=volume_uuid_element_content, mastercopy_path=mastercopy_path)
-            dataset_chapter_id = f'{mastercopy_name}.chapter.{chapter_id}'
-            dataset[dataset_page_id]['mastercopy_path'] = mastercopy_path
-            if 'chapters' in dataset[dataset_page_id]:
-                dataset[dataset_page_id]['chapters'].append([dataset_chapter_id, chapter, chapter_bbox])
-            else:
-                dataset[dataset_page_id]['chapters'] = [[dataset_chapter_id, chapter, chapter_bbox]]
-            logger.debug('')
-            logger.debug('')
+                    map_date_out = map_date(title_page_layout, date)
+                    if map_date_out is not None:
+                        dataset_date_id = f'{title_page_uuid}.date'
+                        mapped_date_lines, _ = map_date_out
+                        mapped_date_bbox = create_bounding_box_for_lines(mapped_date_lines)
 
-        logger.info(f'{"TOTAL MAPPED CHAPTERS:":>20s} {mapped_chapter_elements_count}/{len(chapter_elements)}')
-        if mapped_chapter_elements_count > 0:
-            logger.info(f'{"ARS:":>20s} {mapped_chapter_transcription_relative_similarity / float(mapped_chapter_elements_count)}')
-        logger.info('')
+                    map_volume_number_out = map_volume_number(title_page_layout, volume_number)
+                    if map_volume_number_out is not None:
+                        dataset_volume_number_id = f'{title_page_uuid}.volume_number'
+                        mapped_volume_number_lines, _ = map_volume_number_out
+                        mapped_volume_number_bbox = create_bounding_box_for_lines(mapped_volume_number_lines)
 
-    if parse_numbers:
-        number_elements = tree.xpath(f"//mets:div[boolean(@ORDERLABEL)][contains(@ID, 'PAGE')]",
+                    dataset_publisher_id = f'{title_page_uuid}.publisher'
+                    dataset_date_id = f'{title_page_uuid}.date'
+                    dataset_volume_number_id = f'{title_page_uuid}.volume_number'
+
+                    dataset[title_page_uuid]['mastercopy_path'] = title_page_uuid + '.jpg'
+                    dataset[title_page_uuid]['title'] = [[dataset_title_id, title, mapped_title_bbox]]
+                    dataset[title_page_uuid]['publisher'] = [[dataset_publisher_id, publisher, mapped_publisher_bbox]]
+                    dataset[title_page_uuid]['date'] = [[dataset_date_id, date, mapped_date_bbox]]
+                    dataset[title_page_uuid]['volume_number'] = [[dataset_volume_number_id, volume_number, mapped_volume_number_bbox]]
+
+        return dataset
+
+    else:
+        tree = etree.parse(mets)
+
+        volume_elements = tree.xpath(f"//mods:mods[contains(@ID, 'VOLUME')]",
                                      namespaces=namespaces)
+        volume_uuid_element_content = volume_elements[0].xpath(f"descendant::mods:identifier[contains(@type, 'uuid')]/text()",
+                                                               namespaces=namespaces)[0]
+        logger.debug(f'{"VOLUME UUID:":>20s} {volume_uuid_element_content}')
+        logger.debug('')
+        logger.debug('')
 
-        mapped_number_elements_count = 0
-        mapped_number_transcription_relative_similarity = 0
+        mastercopy_elements = tree.xpath(f"//mets:fileGrp[contains(@ID, 'MC_IMGGRP')]",
+                                         namespaces=namespaces)[0]
 
-        for number_element in number_elements:
-            connect_number_out = connect_number(number_element, mastercopy_elements, namespaces)
+        if parse_chapters:
+            chapter_elements = tree.xpath(f"//mods:mods[contains(@ID, 'CHAPTER')]",
+                                          namespaces=namespaces)
+            page_number_elements = tree.xpath(f"//mets:structMap[contains(@TYPE, 'PHYSICAL')]",
+                                              namespaces=namespaces)[0]
 
-            if connect_number_out is None:
-                continue
-            number_id, number, mastercopy_path = connect_number_out
-            mastercopy_name = get_mastercopy_name(mastercopy_path)
+            mapped_chapter_elements_count = 0
+            mapped_chapter_transcription_relative_similarity = 0
 
-            page_xml_path = f'{mastercopy_name}.xml'
-            page_xml_path = os.path.join(page_xml_dir, page_xml_path)
-            logger.debug(f'{"PAGE XML PATH:":>20s} {page_xml_path}')
+            for chapter_element in chapter_elements:
+                connect_chapter_out = connect_chapter(chapter_element,
+                                                      page_number_elements=page_number_elements,
+                                                      mastercopy_elements=mastercopy_elements,
+                                                      namespaces=namespaces)
+                if connect_chapter_out is None:
+                    continue
+                chapter_id, chapter, mastercopy_path = connect_chapter_out
+                mastercopy_name = get_mastercopy_name(mastercopy_path)
 
-            number_page_layout = layout.PageLayout()
-            number_page_layout.from_pagexml(page_xml_path)
+                page_xml_path = f'{mastercopy_name}.xml'
+                page_xml_path = os.path.join(page_xml_dir, page_xml_path)
+                logger.debug(f'{"PAGE XML PATH:":>20s} {page_xml_path}')
 
-            map_number_out = map_number(
-                number_page_layout, number,
-                max_number_transcription_relative_distance=max_number_transcription_relative_distance)
-            if map_number_out is None:
-                continue
-            mapped_lines, number_transcription_relative_similarity = map_number_out
+                chapter_page_layout = layout.PageLayout()
+                chapter_page_layout.from_pagexml(page_xml_path)
 
-            mapped_number_transcription_relative_similarity += number_transcription_relative_similarity
-            mapped_number_elements_count += 1
+                map_chapter_out = map_chapter(chapter_page_layout, chapter,
+                                              max_chapter_transcription_relative_distance=max_chapter_transcription_relative_distance)
+                if map_chapter_out is None:
+                    continue
+                mapped_lines, chapter_transcription_relative_similarity = map_chapter_out
 
-            number_bbox = create_bounding_box_for_lines(mapped_lines)
+                mapped_chapter_transcription_relative_similarity += chapter_transcription_relative_similarity
+                mapped_chapter_elements_count += 1
 
-            dataset_page_id = get_dateset_page_id(volume_uuid=volume_uuid_element_content,
-                                                  mastercopy_path=mastercopy_path)
-            dataset_number_id = f'{mastercopy_name}.number.{number_id}'
-            dataset[dataset_page_id]['mastercopy_path'] = mastercopy_path
-            if 'numbers' in dataset[dataset_page_id]:
-                dataset[dataset_page_id]['numbers'].append([dataset_number_id, number, number_bbox])
-            else:
-                dataset[dataset_page_id]['numbers'] = [[dataset_number_id, number, number_bbox]]
-            logger.debug('')
-            logger.debug('')
+                chapter_bbox = create_bounding_box_for_lines(mapped_lines)
 
-        logger.info(f'{"TOTAL MAPPED NUMBERS:":>20s} {mapped_number_elements_count}/{len(number_elements)}')
-        if mapped_number_elements_count > 0:
-            logger.info(
-                f'{"ARS:":>20s} {mapped_number_transcription_relative_similarity / float(mapped_number_elements_count)}')
-        logger.info('')
+                dataset_page_id = get_dateset_page_id(volume_uuid=volume_uuid_element_content, mastercopy_path=mastercopy_path)
+                dataset_chapter_id = f'{mastercopy_name}.chapter.{chapter_id}'
+                dataset[dataset_page_id]['mastercopy_path'] = mastercopy_path
+                if 'chapters' in dataset[dataset_page_id]:
+                    dataset[dataset_page_id]['chapters'].append([dataset_chapter_id, chapter, chapter_bbox])
+                else:
+                    dataset[dataset_page_id]['chapters'] = [[dataset_chapter_id, chapter, chapter_bbox]]
+                logger.debug('')
+                logger.debug('')
 
-    if parse_table_of_contents:
-        table_of_contents_elements = tree.xpath(f"//mets:div[contains(@TYPE, 'tableOfContents')][contains(@ID, 'PAGE')]",
-                                                namespaces=namespaces)
+            logger.info(f'{"TOTAL MAPPED CHAPTERS:":>20s} {mapped_chapter_elements_count}/{len(chapter_elements)}')
+            if mapped_chapter_elements_count > 0:
+                logger.info(f'{"ARS:":>20s} {mapped_chapter_transcription_relative_similarity / float(mapped_chapter_elements_count)}')
+            logger.info('')
 
-        mapped_table_of_contents_elements_count = 0
+        if parse_numbers:
+            number_elements = tree.xpath(f"//mets:div[boolean(@ORDERLABEL)][contains(@ID, 'PAGE')]",
+                                         namespaces=namespaces)
 
-        for table_of_contents_element in table_of_contents_elements:
-            connect_table_of_contents_out = connect_table_of_contents(table_of_contents_element, mastercopy_elements, namespaces)
+            mapped_number_elements_count = 0
+            mapped_number_transcription_relative_similarity = 0
 
-            if connect_table_of_contents_out is None:
-                continue
-            table_of_contents_id, mastercopy_path = connect_table_of_contents_out
-            mastercopy_name = get_mastercopy_name(mastercopy_path)
+            for number_element in number_elements:
+                connect_number_out = connect_number(number_element, mastercopy_elements, namespaces)
 
-            mapped_table_of_contents_elements_count += 1
+                if connect_number_out is None:
+                    continue
+                number_id, number, mastercopy_path = connect_number_out
+                mastercopy_name = get_mastercopy_name(mastercopy_path)
 
-            dataset_page_id = get_dateset_page_id(volume_uuid=volume_uuid_element_content,
-                                                  mastercopy_path=mastercopy_path)
-            dataset_table_of_contents_id = f'{mastercopy_name}.table_of_contents.{table_of_contents_id}'
-            dataset[dataset_page_id]['mastercopy_path'] = mastercopy_path
-            if 'table_of_contents' in dataset[dataset_page_id]:
-                dataset[dataset_page_id]['table_of_contents'].append([dataset_table_of_contents_id])
-            else:
-                dataset[dataset_page_id]['table_of_contents'] = [[dataset_table_of_contents_id]]
-            logger.debug('')
-            logger.debug('')
+                page_xml_path = f'{mastercopy_name}.xml'
+                page_xml_path = os.path.join(page_xml_dir, page_xml_path)
+                logger.debug(f'{"PAGE XML PATH:":>20s} {page_xml_path}')
 
-        logger.info(f'{"TOTAL MAPPED TABLE OF CONTENTS:":>20s} {mapped_table_of_contents_elements_count}/{len(table_of_contents_elements)}')
-        logger.info('')
+                number_page_layout = layout.PageLayout()
+                number_page_layout.from_pagexml(page_xml_path)
+
+                map_number_out = map_number(
+                    number_page_layout, number,
+                    max_number_transcription_relative_distance=max_number_transcription_relative_distance)
+                if map_number_out is None:
+                    continue
+                mapped_lines, number_transcription_relative_similarity = map_number_out
+
+                mapped_number_transcription_relative_similarity += number_transcription_relative_similarity
+                mapped_number_elements_count += 1
+
+                number_bbox = create_bounding_box_for_lines(mapped_lines)
+
+                dataset_page_id = get_dateset_page_id(volume_uuid=volume_uuid_element_content,
+                                                      mastercopy_path=mastercopy_path)
+                dataset_number_id = f'{mastercopy_name}.number.{number_id}'
+                dataset[dataset_page_id]['mastercopy_path'] = mastercopy_path
+                if 'numbers' in dataset[dataset_page_id]:
+                    dataset[dataset_page_id]['numbers'].append([dataset_number_id, number, number_bbox])
+                else:
+                    dataset[dataset_page_id]['numbers'] = [[dataset_number_id, number, number_bbox]]
+                logger.debug('')
+                logger.debug('')
+
+            logger.info(f'{"TOTAL MAPPED NUMBERS:":>20s} {mapped_number_elements_count}/{len(number_elements)}')
+            if mapped_number_elements_count > 0:
+                logger.info(
+                    f'{"ARS:":>20s} {mapped_number_transcription_relative_similarity / float(mapped_number_elements_count)}')
+            logger.info('')
+
+        if parse_table_of_contents:
+            table_of_contents_elements = tree.xpath(f"//mets:div[contains(@TYPE, 'tableOfContents')][contains(@ID, 'PAGE')]",
+                                                    namespaces=namespaces)
+
+            mapped_table_of_contents_elements_count = 0
+
+            for table_of_contents_element in table_of_contents_elements:
+                connect_table_of_contents_out = connect_table_of_contents(table_of_contents_element, mastercopy_elements, namespaces)
+
+                if connect_table_of_contents_out is None:
+                    continue
+                table_of_contents_id, mastercopy_path = connect_table_of_contents_out
+                mastercopy_name = get_mastercopy_name(mastercopy_path)
+
+                mapped_table_of_contents_elements_count += 1
+
+                dataset_page_id = get_dateset_page_id(volume_uuid=volume_uuid_element_content,
+                                                      mastercopy_path=mastercopy_path)
+                dataset_table_of_contents_id = f'{mastercopy_name}.table_of_contents.{table_of_contents_id}'
+                dataset[dataset_page_id]['mastercopy_path'] = mastercopy_path
+                if 'table_of_contents' in dataset[dataset_page_id]:
+                    dataset[dataset_page_id]['table_of_contents'].append([dataset_table_of_contents_id])
+                else:
+                    dataset[dataset_page_id]['table_of_contents'] = [[dataset_table_of_contents_id]]
+                logger.debug('')
+                logger.debug('')
+
+            logger.info(f'{"TOTAL MAPPED TABLE OF CONTENTS:":>20s} {mapped_table_of_contents_elements_count}/{len(table_of_contents_elements)}')
+            logger.info('')
 
     return dataset
 
@@ -436,6 +516,191 @@ def map_number(page_layout: layout.PageLayout, number: str,
     return [TextLine(id='number_not_mapped')], 1
 
 
+def map_title(page_layout: layout.PageLayout, title: str,
+              max_title_transcription_relative_distance: float = 0.2):
+
+    logger.debug(f'{"TITLE TO ALIGN:":>20s} {title}')
+
+    title_transcription_edit_distances = []
+    for text_line in page_layout.lines_iterator():
+        if text_line.transcription.strip() == '':
+            continue
+        title_transcription_edit_distances.append([text_line,
+                                                   Levenshtein.distance(text_line.transcription.lower(), title.lower())])
+
+    title_text_line, title_transcription_edit_distance = sorted(title_transcription_edit_distances, key=lambda x: x[-1])[0]
+
+    match, relative_similarity = compare_orig_to_transcription(title,
+                                                               title_text_line.transcription,
+                                                               title_transcription_edit_distance,
+                                                               max_title_transcription_relative_distance)
+
+    if match:
+        logger.debug(f'{"OCR:":>20s} {title_text_line.transcription}')
+        logger.debug(f'{"METS:":>20s} {title}')
+        logger.debug(f'{"MAPPED":>20s}')
+        logger.debug(f'{"ED:":>20s} {title_transcription_edit_distance}')
+        logger.debug(f'{"RS:":>20s} {relative_similarity}')
+        return [title_text_line], relative_similarity
+
+    logger.debug(f'{"MAPPING FAILED, relative distance is too high":>20s}\n')
+    return [TextLine(id='title_not_mapped')], 1
+
+
+def map_publisher(page_layout: layout.PageLayout, publisher: str,
+                  max_publisher_transcription_relative_distance: float = 0.2):
+
+    logger.debug(f'{"PUBLISHER TO ALIGN:":>20s} {publisher}')
+
+    transcriptions = []
+    n_char_to_n_line_mapping = []
+    for n_line, text_line in enumerate(page_layout.lines_iterator()):
+        transcriptions.append(text_line.transcription)
+        n_char_to_n_line_mapping += [n_line] * (len(text_line.transcription) + 1)
+
+    transcription = " ".join(transcriptions)
+
+    transcription_to_align = [x for x in transcription.lower()]
+    publisher_to_align = [x for x in publisher.lower()]
+    alignments = []
+    while True:
+        align = sequence_alignment.levenshtein_alignment_substring(transcription_to_align, publisher_to_align)
+        start_align_index = crop_alignment(align)
+        if start_align_index == len(transcription_to_align) - 1:
+            break
+        end_align_index = len(align) - crop_alignment(align[::-1])
+
+        if start_align_index is None or end_align_index is None:
+            logger.debug(f'{"MAPPING FAILED, alignment was not successful":>20s}\n')
+            return None
+
+        publisher_transcription = "".join(transcription_to_align[start_align_index:end_align_index])
+        publisher_transcription_edit_distance = Levenshtein.distance(publisher_transcription.lower(), publisher.lower())
+
+        match, relative_similarity = compare_orig_to_transcription(publisher,
+                                                                   publisher_transcription,
+                                                                   publisher_transcription_edit_distance,
+                                                                   max_publisher_transcription_relative_distance)
+
+        if match:
+            align_lines = list(page_layout.lines_iterator())[n_char_to_n_line_mapping[start_align_index]:
+                                                             n_char_to_n_line_mapping[end_align_index] + 1]
+            alignments.append([start_align_index, end_align_index,
+                               publisher_transcription,
+                               publisher_transcription_edit_distance,
+                               relative_similarity,
+                               align_lines])
+            transcription_to_align[start_align_index:end_align_index] = ['#'] * (end_align_index - start_align_index)
+        else:
+            break
+
+    if alignments:
+        start_align_index, end_align_index, \
+            publisher_transcription, \
+            publisher_transcription_edit_distance, \
+            publisher_transcription_relative_similarity, \
+            final_aligned_lines = alignments[0]
+        for align_line in final_aligned_lines:
+            logger.debug(f'{"ALIGN LINES:":>20s} {align_line.transcription}')
+        logger.debug(f'{"OCR:":>20s} {publisher_transcription}')
+        logger.debug(f'{"METS:":>20s} {publisher}')
+        logger.debug(f'{"MAPPED":>20s}')
+        logger.debug(f'{"ED:":>20s} {publisher_transcription_edit_distance}')
+        logger.debug(f'{"RS:":>20s} {publisher_transcription_relative_similarity}')
+        return final_aligned_lines, publisher_transcription_relative_similarity
+
+    logger.debug(f'{"MAPPING FAILED, relative distance is too high":>20s}\n')
+    return [TextLine(id='publisher_not_mapped')], 1
+
+
+def map_date(page_layout: layout.PageLayout, date: str):
+
+    month_mapping = {
+        "leden": "01.", "ledna": "01.",
+        "únor": "02.", "února": "02.",
+        "březen": "03.", "března": "03.",
+        "duben": "04.", "dubna": "04.",
+        "květen": "05.", "května": "05.",
+        "červen": "06.", "června": "06.",
+        "červenec": "07.", "července": "07.",
+        "srpen": "08.", "srpna": "08.",
+        "září": "09.", "září": "09.",
+        "říjen": "10.", "října": "10.",
+        "listopad": "11.", "listopadu": "11.",
+        "prosinec": "12.", "prosince": "12."
+    }
+
+    logger.debug(f'{"DATE TO ALIGN:":>20s} {date}')
+
+    date_without_year = re.sub(r'\b\d{3,4}\b', '', date)
+    transcriptions = []
+    for text_line in page_layout.lines_iterator():
+        if text_line.transcription.strip() == '':
+            continue
+        mapped_transcription = re.sub(r'\b(' + '|'.join(month_mapping.keys()) + r')\b',
+                                      lambda x: month_mapping[x.group()],
+                                      text_line.transcription.lower())
+        mapped_transcription = mapped_transcription.replace(' ', '')
+        transcriptions.append([text_line, mapped_transcription])
+
+    matched_line = None
+    for text_line, mapped_transcription in transcriptions:
+        if date in mapped_transcription or date_without_year in mapped_transcription:
+            matched_line = text_line
+            break
+
+    if matched_line is not None:
+        logger.debug(f'{"OCR:":>20s} {matched_line.transcription}')
+        logger.debug(f'{"METS:":>20s} {date}')
+        logger.debug(f'{"MAPPED":>20s}')
+        return [matched_line], 1
+
+    logger.debug(f'{"MAPPING FAILED, date not found":>20s}\n')
+    return [TextLine(id='date_not_mapped')], 1
+
+
+def map_volume_number(page_layout: layout.PageLayout, volume_number: str,
+                      max_number_transcription_relative_distance: float = 0.2):
+
+    logger.debug(f'{"NUMBER TO ALIGN:":>20s} {volume_number}')
+
+    number_transcription_edit_distances = []
+    for text_line in page_layout.lines_iterator():
+        if text_line.transcription.strip() == '':
+            continue
+        number_transcription_edit_distances.append([text_line,
+                                                    Levenshtein.distance(text_line.transcription.lower(), volume_number.lower())])
+    number_transcription_edit_distances = sorted(number_transcription_edit_distances, key=lambda x: x[-1])
+
+    number_text_line = None
+    keywords = ['číslo', 'č.']
+    for text_line, _ in number_transcription_edit_distances:
+        if any(keyword in text_line.transcription.lower() for keyword in keywords):
+            number_text_line = text_line
+            match = True
+            break
+
+    if not match:
+        number_text_line, number_transcription_edit_distance = sorted(number_transcription_edit_distances, key=lambda x: x[-1])[0]
+        match, relative_similarity = compare_orig_to_transcription(volume_number,
+                                                                   number_text_line.transcription,
+                                                                   number_transcription_edit_distance,
+                                                                   max_number_transcription_relative_distance)
+    if match:
+        logger.debug(f'{"OCR:":>20s} {number_text_line.transcription}')
+        logger.debug(f'{"METS:":>20s} {volume_number}')
+        logger.debug(f'{"MAPPED":>20s}')
+        try:
+            logger.debug(f'{"ED:":>20s} {number_transcription_edit_distance}')
+            logger.debug(f'{"RS:":>20s} {relative_similarity}')
+            return [number_text_line], relative_similarity
+        except UnboundLocalError:
+            return [number_text_line], 1
+
+    logger.debug(f'{"MAPPING FAILED, relative distance is too high":>20s}\n')
+    return [TextLine(id='number_not_mapped')], 1
+
+
 def connect_table_of_contents(table_of_contents_element, mastercopy_elements, namespaces: dict) -> None | tuple[str, str]:
     table_of_contents_id = table_of_contents_element.get('ID')
     logger.debug(f'{"TABLE OF CONTENTS ID:":>20s} {table_of_contents_id}')
@@ -455,6 +720,26 @@ def create_bounding_box_for_lines(lines: list[layout.TextLine], pad: int = 25):
                 [400, 280],
                 [200, 280]]
     if lines[0].id == 'number_not_mapped':
+        return [[50, 50],
+                [100, 50],
+                [100, 100],
+                [50, 100]]
+    if lines[0].id == 'title_not_mapped':
+        return [[50, 200],
+                [400, 200],
+                [400, 280],
+                [50, 280]]
+    if lines[0].id == 'publisher_not_mapped':
+        return [[50, 300],
+                [400, 300],
+                [400, 380],
+                [50, 380]]
+    if lines[0].id == 'date_not_mapped':
+        return [[50, 400],
+                [400, 400],
+                [400, 480],
+                [50, 480]]
+    if lines[0].id == 'volume_number_not_mapped':
         return [[50, 50],
                 [100, 50],
                 [100, 100],
@@ -508,6 +793,30 @@ def render_dataset(dataset, mastercopy_dir, output_render_dir):
                 pts = pts.reshape((-1, 1, 2))
                 img = cv2.polylines(img, pts=[pts],
                                     isClosed=True, color=(0, 0, 255), thickness=2)
+        if 'title' in data:
+            for _, _, title_bbox in data['title']:
+                pts = np.asarray(title_bbox, dtype=np.int32)
+                pts = pts.reshape((-1, 1, 2))
+                img = cv2.polylines(img, pts=[pts],
+                                    isClosed=True, color=(0, 255, 0), thickness=2)
+        if 'publisher' in data:
+            for _, _, publisher_bbox in data['publisher']:
+                pts = np.asarray(publisher_bbox, dtype=np.int32)
+                pts = pts.reshape((-1, 1, 2))
+                img = cv2.polylines(img, pts=[pts],
+                                    isClosed=True, color=(0, 255, 255), thickness=2)
+        if 'date' in data:
+            for _, _, date_bbox in data['date']:
+                pts = np.asarray(date_bbox, dtype=np.int32)
+                pts = pts.reshape((-1, 1, 2))
+                img = cv2.polylines(img, pts=[pts],
+                                    isClosed=True, color=(255, 255, 0), thickness=2)
+        if 'volume_number' in data:
+            for _, _, volume_number_bbox in data['volume_number']:
+                pts = np.asarray(volume_number_bbox, dtype=np.int32)
+                pts = pts.reshape((-1, 1, 2))
+                img = cv2.polylines(img, pts=[pts],
+                                    isClosed=True, color=(255, 0, 255), thickness=2)
         cv2.imwrite(os.path.join(output_render_dir, f'{mastercopy_name}.jpg'), img)
 
 
@@ -566,27 +875,27 @@ def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, 
                     continue
                 x, y, width, height = get_label_studio_coords(chapter_bbox, img.shape)
                 result = {
-                            "id": chapter_id,
-                            "meta": {
-                                "text": [chapter]
-                            },
-                            "type": "rectanglelabels",
+                    "id": chapter_id,
+                    "meta": {
+                        "text": [chapter]
+                    },
+                    "type": "rectanglelabels",
                             "from_name": "label",
                             "to_name": "image",
                             "original_width": img.shape[1],
                             "original_height": img.shape[0],
                             "image_rotation": 0,
                             "value": {
-                              "rotation": 0,
-                              "x": x,
-                              "y": y,
-                              "width": width,
-                              "height": height,
-                              "rectanglelabels": [
-                                  "kapitola"
-                                ]
-                            }
-                          }
+                                "rotation": 0,
+                                "x": x,
+                        "y": y,
+                        "width": width,
+                        "height": height,
+                        "rectanglelabels": [
+                            "kapitola"
+                        ]
+                    }
+                }
                 new_annotations += 1
                 results.append(result)
 
@@ -615,6 +924,130 @@ def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, 
                         "height": height,
                         "rectanglelabels": [
                             "cislo strany"
+                        ]
+                    }
+                }
+                new_annotations += 1
+                results.append(result)
+                
+        if 'title' in data:
+            for title_id, title, title_bbox in data['title']:
+                if title_id in existing_ids:
+                    skipped_annotations += 1
+                    continue
+                x, y, width, height = get_label_studio_coords(title_bbox, img.shape)
+                result = {
+                    "id": title_id,
+                    "meta": {
+                        "text": [title]
+                    },
+                    "type": "rectanglelabels",
+                    "from_name": "label",
+                    "to_name": "image",
+                    "original_width": img.shape[1],
+                    "original_height": img.shape[0],
+                    "image_rotation": 0,
+                    "value": {
+                        "rotation": 0,
+                        "x": x,
+                        "y": y,
+                        "width": width,
+                        "height": height,
+                        "rectanglelabels": [
+                            "název  "
+                        ]
+                    }
+                }
+                new_annotations += 1
+                results.append(result)
+                
+        if 'publisher' in data:
+            for publisher_id, publisher, publisher_bbox in data['publisher']:
+                if publisher_id in existing_ids:
+                    skipped_annotations += 1
+                    continue
+                x, y, width, height = get_label_studio_coords(publisher_bbox, img.shape)
+                result = {
+                    "id": publisher_id,
+                    "meta": {
+                        "text": [publisher]
+                    },
+                    "type": "rectanglelabels",
+                    "from_name": "label",
+                    "to_name": "image",
+                    "original_width": img.shape[1],
+                    "original_height": img.shape[0],
+                    "image_rotation": 0,
+                    "value": {
+                        "rotation": 0,
+                        "x": x,
+                        "y": y,
+                        "width": width,
+                        "height": height,
+                        "rectanglelabels": [
+                            "nakladatel"
+                        ]
+                    }
+                }
+                new_annotations += 1
+                results.append(result)
+                
+        if 'date' in data:
+            for date_id, date, date_bbox in data['date']:
+                if date_id in existing_ids:
+                    skipped_annotations += 1
+                    continue
+                x, y, width, height = get_label_studio_coords(date_bbox, img.shape)
+                result = {
+                    "id": date_id,
+                    "meta": {
+                        "text": [date]
+                    },
+                    "type": "rectanglelabels",
+                    "from_name": "label",
+                    "to_name": "image",
+                    "original_width": img.shape[1],
+                    "original_height": img.shape[0],
+                    "image_rotation": 0,
+                    "value": {
+                        "rotation": 0,
+                        "x": x,
+                        "y": y,
+                        "width": width,
+                        "height": height,
+                        "rectanglelabels": [
+                            "datum"
+                        ]
+                    }
+                }
+                new_annotations += 1
+                results.append(result)
+                
+        if 'volume_number' in data:
+            for volume_number_id, volume_number, volume_number_bbox in data['volume_number']:
+                if volume_number_id in existing_ids:
+                    skipped_annotations += 1
+                    continue
+                x, y, width, height = get_label_studio_coords(volume_number_bbox, img.shape)
+                result = {
+                    "id": volume_number_id,
+                    "meta": {
+                        "text": [volume_number]
+                    },
+                    "type": "rectanglelabels",
+                    "from_name": "label",
+                    "to_name": "image",
+                    "original_width": img.shape[1],
+                    "original_height": img.shape[0],
+                    "image_rotation": 0,
+                    "value": {
+                        "rotation": 0,
+                        "x": x,
+                        "y": y,
+                        "width": width,
+                        "height": height,
+                        "rectanglelabels": [
+                            "číslo vydání"
                         ]
                     }
                 }
@@ -700,7 +1133,7 @@ def create_label_studio_json(left_top, right_bottom, img_shape, img_name, label_
                                         "kapitola"
                                     ]
                                 }
-                             }
+                            }
                         ]})
     label_studio_dict['predictions'] = predictions
     return json.dumps(label_studio_dict, indent=4)
@@ -747,7 +1180,8 @@ def crop_alignment(align, dim=1):
 def print_lxml_element(e):
     logger.info(etree.tostring(e, pretty_print=True))
 
+def list_full_paths(directory):
+    return [os.path.join(directory, file) for file in os.listdir(directory)]
 
 if __name__ == '__main__':
     main()
-
