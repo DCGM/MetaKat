@@ -73,10 +73,11 @@ def parse_args():
     parser.add_argument("--file", type=str, help="File with UUIDs of periodicals")
     parser.add_argument("--doc-model", type=str, help="Filter only lines from --file with this model")
     parser.add_argument("--output-dir", type=str, required=True, help="Output directory")
-
+    parser.add_argument("--skip", type=int, help="Skip N first lines of --file", default=0)
     parser.add_argument("--pages", action="store_true", help="Download pages metadata", default=False)
     parser.add_argument("--title-pages", action="store_true", help="Download only title pages metadata", default=False)
     parser.add_argument("--max-freq", type=int, help="Minimum frequency of periodicals to download", default=0)
+    parser.add_argument("--lang", nargs="+", help="Languages of periodicals to download", default=["cze"])
 
     return parser.parse_args()
 
@@ -84,6 +85,7 @@ def parse_args():
 class Periodical:
     def __init__(self, uuid):
         self.uuid = uuid
+        self.language = None
         self.years = {}
         self.frequency = 0
 
@@ -140,6 +142,10 @@ class KrameriusAPI:
         if args.max_freq != 0 and (periodical.frequency > args.max_freq or periodical.frequency == 0):
             print(f"Frequency of periodical is {periodical.frequency}, not continuing downloading...")
             return
+        
+        if periodical.language not in args.lang:
+            print(f"Language of periodical is {periodical.language}, not continuing downloading...")
+            return
             
         print("Metadata for periodical downloaded")
         self.download_periodical_years_metadata(periodical, output_dir)
@@ -167,6 +173,10 @@ class KrameriusAPI:
                 break
         if frequency is not None:
             periodical.frequency = frequency_to_number(frequency.text)
+        
+        language = tree.find(".//mods:languageTerm", namespaces)
+        if language is not None:
+            periodical.language = language.text
         
 
     def download_periodical_years_metadata(self, periodical, output_dir):
@@ -209,38 +219,31 @@ class KrameriusAPI:
     def download_periodical_pages_metadata(self, periodical, output_dir, title_pages_only=False):
         periodical_years = periodical.get_years()
         for year_num, year_uuid in enumerate(periodical_years):
-            if len(periodical_years) > 5:
+            if len(periodical_years) > 8:
                 if year_num % (len(periodical_years) // 4) != 0:
                     continue
                 
             periodical_issues = periodical.get_issues(year_uuid)
             for issuen_num, issue_uuid in enumerate(periodical_issues):
-                if len(periodical_issues) > 5:
-                    if issuen_num % (len(periodical_issues) // 4) != 0:
+                if len(periodical_issues) > 8:
+                    if issuen_num % (len(periodical_issues) // 2) != 0:
                         continue
                 
                 issue_dir = os.path.join(output_dir, year_uuid, issue_uuid)
                 page_uuids = self.get_children_uuids(issue_uuid, os.path.join(issue_dir, "structure.txt"))
 
-                
-                for page_num, page_uuid in enumerate(page_uuids):                    
-                    title_page_exists = False
-                    if title_pages_only:
-                        for dirpath, _, filenames in os.walk(issue_dir):
-                            for filename in filenames:
-                                if "_title.xml" in filename:
-                                    print(f"Title page for issue {issue_uuid} already exists, skipping downloading...")
-                                    title_page_exists = True
+                for page_num, page_uuid in enumerate(page_uuids):
+                    page_dir = os.path.join(output_dir, year_uuid, issue_uuid, "pages")
+                    os.makedirs(page_dir, exist_ok=True)
                     
-                    if title_page_exists:
-                        break                
+                    if title_pages_only:
+                        if [f for f in os.listdir(page_dir) if "title" in f]:
+                            break             
                         
                     end_searching = False
                     periodical.add_page(year_uuid, issue_uuid, page_uuid)
                     url = f"{self.base_url}/search/api/client/{self.version}/items/uuid:{page_uuid}/metadata/mods"
 
-                    page_dir = os.path.join(output_dir, year_uuid, issue_uuid, page_uuid)
-                    os.makedirs(page_dir, exist_ok=True)
                     page_path = os.path.join(page_dir, f"uuid:{page_uuid}.xml")
                     if os.path.exists(page_path):
                         print(f"Page metadata for {page_uuid} already exists, skipping downloading...")
@@ -297,9 +300,13 @@ if __name__ == "__main__":
     api = KrameriusAPI(args.api_url)
 
     if args.file and args.doc_model:
-        pbar = manager.counter(total=sum(1 for line in open(args.file) if f"'model': '{args.doc_model}'" in line), desc="Downloading metadata", unit="periodicals")
         with open(args.file, "r") as f:
-            for line_uuid in lines_uuid_with_document_type_generator(f, args.doc_model):
+            pbar = manager.counter(total=sum(1 for line in f if f"'model': '{args.doc_model}'" in line), desc="Downloading metadata", unit=f"{args.doc_model}s")
+        with open(args.file, "r") as f:
+            for i, line_uuid in enumerate(lines_uuid_with_document_type_generator(f, args.doc_model)):
+                if i < args.skip:
+                    pbar.update()
+                    continue
                 api.download_complete_periodical_metadata(line_uuid, args)
                 pbar.update()
     elif args.uuid:
