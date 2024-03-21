@@ -120,7 +120,7 @@ def parse_dataset(mets: str,
                     logger.debug(f'{"YEAR UUID:":>20s} {year_uuid}')
                     logger.debug(f'{"VOLUME UUID:":>20s} {volume_uuid}')
                     logger.debug(f'{"TITLE PAGE UUID:":>20s} {title_page_uuid}')
-                    
+
                     if ".xml" in title_page_uuid:
                         title_page_file = f'{title_page_uuid}'
                     else:
@@ -129,16 +129,26 @@ def parse_dataset(mets: str,
                         continue
                     title_page_layout = layout.PageLayout()
                     title_page_layout.from_pagexml(os.path.join(page_xml_dir, title_page_file))
-                    
+
                     title = periodical_tree.xpath(f"mods:mods/mods:titleInfo[not(contains(@type, 'alternative'))]/mods:title/text()", namespaces=namespaces)
                     if title:
-                        title = title[0]                    
+                        title = title[0]
                         map_title_out = map_title(title_page_layout, title)
                         if map_title_out is not None:
                             mapped_title_lines, _ = map_title_out
                             mapped_title_bbox = create_bounding_box_for_lines(mapped_title_lines)
                             dataset_title_id = f'{title_page_uuid}.title'
                             dataset[title_page_uuid]['title'] = [[dataset_title_id, title, mapped_title_bbox]]
+
+                    subtitle = periodical_tree.xpath(f"//mods:mods/mods:titleInfo/mods:subTitle/text()", namespaces=namespaces)
+                    if subtitle:
+                        subtitle = subtitle[0]
+                        map_subtitle_out = map_subtitle(title_page_layout, subtitle)
+                        if map_subtitle_out is not None:
+                            mapped_subtitle_lines, _ = map_subtitle_out
+                            mapped_subtitle_bbox = create_bounding_box_for_lines(mapped_subtitle_lines)
+                            dataset_subtitle_id = f'{title_page_uuid}.subtitle'
+                            dataset[title_page_uuid]['subtitle'] = [[dataset_subtitle_id, subtitle, mapped_subtitle_bbox]]
 
                     publisher = volume_tree.xpath(f"//mods:publisher/text()", namespaces=namespaces)
                     if publisher:
@@ -159,8 +169,10 @@ def parse_dataset(mets: str,
                             mapped_date_bbox = create_bounding_box_for_lines(mapped_date_lines)
                             dataset_date_id = f'{title_page_uuid}.date'
                             dataset[title_page_uuid]['date'] = [[dataset_date_id, date, mapped_date_bbox]]
-                            
+
                     volume_number = volume_tree.xpath(f"//mods:partNumber/text()", namespaces=namespaces)
+                    if not volume_number:
+                        volume_number = volume_tree.xpath(f"//mods:part/mods:detail/mods:number/text()", namespaces=namespaces)
                     if volume_number:
                         volume_number = volume_number[0]
                         map_volume_number_out = map_volume_number(title_page_layout, volume_number)
@@ -170,17 +182,19 @@ def parse_dataset(mets: str,
                             dataset_volume_number_id = f'{title_page_uuid}.volume_number'
                             dataset[title_page_uuid]['volume_number'] = [[dataset_volume_number_id, volume_number, mapped_volume_number_bbox]]
 
-                    year = year_tree.xpath(f"mods:mods/mods:originInfo/mods:dateIssued/text()", namespaces=namespaces)
-                    if year:
-                        year = year[0]
-                        map_year_out = map_year(title_page_layout, year)
+                    year_number = year_tree.xpath(f"//mods:titleInfo/mods:partNumber/text()", namespaces=namespaces)
+                    if not year_number:
+                        year_number = year_tree.xpath(f"//mods:part/mods:detail/mods:number/text()", namespaces=namespaces)
+                    if not year_number:
+                        print(f'YEAR NUMBER NOT FOUND: {year_number}')
+                    if year_number:
+                        year_number = year_number[0]
+                        map_year_out = map_year_number(title_page_layout, year_number)
                         if map_year_out is not None:
                             mapped_year_lines, _ = map_year_out
                             mapped_year_bbox = create_bounding_box_for_lines(mapped_year_lines)
                             dataset_year_id = f'{title_page_uuid}.year'
-                            dataset[title_page_uuid]['year'] = [[dataset_year_id, year, mapped_year_bbox]]
-
-                    
+                            dataset[title_page_uuid]['year'] = [[dataset_year_id, year_number, mapped_year_bbox]]
 
                     place = volume_tree.xpath(f"//mods:placeTerm/text()", namespaces=namespaces)
                     if place:
@@ -548,9 +562,14 @@ def map_number(page_layout: layout.PageLayout, number: str,
     return [TextLine(id='number_not_mapped')], 1
 
 
-def map_year(page_layout: layout.PageLayout, year: str, max_year_transcription_relative_distance: float = 0.2):
+def map_year_number(page_layout: layout.PageLayout, year: str, max_year_transcription_relative_distance: float = 0.4):
 
     logger.debug(f'{"YEAR TO ALIGN:":>20s} {year}')
+    
+    roman_year = None
+    year_without_dot = year.replace(".", "")
+    if year_without_dot.isnumeric():
+        roman_year = str(int_to_roman(int(year_without_dot)))
 
     year_transcription_edit_distances = []
     for text_line in page_layout.lines_iterator():
@@ -560,29 +579,59 @@ def map_year(page_layout: layout.PageLayout, year: str, max_year_transcription_r
                                                  Levenshtein.distance(text_line.transcription.lower(), year.lower()),
                                                  Levenshtein.distance(text_line.transcription.lower(), "rok " + year.lower()),
                                                  Levenshtein.distance(text_line.transcription.lower(), "ročník " + year.lower())])
-
-    year_text_line, year_transcription_edit_distance, _, _ = sorted(year_transcription_edit_distances, key=lambda x: x[1])[0]
-    year_rok_text_line, _, year_rok_transcription_edit_distance, _ = sorted(year_transcription_edit_distances, key=lambda x: x[2])[0]
-    year_rocnik_text_line, _, _, year_rocnik_transcription_edit_distance = sorted(year_transcription_edit_distances, key=lambda x: x[3])[0]
-
-    match, relative_similarity = compare_orig_to_transcription(year,
-                                                               year_text_line.transcription,
-                                                               year_transcription_edit_distance,
-                                                               max_year_transcription_relative_distance)
-    if not match:
+        if roman_year:
+            year_transcription_edit_distances[-1].append(Levenshtein.distance(text_line.transcription.lower(), roman_year.lower()))
+            year_transcription_edit_distances[-1].append(Levenshtein.distance(text_line.transcription.lower(), "rok " + roman_year.lower()))
+            year_transcription_edit_distances[-1].append(Levenshtein.distance(text_line.transcription.lower(), "ročník " + roman_year.lower()))
+            
+    matched_lines = []
+    match = False
+    for line in year_transcription_edit_distances:
+        text_line = line[0]
+        year_d = line[1]
+        year_rok_d = line[2]
+        year_rocnik_d = line[3]
+        if roman_year:
+            roman_year_d = line[4]
+            roman_year_rok_d = line[5]
+            roman_year_rocnik_d = line[6]
         match, relative_similarity = compare_orig_to_transcription(year,
-                                                                   year_rok_text_line.transcription,
-                                                                   year_rok_transcription_edit_distance,
+                                                                   text_line.transcription,
+                                                                   year_d,
                                                                    max_year_transcription_relative_distance)
-        year_text_line = year_rok_text_line
-    if not match:
-        match, relative_similarity = compare_orig_to_transcription(year,
-                                                                   year_rocnik_text_line.transcription,
-                                                                   year_rocnik_transcription_edit_distance,
-                                                                   max_year_transcription_relative_distance)
-        year_text_line = year_rocnik_text_line
+        if not match:
+            match, relative_similarity = compare_orig_to_transcription("rok " + year,
+                                                                       text_line.transcription,
+                                                                       year_rok_d,
+                                                                       max_year_transcription_relative_distance)
+        if not match:
+            match, relative_similarity = compare_orig_to_transcription("ročník " + year,
+                                                                       text_line.transcription,
+                                                                       year_rocnik_d,
+                                                                       max_year_transcription_relative_distance)
+        if not match and roman_year:
+            match, relative_similarity = compare_orig_to_transcription(roman_year,
+                                                                       text_line.transcription,
+                                                                       roman_year_d,
+                                                                       max_year_transcription_relative_distance)
+        if not match and roman_year:
+            match, relative_similarity = compare_orig_to_transcription("rok " + roman_year,
+                                                                       text_line.transcription,
+                                                                       roman_year_rok_d,
+                                                                       max_year_transcription_relative_distance)
+        if not match and roman_year:
+            match, relative_similarity = compare_orig_to_transcription("ročník " + roman_year,
+                                                                       text_line.transcription,
+                                                                       roman_year_rocnik_d,
+                                                                       max_year_transcription_relative_distance)
+        if match:
+            matched_lines.append([text_line, relative_similarity])
 
-    if match:
+    if len(matched_lines) > 0:
+        matched_lines = sorted(matched_lines, key=lambda x: x[0].baseline[0][1])
+        year_text_line, year_transcription_edit_distance = matched_lines[0]
+
+    if len(matched_lines) > 0:
         logger.debug(f'{"OCR:":>20s} {year_text_line.transcription}')
         logger.debug(f'{"METS:":>20s} {year}')
         logger.debug(f'{"MAPPED":>20s}')
@@ -606,8 +655,8 @@ def map_title(page_layout: layout.PageLayout, title: str,
         title_transcription_edit_distances.append([text_line,
                                                    Levenshtein.distance(text_line.transcription.lower(), title.lower())])
 
-    title_text_line, title_transcription_edit_distance = sorted(title_transcription_edit_distances, key=lambda x: x[-1])[0]
-
+    most_matching = sorted(title_transcription_edit_distances, key=lambda x: x[-1])[:4]
+    title_text_line, title_transcription_edit_distance = sorted(most_matching, key=lambda x: x[0].heights[0] + x[0].heights[1], reverse=True)[0]
     match, relative_similarity = compare_orig_to_transcription(title,
                                                                title_text_line.transcription,
                                                                title_transcription_edit_distance,
@@ -623,6 +672,36 @@ def map_title(page_layout: layout.PageLayout, title: str,
 
     logger.debug(f'{"MAPPING FAILED, relative distance is too high":>20s}\n')
     return [TextLine(id='title_not_mapped')], 1
+
+
+def map_subtitle(page_layout: layout.PageLayout, subtitle: str,
+                 max_subtitle_transcription_relative_distance: float = 0.2):
+
+    logger.debug(f'{"SUBTITLE TO ALIGN:":>20s} {subtitle}')
+    subtitle_transcription_edit_distances = []
+    for text_line in page_layout.lines_iterator():
+        if text_line.transcription.strip() == '':
+            continue
+        subtitle_transcription_edit_distances.append([text_line,
+                                                      Levenshtein.distance(text_line.transcription.lower(), subtitle.lower())])
+
+    most_matching = sorted(subtitle_transcription_edit_distances, key=lambda x: x[-1])[:4]
+    subtitle_text_line, subtitle_transcription_edit_distance = sorted(most_matching, key=lambda x: x[0].heights[0] + x[0].heights[1], reverse=True)[0]
+    match, relative_similarity = compare_orig_to_transcription(subtitle,
+                                                               subtitle_text_line.transcription,
+                                                               subtitle_transcription_edit_distance,
+                                                               max_subtitle_transcription_relative_distance)
+
+    if match:
+        logger.debug(f'{"OCR:":>20s} {subtitle_text_line.transcription}')
+        logger.debug(f'{"METS:":>20s} {subtitle}')
+        logger.debug(f'{"MAPPED":>20s}')
+        logger.debug(f'{"ED:":>20s} {subtitle_transcription_edit_distance}')
+        logger.debug(f'{"RS:":>20s} {relative_similarity}')
+        return [subtitle_text_line], relative_similarity
+
+    logger.debug(f'{"MAPPING FAILED, relative distance is too high":>20s}\n')
+    return [TextLine(id='subtitle_not_mapped')], 1
 
 
 def map_publisher(page_layout: layout.PageLayout, publisher: str,
@@ -807,7 +886,8 @@ def map_place(page_layout: layout.PageLayout, place: str, max_place_transcriptio
                                                        Levenshtein.distance(text_line_from_front.transcription.lower(), "v " + place.lower()),
                                                        Levenshtein.distance(text_line_from_front.transcription.lower(), "w " + place.lower())])
 
-        text_line, place_transcription_edit_distance, _, _ = sorted(place_transcription_edit_distances, key=lambda x: x[1])[0]
+        most_matching = sorted(place_transcription_edit_distances, key=lambda x: x[1])[:min(4, len(place_transcription_edit_distances))]
+        text_line, place_transcription_edit_distance, _, _ = sorted(most_matching, key=lambda x: x[0].baseline[0][1])[0]
 
         match, relative_similarity = compare_orig_to_transcription(place,
                                                                    text_line.transcription,
@@ -815,14 +895,16 @@ def map_place(page_layout: layout.PageLayout, place: str, max_place_transcriptio
                                                                    max_place_transcription_relative_distance)
 
         if not match:
-            text_line, _, place_transcription_edit_distance, _ = sorted(place_transcription_edit_distances, key=lambda x: x[2])[0]
+            most_matching = sorted(place_transcription_edit_distances, key=lambda x: x[2])[:min(4, len(place_transcription_edit_distances))]
+            text_line, _, place_transcription_edit_distance, _ = sorted(most_matching, key=lambda x: x[0].baseline[0][1])[0]
             match, relative_similarity = compare_orig_to_transcription(place,
                                                                        text_line.transcription,
                                                                        place_transcription_edit_distance,
                                                                        max_place_transcription_relative_distance)
 
         if not match:
-            text_line, _, _, place_transcription_edit_distance = sorted(place_transcription_edit_distances, key=lambda x: x[3])[0]
+            most_matching = sorted(place_transcription_edit_distances, key=lambda x: x[3])[:min(4, len(place_transcription_edit_distances))]
+            text_line, _, _, place_transcription_edit_distance = sorted(most_matching, key=lambda x: x[0].baseline[0][1])[0]
             match, relative_similarity = compare_orig_to_transcription(place,
                                                                        text_line.transcription,
                                                                        place_transcription_edit_distance,
@@ -832,17 +914,17 @@ def map_place(page_layout: layout.PageLayout, place: str, max_place_transcriptio
             matched_lines.append([text_line, relative_similarity, place_transcription_edit_distance])
 
         for line in place_lines_trim_from_back:
-            if len(line.transcription) >= len(place):
+            if len(line.transcription) > len(place):
                 line.transcription = line.transcription[:-1]
         for line in place_lines_trim_from_front:
-            if len(line.transcription) >= len(place):
+            if len(line.transcription) > len(place):
                 line.transcription = line.transcription[1:]
 
         if all([len(line.transcription) <= len(place) for line in place_lines_trim_from_back]) or all([len(line.transcription) <= len(place) for line in place_lines_trim_from_front]):
             break
 
     if len(matched_lines) > 0:
-        matched_lines = sorted(matched_lines, key=lambda x: x[0].heights[0] + x[0].heights[1], reverse=True)
+        matched_lines = sorted(matched_lines, key=lambda x: x[0].baseline[0][1], reverse=True)
         place_text_line_transcription_from_back, relative_similarity, place_transcription_edit_distance = matched_lines[0]
 
     if match:
@@ -881,6 +963,11 @@ def create_bounding_box_for_lines(lines: list[layout.TextLine], pad: int = 25):
                 [100, 100],
                 [50, 100]]
     if lines[0].id == 'title_not_mapped':
+        return [[50, 200],
+                [400, 200],
+                [400, 280],
+                [50, 280]]
+    if lines[0].id == 'subtitle_not_mapped':
         return [[50, 200],
                 [400, 200],
                 [400, 280],
@@ -965,6 +1052,12 @@ def render_dataset(dataset, mastercopy_dir, output_render_dir):
                 pts = pts.reshape((-1, 1, 2))
                 img = cv2.polylines(img, pts=[pts],
                                     isClosed=True, color=(170, 205, 102), thickness=2)
+        if 'subtitle' in data:
+            for _, _, subtitle_bbox in data['subtitle']:
+                pts = np.asarray(subtitle_bbox, dtype=np.int32)
+                pts = pts.reshape((-1, 1, 2))
+                img = cv2.polylines(img, pts=[pts],
+                                    isClosed=True, color=(142, 31, 33), thickness=2)
         if 'volume_number' in data:
             for _, _, volume_number_bbox in data['volume_number']:
                 pts = np.asarray(volume_number_bbox, dtype=np.int32)
@@ -982,7 +1075,7 @@ def render_dataset(dataset, mastercopy_dir, output_render_dir):
                 if 'place' in data:
                     for _, _, place_bbox in data['place']:
                         if np.array_equal(place_bbox, date_bbox):
-                            date_bbox, place_bbox = split_bboxes(date_bbox, place_bbox, ratio=1/3)
+                            place_bbox, date_bbox = split_bboxes(place_bbox, date_bbox, ratio=1/3)
 
                 pts = np.asarray(date_bbox, dtype=np.int32)
                 pts = pts.reshape((-1, 1, 2))
@@ -993,7 +1086,7 @@ def render_dataset(dataset, mastercopy_dir, output_render_dir):
                 if 'date' in data:
                     for _, _, date_bbox in data['date']:
                         if np.array_equal(place_bbox, date_bbox):
-                            date_bbox, place_bbox = split_bboxes(date_bbox, place_bbox, ratio=1/3)
+                            place_bbox, date_bbox = split_bboxes(place_bbox, date_bbox, ratio=1/3)
                 pts = np.asarray(place_bbox, dtype=np.int32)
                 pts = pts.reshape((-1, 1, 2))
                 img = cv2.polylines(img, pts=[pts],
@@ -1041,6 +1134,7 @@ def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, 
                         skip = True
                         break
         if skip:
+            skipped_annotations += 1
             continue
         logger.debug(f'{"PROCESSING:":>20s} {page_id}')
         if 'mastercopy_path' not in data:
@@ -1153,6 +1247,37 @@ def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, 
                         "height": height,
                         "rectanglelabels": [
                             "titulek"
+                        ]
+                    }
+                }
+                new_annotations += 1
+                results.append(result)
+
+        if 'subtitle' in data:
+            for subtitle_id, subtitle, subtitle_bbox in data['subtitle']:
+                if subtitle_id in existing_ids:
+                    skipped_annotations += 1
+                    continue
+                x, y, width, height = get_label_studio_coords(subtitle_bbox, img.shape)
+                result = {
+                    "id": subtitle_id,
+                    "meta": {
+                        "text": [subtitle]
+                    },
+                    "type": "rectanglelabels",
+                    "from_name": "label",
+                    "to_name": "image",
+                    "original_width": img.shape[1],
+                    "original_height": img.shape[0],
+                    "image_rotation": 0,
+                    "value": {
+                        "rotation": 0,
+                        "x": x,
+                        "y": y,
+                        "width": width,
+                        "height": height,
+                        "rectanglelabels": [
+                            "podtitulek"
                         ]
                     }
                 }
@@ -1397,6 +1522,26 @@ def create_label_studio_json(left_top, right_bottom, img_shape, img_name, label_
                         ]})
     label_studio_dict['predictions'] = predictions
     return json.dumps(label_studio_dict, indent=4)
+
+
+def int_to_roman(num):
+    m = ["", "M", "MM", "MMM"]
+    c = ["", "C", "CC", "CCC", "CD", "D",
+         "DC", "DCC", "DCCC", "CM "]
+    x = ["", "X", "XX", "XXX", "XL", "L",
+         "LX", "LXX", "LXXX", "XC"]
+    i = ["", "I", "II", "III", "IV", "V",
+         "VI", "VII", "VIII", "IX"]
+
+    thousands = m[num // 1000]
+    hundreds = c[(num % 1000) // 100]
+    tens = x[(num % 100) // 10]
+    ones = i[num % 10]
+
+    ans = (thousands + hundreds +
+           tens + ones)
+
+    return ans
 
 
 def get_mastercopy_name(mastercopy_path: str):
