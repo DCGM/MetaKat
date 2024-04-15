@@ -7,6 +7,7 @@ from fuzzywuzzy import fuzz
 from pero_ocr.core import layout
 from pero_ocr.core.layout import TextLine
 import argparse
+import Levenshtein
 
 
 color_dict = {
@@ -24,15 +25,22 @@ color_dict = {
 def arg_parser():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--working-dir", type=str, required=True)
+    parser.add_argument("--pero-ocr-dir", type=str, required=True)
+    parser.add_argument("--img-dir", type=str, required=True)
+    parser.add_argument("--output-dir", type=str, required=True)
+    
     parser.add_argument("--tokenizer-path", type=str, required=True)
     parser.add_argument("--model-path", type=str, required=True)
+    
+    # the thickness of the bounding box, -1 for filled rectangle
+    parser.add_argument("--bbox-thickness", type=int, default=2)
+    parser.add_argument("--alpha", type=float, default=0.4)
 
     return parser.parse_args()
 
 
-def ner(text, tokenizer, model):
-    inputs = tokenizer(text, return_tensors="pt")
+def ner(text, tokenizer, model, device):
+    inputs = tokenizer(text, return_tensors="pt").to(device)
     outputs = model(**inputs)
     logits = outputs.logits
     predictions = torch.argmax(logits, dim=2)
@@ -106,10 +114,6 @@ def find_start_end_positions(mapping, text):
         if text[i] == mapping[j]:
             if start == -1:
                 start = j
-                gap_to_prev_word = 0
-                while start - gap_to_prev_word > 0 and mapping[start - gap_to_prev_word - 1] in ["\u200b", " "]:
-                    gap_to_prev_word += 1
-                start -= gap_to_prev_word // 2
             while i < len(text) and j < len(mapping):
                 if mapping[j] != text[i] and mapping[j] != "\u200b":
                     break
@@ -120,18 +124,20 @@ def find_start_end_positions(mapping, text):
             i += 1
             continue
         elif not mapping[j] in ["\u200b", " "] and mapping[j].isalpha():
+            if start > 0:
+                j = start + 1
             i = 0
             start = -1
             end = -1
         j += 1
 
+    gap_to_prev_word = 0
+    while start - gap_to_prev_word > 0 and mapping[start - gap_to_prev_word - 1] in ["\u200b", " "]:
+        gap_to_prev_word += 1
+    start -= gap_to_prev_word // 2
     gap_to_next_word = 0
-    while j < len(mapping) and (mapping[j] == text[-1] or mapping[j] in ["\u200b", " "]):
-        if text[-1] == mapping[j]:
-            end = j
-        else:
-            gap_to_next_word += 1
-        j += 1
+    while end + gap_to_next_word < len(mapping) and mapping[end + gap_to_next_word] in ["\u200b", " "]:
+        gap_to_next_word += 1
     end += gap_to_next_word // 2
 
     return start, end
@@ -164,7 +170,7 @@ def is_roman_number(s):
 
 def dict_matching(line_transcription):
     line_transcription = line_transcription.split()
-    to_match = {
+    to_match_dict = {
         "redaktor": "REDAKTOR",
         "redaktorem": "REDAKTOR",
         "redaktoři": "REDAKTOR",
@@ -183,17 +189,32 @@ def dict_matching(line_transcription):
         "wydawatel": "VYDAVATEL",
         "ročník": "ROČNÍK",
         "ročníku": "ROČNÍK",
-        "č.": "ČÍSLO",
         "číslo": "ČÍSLO",
         "sešit": "ČÍSLO",
+    }
+    
+    to_exact_match = {
+        "č.": "ČÍSLO",
+        "č": "ČÍSLO",
     }
 
     matched = []
     for transcription_word in line_transcription:
-        if transcription_word.lower() in to_match:
-            matched.append([transcription_word, to_match[transcription_word.lower()]])
-        elif is_roman_number(transcription_word):
+        word_match = []
+        if is_roman_number(transcription_word):
             matched.append([transcription_word, "ŘÍMSKÉ ČÍSLO"])
+        elif transcription_word in to_exact_match:
+            matched.append([transcription_word, to_exact_match[transcription_word]])
+        else:
+            transcription_word = transcription_word.replace(",", "").replace(".", "").replace(";", "").replace(":", "").lower()
+            for to_match in to_match_dict.items():
+                l_distance = Levenshtein.distance(transcription_word, to_match[0])
+                if l_distance <= 2:
+                    word_match.append([transcription_word, to_match_dict[to_match[0]], l_distance])
+            if len(word_match) > 0:
+                word_match = sorted(word_match, key=lambda x: x[2])      
+                matched.append([word_match[0][0], word_match[0][1]])
+                
     return matched
 
 
@@ -241,17 +262,18 @@ def get_complete_bbox(text_line: TextLine, out):
 if __name__ == "__main__":
     args = arg_parser()
 
-    working_dir = args.working_dir
-    pero_ocr_dir = os.path.join(working_dir, "pero-ocr")
+    pero_ocr_dir = args.pero_ocr_dir
     xml_dir = os.path.join(pero_ocr_dir, "page_xml")
     logits_dir = os.path.join(pero_ocr_dir, "logits")
-    images_dir = os.path.join(working_dir, "mastercopy")
-    output_dir = os.path.join(working_dir, "colored")
+    images_dir = args.img_dir
+    output_dir = args.output_dir
 
     os.makedirs(output_dir, exist_ok=True)
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = BertTokenizer.from_pretrained(args.tokenizer_path)
     model = BertForTokenClassification.from_pretrained(args.model_path)
+    model.to(device)
 
     for test_file in [os.path.splitext(img)[0] for img in os.listdir(images_dir)]:
         page_layout = layout.PageLayout()
@@ -264,7 +286,7 @@ if __name__ == "__main__":
             if text_line.transcription is None or len(text_line.transcription) == 0 or text_line.transcription == "":
                 continue
             text = text_line.transcription
-            out = ner(text, tokenizer, model)
+            out = ner(text, tokenizer, model, device)
             out = remove_special_tokens(out)
             out = connect_words(out)
             out = correct_spacing(out, text)
@@ -281,6 +303,11 @@ if __name__ == "__main__":
 
         bboxes = connect_intersection_bboxes_with_same_color(bboxes)
         for bbox in bboxes:
-            img = cv2.rectangle(img, (int(bbox[0][0]), int(bbox[0][1])), (int(bbox[0][2]), int(bbox[0][3])), bbox[1], 2)
+            if args.bbox_thickness == -1:
+                img_copy = img.copy()
+            cv2.rectangle(img, (int(bbox[0][0]), int(bbox[0][1])), (int(bbox[0][2]), int(bbox[0][3])), bbox[1], args.bbox_thickness)
+            if args.bbox_thickness == -1:
+                alpha = args.alpha
+                img = cv2.addWeighted(img, alpha, img_copy, 1 - alpha, 0)
 
         cv2.imwrite(os.path.join(output_dir, test_file + ".jpg"), img)
