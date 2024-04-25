@@ -2,8 +2,12 @@ import argparse
 import os
 import json
 import numpy as np
+import torch
 
-from pero_ocr.core.layout import PageLayout, TextLine
+from pero_ocr.core.layout import PageLayout
+from transformers import BertTokenizer, BertForTokenClassification
+
+from ner import ner_pipeline, remove_special_tokens, connect_words
 
 
 def parse_args():
@@ -11,14 +15,20 @@ def parse_args():
 
     parser.add_argument("--skip-list-file", required=True)
     parser.add_argument("--val-list-file", required=True)
-    parser.add_argument("--labels", nargs="+", default=["kapitola", "cislo strany"])
+
+    parser.add_argument("--labels", required=True)
+    parser.add_argument("--label-studio-json", required=True)    
 
     parser.add_argument("--ocr-xml-dir", required=True)
-    parser.add_argument("--label-studio-json", required=True)
+
+    parser.add_argument("--czert-path", required=True)
 
     parser.add_argument("--output-dir", required=True)
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    args.labels = args.labels.split(";")
+    
+    return args
 
 
 def baseline_in_labelbox(baseline, labelbox, lee_way=8):
@@ -29,7 +39,7 @@ def baseline_in_labelbox(baseline, labelbox, lee_way=8):
     return True
 
 
-def get_line_vector(line, page_layout, label="text"):
+def get_line_vector(line, ner_stats, page_layout, label="text"):
     out_vector = {}
     out_vector["label"] = label
 
@@ -52,6 +62,12 @@ def get_line_vector(line, page_layout, label="text"):
     out_vector["digit_count"] = sum(c.isdigit() for c in line.transcription)
     out_vector["space_count"] = sum(c.isspace() for c in line.transcription.strip())
     out_vector["other_count"] = len(line.transcription.strip()) - out_vector["alpha_count"] - out_vector["digit_count"] - out_vector["space_count"]
+    if "T" in ner_stats:
+        out_vector["time_count"] = ner_stats["T"]
+    if "P" in ner_stats:
+        out_vector["place_count"] = ner_stats["P"]
+    if "G" in ner_stats:
+        out_vector["geographical_count"] = ner_stats["G"]
     return out_vector
 
 # min-max normalization
@@ -87,6 +103,11 @@ if __name__ == "__main__":
     args = parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    tokenizer = BertTokenizer.from_pretrained(args.czert_path)
+    model = BertForTokenClassification.from_pretrained(args.czert_path)
+    model.to(device)
 
     with open(args.skip_list_file) as f:
         skip_list = f.read().splitlines()
@@ -121,17 +142,31 @@ if __name__ == "__main__":
                 label["value"] = label["rectanglelabels"][0]
 
             for line in page_layout.lines_iterator():
+                
+                line_ner = ner_pipeline(line.transcription, tokenizer, model, device)
+                line_ner = remove_special_tokens(line_ner)
+                line_ner = connect_words(line_ner)                
+                ner_stats = {
+                    "T": 0,
+                    "P": 0,
+                    "G": 0
+                }
+                for word, label in line_ner:
+                    if label not in ner_stats:
+                        ner_stats[label] = 0
+                    ner_stats[label] += 1
+                
                 line_label = [label for label in labels if baseline_in_labelbox(line.baseline, label)]
                 if len(line_label) == 0:
                     if line.transcription_confidence < 0.5:
                         continue
-                    output.append(get_line_vector(line, page_layout))
+                    output.append(get_line_vector(line, ner_stats, page_layout))
                 else:
                     line_label = line_label[0]["value"]
                     # do not add labels that are not specified in args.labels
                     if line_label not in args.labels:
                         continue
-                    output.append(get_line_vector(line, page_layout, line_label))
+                    output.append(get_line_vector(line, ner_stats, page_layout, line_label))
                 output[-1]["label_studio_id"] = obj["id"]
 
         for key in output[0].keys():

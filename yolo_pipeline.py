@@ -47,20 +47,23 @@ def reorganize_crops_directories(crops_dir):
     crops_dir = os.path.join(crops_dir, "crops")
     return crops_dir
 
-def relative_levenstein_distance(s1, s2):
-    return Levenshtein.distance(s1, s2) / max(len(s1), len(s2))
+def get_character_error_rate(s1, s2):
+    # s2 is the ground truth
+    return Levenshtein.distance(s1, s2) / len(s2)
 
-def is_transcription_correct(transcription, orig_transcription, label, max_distance=0.2):
+def get_character_error(transcription, orig_transcription):
+    return Levenshtein.distance(transcription, orig_transcription)
+
+def is_transcription_correct(transcription, orig_transcription, label, max_char_error_rate=0.2):
     if len(transcription) == 0 or len(orig_transcription) == 0:
         return False
-    if relative_levenstein_distance(transcription, orig_transcription) < max_distance:
+    if get_character_error_rate(transcription, orig_transcription) < max_char_error_rate:
         return True
     transcription = transcription.lower().strip(".").strip(",").strip()
     orig_transcription = orig_transcription.lower().strip(".").strip(",").strip()
-    if relative_levenstein_distance(transcription, orig_transcription) < max_distance:
+    if get_character_error_rate(transcription, orig_transcription) < max_char_error_rate:
         return True
     return False
-
 
 def compare_results(dataset, xml_dir, img_name):
     img_data = None
@@ -108,22 +111,24 @@ def compare_results(dataset, xml_dir, img_name):
 
     correctly_read = 0
     incorrectly_read = 0
+    character_error_rate = 0
+    character_error = 0
     for label in img_labels:
         if "ocr_transcriptions" not in label:
             continue
         for ocr_transcription in label["ocr_transcriptions"]:
+            character_error_rate += character_error_rate(ocr_transcription, label["orig_transcription"])
+            character_error += character_error(ocr_transcription, label["orig_transcription"])
             if is_transcription_correct(ocr_transcription, label["orig_transcription"], label["label"]):
                 correctly_read += 1
-                logger.debug(f"Correctly read: {label['label']}: \"{ocr_transcription}\"")
-                break
+                logger.debug(f"Correctly read: {label['label']}: GROUND TRUTH \"{ocr_transcription}\", READ \"{label['orig_transcription']}\"")
             else:
                 incorrectly_read += 1
-                logger.debug(f"Incorrectly read: {label['label']}: \"{ocr_transcription}\" should be \"{label['orig_transcription']}\"")
-
+                logger.debug(f"Incorrectly read: {label['label']}: GROUND TRUTH \"{ocr_transcription}\", READ \"{label['orig_transcription']}\"")
     logger.info(f"Correctly read: {correctly_read}/{correctly_read + incorrectly_read}")
     logger.info(40 * "=")
 
-    return correctly_read, incorrectly_read
+    return correctly_read, incorrectly_read, character_error, character_error_rate
 
 
 if __name__ == '__main__':
@@ -148,7 +153,7 @@ if __name__ == '__main__':
 
     results = model(img_files)
 
-    correctly_read, incorrectly_read, false_positives, false_negatives, true_positives = 0, 0, 0, 0, 0
+    correctly_read, incorrectly_read, false_positives, false_negatives, true_positives, character_error, character_error_rate = 0, 0, 0, 0, 0, 0, 0
     for result in results:
         img_name = os.path.basename(result.path).split('.')[0]
         crops_dir = os.path.join(args.output_dir, img_name)
@@ -228,6 +233,8 @@ if __name__ == '__main__':
         compared_results = compare_results(dataset, xml_dir, img_name)
         correctly_read += compared_results[0]
         incorrectly_read += compared_results[1]
+        character_error += compared_results[2]
+        character_error_rate += compared_results[3]
 
     logger.info(40 * "=")
     logger.info(f"Total false positives: {false_positives}")
@@ -235,4 +242,6 @@ if __name__ == '__main__':
     logger.info(f"Total true positives: {true_positives}")
     logger.info(f"Total correctly read: {correctly_read}")
     logger.info(f"Total incorrectly read: {incorrectly_read}")
+    logger.info(f"Total character error: {character_error}")
+    logger.info(f"Total character error rate: {character_error_rate}")
     logger.info(40 * "=")

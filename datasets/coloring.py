@@ -3,12 +3,12 @@ import torch
 import os
 import cv2
 import numpy as np
-from fuzzywuzzy import fuzz
 from pero_ocr.core import layout
 from pero_ocr.core.layout import TextLine
 import argparse
 import Levenshtein
 
+from ner import ner_pipeline, remove_special_tokens, connect_words, correct_spacing
 
 color_dict = {
     "T": (255, 0, 0),
@@ -37,73 +37,6 @@ def arg_parser():
     parser.add_argument("--alpha", type=float, default=0.4)
 
     return parser.parse_args()
-
-
-def ner(text, tokenizer, model, device):
-    inputs = tokenizer(text, return_tensors="pt").to(device)
-    outputs = model(**inputs)
-    logits = outputs.logits
-    predictions = torch.argmax(logits, dim=2)
-    tokens = tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
-    results = []
-    for token, prediction in zip(tokens, predictions[0]):
-        results.append([token, model.config.id2label[prediction.item()]])
-    return results
-
-
-def connect_words(ner_output):
-    result = []
-    for i in range(len(ner_output)):
-        ner_output[i][0] = ner_output[i][0].replace("##", "")
-        if ner_output[i][1].startswith("B-"):
-            result.append([ner_output[i][0], ner_output[i][1][-1]])
-        elif ner_output[i][1].startswith("I-"):
-            if len(result) > 0:
-                result[-1][0] += " " + ner_output[i][0]
-            else:
-                result.append([ner_output[i][0], ner_output[i][1][-1]])
-    return result
-
-
-def remove_special_tokens(ner_output):
-    result = []
-    for i in range(len(ner_output)):
-        if ner_output[i][0] != "[CLS]" and ner_output[i][0] != "[SEP]":
-            result.append(ner_output[i])
-    return result
-
-
-def find_matching_text(original_text, ner_text):
-    original_words = original_text.split()
-
-    best_match_start = 0
-    best_match_end = 0
-    best_ratio = 0
-
-    for i in range(len(original_words)):
-        for j in range(i, len(original_words)):
-            substring = ' '.join(original_words[i:j+1])
-            ratio = fuzz.ratio(substring, ner_text)
-            if ratio > best_ratio:
-                best_ratio = ratio
-                best_match_start = i
-                best_match_end = j
-
-    best_match_text = ' '.join(original_words[best_match_start:best_match_end+1])
-    return best_match_text
-
-
-def correct_spacing(ner_output, text):
-    for i in range(len(ner_output)):
-        ner_text = ner_output[i][0]
-        if ner_text not in text:
-            ner_text = find_matching_text(text, ner_text)
-        if ner_text in text:
-            ner_output[i][0] = ner_text
-        else:
-            print(ner_text + " not in text")
-    return ner_output
-
 
 def find_start_end_positions(mapping, text):
     start = -1
@@ -286,7 +219,7 @@ if __name__ == "__main__":
             if text_line.transcription is None or len(text_line.transcription) == 0 or text_line.transcription == "":
                 continue
             text = text_line.transcription
-            out = ner(text, tokenizer, model, device)
+            out = ner_pipeline(text, tokenizer, model, device)
             out = remove_special_tokens(out)
             out = connect_words(out)
             out = correct_spacing(out, text)

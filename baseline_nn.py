@@ -13,6 +13,7 @@ import torch.nn.functional as F
 def parse_args():
     parser = argparse.ArgumentParser()
 
+    parser.add_argument("--net", choices=["baseline", "transformer"], required=True)
     parser.add_argument("--dataset", required=True)
     
     parser.add_argument("--batch-size", type=int, default=64)
@@ -40,9 +41,11 @@ class BaselineNet(nn.Module):
         super().__init__()        
         self.classes = classes
         self.input_keys = input_keys
+        self.input_size = len(input_keys) * (neighbour_lines_cnt * 2 + 1)
         
-        self.fc1 = nn.Linear(len(input_keys) * (neighbour_lines_cnt * 2 + 1), 128)
-        self.fc2 = nn.Linear(128, 64)
+        upsampled_size = 128
+        self.fc1 = nn.Linear(self.input_size, upsampled_size)
+        self.fc2 = nn.Linear(upsampled_size, 64)
         self.fc3 = nn.Linear(64, len(classes))
                
     def forward(self, x):
@@ -51,9 +54,26 @@ class BaselineNet(nn.Module):
         x = self.fc3(x)
         
         return x
+
+class TransformerEncoderNet(nn.Module):
+    def __init__(self, classes, input_keys, neighbour_lines_cnt=0):
+        super().__init__()
+        self.classes = classes
+        self.input_keys = input_keys
+        self.input_size = len(input_keys) * (neighbour_lines_cnt * 2 + 1)
         
-def map_label(classes, label):
-    return classes.index(label)
+        upsampled_size = 128
+        self.fc1 = nn.Linear(self.input_size, upsampled_size)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=upsampled_size, nhead=8)
+        self.te = nn.TransformerEncoder(encoder_layer, num_layers=6)
+        self.fc2 = nn.Linear(upsampled_size, len(classes))
+
+    def forward(self, x):
+        x = F.leaky_relu(self.fc1(x))
+        x = self.te(x)
+        x = self.fc2(x)
+
+        return x
     
 class JsonDataset(Dataset):
     def __init__(self, json_file, classes, input_keys, neighbour_lines_cnt=0, train=False, val=False):
@@ -74,33 +94,37 @@ class JsonDataset(Dataset):
     def __len__(self):
         return len(self.ids)
     
+    def get_line_features(self, idx, current_line_idx):
+        if 0 <= idx < len(self.data["lines"]) and \
+           self.data["lines"][idx]["page_id"] == self.data["lines"][current_line_idx]["page_id"]:
+            return [self.data["lines"][idx][key] for key in self.input_keys]
+        else:
+            return [0] * len(self.input_keys)
+    
     def __getitem__(self, idx):
         label = torch.tensor(map_label(self.classes, self.data["lines"][self.ids[idx]]["label"]))
         current_line = torch.tensor([self.data["lines"][self.ids[idx]][key] for key in self.input_keys])
-        index_of_line = self.data["lines"].index(self.data["lines"][self.ids[idx]])
+        current_line_idx = self.data["lines"].index(self.data["lines"][self.ids[idx]])
 
         if self.neighbour_lines_cnt > 0:
-            neighbour_lines = torch.tensor([])
-            for i in range(self.neighbour_lines_cnt):
-                line_to_cat = torch.tensor([])
-                if index_of_line - i - 1 < 0 or \
-                    self.data["lines"][self.ids[idx] - i - 1]["page_id"] != self.data["lines"][self.ids[idx]]["page_id"]:
-                    line_to_cat = torch.zeros(len(self.input_keys))
-                else:
-                    line_to_cat = torch.tensor([self.data["lines"][self.ids[idx] - i - 1][key] for key in self.input_keys])
-                neighbour_lines = torch.cat((neighbour_lines, line_to_cat))
-                if index_of_line + i + 1 >= len(self.data["lines"]) or \
-                    self.data["lines"][self.ids[idx] + i + 1]["page_id"] != self.data["lines"][self.ids[idx]]["page_id"]:
-                    line_to_cat = torch.zeros(len(self.input_keys))
-                else:
-                    line_to_cat = torch.tensor([self.data["lines"][self.ids[idx] + i + 1][key] for key in self.input_keys])
-                neighbour_lines = torch.cat((neighbour_lines, line_to_cat))   
-           
-            input = torch.cat((current_line, neighbour_lines))
+            neighbor_indices = [
+                current_line_idx + offset
+                for delta in range(1, self.neighbour_lines_cnt + 1)
+                for offset in (-delta, delta)
+            ]
+            neighbor_indices = sorted(neighbor_indices, key=lambda x: x)
+
+            neighbour_lines = []
+            for neighbor_idx in neighbor_indices:
+                neighbour_line = self.get_line_features(neighbor_idx, current_line_idx)
+                neighbour_lines.extend(neighbour_line)
+            
+            neighbour_lines_tensor = torch.tensor(neighbour_lines)
+            input_tensor = torch.cat((current_line, neighbour_lines_tensor))
         else:
-            input = current_line
+            input_tensor = current_line
         
-        return {"label":label, "input":input}
+        return {"input": input_tensor, "label": label}
 
 # TODO remove
 class JsonDatasetFull(JsonDataset):
@@ -114,6 +138,9 @@ class JsonDatasetFull(JsonDataset):
 
     def filter_by_page_id(self, page_id):
         self.data["lines"] = [line for line in self.data["lines"] if line["page_id"] == page_id]
+
+def map_label(classes, label):
+    return classes.index(label)
 
 def test_accuracy(net, loader, device):
     correct = 0
@@ -256,7 +283,10 @@ if __name__ == "__main__":
     print("Args:", args)
     
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    net = BaselineNet(args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt)
+    if args.net == "baseline":
+        net = BaselineNet(args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt)
+    elif args.net == "transformer":
+        net = TransformerEncoderNet(args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt)
     
     net.to(device)
     
