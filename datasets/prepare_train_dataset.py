@@ -31,17 +31,13 @@ def parse_args():
     return args
 
 
-def baseline_in_labelbox(baseline, labelbox, lee_way=8):
-    if np.min(baseline[:, 0]) < labelbox["x"] - lee_way or np.max(baseline[:, 0]) > labelbox["x"] + labelbox["width"] + lee_way:
-        return False
-    if np.min(baseline[:, 1]) < labelbox["y"] - lee_way or np.max(baseline[:, 1]) > labelbox["y"] + labelbox["height"] + lee_way:
-        return False
-    return True
+def line_matches_labelbox(line, labelbox):
+    return False
+    
 
-
-def get_line_vector(line, ner_stats, page_layout, label="text"):
+def get_line_vector(line, ner_stats, page_layout, all_labels, labels=["text"]):
     out_vector = {}
-    out_vector["label"] = label
+    out_vector["labels"] = {label: 1 if label in labels else 0 for label in all_labels}
 
     page_height = page_layout.page_size[0]
     page_width = page_layout.page_size[1]
@@ -156,17 +152,13 @@ if __name__ == "__main__":
                         ner_stats[label] = 0
                     ner_stats[label] += 1
                 
-                line_label = [label for label in labels if baseline_in_labelbox(line.baseline, label)]
-                if len(line_label) == 0:
-                    if line.transcription_confidence < 0.5:
-                        continue
-                    output.append(get_line_vector(line, ner_stats, page_layout))
+                line_labels = [label for label in labels if line_matches_labelbox(line, label)]
+                if len(line_labels) == 0:
+                    output.append(get_line_vector(line, ner_stats, page_layout, args.labels, "text"))
                 else:
-                    line_label = line_label[0]["value"]
-                    # do not add labels that are not specified in args.labels
-                    if line_label not in args.labels:
-                        continue
-                    output.append(get_line_vector(line, ner_stats, page_layout, line_label))
+                    line_labels = [label["value"] for label in line_labels if label["value"] in args.labels]
+                    output.append(get_line_vector(line, ner_stats, page_layout, args.labels, line_labels))
+                
                 output[-1]["label_studio_id"] = obj["id"]
 
         for key in output[0].keys():
