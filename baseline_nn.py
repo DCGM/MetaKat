@@ -123,19 +123,21 @@ class TransformerEncoderNet(nn.Module):
         upsampled_size = 128
         self.fc1 = nn.Linear(len(input_keys), upsampled_size)
         self.pos_encoder = PositionalEncoding(upsampled_size)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=upsampled_size, nhead=8, batch_first=True)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=upsampled_size, nhead=8)
         self.te = nn.TransformerEncoder(encoder_layer, num_layers=6)
         self.fc2 = nn.Linear(upsampled_size, len(classes))
 
     def forward(self, x):
         x = F.leaky_relu(self.fc1(x))
+        x = x.permute(1, 0, 2)
         x = self.pos_encoder(x)
         x = self.te(x)
+        x = x.permute(1, 0, 2)
         x = F.leaky_relu(self.fc2(x))
         x = x.view(-1, len(self.classes))
         return x
 
-# source https://pytorch.org/tutorials/beginner/transformer_tutorial.html
+# Source: https://pytorch.org/tutorials/beginner/transformer_tutorial.html
 class PositionalEncoding(nn.Module):
 
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
@@ -144,17 +146,17 @@ class PositionalEncoding(nn.Module):
 
         position = torch.arange(max_len).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
-        pe = torch.zeros(max_len, d_model)
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pe.unsqueeze(0))  # Added unsqueeze to add a batch dimension
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Arguments:
-            x: Tensor, shape ``[batch_size, seq_len, embedding_dim]``
+            x: Tensor, shape ``[seq_len, batch_size, embedding_dim]``
         """
-        x = x + self.pe[:, :x.size(1)]
+        x = x + self.pe[:x.size(0)]
         return self.dropout(x)
 
 class JsonDatasetForTransformer(JsonDataset):
@@ -268,7 +270,7 @@ def train_net(writer, net, trn_loader, val_loader, device, epochs, learning_rate
         if decay_rate and decay_step and epoch >= decay_start - decay_step:
             scheduler.step()
 
-        if epochs // 10 > 0 and epoch % (epochs // 10) == 0:
+        if epochs > 0 and epoch % (epochs // 10) == 0:
             progress_path = os.path.join(os.path.dirname(args.model_path), f"progress_{epoch}.pt")
             torch.save(net.state_dict(), progress_path)
 

@@ -7,7 +7,7 @@ import torch
 from pero_ocr.core.layout import PageLayout
 from transformers import BertTokenizer, BertForTokenClassification
 
-from ner import ner_pipeline, remove_special_tokens, connect_words
+from ner import ner_pipeline, remove_special_tokens, connect_words, dict_matching
 
 
 def parse_args():
@@ -32,7 +32,17 @@ def parse_args():
 
 
 def line_matches_labelbox(line, labelbox):
-    return False
+    # if baseline y is in the range of labelbox y
+    # and both x coordinates are in the range of labelbox x
+    # or one x coordinate is in the range of labelbox x
+    # or both are at one side of labelbox x
+    height_check = (line.baseline[0, 1] >= labelbox["y"] and line.baseline[0, 1] <= labelbox["y"] + labelbox["height"])
+    line_left_x = min(line.baseline[:, 0])
+    line_right_x = max(line.baseline[:, 0])
+    x_check = (line_left_x >= labelbox["x"] and line_left_x <= labelbox["x"] + labelbox["width"]) or \
+                (line_right_x >= labelbox["x"] and line_right_x <= labelbox["x"] + labelbox["width"]) or \
+                (line_left_x <= labelbox["x"] and line_right_x >= labelbox["x"] + labelbox["width"])
+    return height_check and x_check
     
 
 def get_line_vector(line, ner_stats, page_layout, all_labels, labels=["text"]):
@@ -79,12 +89,12 @@ def normalize_feature(data):
     return normalized_data
 
 def print_stats(data, data_type):
-    text_lines_cnt = len([x for x in data if x["label"] == "text"])
-    chapter_lines_cnt = len([x for x in data if x["label"] == "kapitola"])
-    page_number_lines_cnt = len([x for x in data if x["label"] == "cislo strany"])
-    other_header_lines_cnt = len([x for x in data if x["label"] == "jiny nadpis"])
-    other_number_lines_cnt = len([x for x in data if x["label"] == "jine cislo"])
-    subtitle_lines_cnt = len([x for x in data if x["label"] == "podnadpis"])
+    text_lines_cnt = len([x for x in data if x["labels"]["text"] >= 1])
+    chapter_lines_cnt = len([x for x in data if x["labels"]["kapitola"] >= 1])
+    page_number_lines_cnt = len([x for x in data if x["labels"]["cislo strany"] >= 1])
+    other_header_lines_cnt = len([x for x in data if x["labels"]["jiny nadpis"] >= 1])
+    other_number_lines_cnt = len([x for x in data if x["labels"]["jine cislo"] >= 1])
+    subtitle_lines_cnt = len([x for x in data if x["labels"]["podnadpis"] >= 1])
     
     print(80 * "=")
     print(f"Text lines in {data_type} dataset: {text_lines_cnt}")
@@ -116,7 +126,6 @@ if __name__ == "__main__":
         output = []
 
         for page_xml_file in os.listdir(args.ocr_xml_dir):
-
             page_layout = PageLayout()
             page_xml_path = os.path.join(args.ocr_xml_dir, page_xml_file)
             page_layout.from_pagexml(page_xml_path)
@@ -147,11 +156,13 @@ if __name__ == "__main__":
                     "P": 0,
                     "G": 0
                 }
+                dict_matched = dict_matching(line.transcription)
+                if len(dict_matched) > 0:
+                    line_ner += dict_matched
                 for word, label in line_ner:
                     if label not in ner_stats:
                         ner_stats[label] = 0
                     ner_stats[label] += 1
-                
                 line_labels = [label for label in labels if line_matches_labelbox(line, label)]
                 if len(line_labels) == 0:
                     output.append(get_line_vector(line, ner_stats, page_layout, args.labels, "text"))
@@ -175,7 +186,7 @@ if __name__ == "__main__":
         print_stats(output, "unbalanced")
 
         with open(os.path.join(args.output_dir, "dataset.json"), "w") as f:
-            json.dump(output, f)
+            json.dump(output, f, default=int)
 
         with open(args.val_list_file) as f:
             val_list = f.read().splitlines()
@@ -186,18 +197,18 @@ if __name__ == "__main__":
             x.pop("label_studio_id")
         for x in train:
             x.pop("label_studio_id")
-            
-        val_text_lines = [x for x in val if x["label"] == "text"]
-        val_chapter_lines_cnt = len([x for x in val if x["label"] == "kapitola"])
-        val = [x for x in val if x["label"] != "text"]
+        
+        val_text_lines = [x for x in val if x["labels"]["text"] >= 1 and all(x["labels"][label] == 0 for label in args.labels if label != "text")]
+        val_chapter_lines_cnt = len([x for x in val if x["labels"]["kapitola"] >= 1])
+        val = [x for x in val if any(x["labels"][label] >= 1 for label in args.labels if label != "text")]
         np.random.shuffle(val_text_lines)
         val += val_text_lines[:min(val_chapter_lines_cnt, len(val_text_lines))]
         
         print_stats(val, "balanced val")
         
-        train_text_lines = [x for x in train if x["label"] == "text"]
-        train_chapter_lines_cnt = len([x for x in train if x["label"] == "kapitola"])
-        train = [x for x in train if x["label"] != "text"]
+        train_text_lines = [x for x in train if x["labels"]["text"] >= 1 and all(x["labels"][label] == 0 for label in args.labels if label != "text")]
+        train_chapter_lines_cnt = len([x for x in train if x["labels"]["kapitola"] >= 1])
+        train = [x for x in train if any(x["labels"][label] >= 1 for label in args.labels if label != "text")]
         np.random.shuffle(train_text_lines)
         train += train_text_lines[:min(train_chapter_lines_cnt, len(train_text_lines))]
 
@@ -210,4 +221,4 @@ if __name__ == "__main__":
         }
 
         with open(os.path.join(args.output_dir, "dataset_balanced.json"), "w") as f:
-            json.dump(output, f)
+            json.dump(output, f, default=int)

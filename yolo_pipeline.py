@@ -117,8 +117,8 @@ def compare_results(dataset, xml_dir, img_name):
         if "ocr_transcriptions" not in label:
             continue
         for ocr_transcription in label["ocr_transcriptions"]:
-            character_error_rate += character_error_rate(ocr_transcription, label["orig_transcription"])
-            character_error += character_error(ocr_transcription, label["orig_transcription"])
+            character_error_rate += get_character_error_rate(ocr_transcription, label["orig_transcription"])
+            character_error += get_character_error(ocr_transcription, label["orig_transcription"])
             if is_transcription_correct(ocr_transcription, label["orig_transcription"], label["label"]):
                 correctly_read += 1
                 logger.debug(f"Correctly read: {label['label']}: GROUND TRUTH \"{ocr_transcription}\", READ \"{label['orig_transcription']}\"")
@@ -242,6 +242,7 @@ if __name__ == '__main__':
     logger.info(f"Total true positives: {true_positives}")
     logger.info(f"Total correctly read: {correctly_read}")
     logger.info(f"Total incorrectly read: {incorrectly_read}")
-    logger.info(f"Total character error: {character_error}")
-    logger.info(f"Total character error rate: {character_error_rate}")
+    logger.info(f"Avg character error: {character_error / (correctly_read + incorrectly_read)}")
+    logger.info(f"Avg character error rate: {character_error_rate / (correctly_read + incorrectly_read)}")
     logger.info(40 * "=")
+    

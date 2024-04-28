@@ -6,9 +6,8 @@ import numpy as np
 from pero_ocr.core import layout
 from pero_ocr.core.layout import TextLine
 import argparse
-import Levenshtein
 
-from ner import ner_pipeline, remove_special_tokens, connect_words, correct_spacing
+from ner import ner_pipeline, remove_special_tokens, connect_words, correct_spacing, dict_matching
 
 color_dict = {
     "T": (255, 0, 0),
@@ -19,7 +18,7 @@ color_dict = {
     "VYDAVATEL": (0, 255, 255),
     "ROČNÍK": (0, 255, 0),
     "ČÍSLO": (0, 165, 255),
-    # "ŘÍMSKÉ ČÍSLO": (80, 200, 220)
+    "ŘÍMSKÉ ČÍSLO": (80, 200, 220)
 }
 
 def arg_parser():
@@ -90,65 +89,6 @@ def get_bbox(text_line, start, end):
 
     bbox = [segment_left, segment_top, segment_right, segment_bottom]
     return bbox
-
-
-def is_roman_number(s):
-    s = s.replace(" ", "").replace(".", "").replace(",", "").replace(";", "").replace(":", "")
-    roman_numbers = ["I", "V", "X", "L", "C", "D", "M"]
-    for c in s:
-        if c not in roman_numbers:
-            return False
-    return True
-
-
-def dict_matching(line_transcription):
-    line_transcription = line_transcription.split()
-    to_match_dict = {
-        "redaktor": "REDAKTOR",
-        "redaktorem": "REDAKTOR",
-        "redaktoři": "REDAKTOR",
-        "rediguje": "REDAKTOR",
-        "redakce": "REDAKTOR",
-        "nakladatel": "NAKLADATEL",
-        "nakladatelem": "NAKLADATEL",
-        "nakladatelé": "NAKLADATEL",
-        "nakladatelství": "NAKLADATEL",
-        "nakládá": "NAKLADATEL",
-        "vydavatel": "VYDAVATEL",
-        "vydavatelem": "VYDAVATEL",
-        "vydavatelé": "VYDAVATEL",
-        "vydavatelství": "VYDAVATEL",
-        "vydává": "VYDAVATEL",
-        "wydawatel": "VYDAVATEL",
-        "ročník": "ROČNÍK",
-        "ročníku": "ROČNÍK",
-        "číslo": "ČÍSLO",
-        "sešit": "ČÍSLO",
-    }
-    
-    to_exact_match = {
-        "č.": "ČÍSLO",
-        "č": "ČÍSLO",
-    }
-
-    matched = []
-    for transcription_word in line_transcription:
-        word_match = []
-        if is_roman_number(transcription_word):
-            matched.append([transcription_word, "ŘÍMSKÉ ČÍSLO"])
-        elif transcription_word in to_exact_match:
-            matched.append([transcription_word, to_exact_match[transcription_word]])
-        else:
-            transcription_word = transcription_word.replace(",", "").replace(".", "").replace(";", "").replace(":", "").lower()
-            for to_match in to_match_dict.items():
-                l_distance = Levenshtein.distance(transcription_word, to_match[0])
-                if l_distance <= 2:
-                    word_match.append([transcription_word, to_match_dict[to_match[0]], l_distance])
-            if len(word_match) > 0:
-                word_match = sorted(word_match, key=lambda x: x[2])      
-                matched.append([word_match[0][0], word_match[0][1]])
-                
-    return matched
 
 
 def connect_intersection_bboxes_with_same_color(bboxes):
