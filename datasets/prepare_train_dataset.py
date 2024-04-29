@@ -43,10 +43,10 @@ def line_matches_labelbox(line, labelbox):
                 (line_right_x >= labelbox["x"] and line_right_x <= labelbox["x"] + labelbox["width"]) or \
                 (line_left_x <= labelbox["x"] and line_right_x >= labelbox["x"] + labelbox["width"])
     return height_check and x_check
-    
 
 def get_line_vector(line, ner_stats, page_layout, all_labels, labels=["text"]):
     out_vector = {}
+    labels = list(set(labels))
     out_vector["labels"] = {label: 1 if label in labels else 0 for label in all_labels}
 
     page_height = page_layout.page_size[0]
@@ -68,12 +68,26 @@ def get_line_vector(line, ner_stats, page_layout, all_labels, labels=["text"]):
     out_vector["digit_count"] = sum(c.isdigit() for c in line.transcription)
     out_vector["space_count"] = sum(c.isspace() for c in line.transcription.strip())
     out_vector["other_count"] = len(line.transcription.strip()) - out_vector["alpha_count"] - out_vector["digit_count"] - out_vector["space_count"]
+    out_vector["x"] = min(line.baseline[:, 0]) + out_vector["line_width"] // 2
+    out_vector["y"] = max(line.baseline[:, 1])
     if "T" in ner_stats:
         out_vector["time_count"] = ner_stats["T"]
     if "P" in ner_stats:
         out_vector["place_count"] = ner_stats["P"]
     if "G" in ner_stats:
         out_vector["geographical_count"] = ner_stats["G"]
+    if "ŘÍMSKÉ ČÍSLO" in ner_stats:
+        out_vector["roman_number_count"] = ner_stats["ŘÍMSKÉ ČÍSLO"]
+    if "ČÍSLO" in ner_stats:
+        out_vector["number_count"] = ner_stats["ČÍSLO"]
+    if "ROČNÍK" in ner_stats:
+        out_vector["year_count"] = ner_stats["ROČNÍK"]
+    if "VYDAVATEL" in ner_stats:
+        out_vector["vydavatel_count"] = ner_stats["VYDAVATEL"]
+    if "NAKLADATEL" in ner_stats:
+        out_vector["nakladatel_count"] = ner_stats["NAKLADATEL"]
+    if "REDAKTOR" in ner_stats:
+        out_vector["redaktor_count"] = ner_stats["REDAKTOR"]
     return out_vector
 
 # min-max normalization
@@ -83,10 +97,21 @@ def normalize_feature(data):
     data = np.array(data)
     min = np.min(data)
     max = np.max(data)
+    if max == 0:
+        return None
     if min == max:
         return data
     normalized_data = (data - min) / (max - min)
     return normalized_data
+
+# normalize position to [0, min(max_position, 10000)]
+def normalize_position(data):
+    data = np.array(data)
+    max_position = max(data)
+    max_nomalized = min(max_position, 10000)
+    normalized_data = data / max_position * max_nomalized
+    normalized_data = np.round(normalized_data).astype(int)
+    return normalized_data    
 
 def print_stats(data, data_type):
     text_lines_cnt = len([x for x in data if x["labels"]["text"] >= 1])
@@ -105,6 +130,13 @@ def print_stats(data, data_type):
     print(f"Subtitle lines in {data_type} dataset: {subtitle_lines_cnt}")
     print(80 * "=")
 
+def print_label_matched_stats(label_stats):
+    for label in args.labels:
+        print(f"{label} matched: {label_stats[label + '_matched']}/{label_stats[label + '_total']}")
+    total_matched = sum(label_stats[label + "_matched"] for label in args.labels)
+    total = sum(label_stats[label + "_total"] for label in args.labels)
+    print(f"Total matched: {total_matched}/{total}")
+
 if __name__ == "__main__":
     args = parse_args()
 
@@ -122,9 +154,12 @@ if __name__ == "__main__":
         labestudio_json = json.load(f)
         image_prefix = "/".join(labestudio_json[0]["image"].split("/")[0:-1])
         image_suffix = ".jpg"
+        all_labeled_images = [image for image in labestudio_json if image["id"] not in skip_list and "label" in image]
 
         output = []
 
+        label_stats = {label + "_matched": 0 for label in args.labels}
+        label_stats.update({label + "_total": 0 for label in args.labels})
         for page_xml_file in os.listdir(args.ocr_xml_dir):
             page_layout = PageLayout()
             page_xml_path = os.path.join(args.ocr_xml_dir, page_xml_file)
@@ -134,12 +169,12 @@ if __name__ == "__main__":
             obj = [x for x in labestudio_json if x["image"] == os.path.join(image_prefix, image_name)][0]
             if obj["id"] in skip_list:
                 continue
-            try:
-                labels = obj["label"]
-            except KeyError:
-                continue  # skip pages without labels
+            
+            labels = [label for image in all_labeled_images if image["image"] == image_name for label in image["label"]]
 
             for label in labels:
+                label_stats[label["rectanglelabels"][0] + "_total"] += 1
+                label["matched"] = False
                 label["x"] = label["x"] / 100 * label["original_width"]
                 label["y"] = label["y"] / 100 * label["original_height"]
                 label["width"] = label["width"] / 100 * label["original_width"]
@@ -154,7 +189,13 @@ if __name__ == "__main__":
                 ner_stats = {
                     "T": 0,
                     "P": 0,
-                    "G": 0
+                    "G": 0,
+                    "ŘÍMSKÉ ČÍSLO": 0,
+                    "ČÍSLO": 0,
+                    "ROČNÍK": 0,
+                    "VYDAVATEL": 0,
+                    "NAKLADATEL": 0,
+                    "REDAKTOR": 0
                 }
                 dict_matched = dict_matching(line.transcription)
                 if len(dict_matched) > 0:
@@ -163,22 +204,53 @@ if __name__ == "__main__":
                     if label not in ner_stats:
                         ner_stats[label] = 0
                     ner_stats[label] += 1
-                line_labels = [label for label in labels if line_matches_labelbox(line, label)]
+                line_labels = []
+                for label in labels:
+                    if line_matches_labelbox(line, label):
+                        line_labels.append(label)
+                        if not label["matched"]:
+                            label["matched"] = True
+                            label_stats[label["rectanglelabels"][0] + "_matched"] += 1
+                        
+                                            
                 if len(line_labels) == 0:
-                    output.append(get_line_vector(line, ner_stats, page_layout, args.labels, "text"))
+                    output.append(get_line_vector(line, ner_stats, page_layout, args.labels, ["text"]))
                 else:
                     line_labels = [label["value"] for label in line_labels if label["value"] in args.labels]
                     output.append(get_line_vector(line, ner_stats, page_layout, args.labels, line_labels))
                 
                 output[-1]["label_studio_id"] = obj["id"]
 
+        print_label_matched_stats(label_stats)
+
+        for line in output:
+            line["padding_top_not_normalized"] = line["padding_top"]
+            line["padding_bottom_not_normalized"] = line["padding_bottom"]
+            line["padding_left_not_normalized"] = line["padding_left"]
+            line["padding_right_not_normalized"] = line["padding_right"]
+        
+        keys_to_remove = []
         for key in output[0].keys():
-            if key in ["label", "page_id", "transcription", "label_studio_id"]:
+            if key in ["label", "page_id", "transcription", "label_studio_id"] or \
+                "_not_normalized" in key:
                 continue
             data = [x[key] for x in output]
-            data = normalize_feature(data)
+            if key in ["x", "y"]:
+                if key == "x":
+                    max_x = max(data)
+                if key == "y":
+                    max_y = max(data)
+            else:
+                data = normalize_feature(data)
+                if data is None:
+                    keys_to_remove.append(key)
+                    continue
             for i, x in enumerate(data):
                 output[i][key] = x
+                
+        for key in keys_to_remove:
+            for i, x in enumerate(output):
+                x.pop(key)
 
         for i, line in enumerate(output):
             line["line_id"] = i
@@ -212,12 +284,15 @@ if __name__ == "__main__":
         np.random.shuffle(train_text_lines)
         train += train_text_lines[:min(train_chapter_lines_cnt, len(train_text_lines))]
 
-        print_stats(train, "balanced train")        
+        print_stats(train, "balanced train")
         
         output = {
             "train_ids": [x["line_id"] for x in train],
             "val_ids": [x["line_id"] for x in val],
-            "lines": output
+            "lines": output,
+            "max_x": max_x,
+            "max_y": max_y,
+            "keys_for_input": list(output[0].keys() - ["label", "page_id", "transcription", "label_studio_id", "line_id"])
         }
 
         with open(os.path.join(args.output_dir, "dataset_balanced.json"), "w") as f:

@@ -18,7 +18,7 @@ color_dict = {
     "VYDAVATEL": (0, 255, 255),
     "ROČNÍK": (0, 255, 0),
     "ČÍSLO": (0, 165, 255),
-    "ŘÍMSKÉ ČÍSLO": (80, 200, 220)
+    # "ŘÍMSKÉ ČÍSLO": (80, 200, 220)
 }
 
 def arg_parser():

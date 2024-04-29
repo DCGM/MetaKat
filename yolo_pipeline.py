@@ -121,10 +121,10 @@ def compare_results(dataset, xml_dir, img_name):
             character_error += get_character_error(ocr_transcription, label["orig_transcription"])
             if is_transcription_correct(ocr_transcription, label["orig_transcription"], label["label"]):
                 correctly_read += 1
-                logger.debug(f"Correctly read: {label['label']}: GROUND TRUTH \"{ocr_transcription}\", READ \"{label['orig_transcription']}\"")
+                logger.debug(f"Correctly read: {label['label']}: GROUND TRUTH \"{label['orig_transcription']}\", READ \"{ocr_transcription}\"")
             else:
                 incorrectly_read += 1
-                logger.debug(f"Incorrectly read: {label['label']}: GROUND TRUTH \"{ocr_transcription}\", READ \"{label['orig_transcription']}\"")
+                logger.debug(f"Incorrectly read: {label['label']}: GROUND TRUTH \"{label['orig_transcription']}\", READ \"{ocr_transcription}\"")
     logger.info(f"Correctly read: {correctly_read}/{correctly_read + incorrectly_read}")
     logger.info(40 * "=")
 

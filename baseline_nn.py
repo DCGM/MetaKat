@@ -10,6 +10,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
+from positional_encodings import PositionalEncoding2d
 
 
 def parse_args():
@@ -28,6 +29,7 @@ def parse_args():
     parser.add_argument("--neighbour-lines-cnt", type=int, default=0)
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--model-path", required=True)
+    parser.add_argument('--possitional-encoding', choices=['2d', '1d'], default='2d', help='Possitional encoding for the model')
 
     parser.add_argument("--render-val-images", action="store_true")
     parser.add_argument("--mastercopy-dir")
@@ -58,9 +60,10 @@ class BaselineNet(nn.Module):
     def forward(self, x):
         x = F.leaky_relu(self.fc1(x))
         x = F.leaky_relu(self.fc2(x))
-        x = self.fc3(x)
+        x = torch.sigmoid(self.fc3(x))
 
         return x
+
 
 class JsonDataset(Dataset):
     def __init__(self, json_file, classes, input_keys, neighbour_lines_cnt=0, train=False, val=False):
@@ -89,7 +92,8 @@ class JsonDataset(Dataset):
             return [0] * len(self.input_keys)
 
     def __getitem__(self, idx):
-        label = torch.tensor(map_label(self.classes, self.data["lines"][self.ids[idx]]["label"]))
+        labels = self.data["lines"][self.ids[idx]]["labels"]
+        labels = torch.tensor([labels.get(label, 0) for label in self.classes], dtype=torch.float32)
         current_line = torch.tensor([self.data["lines"][self.ids[idx]][key] for key in self.input_keys])
         current_line_idx = self.data["lines"].index(self.data["lines"][self.ids[idx]])
 
@@ -111,35 +115,90 @@ class JsonDataset(Dataset):
         else:
             input_tensor = current_line
 
-        return {"input": input_tensor, "target": label}
+        return {"input": input_tensor, "target": labels}
 
 
-class TransformerEncoderNet(nn.Module):
-    def __init__(self, classes, input_keys, neighbour_lines_cnt=0):
-        super().__init__()
+class JsonDatasetRenderer(JsonDataset):
+    def __init__(self, json_file, classes, input_keys, neighbour_lines_cnt=0):
+        self.neighbour_lines_cnt = neighbour_lines_cnt
         self.classes = classes
         self.input_keys = input_keys
 
+        with open(json_file) as f:
+            self.data = json.load(f)
+
+        self.ids = range(len(self.data["lines"]))
+
+    def __getitem__(self, idx):
+        labels = self.data["lines"][self.ids[idx]]["labels"]
+        labels = torch.tensor([labels.get(label, 0) for label in self.classes], dtype=torch.float32)
+        current_line = torch.tensor([self.data["lines"][self.ids[idx]][key] for key in self.input_keys])
+        current_line_idx = self.data["lines"].index(self.data["lines"][self.ids[idx]])
+
+        if self.neighbour_lines_cnt > 0:
+            neighbor_indices = [
+                current_line_idx + offset
+                for delta in range(1, self.neighbour_lines_cnt + 1)
+                for offset in (-delta, delta)
+            ]
+            neighbor_indices = sorted(neighbor_indices, key=lambda x: x)
+
+            neighbour_lines = []
+            for neighbor_idx in neighbor_indices:
+                neighbour_line = self.get_line_features(neighbor_idx, current_line_idx)
+                neighbour_lines.extend(neighbour_line)
+
+            neighbour_lines_tensor = torch.tensor(neighbour_lines)
+            input_tensor = torch.cat((current_line, neighbour_lines_tensor))
+        else:
+            input_tensor = current_line
+
+        paddings = ["padding_top", "padding_right", "padding_bottom", "padding_left"]
+        paddings = [padding + "_not_normalized" for padding in paddings]
+        not_normalized_padding = torch.tensor([self.data["lines"][self.ids[idx]][key] for key in paddings])
+        return {"input": input_tensor, "target": labels, "padding": not_normalized_padding, "page_id": self.data["lines"][self.ids[idx]]["page_id"]}
+
+
+class TransformerEncoderNet(nn.Module):
+    def __init__(self, classes, input_keys, positional_encoding, neighbour_lines_cnt=0):
+        super().__init__()
+        self.classes = classes
+        self.input_keys = input_keys
+        self.positionl_encoding = positional_encoding
+
         upsampled_size = 128
         self.fc1 = nn.Linear(len(input_keys), upsampled_size)
-        self.pos_encoder = PositionalEncoding(upsampled_size)
+        if positional_encoding == '2d':
+            self.pos_encoder = PositionalEncoding2d(upsampled_size)
+        else:
+            self.pos_encoder = PositionalEncoding(upsampled_size)
         encoder_layer = nn.TransformerEncoderLayer(d_model=upsampled_size, nhead=8)
         self.te = nn.TransformerEncoder(encoder_layer, num_layers=6)
         self.fc2 = nn.Linear(upsampled_size, len(classes))
 
     def forward(self, x):
+        # pos_x second to last dimension is the input size
+        # pos_x last dimension is the batch size
+        pos_x = x[:, :, -2:-1]
+        pos_y = x[:, :, -1:]
+        print(pos_x)
+        print(pos_y)
         x = F.leaky_relu(self.fc1(x))
-        x = x.permute(1, 0, 2)
-        x = self.pos_encoder(x)
+        if self.positionl_encoding == '2d':
+            x = x.permute(1, 0, 2)
+            x = self.pos_encoder(x)
+            x = x.permute(1, 0, 2)
+        else:
+            x = x.permute(1, 0, 2)
+            x = self.pos_encoder(x)
         x = self.te(x)
         x = x.permute(1, 0, 2)
-        x = F.leaky_relu(self.fc2(x))
-        x = x.view(-1, len(self.classes))
+        x = torch.sigmoid(self.fc2(x))
         return x
 
-# Source: https://pytorch.org/tutorials/beginner/transformer_tutorial.html
-class PositionalEncoding(nn.Module):
 
+class PositionalEncoding(nn.Module):
+    # Source: https://pytorch.org/tutorials/beginner/transformer_tutorial.html
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
@@ -159,17 +218,19 @@ class PositionalEncoding(nn.Module):
         x = x + self.pe[:x.size(0)]
         return self.dropout(x)
 
+
 class JsonDatasetForTransformer(JsonDataset):
     def get_line_features_and_labels(self, idx, current_line_idx):
         if 0 <= idx < len(self.data["lines"]) and \
            self.data["lines"][idx]["page_id"] == self.data["lines"][current_line_idx]["page_id"]:
-            return [self.data["lines"][idx][key] for key in self.input_keys], map_label(self.classes, self.data["lines"][idx]["label"])
+            labels = self.data["lines"][idx]["labels"]
+            return [self.data["lines"][idx][key] for key in self.input_keys], [labels.get(label, 0) for label in self.classes]
         else:
-            return [0] * len(self.input_keys), map_label(self.classes, "padding")
-        
+            return [0] * len(self.input_keys), [0] * (len(self.classes) - 1) + [1]
 
     def __getitem__(self, idx):
-        labels = torch.tensor([map_label(self.classes, self.data["lines"][self.ids[idx]]["label"])])
+        labels = self.data["lines"][self.ids[idx]]["labels"]
+        labels = torch.tensor([labels.get(label, 0) for label in self.classes], dtype=torch.float32)
         input_tensor = torch.tensor(self.get_line_features(self.ids[idx], self.ids[idx])).reshape(1, -1)
         current_line_idx = self.data["lines"].index(self.data["lines"][self.ids[idx]])
 
@@ -186,62 +247,16 @@ class JsonDatasetForTransformer(JsonDataset):
             for neighbor_idx in neighbor_indices:
                 neighbour_line, neighbour_label = self.get_line_features_and_labels(neighbor_idx, current_line_idx)
                 neighbour_lines = torch.cat((neighbour_lines, torch.tensor(neighbour_line).reshape(1, -1)))
-                neighbour_labels = torch.cat((neighbour_labels, torch.tensor([neighbour_label])))
-                
+                neighbour_labels = torch.cat((neighbour_labels, torch.tensor([neighbour_label], dtype=torch.float32)))
+
             input_tensor = torch.cat((neighbour_lines[:len(neighbour_lines)//2], input_tensor, neighbour_lines[len(neighbour_lines)//2:]))
-            labels = torch.cat((neighbour_labels[:len(neighbour_labels)//2], labels, neighbour_labels[len(neighbour_labels)//2:]))
-            
+            labels = labels.unsqueeze(0)
+            labels = torch.cat((neighbour_labels[:len(neighbour_labels)//2, :], labels, neighbour_labels[len(neighbour_labels)//2:, :]))
+
         return {"input": input_tensor, "target": labels}
 
-
-def test_accuracy(net, loader, device):
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for data in loader:
-            inputs, labels = data["input"], data["target"]
-            inputs, labels = inputs.to(device), labels.to(device)
-            labels = labels.view(-1)
-
-            outputs = net(inputs)
-            _, predicted = torch.max(outputs, 1)           
-
-            # Ignore padding
-            mask = labels != net.classes.index("padding")
-            total += mask.sum().item()
-            correct += (predicted[mask] == labels[mask]).sum().item()
-
-    if total == 0:
-        return 0.0
-    return correct / total * 100
-
-
-def test_class_accuracy(net, loader, device):
-    class_correct = [0] * len(net.classes)
-    class_total = [0] * len(net.classes)
-
-    with torch.no_grad():
-        for data in loader:
-            inputs, labels = data["input"], data["target"]
-            inputs, labels = inputs.to(device), labels.to(device)
-            labels = labels.view(-1)
-
-            outputs = net(inputs)
-            _, predicted = torch.max(outputs, 1)
-
-            c = (predicted == labels)
-            if c.dim() > 1:
-                c = c.squeeze()
-            for i in range(len(labels)):
-                label = labels[i]
-                class_correct[label] += c[i].item()
-                class_total[label] += 1
-
-    return [100 * class_correct[i] / class_total[i] if class_total[i] > 0 else 0.0 for i in range(len(net.classes))]
-
-
 def train_net(writer, net, trn_loader, val_loader, device, epochs, learning_rate, decay_start, decay_rate, decay_step):
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCELoss()
     optimizer = optim.SGD(net.parameters(), lr=learning_rate, momentum=0.9)
     if decay_rate and decay_step:
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=decay_step, gamma=decay_rate)
@@ -251,7 +266,6 @@ def train_net(writer, net, trn_loader, val_loader, device, epochs, learning_rate
         for i, data in enumerate(trn_loader, 0):
             inputs, targets = data["input"], data["target"]
             inputs, targets = inputs.to(device), targets.to(device)
-            targets = targets.view(-1)
 
             optimizer.zero_grad()
 
@@ -270,24 +284,117 @@ def train_net(writer, net, trn_loader, val_loader, device, epochs, learning_rate
         if decay_rate and decay_step and epoch >= decay_start - decay_step:
             scheduler.step()
 
-        if epochs > 0 and epoch % (epochs // 10) == 0:
+        if epoch > 0 and epoch % (min(100, epochs // 10)) == 0:
             progress_path = os.path.join(os.path.dirname(args.model_path), f"progress_{epoch}.pt")
             torch.save(net.state_dict(), progress_path)
 
         if epoch % 10 == 9:
-            writer.add_scalar("Train accuracy", test_accuracy(net, trn_loader, device), epoch)
-            for i, class_accuracy in enumerate(test_class_accuracy(net, trn_loader, device)):
-                writer.add_scalar(f"Train accuracy/{net.classes[i]}", class_accuracy, epoch)
-            writer.add_scalar("Val accuracy", test_accuracy(net, val_loader, device), epoch)
-            for i, class_accuracy in enumerate(test_class_accuracy(net, val_loader, device)):
-                writer.add_scalar(f"Val accuracy/{net.classes[i]}", class_accuracy, epoch)
+        # if True:
+            for threshold in [0.5, 0.75, 0.9]:
+                # for threshold in [0.75]:
+                precision, recall, total_precision, total_recall = test_precision_recall(net, val_loader, device, threshold)
+                writer.add_scalar(f"Val threshold@{threshold} precision", total_precision, epoch)
+                writer.add_scalar(f"Val threshold@{threshold} recall", total_recall, epoch)
+                for i, class_name in enumerate(args.classes):
+                    writer.add_scalar(f"Val threshold@{threshold} precision/{class_name}", precision[i], epoch)
+                    writer.add_scalar(f"Val threshold@{threshold} recall/{class_name}", recall[i], epoch)
+                
+                precision, recall, total_precision, total_recall = test_precision_recall(net, trn_loader, device, threshold)
+                writer.add_scalar(f"Train threshold@{threshold} precision", total_precision, epoch)
+                writer.add_scalar(f"Train threshold@{threshold} recall", total_recall, epoch)
+                for i, class_name in enumerate(args.classes):
+                    writer.add_scalar(f"Train threshold@{threshold} precision/{class_name}", precision[i], epoch)
+                    writer.add_scalar(f"Train threshold@{threshold} recall/{class_name}", recall[i], epoch)
 
+        if epoch % 10 == 9:
+        # if True:
+            for threshold in [0.5, 0.75, 0.9]:
+                # for threshold in [0.75]:
+                do_metrics(net, trn_loader, device, writer, epoch, "Train", threshold)
+                do_metrics(net, val_loader, device, writer, epoch, "Val", threshold)
+
+def do_metrics(net, loader, device, writer, epoch, loader_type, threshold=0.75):
+    class_tp, class_tn, class_fp, class_fn, total_tp, total_tn, total_fp, total_fn = test_positives_negatives(net, loader, device, threshold)
+    precision, recall, total_precision, total_recall = test_precision_recall(net, class_tp, class_fp, class_fn)
+    f1, total_f1 = test_f1_score(net, precision, recall)
+    accuracy, total_accuracy = test_accuracy(net, class_tp, class_tn, class_fp, class_fn)
+    
+    writer.add_scalar(f"{loader_type} threshold {threshold} precision", total_precision, epoch)
+    writer.add_scalar(f"{loader_type} threshold {threshold} recall", total_recall, epoch)
+    writer.add_scalar(f"{loader_type} threshold {threshold} f1", total_f1, epoch)
+    writer.add_scalar(f"{loader_type} threshold {threshold} accuracy", total_accuracy, epoch)                
+    
+    for i, class_name in enumerate(args.classes):
+        writer.add_scalar(f"{loader_type} threshold {threshold} precision/{class_name}", precision[i], epoch)
+        writer.add_scalar(f"{loader_type} threshold {threshold} recall/{class_name}", recall[i], epoch)
+        writer.add_scalar(f"{loader_type} threshold {threshold} f1/{class_name}", f1[i], epoch)
+        writer.add_scalar(f"{loader_type} threshold {threshold} accuracy/{class_name}", accuracy[i], epoch)
+        
+def test_positives_negatives(net, loader, device, threshold=0.75):
+    class_tp = [0] * len(net.classes)
+    class_tn = [0] * len(net.classes)
+    class_fp = [0] * len(net.classes)
+    class_fn = [0] * len(net.classes)
+
+    with torch.no_grad():
+        for data in loader:
+            inputs, labels = data["input"], data["target"]
+            inputs, labels = inputs.to(device), labels.to(device)
+
+            outputs = net(inputs)
+            predicted = (outputs >= threshold).int()
+
+            labels = labels.int().view(-1, len(net.classes))
+            predicted = predicted.view(-1, len(net.classes))
+
+            for i in range(len(net.classes)):
+                class_tp[i] += ((predicted[:, i] == 1) & (labels[:, i] == 1)).sum().item()
+                class_tn[i] += ((predicted[:, i] == 0) & (labels[:, i] == 0)).sum().item()
+                class_fp[i] += ((predicted[:, i] == 1) & (labels[:, i] == 0)).sum().item()
+                class_fn[i] += ((predicted[:, i] == 0) & (labels[:, i] == 1)).sum().item()
+    
+    tp_without_padding = class_tp[:-1]
+    tn_without_padding = class_tn[:-1]
+    fp_without_padding = class_fp[:-1]
+    fn_without_padding = class_fn[:-1]
+    total_tp = sum(tp_without_padding)
+    total_tn = sum(tn_without_padding)
+    total_fp = sum(fp_without_padding)
+    total_fn = sum(fn_without_padding)
+    return class_tp, class_tn, class_fp, class_fn, total_tp, total_tn, total_fp, total_fn
+
+def test_f1_score(net, precision, recall):
+    f1 = [2 * precision[i] * recall[i] / (precision[i] + recall[i]) if precision[i] + recall[i] > 0 else 0.0 for i in range(len(net.classes))]
+    f1_without_padding = f1[:-1]
+    total_f1 = sum(f1_without_padding) / len(f1_without_padding)
+    return f1, total_f1                
+
+def test_precision_recall(net, class_tp, class_fp, class_fn):
+    precision = [class_tp[i] / (class_tp[i] + class_fp[i]) if class_tp[i] + class_fp[i] != 0 else 0.0 for i in range(len(net.classes))]
+    recall = [class_tp[i] / (class_tp[i] + class_fn[i]) if class_tp[i] + class_fn[i] != 0 else 0.0 for i in range(len(net.classes))]
+
+    precision_without_padding = precision[:-1]
+    recall_without_padding = recall[:-1]
+    total_precision = sum(precision_without_padding) / len(precision_without_padding)
+    total_recall = sum(recall_without_padding) / len(recall_without_padding)
+    return precision, recall, total_precision, total_recall
+
+
+def test_accuracy(net, class_tp, class_tn, class_fp, class_fn):
+    class_accuracy = [0.0] * len(net.classes)
+    for i in range(len(net.classes)):
+        class_accuracy[i] = (class_tp[i] + class_tn[i]) / (class_tp[i] + class_tn[i] + class_fp[i] + class_fn[i])
+        
+    class_accuracy_without_padding = class_accuracy[:-1]
+    total_accuracy = sum(class_accuracy_without_padding) / len(class_accuracy_without_padding)
+    return class_accuracy, total_accuracy
 
 def padding_to_bbox_pts(padding, img_width, img_height, bbox_padding=10):
     top_padding = padding[0]
-    bottom_padding = padding[1]
-    left_padding = padding[2]
-    right_padding = padding[3]
+    right_padding = padding[1]
+    bottom_padding = padding[2]
+    left_padding = padding[3]
+    print(top_padding, bottom_padding, left_padding, right_padding)
     top_left = [left_padding, top_padding]
     top_right = [img_width - right_padding, top_padding]
     bottom_right = [img_width - right_padding, img_height - bottom_padding + bbox_padding]
@@ -297,43 +404,65 @@ def padding_to_bbox_pts(padding, img_width, img_height, bbox_padding=10):
     return pts
 
 
-def render_page_bboxes(loader, page_id, mastercopy_dir, output_render_dir, net, device):
+def render_page_bboxes(loader, page_id, mastercopy_dir, output_render_dir, net, device, threshold=0.9):
     lines = []
     with torch.no_grad():
         for data in loader:
+            if page_id not in data["page_id"]:
+                continue
             inputs, labels = data["input"], data["target"]
             inputs, labels = inputs.to(device), labels.to(device)
 
-            output = net(inputs)
-            _, data["predicted"] = torch.max(output, 1)
+            outputs = net(inputs)
+            predicted = (outputs >= threshold).int()
 
-            lines.append(data)
+            labels = labels.int().view(-1, len(net.classes))
+            predicted = predicted.view(-1, len(net.classes))
 
-    img = cv2.imread(os.path.join(mastercopy_dir, page_id + ".jpg"))
+            lines.append({
+                "paddings": data["padding"].tolist(),
+                "predicted": predicted.tolist()
+            })
+
+    # find image
+    img_path = None
+    for file in os.listdir(mastercopy_dir):
+        if page_id in file:
+            img_path = os.path.join(mastercopy_dir, file)
+            break
+    if img_path is None:
+        print(f"Image for page {page_id} not found.")
+        return
+    img = cv2.imread(img_path)
 
     for line in lines:
-        pts = padding_to_bbox_pts(line["input"][-4:], img.shape[1], img.shape[0])
+        if len(line["predicted"]) == 0:
+            continue
+        predicted_classes = line["predicted"][0]
+        for i, prediction in enumerate(predicted_classes):
+            if prediction == 0:
+                continue
+            pts = padding_to_bbox_pts(line["paddings"], img.shape[1], img.shape[0])
 
-        label = net.classes[line["predicted"]]
-        if label == "kapitola":
-            bbox_color = (255, 0, 0)
-        elif label == "cislo strany":
-            bbox_color = (0, 0, 255)
-        else:
-            bbox_color = (0, 255, 0)
-        img = cv2.polylines(img, [pts], True, bbox_color, 2)
+            label = net.classes[i]
+            if label == "kapitola":
+                bbox_color = (255, 0, 0)
+            elif label == "cislo strany":
+                bbox_color = (0, 0, 255)
+            else:
+                bbox_color = (100, 100, 100)
+            img = cv2.polylines(img, [pts], True, bbox_color, 2)
+            img = cv2.putText(img, label, (pts[0][0][0], pts[0][0][1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, bbox_color, 2)
 
     page_id = page_id.split(".")[0]
     cv2.imwrite(os.path.join(output_render_dir, f'{page_id}_labeled.jpg'), img)
 
 
-def render_val_pages(mastercopy_dir, output_render_dir, dataset, input_keys, net, device):
+
+def render_val_pages(mastercopy_dir, output_render_dir, val_loader, net, device):
     os.makedirs(output_render_dir, exist_ok=True)
     for page_id in os.listdir(mastercopy_dir):
-        if not page_id.endswith(".jpg"):
-            continue
-        val_data = JsonDataset(dataset, args.classes, input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt, val=True)
-        val_loader = DataLoader(val_data, batch_size=1, shuffle=False, pin_memory=True)
+        page_id = page_id.split(".")[0]
         render_page_bboxes(val_loader, page_id, mastercopy_dir, output_render_dir, net, device)
 
 
@@ -363,25 +492,27 @@ if __name__ == "__main__":
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    if args.epochs:
-        net, trn_loader, val_loader = init_net_and_datasetloader_for_training(args.net)
-        net.to(device)
+    net, trn_loader, val_loader = init_net_and_datasetloader_for_training(args.net)
+    net.to(device)
 
+    if args.epochs:
         writer_path = os.path.join(os.path.dirname(args.model_path), "summary_writer")
         writer = SummaryWriter(writer_path)
 
         train_net(writer, net, trn_loader, val_loader, device, args.epochs, args.learning_rate, args.decay_start, args.decay_rate, args.decay_step)
         torch.save(net.state_dict(), args.model_path)
     else:
-        if args.net == "baseline":
-            net = BaselineNet(args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt)
-        elif args.net == "transformer":
-            net = TransformerEncoderNet(args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt)
         net.load_state_dict(torch.load(args.model_path, map_location=device))
-        
-    if args.render_val_images:
-        render_val_pages(args.mastercopy_dir, args.output_render_dir, args.dataset, args.input_keys, net, device)
 
-    print(f"Val accuracy: {test_accuracy(net, val_loader, device)}")
-    for i, class_accuracy in enumerate(test_class_accuracy(net, val_loader, device)):
-        print(f"Val accuracy for {args.classes[i]}: {class_accuracy}")
+    if args.render_val_images:
+        val_loader = JsonDatasetRenderer(args.dataset, args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt)
+        render_val_pages(args.mastercopy_dir, args.output_render_dir, val_loader, net, device)
+        exit()
+
+    precision, recall, total_precision, total_recall = test_precision_recall(net, val_loader, device)
+    print("Total precision:", total_precision)
+    print("Total recall:", total_recall)
+    for i, class_name in enumerate(args.classes):
+        print(f"{class_name} precision: {precision[i]}")
+        print(f"{class_name} recall: {recall[i]}")
+    
