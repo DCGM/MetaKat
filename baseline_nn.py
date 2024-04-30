@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument("--neighbour-lines-cnt", type=int, default=0)
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--model-path", required=True)
-    parser.add_argument('--positional-encoding', choices=['2d', '1d'], default='2d', help='Possitional encoding for the model')
+    parser.add_argument('--positional-encoding', choices=['2d', '1d-page', '1d-seq'], default='2d', help='Possitional encoding for the model')
     parser.add_argument('--positional-encoding-max-len', type=int, default=1000, help='Max len for positional encoding')
 
     parser.add_argument("--render-val-images", action="store_true")
@@ -160,7 +160,7 @@ class JsonDatasetRenderer(JsonDataset):
 
 
 class TransformerEncoderNet(nn.Module):
-    def __init__(self, classes, input_keys, positional_encoding, neighbour_lines_cnt=0):
+    def __init__(self, classes, input_keys, positional_encoding, max_len):
         super().__init__()
         self.classes = classes
         self.input_keys = input_keys
@@ -168,19 +168,32 @@ class TransformerEncoderNet(nn.Module):
 
         upsampled_size = 128
         self.fc1 = nn.Linear(len(input_keys), upsampled_size)
-        self.pe = PositionalEncoding1D(upsampled_size)
+        if self.positionl_encoding == "1d-page":
+            self.pe = PositionalEncoding1d(upsampled_size, max_len)
+        elif self.positionl_encoding == "1d-seq":
+            self.pe = PositionalEncoding(upsampled_size, max_len=max_len)
+        elif self.positionl_encoding == "2d":
+            self.pe = PositionalEncoding2D()
         encoder_layer = nn.TransformerEncoderLayer(d_model=upsampled_size, nhead=8)
         self.te = nn.TransformerEncoder(encoder_layer, num_layers=6)
         self.fc2 = nn.Linear(upsampled_size, len(classes))
 
     def forward(self, x):
-        if self.positionl_encoding == "1d":
+        if self.positionl_encoding == "1d-page":
             position_x = x[:, :, -1]
             x = x[:, :, :-1]
         x = F.leaky_relu(self.fc1(x))
-        pos_enc = self.pe(position_x)
-        x += pos_enc
+        if self.positionl_encoding == "1d-page":
+            pos_enc = self.pe(position_x)
+            x += pos_enc
+            x = x.permute(1, 0, 2)
+        elif self.positionl_encoding == "1d-seq":
+            x = x.permute(1, 0, 2)
+            x = self.pe(x)
+        elif self.positionl_encoding == "2d":
+            x = self.pe(x)
         x = self.te(x)
+        x = x.permute(1, 0, 2)
         x = torch.sigmoid(self.fc2(x))
         return x
 
@@ -207,7 +220,7 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-class PositionalEncoding1D(nn.Module):
+class PositionalEncoding1d(nn.Module):
     def __init__(self, d_model: int, max_len: int = 1000):
         super().__init__()
         if d_model % 2 != 0:
@@ -234,21 +247,9 @@ class PositionalEncoding2D():
 
 
 class JsonDatasetForTransformer(JsonDataset):
-    def __init__(self, json_file, classes, input_keys, positionl_encoding, max_len=1000, neighbour_lines_cnt=0, train=False, val=False):
+    def __init__(self, json_file, classes, input_keys, positional_encoding, neighbour_lines_cnt, train=False, val=False):
         super().__init__(json_file, classes, input_keys, neighbour_lines_cnt, train, val)
-        self.positionl_encoding = positionl_encoding
-        if self.positionl_encoding == '2d':
-            self.positional_encoding = PositionalEncoding2D(len(input_keys), max_len)
-        else:
-            self.positional_encoding = PositionalEncoding1D(len(input_keys), max_len)
-
-    def add_positional_encoding(self, lines, first_non_padding_position, last_non_padding_position, first_non_padding_position_on_page):
-        if self.positionl_encoding == '2d':
-            return lines
-        else:
-            for i, line in enumerate(lines[first_non_padding_position:last_non_padding_position]):
-                line += self.positional_encoding.get_positional_encoding(first_non_padding_position_on_page + i)
-            return lines
+        self.positional_encoding = positional_encoding
 
     def get_line_features_and_labels(self, idx, current_line_idx):
         if 0 <= idx < len(self.data["lines"]) and \
@@ -291,56 +292,20 @@ class JsonDatasetForTransformer(JsonDataset):
             if label[-1] == 1 and first_non_padding_position != -1:
                 last_non_padding_position = i
                 break
-
-        first_non_padding_position_on_page = 0
-        for i in range(current_line_idx - len(labels) // 2, -1, -1):
-            if self.data["lines"][i]["page_id"] != self.data["lines"][current_line_idx]["page_id"]:
-                break
-            first_non_padding_position_on_page += 1
-            
-        positions = torch.full((input_tensor.shape[0], 1), -1)
-        for i in range(first_non_padding_position, last_non_padding_position):
-            positions[i] = first_non_padding_position_on_page + i
-        input_tensor = torch.cat((input_tensor, positions), dim=1)
-
-        # input_tensor = self.add_positional_encoding(input_tensor, first_non_padding_position, last_non_padding_position, first_non_padding_position_on_page)
+        
+        if self.positional_encoding == '1d-page':
+            first_non_padding_position_on_page = 0
+            for i in range(current_line_idx - len(labels) // 2, -1, -1):
+                if self.data["lines"][i]["page_id"] != self.data["lines"][current_line_idx]["page_id"]:
+                    break
+                first_non_padding_position_on_page += 1
+                
+            positions = torch.full((input_tensor.shape[0], 1), -1)
+            for i in range(first_non_padding_position, last_non_padding_position):
+                positions[i] = first_non_padding_position_on_page + i
+            input_tensor = torch.cat((input_tensor, positions), dim=1)
 
         return {"input": input_tensor, "target": labels}
-
-# class JsonDatasetForTransformer2d(JsonDatasetForTransformer):
-#     def __init__(self, json_file, classes, input_keys, grid, train=False, val=False):
-#         super().__init__(json_file, classes, input_keys, train, val)
-#         self.grid = grid
-
-#     def get_line_features_and_labels(self, idx):
-#         labels = self.data["lines"][idx]["labels"]
-#         return [self.data["lines"][idx][key] for key in self.input_keys], [labels.get(label, 0) for label in self.classes]
-
-#     def __getitem__(self, idx):
-#         input_tensor = torch.zeros(self.grid, self.grid, len(self.input_keys))
-#         labels = torch.zeros(self.grid, self.grid, len(self.classes))
-
-#         current_line_idx = self.data["lines"].index(self.data["lines"][self.ids[idx]]) - 1
-#         while len(self.data["lines"]) > current_line_idx and \
-#             self.data["lines"][current_line_idx]["page_id"] != self.data["lines"][self.ids[idx]]["page_id"]:
-#             pos_x = self.data["lines"][current_line_idx]["x"]
-#             pos_y = self.data["lines"][current_line_idx]["y"]
-#             features, line_labels = self.get_line_features_and_labels(current_line_idx)
-#             input_tensor[pos_x, pos_y] = torch.tensor(features)
-#             labels[pos_x, pos_y] = torch.tensor(line_labels)
-#             current_line_idx -= 1
-#         current_line_idx = self.data["lines"].index(self.data["lines"][self.ids[idx]]) + 1
-#         while len(self.data["lines"]) > current_line_idx and \
-#             self.data["lines"][current_line_idx]["page_id"] != self.data["lines"][self.ids[idx]]["page_id"]:
-#             pos_x = self.data["lines"][current_line_idx]["x"]
-#             pos_y = self.data["lines"][current_line_idx]["y"]
-#             features, line_labels = self.get_line_features_and_labels(current_line_idx)
-#             input_tensor[pos_x, pos_y] = torch.tensor(features)
-#             labels[pos_x, pos_y] = torch.tensor(line_labels)
-#             current_line_idx += 1
-
-#         labels = labels.view(-1, len(self.classes))
-#         return {"input": input_tensor, "target": labels}
 
 
 def train_net(writer, net, trn_loader, val_loader, device, epochs, learning_rate, decay_start, decay_rate, decay_step):
@@ -376,8 +341,8 @@ def train_net(writer, net, trn_loader, val_loader, device, epochs, learning_rate
             progress_path = os.path.join(os.path.dirname(args.model_path), f"progress_{epoch}.pt")
             torch.save(net.state_dict(), progress_path)
 
-        # if epoch % 10 == 9:
-        if True:
+        if epoch % 10 == 9:
+        # if True:
             thresholds = [0.5, 0.75, 0.9]
             val_thresholds_stats = test_positives_negatives(net, val_loader, device, thresholds)
             train_thresholds_stats = test_positives_negatives(net, trn_loader, device, thresholds)
@@ -548,12 +513,10 @@ def init_net_and_datasetloader_for_training(args):
         train_data = JsonDataset(args.dataset, args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
         train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True)
     elif args.net == "transformer":
-        net = TransformerEncoderNet(args.classes, args.input_keys, args.positional_encoding, neighbour_lines_cnt=args.neighbour_lines_cnt)
-        val_data = JsonDatasetForTransformer(args.dataset, args.classes, args.input_keys, args.positional_encoding,
-                                             max_len=args.positional_encoding_max_len, neighbour_lines_cnt=args.neighbour_lines_cnt, val=True)
+        net = TransformerEncoderNet(args.classes, args.input_keys, args.positional_encoding, args.positional_encoding_max_len)
+        val_data = JsonDatasetForTransformer(args.dataset, args.classes, args.input_keys, args.positional_encoding, neighbour_lines_cnt=args.neighbour_lines_cnt, val=True)
         val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False, pin_memory=True)
-        train_data = JsonDatasetForTransformer(args.dataset, args.classes, args.input_keys, args.positional_encoding,
-                                               max_len=args.positional_encoding_max_len, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
+        train_data = JsonDatasetForTransformer(args.dataset, args.classes, args.input_keys, args.positional_encoding, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
         train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True)
     return net, train_loader, val_loader
 
