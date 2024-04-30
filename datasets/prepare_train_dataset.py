@@ -13,8 +13,9 @@ from ner import ner_pipeline, remove_special_tokens, connect_words, dict_matchin
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--skip-list-file", required=True)
+    parser.add_argument("--skip-list-file")
     parser.add_argument("--val-list-file", required=True)
+    parser.add_argument("--val-list-type", required=True, choices=["id", "image"])
 
     parser.add_argument("--labels", required=True)
     parser.add_argument("--label-studio-json", required=True)    
@@ -43,6 +44,7 @@ def line_matches_labelbox(line, labelbox):
                 (line_right_x >= labelbox["x"] and line_right_x <= labelbox["x"] + labelbox["width"]) or \
                 (line_left_x <= labelbox["x"] and line_right_x >= labelbox["x"] + labelbox["width"])
     return height_check and x_check
+
 
 def get_line_vector(line, ner_stats, page_layout, all_labels, labels=["text"]):
     out_vector = {}
@@ -104,30 +106,21 @@ def normalize_feature(data):
     normalized_data = (data - min) / (max - min)
     return normalized_data
 
-# normalize position to [0, min(max_position, 10000)]
-def normalize_position(data):
+# normalize position to [0, min(max_position, max_normalized)]
+def normalize_position(data, max_normalized=1000):
+    max_normalized = max_normalized - 1
     data = np.array(data)
     max_position = max(data)
-    max_nomalized = min(max_position, 10000)
+    max_nomalized = min(max_position, max_normalized)
     normalized_data = data / max_position * max_nomalized
     normalized_data = np.round(normalized_data).astype(int)
-    return normalized_data    
+    return normalized_data
 
 def print_stats(data, data_type):
-    text_lines_cnt = len([x for x in data if x["labels"]["text"] >= 1])
-    chapter_lines_cnt = len([x for x in data if x["labels"]["kapitola"] >= 1])
-    page_number_lines_cnt = len([x for x in data if x["labels"]["cislo strany"] >= 1])
-    other_header_lines_cnt = len([x for x in data if x["labels"]["jiny nadpis"] >= 1])
-    other_number_lines_cnt = len([x for x in data if x["labels"]["jine cislo"] >= 1])
-    subtitle_lines_cnt = len([x for x in data if x["labels"]["podnadpis"] >= 1])
-    
     print(80 * "=")
-    print(f"Text lines in {data_type} dataset: {text_lines_cnt}")
-    print(f"Chapter lines in {data_type} dataset: {chapter_lines_cnt}")
-    print(f"Page number lines in {data_type} dataset: {page_number_lines_cnt}")
-    print(f"Other header lines in {data_type} dataset: {other_header_lines_cnt}")
-    print(f"Other number lines in {data_type} dataset: {other_number_lines_cnt}")
-    print(f"Subtitle lines in {data_type} dataset: {subtitle_lines_cnt}")
+    for label in args.labels:
+        label_lines_cnt = len([x for x in data if x["labels"][label] >= 1])
+        print(f"{label} lines in {data_type} dataset: {label_lines_cnt}")
     print(80 * "=")
 
 def print_label_matched_stats(label_stats):
@@ -147,9 +140,10 @@ if __name__ == "__main__":
     model = BertForTokenClassification.from_pretrained(args.czert_path)
     model.to(device)
 
-    with open(args.skip_list_file) as f:
-        skip_list = f.read().splitlines()
-    skip_list = [int(x) for x in skip_list]
+    if args.skip_list_file is not None:
+        with open(args.skip_list_file) as f:
+            skip_list = f.read().splitlines()
+    skip_list = [int(x) for x in skip_list] if args.skip_list_file is not None else []
     with open(args.label_studio_json) as f:
         labestudio_json = json.load(f)
         image_prefix = "/".join(labestudio_json[0]["image"].split("/")[0:-1])
@@ -166,7 +160,10 @@ if __name__ == "__main__":
             page_layout.from_pagexml(page_xml_path)
 
             image_name = os.path.join(image_prefix, page_layout.id + image_suffix)
-            obj = [x for x in labestudio_json if x["image"] == os.path.join(image_prefix, image_name)][0]
+            obj = [x for x in labestudio_json if x["image"] == os.path.join(image_prefix, image_name)]
+            if len(obj) == 0:
+                continue
+            obj = obj[0]
             if obj["id"] in skip_list:
                 continue
             
@@ -230,6 +227,7 @@ if __name__ == "__main__":
             line["padding_right_not_normalized"] = line["padding_right"]
         
         keys_to_remove = []
+        norm_positions = {}
         for key in output[0].keys():
             if key in ["label", "page_id", "transcription", "label_studio_id"] or \
                 "_not_normalized" in key:
@@ -240,11 +238,18 @@ if __name__ == "__main__":
                     max_x = max(data)
                 if key == "y":
                     max_y = max(data)
+                norm_positions[key + "_100"] = normalize_position(data, 100)
+                norm_positions[key + "_1000"] = normalize_position(data, 1000)
+                continue
             else:
                 data = normalize_feature(data)
                 if data is None:
                     keys_to_remove.append(key)
                     continue
+            for i, x in enumerate(data):
+                output[i][key] = x
+                
+        for key, data in norm_positions.items():
             for i, x in enumerate(data):
                 output[i][key] = x
                 
@@ -262,27 +267,36 @@ if __name__ == "__main__":
 
         with open(args.val_list_file) as f:
             val_list = f.read().splitlines()
-        val_list = [int(x) for x in val_list]
-        val = [x for x in output if x["label_studio_id"] in val_list]
-        train = [x for x in output if x["label_studio_id"] not in val_list]
+        if args.val_list_type == "image":
+            val = [x for x in output if x["page_id"].split(".")[0] in val_list]
+        else:
+            val_list = [int(x) for x in val_list]
+            val = [x for x in output if x["label_studio_id"] in val_list]
+        train = [x for x in output if x not in val]
         for x in val:
             x.pop("label_studio_id")
         for x in train:
             x.pop("label_studio_id")
         
         val_text_lines = [x for x in val if x["labels"]["text"] >= 1 and all(x["labels"][label] == 0 for label in args.labels if label != "text")]
-        val_chapter_lines_cnt = len([x for x in val if x["labels"]["kapitola"] >= 1])
+        try:
+            val_max_lines_cnt = len([x for x in val if x["labels"]["kapitola"] >= 1])
+        except:
+            val_max_lines_cnt = len([x for x in val if x["labels"]["titulek"] >= 1])
         val = [x for x in val if any(x["labels"][label] >= 1 for label in args.labels if label != "text")]
         np.random.shuffle(val_text_lines)
-        val += val_text_lines[:min(val_chapter_lines_cnt, len(val_text_lines))]
+        val += val_text_lines[:min(val_max_lines_cnt, len(val_text_lines))]
         
         print_stats(val, "balanced val")
         
         train_text_lines = [x for x in train if x["labels"]["text"] >= 1 and all(x["labels"][label] == 0 for label in args.labels if label != "text")]
-        train_chapter_lines_cnt = len([x for x in train if x["labels"]["kapitola"] >= 1])
+        try:
+            train_max_lines_cnt = len([x for x in train if x["labels"]["kapitola"] >= 1])
+        except:
+            train_max_lines_cnt = len([x for x in train if x["labels"]["titulek"] >= 1])
         train = [x for x in train if any(x["labels"][label] >= 1 for label in args.labels if label != "text")]
         np.random.shuffle(train_text_lines)
-        train += train_text_lines[:min(train_chapter_lines_cnt, len(train_text_lines))]
+        train += train_text_lines[:min(train_max_lines_cnt, len(train_text_lines))]
 
         print_stats(train, "balanced train")
         
