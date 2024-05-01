@@ -170,11 +170,11 @@ class TransformerEncoderNet(nn.Module):
         upsampled_size = 128
         self.fc1 = nn.Linear(len(input_keys), upsampled_size)
         if self.positionl_encoding == "1d-page":
-            self.pe = PositionalEncoding1d(upsampled_size, max_len)
+            self.pe = PositionalEncoding1d(upsampled_size, self.device, max_len)
         elif self.positionl_encoding == "1d-seq":
-            self.pe = PositionalEncoding(upsampled_size, max_len=max_len)
+            self.pe = PositionalEncoding(upsampled_size, self.device, max_len=max_len)
         elif self.positionl_encoding == "2d":
-            self.pe = PositionalEncoding2D()
+            self.pe = PositionalEncoding2D(upsampled_size, self.device, max_len=max_len)
         encoder_layer = nn.TransformerEncoderLayer(d_model=upsampled_size, nhead=8)
         self.te = nn.TransformerEncoder(encoder_layer, num_layers=6)
         self.fc2 = nn.Linear(upsampled_size, len(classes))
@@ -183,6 +183,10 @@ class TransformerEncoderNet(nn.Module):
         if self.positionl_encoding == "1d-page":
             position_x = x[:, :, -1]
             x = x[:, :, :-1]
+        if self.positionl_encoding == "2d":
+            positions_x = x[:, :, -2]
+            positions_y = x[:, :, -1]
+            x = x[:, :, :-2]
         x = F.leaky_relu(self.fc1(x))
         if self.positionl_encoding == "1d-page":
             pos_enc = self.pe(position_x).to(self.device)
@@ -192,7 +196,9 @@ class TransformerEncoderNet(nn.Module):
             x = x.permute(1, 0, 2)
             x = self.pe(x)
         elif self.positionl_encoding == "2d":
-            x = self.pe(x)
+            pos_enc = self.pe(positions_x, positions_y).to(self.device)
+            x += pos_enc
+            x = x.permute(1, 0, 2)
         x = self.te(x)
         x = x.permute(1, 0, 2)
         x = torch.sigmoid(self.fc2(x))
@@ -222,48 +228,100 @@ class PositionalEncoding(nn.Module):
 
 
 class PositionalEncoding1d(nn.Module):
-    def __init__(self, d_model: int, max_len: int = 1000):
+    # source https://github.com/tatp22/multidim-positional-encoding/tree/master
+    # PE(x,2i) = sin(x/10000^(2i/D))
+    # PE(x,2i+1) = cos(x/10000^(2i/D))
+
+    # Where:
+    # x is a point in 2d space
+    # i is an integer in [0, D/2), where D is the size of the ch dimension
+    def __init__(self, d_model: int, device, max_len: int = 1000):
         super().__init__()
+        self.device = device
         if d_model % 2 != 0:
             d_model += 1
-            self.is_extended = True
-        self.d_model = d_model
-        position = torch.arange(max_len).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        
         pe = torch.zeros(max_len, d_model)
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
+        for i in range(d_model // 2):
+            for x in range(max_len):
+                pe[x, 2*i] = math.sin(x / 10000**(2*i / d_model))
+                pe[x, 2*i+1] = math.cos(x / 10000**(2*i / d_model))
         self.register_buffer('pe', pe)
         
     def forward(self, positions):
-        pos_enc = torch.zeros(positions.shape[0], positions.shape[1], self.pe.shape[1])
-        for i, position in enumerate(positions):
-            for j, pos in enumerate(position):
-                if pos != -1:
-                    pos_enc[i, j] = self.pe[pos.long()]
+        batch_size, seq_len = positions.shape
+        pos_enc = torch.zeros(batch_size, seq_len, self.pe.shape[1], dtype=self.pe.dtype, device=self.device)
+
+        valid_positions = positions != -1
+        valid_indices = positions[valid_positions].long()
+        valid_encodings = self.pe[valid_indices]
+        pos_enc[valid_positions] = valid_encodings
+
         return pos_enc
 
-class PositionalEncoding2D():
-    pass
+class PositionalEncoding2D(nn.Module):
+    # source https://github.com/tatp22/multidim-positional-encoding/tree/master
+    # PE(x,y,2i) = sin(x/10000^(4i/D))
+    # PE(x,y,2i+1) = cos(x/10000^(4i/D))
+    # PE(x,y,2j+D/2) = sin(y/10000^(4j/D))
+    # PE(x,y,2j+1+D/2) = cos(y/10000^(4j/D))
+
+    # Where:
+    # (x,y) is a point in 2d space
+    # i,j is an integer in [0, D/4), where D is the size of the ch dimension
+    def __init__(self, d_model: int, device, max_len: int = 1000):
+        super().__init__()
+        if d_model % 4 != 0:
+            d_model += 4 - d_model % 4
+            
+        self.device = device
+            
+        self.d_model = d_model
+        pe = torch.zeros(max_len, max_len, d_model)
+        for i in range(d_model // 4):
+            for x in range(max_len):
+                for y in range(max_len):
+                    pe[x, y, 4*i] = math.sin(x / 10000**(4*i / d_model))
+                    pe[x, y, 4*i+1] = math.cos(x / 10000**(4*i / d_model))
+                    pe[x, y, 4*i+2] = math.sin(y / 10000**(4*i / d_model))
+                    pe[x, y, 4*i+3] = math.cos(y / 10000**(4*i / d_model))
+        self.register_buffer('pe', pe)
+                    
+    def forward(self, positions_x, positions_y):
+        batch_size, seq_len = positions_x.shape
+        pos_enc = torch.zeros(batch_size, seq_len, self.d_model, dtype=self.pe.dtype, device=self.device)
+
+        valid_mask = (positions_x != -1) & (positions_y != -1)
+        valid_indices_x = positions_x[valid_mask].long()
+        valid_indices_y = positions_y[valid_mask].long()
+        valid_encodings = self.pe[valid_indices_x, valid_indices_y]
+        pos_enc[valid_mask] = valid_encodings
+        
+        return pos_enc
 
 
 class JsonDatasetForTransformer(JsonDataset):
-    def __init__(self, json_file, classes, input_keys, positional_encoding, neighbour_lines_cnt, train=False, val=False):
+    def __init__(self, json_file, classes, input_keys, positional_encoding, neighbour_lines_cnt=0, max_len=1000, train=False, val=False):
         super().__init__(json_file, classes, input_keys, neighbour_lines_cnt, train, val)
         self.positional_encoding = positional_encoding
+        self.max_len = max_len
 
     def get_line_features_and_labels(self, idx, current_line_idx):
         if 0 <= idx < len(self.data["lines"]) and \
            self.data["lines"][idx]["page_id"] == self.data["lines"][current_line_idx]["page_id"]:
             labels = self.data["lines"][idx]["labels"]
-            return [self.data["lines"][idx][key] for key in self.input_keys], [labels.get(label, 0) for label in self.classes]
+            x_position = self.data["lines"][idx][f"x_{self.max_len}"]
+            y_position = self.data["lines"][idx][f"y_{self.max_len}"]
+            return [self.data["lines"][idx][key] for key in self.input_keys], [labels.get(label, 0) for label in self.classes], x_position, y_position
         else:
-            return [0] * len(self.input_keys), [0] * (len(self.classes) - 1) + [1]
+            return [0] * len(self.input_keys), [0] * (len(self.classes) - 1) + [1], -1, -1
 
     def __getitem__(self, idx):
-        labels = self.data["lines"][self.ids[idx]]["labels"]
-        labels = torch.tensor([labels.get(label, 0) for label in self.classes], dtype=torch.float32)
-        input_tensor = torch.tensor(self.get_line_features(self.ids[idx], self.ids[idx])).reshape(1, -1)
+        current_line_features, labels, current_line_x, current_line_y = self.get_line_features_and_labels(self.ids[idx], self.ids[idx])
+        input_tensor = torch.tensor(current_line_features).reshape(1, -1)
+        labels = torch.tensor(labels, dtype=torch.float32)
+        x_positions = torch.tensor([current_line_x])
+        y_positions = torch.tensor([current_line_y])
         current_line_idx = self.data["lines"].index(self.data["lines"][self.ids[idx]])
 
         if self.neighbour_lines_cnt > 0:
@@ -276,14 +334,20 @@ class JsonDatasetForTransformer(JsonDataset):
 
             neighbour_lines = torch.tensor([])
             neighbour_labels = torch.tensor([], dtype=torch.int64)
+            neighbour_x_positions = torch.tensor([])
+            neighbour_y_positions = torch.tensor([])
             for i, neighbor_idx in enumerate(neighbor_indices):
-                neighbour_line, neighbour_label = self.get_line_features_and_labels(neighbor_idx, current_line_idx)
+                neighbour_line, neighbour_label, neighbour_x, neighbour_y = self.get_line_features_and_labels(neighbor_idx, current_line_idx)
                 neighbour_lines = torch.cat((neighbour_lines, torch.tensor(neighbour_line).reshape(1, -1)))
                 neighbour_labels = torch.cat((neighbour_labels, torch.tensor([neighbour_label], dtype=torch.float32)))
+                neighbour_x_positions = torch.cat((neighbour_x_positions, torch.tensor([neighbour_x])))
+                neighbour_y_positions = torch.cat((neighbour_y_positions, torch.tensor([neighbour_y])))
 
             input_tensor = torch.cat((neighbour_lines[:len(neighbour_lines)//2], input_tensor, neighbour_lines[len(neighbour_lines)//2:]))
             labels = labels.unsqueeze(0)
             labels = torch.cat((neighbour_labels[:len(neighbour_labels)//2, :], labels, neighbour_labels[len(neighbour_labels)//2:, :]))
+            x_positions = torch.cat((neighbour_x_positions[:len(neighbour_x_positions)//2], x_positions, neighbour_x_positions[len(neighbour_x_positions)//2:]))
+            y_positions = torch.cat((neighbour_y_positions[:len(neighbour_y_positions)//2], y_positions, neighbour_y_positions[len(neighbour_y_positions)//2:]))
 
         first_non_padding_position = -1
         last_non_padding_position = len(input_tensor)
@@ -305,6 +369,9 @@ class JsonDatasetForTransformer(JsonDataset):
             for i in range(first_non_padding_position, last_non_padding_position):
                 positions[i] = first_non_padding_position_on_page + i
             input_tensor = torch.cat((input_tensor, positions), dim=1)
+            
+        if self.positional_encoding == '2d':
+            input_tensor = torch.cat((input_tensor, x_positions.unsqueeze(1), y_positions.unsqueeze(1)), dim=1)
 
         return {"input": input_tensor, "target": labels}
 
@@ -473,7 +540,6 @@ def render_page_bboxes(loader, page_id, mastercopy_dir, output_render_dir, net, 
                 "predicted": predicted.tolist()
             })
 
-    # find image
     img_path = None
     for file in os.listdir(mastercopy_dir):
         if page_id in file:
@@ -523,9 +589,9 @@ def init_net_and_datasetloader_for_training(args):
         train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True)
     elif args.net == "transformer":
         net = TransformerEncoderNet(args.classes, args.input_keys, args.positional_encoding, args.positional_encoding_max_len)
-        val_data = JsonDatasetForTransformer(args.dataset, args.classes, args.input_keys, args.positional_encoding, neighbour_lines_cnt=args.neighbour_lines_cnt, val=True)
+        val_data = JsonDatasetForTransformer(args.dataset, args.classes, args.input_keys, args.positional_encoding, max_len=args.positional_encoding_max_len, neighbour_lines_cnt=args.neighbour_lines_cnt, val=True)
         val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False, pin_memory=True)
-        train_data = JsonDatasetForTransformer(args.dataset, args.classes, args.input_keys, args.positional_encoding, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
+        train_data = JsonDatasetForTransformer(args.dataset, args.classes, args.input_keys, args.positional_encoding, max_len=args.positional_encoding_max_len, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
         train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True)
     return net, train_loader, val_loader
 
