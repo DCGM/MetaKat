@@ -172,7 +172,7 @@ class TransformerEncoderNet(nn.Module):
         if self.positionl_encoding == "1d-page":
             self.pe = PositionalEncoding1d(upsampled_size, self.device, max_len)
         elif self.positionl_encoding == "1d-seq":
-            self.pe = PositionalEncoding(upsampled_size, self.device, max_len=max_len)
+            self.pe = PositionalEncoding(upsampled_size, max_len=max_len)
         elif self.positionl_encoding == "2d":
             self.pe = PositionalEncoding2D(upsampled_size, self.device, max_len=max_len)
         encoder_layer = nn.TransformerEncoderLayer(d_model=upsampled_size, nhead=8)
