@@ -160,47 +160,47 @@ class JsonDatasetRenderer(JsonDataset):
 
 
 class TransformerEncoderNet(nn.Module):
-    def __init__(self, classes, input_keys, positional_encoding, max_len):
+    def __init__(self, classes, input_keys, positional_encoding, max_len, device):
         super().__init__()
         self.classes = classes
         self.input_keys = input_keys
         self.positionl_encoding = positional_encoding
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = device
 
         upsampled_size = 128
         self.fc1 = nn.Linear(len(input_keys), upsampled_size)
-        if self.positionl_encoding == "1d-page":
-            self.pe = PositionalEncoding1d(upsampled_size, self.device, max_len)
-        elif self.positionl_encoding == "1d-seq":
+        if self.positionl_encoding == "1d-seq":
             self.pe = PositionalEncoding(upsampled_size, max_len=max_len)
+        elif self.positionl_encoding == "1d-page":
+            self.pe = PositionalEncoding1d(upsampled_size, self.device, max_len=max_len)        
         elif self.positionl_encoding == "2d":
             self.pe = PositionalEncoding2D(upsampled_size, self.device, max_len=max_len)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=upsampled_size, nhead=8)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=upsampled_size, nhead=8, batch_first=True)
         self.te = nn.TransformerEncoder(encoder_layer, num_layers=6)
         self.fc2 = nn.Linear(upsampled_size, len(classes))
 
     def forward(self, x):
         if self.positionl_encoding == "1d-page":
-            position_x = x[:, :, -1]
+            positions_x = x[:, :, -1]
             x = x[:, :, :-1]
         if self.positionl_encoding == "2d":
             positions_x = x[:, :, -2]
             positions_y = x[:, :, -1]
             x = x[:, :, :-2]
+            
         x = F.leaky_relu(self.fc1(x))
-        if self.positionl_encoding == "1d-page":
-            pos_enc = self.pe(position_x).to(self.device)
-            x += pos_enc
-            x = x.permute(1, 0, 2)
-        elif self.positionl_encoding == "1d-seq":
+        
+        if self.positionl_encoding == "1d-seq":
             x = x.permute(1, 0, 2)
             x = self.pe(x)
-        elif self.positionl_encoding == "2d":
-            pos_enc = self.pe(positions_x, positions_y).to(self.device)
-            x += pos_enc
             x = x.permute(1, 0, 2)
+        else:
+            if self.positionl_encoding == "1d-page":
+                pos_enc = self.pe(positions_x).to(self.device) 
+            elif self.positionl_encoding == "2d":
+                pos_enc = self.pe(positions_x, positions_y).to(self.device)
+            x += pos_enc
         x = self.te(x)
-        x = x.permute(1, 0, 2)
         x = torch.sigmoid(self.fc2(x))
         return x
 
@@ -239,18 +239,22 @@ class PositionalEncoding1d(nn.Module):
         super().__init__()
         self.device = device
         if d_model % 2 != 0:
-            d_model += 1
+            raise ValueError("d_model must be divisible by 2")
         
-        pe = torch.zeros(max_len, d_model)
-        for i in range(d_model // 2):
-            for x in range(max_len):
-                pe[x, 2*i] = math.sin(x / 10000**(2*i / d_model))
-                pe[x, 2*i+1] = math.cos(x / 10000**(2*i / d_model))
+        self.d_model = d_model
+        self.device = device
+        positions = torch.arange(0, max_len, dtype=torch.float32, device=device)
+        div_term = torch.pow(10000, torch.arange(0, d_model, 2, device=device) / d_model)
+
+        pe = torch.zeros(max_len, d_model, device=device)
+        pe[:, 0::2] = torch.sin(positions.unsqueeze(-1) / div_term)
+        pe[:, 1::2] = torch.cos(positions.unsqueeze(-1) / div_term)
+        
         self.register_buffer('pe', pe)
         
     def forward(self, positions):
         batch_size, seq_len = positions.shape
-        pos_enc = torch.zeros(batch_size, seq_len, self.pe.shape[1], dtype=self.pe.dtype, device=self.device)
+        pos_enc = torch.zeros(batch_size, seq_len, self.d_model, dtype=self.pe.dtype, device=self.device)
 
         valid_positions = positions != -1
         valid_indices = positions[valid_positions].long()
@@ -272,19 +276,19 @@ class PositionalEncoding2D(nn.Module):
     def __init__(self, d_model: int, device, max_len: int = 1000):
         super().__init__()
         if d_model % 4 != 0:
-            d_model += 4 - d_model % 4
-            
-        self.device = device
-            
+            raise ValueError("d_model must be divisible by 4")
+        
         self.d_model = d_model
-        pe = torch.zeros(max_len, max_len, d_model)
-        for i in range(d_model // 4):
-            for x in range(max_len):
-                for y in range(max_len):
-                    pe[x, y, 4*i] = math.sin(x / 10000**(4*i / d_model))
-                    pe[x, y, 4*i+1] = math.cos(x / 10000**(4*i / d_model))
-                    pe[x, y, 4*i+2] = math.sin(y / 10000**(4*i / d_model))
-                    pe[x, y, 4*i+3] = math.cos(y / 10000**(4*i / d_model))
+        self.device = device
+        pe = torch.zeros(max_len, max_len, d_model, device=device)
+        positions = torch.arange(0, max_len, dtype=torch.float32, device=device)
+        div_term = torch.pow(10000, torch.arange(0, d_model / 4, device=device) * 4 / d_model)
+
+        pe[:, :, 0::4] = torch.sin(positions.unsqueeze(-1) / div_term).unsqueeze(1)
+        pe[:, :, 1::4] = torch.cos(positions.unsqueeze(-1) / div_term).unsqueeze(1)
+        pe[:, :, 2::4] = torch.sin(positions.unsqueeze(-1) / div_term).unsqueeze(0)
+        pe[:, :, 3::4] = torch.cos(positions.unsqueeze(-1) / div_term).unsqueeze(0)
+
         self.register_buffer('pe', pe)
                     
     def forward(self, positions_x, positions_y):
@@ -580,7 +584,7 @@ def render_val_pages(mastercopy_dir, output_render_dir, val_loader, net, device)
         render_page_bboxes(val_loader, page_id, mastercopy_dir, output_render_dir, net, device)
 
 
-def init_net_and_datasetloader_for_training(args):
+def init_net_and_datasetloader_for_training(args, device):
     if args.net == "baseline":
         net = BaselineNet(args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt)
         val_data = JsonDataset(args.dataset, args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt, val=True)
@@ -588,7 +592,7 @@ def init_net_and_datasetloader_for_training(args):
         train_data = JsonDataset(args.dataset, args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
         train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True)
     elif args.net == "transformer":
-        net = TransformerEncoderNet(args.classes, args.input_keys, args.positional_encoding, args.positional_encoding_max_len)
+        net = TransformerEncoderNet(args.classes, args.input_keys, args.positional_encoding, args.positional_encoding_max_len, device)
         val_data = JsonDatasetForTransformer(args.dataset, args.classes, args.input_keys, args.positional_encoding, max_len=args.positional_encoding_max_len, neighbour_lines_cnt=args.neighbour_lines_cnt, val=True)
         val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False, pin_memory=True)
         train_data = JsonDatasetForTransformer(args.dataset, args.classes, args.input_keys, args.positional_encoding, max_len=args.positional_encoding_max_len, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
@@ -611,7 +615,7 @@ if __name__ == "__main__":
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    net, trn_loader, val_loader = init_net_and_datasetloader_for_training(args)
+    net, trn_loader, val_loader = init_net_and_datasetloader_for_training(args, device)
     net.to(device)
 
     if args.epochs:
