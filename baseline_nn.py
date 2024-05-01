@@ -61,7 +61,6 @@ class BaselineNet(nn.Module):
         x = F.leaky_relu(self.fc1(x))
         x = F.leaky_relu(self.fc2(x))
         x = torch.sigmoid(self.fc3(x))
-
         return x
 
 
@@ -159,12 +158,14 @@ class JsonDatasetRenderer(JsonDataset):
         return {"input": input_tensor, "target": labels, "padding": not_normalized_padding, "page_id": self.data["lines"][self.ids[idx]]["page_id"]}
 
 
+
 class TransformerEncoderNet(nn.Module):
     def __init__(self, classes, input_keys, positional_encoding, max_len):
         super().__init__()
         self.classes = classes
         self.input_keys = input_keys
         self.positionl_encoding = positional_encoding
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
         upsampled_size = 128
         self.fc1 = nn.Linear(len(input_keys), upsampled_size)
@@ -184,7 +185,7 @@ class TransformerEncoderNet(nn.Module):
             x = x[:, :, :-1]
         x = F.leaky_relu(self.fc1(x))
         if self.positionl_encoding == "1d-page":
-            pos_enc = self.pe(position_x)
+            pos_enc = self.pe(position_x).to(self.device)
             x += pos_enc
             x = x.permute(1, 0, 2)
         elif self.positionl_encoding == "1d-seq":
@@ -347,9 +348,15 @@ def train_net(writer, net, trn_loader, val_loader, device, epochs, learning_rate
             val_thresholds_stats = test_positives_negatives(net, val_loader, device, thresholds)
             train_thresholds_stats = test_positives_negatives(net, trn_loader, device, thresholds)
             for threshold in thresholds:
-                class_tp, class_tn, class_fp, class_fn = val_thresholds_stats[threshold]
+                class_tp = val_thresholds_stats[threshold]["tp"]
+                class_tn = val_thresholds_stats[threshold]["tn"]
+                class_fp = val_thresholds_stats[threshold]["fp"]
+                class_fn = val_thresholds_stats[threshold]["fn"]
                 do_metrics(writer, epoch, "Val", class_tp, class_tn, class_fp, class_fn, threshold)
-                class_tp, class_tn, class_fp, class_fn = train_thresholds_stats[threshold]
+                class_tp = train_thresholds_stats[threshold]["tp"]
+                class_tn = train_thresholds_stats[threshold]["tn"]
+                class_fp = train_thresholds_stats[threshold]["fp"]
+                class_fn = train_thresholds_stats[threshold]["fn"]                
                 do_metrics(writer, epoch, "Train", class_tp, class_tn, class_fp, class_fn, threshold)
 
 
@@ -372,7 +379,7 @@ def do_metrics(writer, epoch, loader_type, class_tp, class_tn, class_fp, class_f
 
 
 def test_positives_negatives(net, loader, device, thresholds=[0.75]):
-    out = {}
+    out = {threshold: {"tp": [0] * len(net.classes), "tn": [0] * len(net.classes), "fp": [0] * len(net.classes), "fn": [0] * len(net.classes)} for threshold in thresholds}
     with torch.no_grad():
         for data in loader:
             inputs, labels = data["input"], data["target"]
@@ -382,8 +389,8 @@ def test_positives_negatives(net, loader, device, thresholds=[0.75]):
             predicted_thresholds = {}
             for threshold in thresholds:
                 predicted = (outputs >= threshold).int().view(-1, len(net.classes))
-                predicted_thresholds[threshold] = predicted               
-
+                predicted_thresholds[threshold] = predicted
+            
             labels = labels.int().view(-1, len(net.classes))
 
             for threshold in thresholds:
@@ -397,7 +404,10 @@ def test_positives_negatives(net, loader, device, thresholds=[0.75]):
                     class_tn[i] += ((predicted[:, i] == 0) & (labels[:, i] == 0)).sum().item()
                     class_fp[i] += ((predicted[:, i] == 1) & (labels[:, i] == 0)).sum().item()
                     class_fn[i] += ((predicted[:, i] == 0) & (labels[:, i] == 1)).sum().item()
-                out[threshold] = [class_tp, class_tn, class_fp, class_fn]
+                out[threshold]["tp"] = [out[threshold]["tp"][i] + class_tp[i] for i in range(len(net.classes))]
+                out[threshold]["tn"] = [out[threshold]["tn"][i] + class_tn[i] for i in range(len(net.classes))]
+                out[threshold]["fp"] = [out[threshold]["fp"][i] + class_fp[i] for i in range(len(net.classes))]
+                out[threshold]["fn"] = [out[threshold]["fn"][i] + class_fn[i] for i in range(len(net.classes))]
 
     return out
 
@@ -434,7 +444,6 @@ def padding_to_bbox_pts(padding, img_width, img_height, bbox_padding=10):
     right_padding = padding[1]
     bottom_padding = padding[2]
     left_padding = padding[3]
-    print(top_padding, bottom_padding, left_padding, right_padding)
     top_left = [left_padding, top_padding]
     top_right = [img_width - right_padding, top_padding]
     bottom_right = [img_width - right_padding, img_height - bottom_padding + bbox_padding]
@@ -520,6 +529,11 @@ def init_net_and_datasetloader_for_training(args):
         train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True)
     return net, train_loader, val_loader
 
+def comma_float(num):
+    return f'{num:.3f}'.replace('.', ',')
+
+def print_for_results(metric, num):
+    print(f'{metric}: {comma_float(num)}')
 
 if __name__ == "__main__":
     args = parse_args()
@@ -551,23 +565,26 @@ if __name__ == "__main__":
     thresholds = [0.5, 0.75, 0.9]
     val_thresholds_stats = test_positives_negatives(net, val_loader, device, thresholds)
     for threshold in thresholds:
-        class_tp, class_tn, class_fp, class_fn = val_thresholds_stats[threshold]
+        class_tp = val_thresholds_stats[threshold]["tp"]
+        class_tn = val_thresholds_stats[threshold]["tn"]
+        class_fp = val_thresholds_stats[threshold]["fp"]
+        class_fn = val_thresholds_stats[threshold]["fn"]
         accuracy, total_accuracy = test_accuracy(net, class_tp, class_tn, class_fp, class_fn)
         precision, total_precision = test_precision(net, class_tp, class_fp)
         recall, total_recall = test_recall(net, class_tp, class_fn)
         f1, total_f1 = test_f1_score(net, precision, recall)
         
-        print(80 * "=")
-        print(f"Threshold: {threshold}")
-        print(f"Accuracy: {total_accuracy}")
-        print(f"Precision: {total_precision}")
-        print(f"Recall: {total_recall}")
-        print(f"F1: {total_f1}")
+        print(80 * "=")        
+        print("Threshold:", threshold)
+        print_for_results("Total precision", total_precision)
+        print_for_results("Total recall", total_recall)
+        print_for_results("Total f1", total_f1)
+        print_for_results("Total accuracy", total_accuracy)
         for i, class_name in enumerate(args.classes):
             print(20 * "*")
             print(f"{class_name}:")
-            print(f"Accuracy: {accuracy[i]}")
-            print(f"Precision: {precision[i]}")
-            print(f"Recall: {recall[i]}")
-            print(f"F1: {f1[i]}")
+            print_for_results("Precision", precision[i])
+            print_for_results("Recall", recall[i])
+            print_for_results("F1", f1[i])
+            print_for_results("Accuracy", accuracy[i])
             
