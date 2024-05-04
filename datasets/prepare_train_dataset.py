@@ -75,7 +75,7 @@ def get_line_vector(line, ner_stats, page_layout, all_labels, labels=["text"]):
     if "T" in ner_stats:
         out_vector["time_count"] = ner_stats["T"]
     if "P" in ner_stats:
-        out_vector["place_count"] = ner_stats["P"]
+        out_vector["name_count"] = ner_stats["P"]
     if "G" in ner_stats:
         out_vector["geographical_count"] = ner_stats["G"]
     if "ŘÍMSKÉ ČÍSLO" in ner_stats:

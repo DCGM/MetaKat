@@ -19,7 +19,7 @@ def parse_args():
     parser.add_argument("--dataset", required=True)
 
     parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--learning-rate", type=float, default=0.00001)
+    parser.add_argument("--learning-rate", type=float, default=0.01)
     parser.add_argument("--decay-start", type=int, default=1000)
     parser.add_argument("--decay-rate", type=float, default=0.0)
     parser.add_argument("--decay-step", type=int, default=0)
@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument("--neighbour-lines-cnt", type=int, default=0)
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--model-path", required=True)
-    parser.add_argument('--positional-encoding', choices=['2d', '1d-page', '1d-seq'], default='2d', help='Possitional encoding for the model')
+    parser.add_argument('--positional-encoding', choices=['2d', '1d-page', '1d-seq', '1d-seq-2d'], default='2d', help='Possitional encoding for the model')
     parser.add_argument('--positional-encoding-max-len', type=int, default=1000, help='Max len for positional encoding')
 
     parser.add_argument("--render-val-images", action="store_true")
@@ -175,6 +175,9 @@ class TransformerEncoderNet(nn.Module):
             self.pe = PositionalEncoding1d(upsampled_size, self.device, max_len=max_len)        
         elif self.positionl_encoding == "2d":
             self.pe = PositionalEncoding2D(upsampled_size, self.device, max_len=max_len)
+        elif self.positionl_encoding == "1d-seq-2d":
+            self.pe_1d = PositionalEncoding(upsampled_size, max_len=max_len)
+            self.pe_2d = PositionalEncoding2D(upsampled_size, self.device, max_len=max_len)
         encoder_layer = nn.TransformerEncoderLayer(d_model=upsampled_size, nhead=8, batch_first=True)
         self.te = nn.TransformerEncoder(encoder_layer, num_layers=6)
         self.fc2 = nn.Linear(upsampled_size, len(classes))
@@ -183,7 +186,7 @@ class TransformerEncoderNet(nn.Module):
         if self.positionl_encoding == "1d-page":
             positions_x = x[:, :, -1]
             x = x[:, :, :-1]
-        if self.positionl_encoding == "2d":
+        if self.positionl_encoding == "2d" or self.positionl_encoding == "1d-seq-2d":
             positions_x = x[:, :, -2]
             positions_y = x[:, :, -1]
             x = x[:, :, :-2]
@@ -199,6 +202,11 @@ class TransformerEncoderNet(nn.Module):
                 pos_enc = self.pe(positions_x).to(self.device) 
             elif self.positionl_encoding == "2d":
                 pos_enc = self.pe(positions_x, positions_y).to(self.device)
+            elif self.positionl_encoding == "1d-seq-2d":
+                pos_enc = self.pe_2d(positions_x, positions_y).to(self.device)
+                x = x.permute(1, 0, 2)
+                x = self.pe_1d(x)
+                x = x.permute(1, 0, 2)
             x += pos_enc
         x = self.te(x)
         x = torch.sigmoid(self.fc2(x))
@@ -374,7 +382,7 @@ class JsonDatasetForTransformer(JsonDataset):
                 positions[i] = first_non_padding_position_on_page + i
             input_tensor = torch.cat((input_tensor, positions), dim=1)
             
-        if self.positional_encoding == '2d':
+        if self.positional_encoding == '2d' or self.positional_encoding == '1d-seq-2d':
             input_tensor = torch.cat((input_tensor, x_positions.unsqueeze(1), y_positions.unsqueeze(1)), dim=1)
 
         return {"input": input_tensor, "target": labels}
