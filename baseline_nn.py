@@ -15,12 +15,12 @@ import torch.nn.functional as F
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--net", choices=["baseline", "transformer"], required=True)
+    parser.add_argument("--net", choices=["fcnn", "tenn"], required=True)
     parser.add_argument("--dataset", required=True)
 
-    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=0.01)
-    parser.add_argument("--decay-start", type=int, default=1000)
+    parser.add_argument("--decay-start", type=int, default=200)
     parser.add_argument("--decay-rate", type=float, default=0.0)
     parser.add_argument("--decay-step", type=int, default=0)
     parser.add_argument("--classes", required=True)
@@ -45,7 +45,7 @@ def map_label(classes, label):
     return classes.index(label)
 
 
-class BaselineNet(nn.Module):
+class FCNN(nn.Module):
     def __init__(self, classes, input_keys, neighbour_lines_cnt=0):
         super().__init__()
         self.classes = classes
@@ -159,7 +159,7 @@ class JsonDatasetRenderer(JsonDataset):
 
 
 
-class TransformerEncoderNet(nn.Module):
+class TENN(nn.Module):
     def __init__(self, classes, input_keys, positional_encoding, max_len, device):
         super().__init__()
         self.classes = classes
@@ -312,7 +312,7 @@ class PositionalEncoding2D(nn.Module):
         return pos_enc
 
 
-class JsonDatasetForTransformer(JsonDataset):
+class JsonDatasetForTENN(JsonDataset):
     def __init__(self, json_file, classes, input_keys, positional_encoding, neighbour_lines_cnt=0, max_len=1000, train=False, val=False):
         super().__init__(json_file, classes, input_keys, neighbour_lines_cnt, train, val)
         self.positional_encoding = positional_encoding
@@ -431,33 +431,49 @@ def train_net(writer, net, trn_loader, val_loader, device, epochs, learning_rate
                 class_tn = val_thresholds_stats[threshold]["tn"]
                 class_fp = val_thresholds_stats[threshold]["fp"]
                 class_fn = val_thresholds_stats[threshold]["fn"]
-                do_metrics(writer, epoch, "Val", class_tp, class_tn, class_fp, class_fn, threshold)
+                do_metrics("Val", class_tp, class_tn, class_fp, class_fn, threshold=threshold, writer=writer, epoch=epoch)
                 class_tp = train_thresholds_stats[threshold]["tp"]
                 class_tn = train_thresholds_stats[threshold]["tn"]
                 class_fp = train_thresholds_stats[threshold]["fp"]
                 class_fn = train_thresholds_stats[threshold]["fn"]                
-                do_metrics(writer, epoch, "Train", class_tp, class_tn, class_fp, class_fn, threshold)
+                do_metrics("Train", class_tp, class_tn, class_fp, class_fn, threshold=threshold, writer=writer, epoch=epoch)
 
 
-def do_metrics(writer, epoch, loader_type, class_tp, class_tn, class_fp, class_fn, threshold=0.75):
+def do_metrics(loader_type, class_tp, class_tn, class_fp, class_fn, threshold=0.75, writer=None, epoch=None):
     precision, total_precision = test_precision(net, class_tp, class_fp)
     recall, total_recall = test_recall(net, class_tp, class_fn)
     f1, total_f1 = test_f1_score(net, precision, recall)
     accuracy, total_accuracy = test_accuracy(net, class_tp, class_tn, class_fp, class_fn)
+    
+    if writer is not None and epoch is not None:
+        writer.add_scalar(f"{loader_type} threshold {threshold} precision", total_precision, epoch)
+        writer.add_scalar(f"{loader_type} threshold {threshold} recall", total_recall, epoch)
+        writer.add_scalar(f"{loader_type} threshold {threshold} f1", total_f1, epoch)
+        writer.add_scalar(f"{loader_type} threshold {threshold} accuracy", total_accuracy, epoch)
 
-    writer.add_scalar(f"{loader_type} threshold {threshold} precision", total_precision, epoch)
-    writer.add_scalar(f"{loader_type} threshold {threshold} recall", total_recall, epoch)
-    writer.add_scalar(f"{loader_type} threshold {threshold} f1", total_f1, epoch)
-    writer.add_scalar(f"{loader_type} threshold {threshold} accuracy", total_accuracy, epoch)
-
-    for i, class_name in enumerate(args.classes):
-        writer.add_scalar(f"{loader_type} threshold {threshold} precision/{class_name}", precision[i], epoch)
-        writer.add_scalar(f"{loader_type} threshold {threshold} recall/{class_name}", recall[i], epoch)
-        writer.add_scalar(f"{loader_type} threshold {threshold} f1/{class_name}", f1[i], epoch)
-        writer.add_scalar(f"{loader_type} threshold {threshold} accuracy/{class_name}", accuracy[i], epoch)
+        for i, class_name in enumerate(net.classes):
+            writer.add_scalar(f"{loader_type} threshold {threshold} precision/{class_name}", precision[i], epoch)
+            writer.add_scalar(f"{loader_type} threshold {threshold} recall/{class_name}", recall[i], epoch)
+            writer.add_scalar(f"{loader_type} threshold {threshold} f1/{class_name}", f1[i], epoch)
+            writer.add_scalar(f"{loader_type} threshold {threshold} accuracy/{class_name}", accuracy[i], epoch)
+    else:
+        print(f"Metrices for {loader_type} threshold {threshold}")
+        print_for_results("precision", total_precision)
+        print_for_results("recall", total_recall)
+        print_for_results("f1", total_f1)
+        print_for_results("accuracy", total_accuracy)
+        for i, class_name in enumerate(net.classes):
+            print(40 * "*")
+            print(f"Class {class_name}")
+            print_for_results("precision", precision[i])
+            print_for_results("recall", recall[i])
+            print_for_results("f1", f1[i])
+            print_for_results("accuracy", accuracy[i])
 
 
 def test_positives_negatives(net, loader, device, thresholds=[0.75]):
+    # count only the middle line = the line "chosen by loader"
+    count_one = True if isinstance(net, TENN) else False
     out = {threshold: {"tp": [0] * len(net.classes), "tn": [0] * len(net.classes), "fp": [0] * len(net.classes), "fn": [0] * len(net.classes)} for threshold in thresholds}
     with torch.no_grad():
         for data in loader:
@@ -478,11 +494,17 @@ def test_positives_negatives(net, loader, device, thresholds=[0.75]):
                 class_tn = [0] * len(net.classes)
                 class_fp = [0] * len(net.classes)
                 class_fn = [0] * len(net.classes)
-                for i in range(len(net.classes)):
-                    class_tp[i] += ((predicted[:, i] == 1) & (labels[:, i] == 1)).sum().item()
-                    class_tn[i] += ((predicted[:, i] == 0) & (labels[:, i] == 0)).sum().item()
-                    class_fp[i] += ((predicted[:, i] == 1) & (labels[:, i] == 0)).sum().item()
-                    class_fn[i] += ((predicted[:, i] == 0) & (labels[:, i] == 1)).sum().item()
+                for i in range(len(net.classes)):                    
+                    if count_one:
+                        class_tp[i] += ((predicted[len(predicted) // 2:, i] == 1) & (labels[len(labels) // 2:, i] == 1)).sum().item()
+                        class_tn[i] += ((predicted[len(predicted) // 2:, i] == 0) & (labels[len(labels) // 2:, i] == 0)).sum().item()
+                        class_fp[i] += ((predicted[len(predicted) // 2:, i] == 1) & (labels[len(labels) // 2:, i] == 0)).sum().item()
+                        class_fn[i] += ((predicted[len(predicted) // 2:, i] == 0) & (labels[len(labels) // 2:, i] == 1)).sum().item()                    
+                    else:
+                        class_tp[i] += ((predicted[:, i] == 1) & (labels[:, i] == 1)).sum().item()
+                        class_tn[i] += ((predicted[:, i] == 0) & (labels[:, i] == 0)).sum().item()
+                        class_fp[i] += ((predicted[:, i] == 1) & (labels[:, i] == 0)).sum().item()
+                        class_fn[i] += ((predicted[:, i] == 0) & (labels[:, i] == 1)).sum().item()
                 out[threshold]["tp"] = [out[threshold]["tp"][i] + class_tp[i] for i in range(len(net.classes))]
                 out[threshold]["tn"] = [out[threshold]["tn"][i] + class_tn[i] for i in range(len(net.classes))]
                 out[threshold]["fp"] = [out[threshold]["fp"][i] + class_fp[i] for i in range(len(net.classes))]
@@ -593,17 +615,17 @@ def render_val_pages(mastercopy_dir, output_render_dir, val_loader, net, device)
 
 
 def init_net_and_datasetloader_for_training(args, device):
-    if args.net == "baseline":
-        net = BaselineNet(args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt)
+    if args.net == "fcnn":
+        net = FCNN(args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt)
         val_data = JsonDataset(args.dataset, args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt, val=True)
         val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False, pin_memory=True)
         train_data = JsonDataset(args.dataset, args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
         train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True)
-    elif args.net == "transformer":
-        net = TransformerEncoderNet(args.classes, args.input_keys, args.positional_encoding, args.positional_encoding_max_len, device)
-        val_data = JsonDatasetForTransformer(args.dataset, args.classes, args.input_keys, args.positional_encoding, max_len=args.positional_encoding_max_len, neighbour_lines_cnt=args.neighbour_lines_cnt, val=True)
+    elif args.net == "tenn":
+        net = TENN(args.classes, args.input_keys, args.positional_encoding, args.positional_encoding_max_len, device)
+        val_data = JsonDatasetForTENN(args.dataset, args.classes, args.input_keys, args.positional_encoding, max_len=args.positional_encoding_max_len, neighbour_lines_cnt=args.neighbour_lines_cnt, val=True)
         val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False, pin_memory=True)
-        train_data = JsonDatasetForTransformer(args.dataset, args.classes, args.input_keys, args.positional_encoding, max_len=args.positional_encoding_max_len, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
+        train_data = JsonDatasetForTENN(args.dataset, args.classes, args.input_keys, args.positional_encoding, max_len=args.positional_encoding_max_len, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
         train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True)
     return net, train_loader, val_loader
 
@@ -647,22 +669,6 @@ if __name__ == "__main__":
         class_tn = val_thresholds_stats[threshold]["tn"]
         class_fp = val_thresholds_stats[threshold]["fp"]
         class_fn = val_thresholds_stats[threshold]["fn"]
-        accuracy, total_accuracy = test_accuracy(net, class_tp, class_tn, class_fp, class_fn)
-        precision, total_precision = test_precision(net, class_tp, class_fp)
-        recall, total_recall = test_recall(net, class_tp, class_fn)
-        f1, total_f1 = test_f1_score(net, precision, recall)
-        
-        print(80 * "=")        
-        print("Threshold:", threshold)
-        print_for_results("Total precision", total_precision)
-        print_for_results("Total recall", total_recall)
-        print_for_results("Total f1", total_f1)
-        print_for_results("Total accuracy", total_accuracy)
-        for i, class_name in enumerate(args.classes):
-            print(20 * "*")
-            print(f"{class_name}:")
-            print_for_results("Precision", precision[i])
-            print_for_results("Recall", recall[i])
-            print_for_results("F1", f1[i])
-            print_for_results("Accuracy", accuracy[i])
+        print(80*"=")
+        do_metrics("Val", class_tp, class_tn, class_fp, class_fn, threshold=threshold)
             
