@@ -1,3 +1,9 @@
+# File: ner.py
+# Author: Jakub Křivánek
+# Date: 7. 5. 2024
+# Description: This file contains the NER pipeline and the functions for postprocessing the NER output.
+
+
 import torch
 from fuzzywuzzy import fuzz
 import Levenshtein

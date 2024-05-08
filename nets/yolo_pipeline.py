@@ -1,3 +1,8 @@
+# File: yolo_pipeline.py
+# Author: Jakub Křivánek
+# Date: 7. 5. 2024
+# Description: This script is used for running YOLO model on images and reading OCR transcriptions from the detected bounding boxes.
+
 import os
 import argparse
 from pero_ocr.core.layout import PageLayout
@@ -155,7 +160,7 @@ if __name__ == '__main__':
 
     correctly_read, incorrectly_read, false_positives, false_negatives, true_positives, character_error, characters_len = 0, 0, 0, 0, 0, 0, 0
     for result in results:
-        img_name = os.path.basename(result.path).split('.')[0]
+        img_name = "".join(os.path.basename(result.path).split('.')[:-1])
         img_basename = os.path.basename(result.path)
         page_dir = os.path.join(args.output_dir, img_name)
         xml_dir = os.path.join(page_dir, "ocr_xml")
@@ -211,10 +216,6 @@ if __name__ == '__main__':
             
             not_colored_img_path = os.path.join(args.img_not_colored_dir, img_basename)
             if not os.path.exists(not_colored_img_path):
-                not_colored_img_path = not_colored_img_path + ".jpg"
-            if not os.path.exists(not_colored_img_path):
-                not_colored_img_path = not_colored_img_path.replace('.jpg.jpg', 'jpg.tif.jp2.jpg')
-            if not os.path.exists(not_colored_img_path):
                 print(f"Image {not_colored_img_path} not found")
                 continue
             img = cv2.imread(not_colored_img_path)
@@ -235,8 +236,7 @@ if __name__ == '__main__':
             ocr_args += ["--gpu-id", ocr_gpu_id]
 
         if ocr_device != 'cpu':
-            # edited pero-ocr/pero_ocr/cli/parse_folder.py
-            parse_folder(ocr_args)
+            os.system(f"python3 -m pero-ocr.user_scripts.parse_folder {ocr_args}")
 
         compared_results = compare_results(dataset, xml_dir, img_name)
         correctly_read += compared_results[0]

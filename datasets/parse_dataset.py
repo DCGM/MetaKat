@@ -1,3 +1,8 @@
+# File: parse_dataset.py
+# Author: Jan Kohút, Jakub Křivánek
+# Date: 7. 5. 2024
+# Description: This file is used for preparing labels for Label Studio based on connected metadata.
+
 import argparse
 import json
 import os

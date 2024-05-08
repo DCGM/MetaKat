@@ -1,3 +1,8 @@
+# File: yolov8.py
+# Author: Jakub Křivánek
+# Date: 7. 5. 2024
+# Description: This file is used for training the YOLOv8 model.
+
 import os
 import argparse
 from ultralytics import YOLO

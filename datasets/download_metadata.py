@@ -1,3 +1,8 @@
+# File: download_metadata.py
+# Author: Jakub Křivánek
+# Date: 7. 5. 2024
+# Description: This file contains the script for downloading metadata from Kramerius.
+
 import requests
 import os
 import time
@@ -100,12 +105,12 @@ def frequency_to_number(frequency):
 
 
 def get_response(url, output_dir=None):
-    retry_times = 5
+    retry_times = 3
     for _ in range(retry_times):
         try:
             response = requests.get(url)
         except requests.exceptions.ConnectTimeout:
-            time.sleep(5)
+            time.sleep(2)
             continue
         if response.status_code == 200 or response.status_code == 404:
             break

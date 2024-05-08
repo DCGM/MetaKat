@@ -1,3 +1,8 @@
+# File: prepare_fcnn_tenn_dataset.py
+# Author: Jakub Křivánek
+# Date: 7. 5. 2024
+# Description: This file prepares the dataset for the FCNN and TENN models.
+
 import argparse
 import os
 import json

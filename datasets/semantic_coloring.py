@@ -1,3 +1,9 @@
+# File: semantic_coloring.py
+# Author: Jakub Křivánek
+# Date: 7. 5. 2024
+# Description: This file is used for coloring the text in the image based on the NER output.
+
+
 from transformers import BertTokenizer, BertForTokenClassification
 import torch
 import os
@@ -7,7 +13,7 @@ from pero_ocr.core import layout
 from pero_ocr.core.layout import TextLine
 import argparse
 
-from ner import ner_pipeline, remove_special_tokens, connect_words, correct_spacing, dict_matching
+from digilinka.datasets.ner import ner_pipeline, remove_special_tokens, connect_words, correct_spacing, dict_matching
 
 color_dict = {
     "T": (255, 0, 0),
