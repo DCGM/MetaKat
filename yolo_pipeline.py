@@ -111,13 +111,13 @@ def compare_results(dataset, xml_dir, img_name):
 
     correctly_read = 0
     incorrectly_read = 0
-    character_error_rate = 0
     character_error = 0
+    characters_len = 0
     for label in img_labels:
         if "ocr_transcriptions" not in label:
             continue
         for ocr_transcription in label["ocr_transcriptions"]:
-            character_error_rate += get_character_error_rate(ocr_transcription, label["orig_transcription"])
+            characters_len += len(label["orig_transcription"])
             character_error += get_character_error(ocr_transcription, label["orig_transcription"])
             if is_transcription_correct(ocr_transcription, label["orig_transcription"], label["label"]):
                 correctly_read += 1
@@ -128,7 +128,7 @@ def compare_results(dataset, xml_dir, img_name):
     logger.info(f"Correctly read: {correctly_read}/{correctly_read + incorrectly_read}")
     logger.info(40 * "=")
 
-    return correctly_read, incorrectly_read, character_error, character_error_rate
+    return correctly_read, incorrectly_read, character_error, characters_len
 
 
 if __name__ == '__main__':
@@ -153,16 +153,18 @@ if __name__ == '__main__':
 
     results = model(img_files)
 
-    correctly_read, incorrectly_read, false_positives, false_negatives, true_positives, character_error, character_error_rate = 0, 0, 0, 0, 0, 0, 0
+    correctly_read, incorrectly_read, false_positives, false_negatives, true_positives, character_error, characters_len = 0, 0, 0, 0, 0, 0, 0
     for result in results:
         img_name = os.path.basename(result.path).split('.')[0]
-        crops_dir = os.path.join(args.output_dir, img_name)
-        page_dir = crops_dir
+        img_basename = os.path.basename(result.path)
+        page_dir = os.path.join(args.output_dir, img_name)
         xml_dir = os.path.join(page_dir, "ocr_xml")
         ground_truth_labels = {}
         label_file = os.path.join(args.label_dir, img_name + '.txt')
         if not os.path.exists(label_file):
             label_file = label_file.replace('.txt', '.jpg.txt')
+        if not os.path.exists(label_file):
+            label_file = label_file.replace('.jpg.txt', '.jpg.tif.jp2.txt')
         if not os.path.exists(label_file):
             print(f"Label file {label_file} not found")
             continue
@@ -186,7 +188,7 @@ if __name__ == '__main__':
             if not found_label:
                 false_negatives += 1
 
-        crops_dir = os.path.join(crops_dir, "crops")
+        crops_dir = os.path.join(page_dir, "crops")
         for box in result.boxes:
             label = result.names[box.cls.item()]
             
@@ -207,14 +209,20 @@ if __name__ == '__main__':
                 continue
             true_positives += 1
             
-            not_colored_img_path = os.path.join(args.img_not_colored_dir, img_name + '.jpg')
+            not_colored_img_path = os.path.join(args.img_not_colored_dir, img_basename)
             if not os.path.exists(not_colored_img_path):
                 not_colored_img_path = not_colored_img_path + ".jpg"
+            if not os.path.exists(not_colored_img_path):
+                not_colored_img_path = not_colored_img_path.replace('.jpg.jpg', 'jpg.tif.jp2.jpg')
             if not os.path.exists(not_colored_img_path):
                 print(f"Image {not_colored_img_path} not found")
                 continue
             img = cv2.imread(not_colored_img_path)
             save_one_box(box.xyxy, img, Path(os.path.join(crops_dir, f"{label}.jpg")), BGR=True)
+        
+        if not os.path.exists(crops_dir):
+            print(f"Crops directory {crops_dir} not found")
+            continue
 
         ocr_device = 'gpu' if torch.cuda.is_available() else 'cpu'
         ocr_gpu_id = '0' if ocr_device == 'gpu' else None
@@ -234,7 +242,7 @@ if __name__ == '__main__':
         correctly_read += compared_results[0]
         incorrectly_read += compared_results[1]
         character_error += compared_results[2]
-        character_error_rate += compared_results[3]
+        characters_len += compared_results[3]
 
     logger.info(40 * "=")
     logger.info(f"Total false positives: {false_positives}")
@@ -242,7 +250,6 @@ if __name__ == '__main__':
     logger.info(f"Total true positives: {true_positives}")
     logger.info(f"Total correctly read: {correctly_read}")
     logger.info(f"Total incorrectly read: {incorrectly_read}")
-    logger.info(f"Avg character error: {character_error / (correctly_read + incorrectly_read)}")
-    logger.info(f"Avg character error rate: {character_error_rate / (correctly_read + incorrectly_read)}")
+    logger.info(f"Character error rate: {character_error / characters_len if characters_len != 0 else 0}")
     logger.info(40 * "=")
     

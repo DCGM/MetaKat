@@ -94,11 +94,10 @@ class JsonDataset(Dataset):
         labels = self.data["lines"][self.ids[idx]]["labels"]
         labels = torch.tensor([labels.get(label, 0) for label in self.classes], dtype=torch.float32)
         current_line = torch.tensor([self.data["lines"][self.ids[idx]][key] for key in self.input_keys])
-        current_line_idx = self.data["lines"].index(self.data["lines"][self.ids[idx]])
 
         if self.neighbour_lines_cnt > 0:
             neighbor_indices = [
-                current_line_idx + offset
+                idx + offset
                 for delta in range(1, self.neighbour_lines_cnt + 1)
                 for offset in (-delta, delta)
             ]
@@ -106,7 +105,7 @@ class JsonDataset(Dataset):
 
             neighbour_lines = []
             for neighbor_idx in neighbor_indices:
-                neighbour_line = self.get_line_features(neighbor_idx, current_line_idx)
+                neighbour_line = self.get_line_features(neighbor_idx, idx)
                 neighbour_lines.extend(neighbour_line)
 
             neighbour_lines_tensor = torch.tensor(neighbour_lines)
@@ -132,11 +131,10 @@ class JsonDatasetRenderer(JsonDataset):
         labels = self.data["lines"][self.ids[idx]]["labels"]
         labels = torch.tensor([labels.get(label, 0) for label in self.classes], dtype=torch.float32)
         current_line = torch.tensor([self.data["lines"][self.ids[idx]][key] for key in self.input_keys])
-        current_line_idx = self.data["lines"].index(self.data["lines"][self.ids[idx]])
 
         if self.neighbour_lines_cnt > 0:
             neighbor_indices = [
-                current_line_idx + offset
+                idx + offset
                 for delta in range(1, self.neighbour_lines_cnt + 1)
                 for offset in (-delta, delta)
             ]
@@ -144,7 +142,7 @@ class JsonDatasetRenderer(JsonDataset):
 
             neighbour_lines = []
             for neighbor_idx in neighbor_indices:
-                neighbour_line = self.get_line_features(neighbor_idx, current_line_idx)
+                neighbour_line = self.get_line_features(neighbor_idx, idx)
                 neighbour_lines.extend(neighbour_line)
 
             neighbour_lines_tensor = torch.tensor(neighbour_lines)
@@ -263,7 +261,6 @@ class PositionalEncoding1d(nn.Module):
     def forward(self, positions):
         batch_size, seq_len = positions.shape
         pos_enc = torch.zeros(batch_size, seq_len, self.d_model, dtype=self.pe.dtype, device=self.device)
-
         valid_positions = positions != -1
         valid_indices = positions[valid_positions].long()
         valid_encodings = self.pe[valid_indices]
@@ -332,13 +329,13 @@ class JsonDatasetForTENN(JsonDataset):
         current_line_features, labels, current_line_x, current_line_y = self.get_line_features_and_labels(self.ids[idx], self.ids[idx])
         input_tensor = torch.tensor(current_line_features).reshape(1, -1)
         labels = torch.tensor(labels, dtype=torch.float32)
-        x_positions = torch.tensor([current_line_x])
-        y_positions = torch.tensor([current_line_y])
-        current_line_idx = self.data["lines"].index(self.data["lines"][self.ids[idx]])
+        if self.positional_encoding in ['2d', '1d-seq-2d']:
+            x_positions = torch.tensor([current_line_x], dtype=torch.int64)
+            y_positions = torch.tensor([current_line_y], dtype=torch.int64)
 
         if self.neighbour_lines_cnt > 0:
             neighbor_indices = [
-                current_line_idx + offset
+                idx + offset
                 for delta in range(1, self.neighbour_lines_cnt + 1)
                 for offset in (-delta, delta)
             ]
@@ -346,44 +343,50 @@ class JsonDatasetForTENN(JsonDataset):
 
             neighbour_lines = torch.tensor([])
             neighbour_labels = torch.tensor([], dtype=torch.int64)
-            neighbour_x_positions = torch.tensor([])
-            neighbour_y_positions = torch.tensor([])
+            if self.positional_encoding in ['2d', '1d-seq-2d']:
+                neighbour_x_positions = torch.tensor([], dtype=torch.int64)
+                neighbour_y_positions = torch.tensor([], dtype=torch.int64)
             for i, neighbor_idx in enumerate(neighbor_indices):
-                neighbour_line, neighbour_label, neighbour_x, neighbour_y = self.get_line_features_and_labels(neighbor_idx, current_line_idx)
+                neighbour_line, neighbour_label, neighbour_x, neighbour_y = self.get_line_features_and_labels(neighbor_idx, idx)
                 neighbour_lines = torch.cat((neighbour_lines, torch.tensor(neighbour_line).reshape(1, -1)))
                 neighbour_labels = torch.cat((neighbour_labels, torch.tensor([neighbour_label], dtype=torch.float32)))
-                neighbour_x_positions = torch.cat((neighbour_x_positions, torch.tensor([neighbour_x])))
-                neighbour_y_positions = torch.cat((neighbour_y_positions, torch.tensor([neighbour_y])))
+                if self.positional_encoding in ['2d', '1d-seq-2d']:
+                    neighbour_x_positions = torch.cat((neighbour_x_positions, torch.tensor([neighbour_x])))
+                    neighbour_y_positions = torch.cat((neighbour_y_positions, torch.tensor([neighbour_y])))
 
             input_tensor = torch.cat((neighbour_lines[:len(neighbour_lines)//2], input_tensor, neighbour_lines[len(neighbour_lines)//2:]))
             labels = labels.unsqueeze(0)
             labels = torch.cat((neighbour_labels[:len(neighbour_labels)//2, :], labels, neighbour_labels[len(neighbour_labels)//2:, :]))
-            x_positions = torch.cat((neighbour_x_positions[:len(neighbour_x_positions)//2], x_positions, neighbour_x_positions[len(neighbour_x_positions)//2:]))
-            y_positions = torch.cat((neighbour_y_positions[:len(neighbour_y_positions)//2], y_positions, neighbour_y_positions[len(neighbour_y_positions)//2:]))
-
-        first_non_padding_position = -1
-        last_non_padding_position = len(input_tensor)
-        for i, label in enumerate(labels):
-            if label[-1] == 0 and first_non_padding_position == -1:
-                first_non_padding_position = i
-            if label[-1] == 1 and first_non_padding_position != -1:
-                last_non_padding_position = i
-                break
+            if self.positional_encoding in ['2d', '1d-seq-2d']:
+                x_positions = torch.cat((neighbour_x_positions[:len(neighbour_x_positions)//2], x_positions, neighbour_x_positions[len(neighbour_x_positions)//2:]))
+                y_positions = torch.cat((neighbour_y_positions[:len(neighbour_y_positions)//2], y_positions, neighbour_y_positions[len(neighbour_y_positions)//2:]))
+            
         
         if self.positional_encoding == '1d-page':
+            first_non_padding_position = -1
+            last_non_padding_position = len(input_tensor) - 1
+            for i, label in enumerate(labels):
+                if label[-1] == 0 and first_non_padding_position == -1:
+                    first_non_padding_position = i
+                if label[-1] == 1 and first_non_padding_position != -1:
+                    last_non_padding_position = i - 1
+                    break
             first_non_padding_position_on_page = 0
-            for i in range(current_line_idx - len(labels) // 2, -1, -1):
-                if self.data["lines"][i]["page_id"] != self.data["lines"][current_line_idx]["page_id"]:
+            for i in range(idx - len(labels) // 2, idx, -1):
+                if 0 > i >= len(self.data["lines"]):
+                    break
+                if self.data["lines"][i]["page_id"] != self.data["lines"][idx]["page_id"]:
                     break
                 first_non_padding_position_on_page += 1
                 
             positions = torch.full((input_tensor.shape[0], 1), -1)
-            for i in range(first_non_padding_position, last_non_padding_position):
-                positions[i] = first_non_padding_position_on_page + i
+            positions[self.neighbour_lines_cnt] = 0
+            for i, j in zip(range(first_non_padding_position, last_non_padding_position + 1), range(last_non_padding_position - first_non_padding_position + 1)):
+                positions[i] = first_non_padding_position_on_page + j
             input_tensor = torch.cat((input_tensor, positions), dim=1)
             
         if self.positional_encoding == '2d' or self.positional_encoding == '1d-seq-2d':
-            input_tensor = torch.cat((input_tensor, x_positions.unsqueeze(1), y_positions.unsqueeze(1)), dim=1)
+            input_tensor = torch.cat((input_tensor, x_positions.unsqueeze(1), y_positions.unsqueeze(1)), dim=1)        
 
         return {"input": input_tensor, "target": labels}
 
@@ -620,13 +623,13 @@ def init_net_and_datasetloader_for_training(args, device):
         val_data = JsonDataset(args.dataset, args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt, val=True)
         val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False, pin_memory=True)
         train_data = JsonDataset(args.dataset, args.classes, args.input_keys, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
-        train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True)
+        train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=4)
     elif args.net == "tenn":
         net = TENN(args.classes, args.input_keys, args.positional_encoding, args.positional_encoding_max_len, device)
         val_data = JsonDatasetForTENN(args.dataset, args.classes, args.input_keys, args.positional_encoding, max_len=args.positional_encoding_max_len, neighbour_lines_cnt=args.neighbour_lines_cnt, val=True)
         val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False, pin_memory=True)
         train_data = JsonDatasetForTENN(args.dataset, args.classes, args.input_keys, args.positional_encoding, max_len=args.positional_encoding_max_len, neighbour_lines_cnt=args.neighbour_lines_cnt, train=True)
-        train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True)
+        train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=4)
     return net, train_loader, val_loader
 
 def comma_float(num):
