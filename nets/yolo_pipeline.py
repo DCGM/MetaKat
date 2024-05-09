@@ -6,7 +6,6 @@
 import os
 import argparse
 from pero_ocr.core.layout import PageLayout
-from user_scripts.parse_folder import main as parse_folder
 import Levenshtein
 from ultralytics import YOLO
 from ultralytics.utils.plotting import save_one_box
@@ -30,8 +29,8 @@ def parse_args():
     parser.add_argument('--output-dir', type=str, help='Output directory')
     parser.add_argument('--model', type=str, required=True)
     parser.add_argument('--ocr-config', type=str, help='OCR config file', required=True)
-    parser.add_argument('--dataset-json', type=str, help='Dataset JSON file', required=True)
-    parser.add_argument('--label-dir', type=str, help='Label directory', required=True)
+    parser.add_argument('--dataset-json', type=str, help='Dataset JSON file')
+    parser.add_argument('--label-dir', type=str, help='Label directory')
     parser.add_argument('--logging-level', type=str, default='INFO', help='Logging level')
 
     return parser.parse_args()
@@ -113,7 +112,7 @@ def compare_results(dataset, xml_dir, img_name):
                 break
         if not label_found:
             img_labels.append({"label": label, "ocr_transcriptions": [transcription]})
-
+            
     correctly_read = 0
     incorrectly_read = 0
     character_error = 0
@@ -135,6 +134,18 @@ def compare_results(dataset, xml_dir, img_name):
 
     return correctly_read, incorrectly_read, character_error, characters_len
 
+def output_results(ocr_xml_dir):
+    for xml_file in os.listdir(ocr_xml_dir):
+        label = xml_file.split('.')[0]
+        if label[-1].isdigit():
+            label = label[:-1]
+        page_layout = PageLayout()
+        page_layout.from_pagexml(os.path.join(ocr_xml_dir, xml_file))
+        transcription = ""
+        for line in page_layout.lines_iterator():
+            transcription += line.transcription + " "
+        transcription = transcription.strip()
+        logger.info(f"Label {label}: {transcription}")
 
 if __name__ == '__main__':
     args = parse_args()
@@ -149,8 +160,6 @@ if __name__ == '__main__':
 
     logger.info(' '.join(sys.argv))
 
-    with open(args.dataset_json, 'r') as f:
-        dataset = json.load(f)
 
     model = YOLO(args.model)
 
@@ -158,67 +167,72 @@ if __name__ == '__main__':
 
     results = model(img_files)
 
-    correctly_read, incorrectly_read, false_positives, false_negatives, true_positives, character_error, characters_len = 0, 0, 0, 0, 0, 0, 0
+    if args.dataset_json is not None:
+        with open(args.dataset_json, 'r') as f:
+            dataset = json.load(f)
+        correctly_read, incorrectly_read, false_positives, false_negatives, true_positives, character_error, characters_len = 0, 0, 0, 0, 0, 0, 0
     for result in results:
         img_name = "".join(os.path.basename(result.path).split('.')[:-1])
         img_basename = os.path.basename(result.path)
         page_dir = os.path.join(args.output_dir, img_name)
         xml_dir = os.path.join(page_dir, "ocr_xml")
-        ground_truth_labels = {}
-        label_file = os.path.join(args.label_dir, img_name + '.txt')
-        if not os.path.exists(label_file):
-            label_file = label_file.replace('.txt', '.jpg.txt')
-        if not os.path.exists(label_file):
-            label_file = label_file.replace('.jpg.txt', '.jpg.tif.jp2.txt')
-        if not os.path.exists(label_file):
-            print(f"Label file {label_file} not found")
-            continue
-        with open(label_file, 'r') as f:
-            label_lines = f.readlines()
-        for line in label_lines:
-            line = line.strip()
-            label = result.names[int(line.split(' ')[0])]
-            coords = torch.tensor([float(coord) for coord in line.split(' ')[1:]])
-            if label not in ground_truth_labels:
-                ground_truth_labels[label] = []
-            ground_truth_labels[label].append(coords)
         
-        # count false negatives
-        for label in ground_truth_labels:
-            found_label = False
-            for box in result.boxes:
-                if result.names[box.cls.item()] == label:
-                    found_label = True
-                    break
-            if not found_label:
-                false_negatives += 1
+        if args.dataset_json is not None and args.label_dir is not None:
+            ground_truth_labels = {}
+            label_file = os.path.join(args.label_dir, img_name + '.txt')
+            if not os.path.exists(label_file):
+                print(f"Label file {label_file} not found")
+                continue
+            with open(label_file, 'r') as f:
+                label_lines = f.readlines()
+            for line in label_lines:
+                line = line.strip()
+                label = result.names[int(line.split(' ')[0])]
+                coords = torch.tensor([float(coord) for coord in line.split(' ')[1:]])
+                if label not in ground_truth_labels:
+                    ground_truth_labels[label] = []
+                ground_truth_labels[label].append(coords)
+        
+            # count false negatives
+            for label in ground_truth_labels:
+                found_label = False
+                for box in result.boxes:
+                    if result.names[box.cls.item()] == label:
+                        found_label = True
+                        break
+                if not found_label:
+                    false_negatives += 1
 
         crops_dir = os.path.join(page_dir, "crops")
         for box in result.boxes:
             label = result.names[box.cls.item()]
             
-            # count false positives
-            found_label = False
-            if label not in ground_truth_labels:
-                false_positives += 1
-                continue
-            for ground_truth_label_box in ground_truth_labels[label]:
-                ground_truth_label_box = ground_truth_label_box.to("cpu")
-                box_xywhn = box.xywhn.to("cpu")
-                iou = bbox_iou(box_xywhn, ground_truth_label_box)
-                if iou > 0.6:
-                    found_label = True
-                    break
-            if not found_label:
-                false_positives += 1
-                continue
-            true_positives += 1
+            if args.dataset_json is not None and args.label_dir is not None:
+                # count false positives
+                found_label = False
+                if label not in ground_truth_labels:
+                    false_positives += 1
+                    continue
+                for ground_truth_label_box in ground_truth_labels[label]:
+                    ground_truth_label_box = ground_truth_label_box.to("cpu")
+                    box_xywhn = box.xywhn.to("cpu")
+                    iou = bbox_iou(box_xywhn, ground_truth_label_box)
+                    if iou > 0.6:
+                        found_label = True
+                        break
+                if not found_label:
+                    false_positives += 1
+                    continue
+                true_positives += 1
             
-            not_colored_img_path = os.path.join(args.img_not_colored_dir, img_basename)
-            if not os.path.exists(not_colored_img_path):
-                print(f"Image {not_colored_img_path} not found")
-                continue
-            img = cv2.imread(not_colored_img_path)
+            if args.img_not_colored_dir is not None:
+                img_to_detect_on = os.path.join(args.img_not_colored_dir, img_basename)
+                if not os.path.exists(img_to_detect_on):
+                    print(f"Image {img_to_detect_on} not found")
+                    continue
+            else:
+                img_to_detect_on = result.path
+            img = cv2.imread(img_to_detect_on)
             save_one_box(box.xyxy, img, Path(os.path.join(crops_dir, f"{label}.jpg")), BGR=True)
         
         if not os.path.exists(crops_dir):
@@ -238,18 +252,23 @@ if __name__ == '__main__':
         if ocr_device != 'cpu':
             os.system(f"python3 -m pero-ocr.user_scripts.parse_folder {ocr_args}")
 
-        compared_results = compare_results(dataset, xml_dir, img_name)
-        correctly_read += compared_results[0]
-        incorrectly_read += compared_results[1]
-        character_error += compared_results[2]
-        characters_len += compared_results[3]
+        if args.dataset_json is not None:
+            compared_results = compare_results(dataset, xml_dir, img_name)
+            correctly_read += compared_results[0]
+            incorrectly_read += compared_results[1]
+            character_error += compared_results[2]
+            characters_len += compared_results[3]
+        else:
+            output_results(xml_dir)
+            
 
-    logger.info(40 * "=")
-    logger.info(f"Total false positives: {false_positives}")
-    logger.info(f"Total false negatives: {false_negatives}")
-    logger.info(f"Total true positives: {true_positives}")
-    logger.info(f"Total correctly read: {correctly_read}")
-    logger.info(f"Total incorrectly read: {incorrectly_read}")
-    logger.info(f"Character error rate: {character_error / characters_len if characters_len != 0 else 0}")
-    logger.info(40 * "=")
+    if args.dataset_json is not None:
+        logger.info(40 * "=")
+        logger.info(f"Total false positives: {false_positives}")
+        logger.info(f"Total false negatives: {false_negatives}")
+        logger.info(f"Total true positives: {true_positives}")
+        logger.info(f"Total correctly read: {correctly_read}")
+        logger.info(f"Total incorrectly read: {incorrectly_read}")
+        logger.info(f"Character error rate: {character_error / characters_len if characters_len != 0 else 0}")
+        logger.info(40 * "=")
     
