@@ -4,6 +4,7 @@
 # Description: This script is used for running YOLO model on images and reading OCR transcriptions from the detected bounding boxes.
 
 import os
+import subprocess
 import argparse
 from pero_ocr.core.layout import PageLayout
 import Levenshtein
@@ -225,6 +226,7 @@ if __name__ == '__main__':
                     continue
                 true_positives += 1
             
+            # if not colored images are given it will use the for reading with OCR 
             if args.img_not_colored_dir is not None:
                 img_to_detect_on = os.path.join(args.img_not_colored_dir, img_basename)
                 if not os.path.exists(img_to_detect_on):
@@ -250,7 +252,10 @@ if __name__ == '__main__':
             ocr_args += ["--gpu-id", ocr_gpu_id]
 
         if ocr_device != 'cpu':
-            os.system(f"python3 -m pero-ocr.user_scripts.parse_folder {ocr_args}")
+            ocr_command = ["python3", "-m", "user_scripts.parse_folder"] + ocr_args
+            subprocess.run(ocr_command)
+        else:
+            logger.warning("NO GPU detected, OCR will not run")
 
         if args.dataset_json is not None:
             compared_results = compare_results(dataset, xml_dir, img_name)
@@ -260,6 +265,8 @@ if __name__ == '__main__':
             characters_len += compared_results[3]
         else:
             output_results(xml_dir)
+        
+        result.save(os.path.join(page_dir, "detections.jpg"))
             
 
     if args.dataset_json is not None:
