@@ -11,15 +11,15 @@ import cv2
 import numpy as np
 from lxml import etree
 
-from datasets.parse_dataset import get_mastercopy_path, get_mastercopy_name, get_dateset_page_id
+from datasets_from_mets.parse_dataset import get_mastercopy_path, get_mastercopy_name, get_dateset_page_id
 
 logger = logging.getLogger(__name__)
 
 page_type_classes = ('TitlePage,Table,TableOfContents,Index,Jacket,FrontEndSheet,FrontCover,BackEndSheet,BackCover,'
-                     'Blank,Sheetmusic,Advertisement,Map,FrontJacket,FlyLeaf,ListOfIllustrations,Illustration,Spine,'
+                     'Blank,SheetMusic,Advertisement,Map,FrontJacket,FlyLeaf,ListOfIllustrations,Illustration,Spine,'
                      'CalibrationTable,Cover,Edge,ListOfTables,FrontEndPaper,BackEndPaper,ListOfMaps,Bibliography,'
-                     'CustomInclude,Frontispiece,Errata,FragmentsOfBookbinding,BackEndpaper,FrontEndpaper,Preface,'
-                     'Abstract,Dedication,Imprimatur,Impressum,Obituary,NormalPage')
+                     'CustomInclude,Frontispiece,Errata,FragmentsOfBookbinding,BackEndPaper,FrontEndPaper,Preface,'
+                     'Abstract,Dedication,Imprimatur,Impressum,Obituary,Appendix,NormalPage')
 page_type_classes = page_type_classes.split(',')
 
 
@@ -163,8 +163,8 @@ def export_page_to_output_dir_and_json(mastercopy_dir,
         xy_left_top[0] = img_prev.shape[1]
 
         if previous_pages is not None:
-            img = cv2.putText(img, str(previous_pages), (20, 100), cv2.FONT_HERSHEY_SIMPLEX,
-                              4, (255, 0, 0), 10, cv2.LINE_AA)
+            img = cv2.putText(img, str(previous_pages), (50, 170), cv2.FONT_HERSHEY_SIMPLEX,
+                              6, (255, 0, 0), 12, cv2.LINE_AA)
 
     if next_mastercopy_path is not None:
         if next_mastercopy_path == 'black':
@@ -176,8 +176,8 @@ def export_page_to_output_dir_and_json(mastercopy_dir,
         img = np.hstack((img, img_next))
 
         if next_pages is not None:
-            img = cv2.putText(img, str(next_pages), (img.shape[1] - img_next.shape[1] + 20, 100), cv2.FONT_HERSHEY_SIMPLEX,
-                              4, (255, 0, 0), 10, cv2.LINE_AA)
+            img = cv2.putText(img, str(next_pages), (img.shape[1] - img_next.shape[1] + 50, 170), cv2.FONT_HERSHEY_SIMPLEX,
+                              6, (255, 0, 0), 12, cv2.LINE_AA)
 
     os.makedirs(os.path.join(output_dir, 'images', page_type), exist_ok=True)
     image_name = f'{dataset_page_id}.{page_type}.jpg'
