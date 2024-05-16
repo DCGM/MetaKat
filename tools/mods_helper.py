@@ -15,6 +15,10 @@ def get_year_from_doc_mods(mods_path):
         if len(issued_element) != 0:
             date = issued_element[0].text
     if date is None:
+        date_element = root.findall(f".//mods:date", namespaces=namespaces)
+        if len(date_element) != 0:
+            date = date_element[0].text
+    if date is None:
         return None
     # [] - for dates like [1938]
     # ? - for dates like 1938?
@@ -28,6 +32,22 @@ def get_year_from_doc_mods(mods_path):
     except (ValueError, IndexError):
         return int(start_end_year[0]), int(start_end_year[0])
     return int(start_end_year[0]), int(start_end_year[1])
+
+
+def get_number_from_number_mods(mods_path):
+    namespaces = {'mods': "http://www.loc.gov/mods/v3",
+                  'mets': "http://www.loc.gov/METS/"}
+    tree = ET.parse(mods_path)
+    root = tree.getroot()
+    number_element = root.findall(f".//mods:partNumber", namespaces=namespaces)
+    number = None
+    if len(number_element) != 0:
+        number = number_element[0].text
+    try:
+        number = int(number)
+    except ValueError:
+        return None
+    return number
 
 
 page_type_classes = ('TitlePage,Table,TableOfContents,Index,Jacket,FrontEndSheet,FrontCover,BackEndSheet,BackCover,'

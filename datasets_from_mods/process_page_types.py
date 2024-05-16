@@ -15,7 +15,8 @@ from multiprocessing_logging import install_mp_handler
 import cv2
 import numpy as np
 
-from tools.mods_helper import get_page_type_from_page_mods, get_year_from_doc_mods, page_type_classes
+from tools.mods_helper import get_page_type_from_page_mods, get_year_from_doc_mods, page_type_classes, \
+    get_number_from_number_mods
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,14 @@ def parse_args():
     parser.add_argument('--from-year', type=int)
     parser.add_argument('--to-year', type=int)
 
-    parser.add_argument('--max-samples-per-doc', default=1, type=int)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--book', action='store_true')
+    group.add_argument('--periodic', action='store_true')
+
+    parser.add_argument('--max-years-per-periodic', type=int)
+    parser.add_argument('--max-numbers-per-year', type=int)
+
+    parser.add_argument('--max-samples-per-class-per-doc', default=1, type=int)
     parser.add_argument('--max-samples-per-class', default=500, type=int)
 
     parser.add_argument('--existing-output-dir', type=str)
@@ -39,7 +47,7 @@ def parse_args():
     parser.add_argument('--invalid-doc-uuids', type=str)
     parser.add_argument('--invalid-page-uuids', type=str)
 
-    parser.add_argument('--num-processes', default=1, type=int)
+    parser.add_argument('--num-processes', default=4, type=int)
 
     parser.add_argument('--logging-level', default=logging.INFO)
 
@@ -49,6 +57,8 @@ def parse_args():
 
 def main():
     args = parse_args()
+
+    doc_type = 'book' if args.book else 'periodic'
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -116,6 +126,7 @@ def main():
             processed_doc_uuids = manager.list()
             processed_page_uuids = manager.list()
             process_page_types_multi = partial(process_doc_page_types,
+                                               doc_type=doc_type,
                                                counter=counter,
                                                results=results,
                                                processed_doc_uuids=processed_doc_uuids,
@@ -123,7 +134,9 @@ def main():
                                                ids_dir=args.ids_dir,
                                                images_dir=args.images_dir,
                                                output_dir=args.output_dir,
-                                               max_samples_per_doc=args.max_samples_per_doc,
+                                               max_years_per_periodic=args.max_years_per_periodic,
+                                               max_numbers_per_year=args.max_numbers_per_year,
+                                               max_samples_per_class_per_doc=args.max_samples_per_class_per_doc,
                                                max_samples_per_class=args.max_samples_per_class,
                                                invalid_page_uuids=invalid_page_uuids,
                                                from_year=args.from_year,
@@ -147,7 +160,8 @@ def main():
         processed_doc_uuids = []
         processed_page_uuids = []
         for doc_mods_dir_path in doc_mods_dir_paths:
-            process_doc_page_types(doc_mods_dir_path=doc_mods_dir_path,
+            process_doc_page_types(top_level_mods_dir_path=doc_mods_dir_path,
+                                   doc_type=doc_type,
                                    counter=counter,
                                    results=results,
                                    processed_doc_uuids=processed_doc_uuids,
@@ -155,7 +169,9 @@ def main():
                                    ids_dir=args.ids_dir,
                                    images_dir=args.images_dir,
                                    output_dir=args.output_dir,
-                                   max_samples_per_doc=args.max_samples_per_doc,
+                                   max_years_per_periodic=args.max_years_per_periodic,
+                                   max_numbers_per_year=args.max_numbers_per_year,
+                                   max_samples_per_class_per_doc=args.max_samples_per_class_per_doc,
                                    max_samples_per_class=args.max_samples_per_class,
                                    invalid_page_uuids=invalid_page_uuids,
                                    from_year=args.from_year,
@@ -170,7 +186,7 @@ def main():
                 all_annotations = json.load(f)
             all_annotations.extend(annotations)
         else:
-           all_annotations = annotations
+            all_annotations = annotations
         with open(result_json_path, 'w') as f:
             json.dump(all_annotations, f)
 
@@ -193,69 +209,128 @@ def main():
     logger.info(f'Elapsed time: {time.time() - now}')
 
 
-def process_doc_page_types(doc_mods_dir_path, counter, results,
+def process_doc_page_types(top_level_mods_dir_path, doc_type, counter, results,
                            processed_doc_uuids, processed_page_uuids,
                            ids_dir, images_dir, output_dir,
-                           max_samples_per_doc=1, max_samples_per_class=10,
+                           max_years_per_periodic=1, max_numbers_per_year=1,
+                           max_samples_per_class_per_doc=1, max_samples_per_class=10,
                            invalid_page_uuids=None, from_year=None, to_year=None):
-    if doc_mods_dir_path.endswith('.mods'):
+    if top_level_mods_dir_path.endswith('.mods'):
         return
 
-    doc_id = os.path.basename(doc_mods_dir_path)
+    doc_id = os.path.basename(top_level_mods_dir_path)
     doc_id_tmp = doc_id.replace('uuid:', '')
-    doc_ids_path = os.path.join(ids_dir, f'{doc_id_tmp}.ids')
     doc_images_dir_path = os.path.join(images_dir, f'{doc_id_tmp}.images')
 
-    if is_dir_periodic(doc_mods_dir_path):
+    is_periodic_dir = is_dir_periodic(top_level_mods_dir_path)
+    if doc_type == 'periodic' and is_periodic_dir:
         # logger.info(f'Periodic: {doc_images_dir_path}')
+        year_mods_dir_paths = process_periodic(periodic_mods_dir_path=top_level_mods_dir_path,
+                                               max_years_per_periodic=max_years_per_periodic,
+                                               from_year=from_year,
+                                               to_year=to_year)
+        for year_mods_dir_path in year_mods_dir_paths:
+            number_mods_dir_paths = process_year(year_mods_dir_path=year_mods_dir_path,
+                                                 max_numbers_per_year=max_numbers_per_year)
+            for number_mods_dir_path in number_mods_dir_paths:
+                number_page_ids_path = os.path.join(ids_dir,
+                                                    os.path.basename(top_level_mods_dir_path),
+                                                    os.path.basename(year_mods_dir_path),
+                                                    os.path.basename(number_mods_dir_path))
+                process_doc(doc_mods_dir_path=number_mods_dir_path,
+                            counter=counter,
+                            results=results,
+                            processed_doc_uuids=processed_doc_uuids,
+                            processed_page_uuids=processed_page_uuids,
+                            doc_id=doc_id,
+                            doc_mods_path=f'{number_mods_dir_path}.mods',
+                            doc_page_ids_path=number_page_ids_path,
+                            doc_images_dir_path=doc_images_dir_path,
+                            output_dir=output_dir,
+                            max_samples_per_class_per_doc=max_samples_per_class_per_doc,
+                            max_samples_per_class=max_samples_per_class,
+                            invalid_page_uuids=invalid_page_uuids)
+
         return
-    else:
+    elif doc_type == 'book' and not is_periodic_dir:
         # logger.info(f'Book: {doc}')
-        process_doc(doc_mods_dir_path=doc_mods_dir_path,
+        number_page_ids_path = os.path.join(ids_dir, doc_id)
+        process_doc(doc_mods_dir_path=top_level_mods_dir_path,
                     counter=counter,
                     results=results,
                     processed_doc_uuids=processed_doc_uuids,
                     processed_page_uuids=processed_page_uuids,
                     doc_id=doc_id,
-                    doc_mods_path=f'{doc_mods_dir_path}.mods',
-                    doc_ids_path=doc_ids_path,
+                    doc_mods_path=f'{top_level_mods_dir_path}.mods',
+                    doc_page_ids_path=number_page_ids_path,
                     doc_images_dir_path=doc_images_dir_path,
                     output_dir=output_dir,
-                    max_samples_per_doc=max_samples_per_doc,
+                    max_samples_per_class_per_doc=max_samples_per_class_per_doc,
                     max_samples_per_class=max_samples_per_class,
                     invalid_page_uuids=invalid_page_uuids,
                     from_year=from_year,
                     to_year=to_year)
 
 
+def process_periodic(periodic_mods_dir_path,
+                     max_years_per_periodic=1,
+                     from_year=None, to_year=None):
+    years = OrderedDict()
+    for year_mods_dir_path in glob(os.path.join(periodic_mods_dir_path, '*/')):
+        year_mods_path = f'{year_mods_dir_path}.mods'
+        years = get_year_from_doc_mods(year_mods_path)
+        if not are_years_valid(years, from_year, to_year):
+            logger.info(f'Invalid years: {years}')
+            continue
+        else:
+            logger.info(f'Valid years: {years}')
+        years[years[0]] = year_mods_dir_path
+    if len(years) == 0:
+        return []
+    years = OrderedDict(sorted(years.items(), key=lambda x: x[0]))
+    logger.info(years)
+    years_chunked = list(chunks(list(years.values()), max_years_per_periodic))
+    year_mods_dir_paths = [chunk[0] for chunk in years_chunked if len(chunk) > 0]
+    return year_mods_dir_paths
+
+
+def process_year(year_mods_dir_path,
+                 max_numbers_per_year=1):
+    numbers = OrderedDict()
+    for number_mods_dir_path in glob(os.path.join(year_mods_dir_path, '*/')):
+        number_mods_path = f'{number_mods_dir_path}.mods'
+        number = get_number_from_number_mods(number_mods_path)
+        if number is None:
+            numbers[-1] = number_mods_dir_path
+        else:
+            numbers[number] = number_mods_dir_path
+    if len(numbers) == 0:
+        return []
+    numbers = OrderedDict(sorted(numbers.items(), key=lambda x: x[0]))
+    logger.info(numbers)
+    numbers_chunked = list(chunks(list(numbers.values()), max_numbers_per_year))
+    number_mods_dir_paths = [chunk[0] for chunk in numbers_chunked if len(chunk) > 0]
+    return number_mods_dir_paths
+
+
 def process_doc(doc_mods_dir_path, counter, results,
                 processed_doc_uuids, processed_page_uuids,
-                doc_id, doc_mods_path, doc_ids_path, doc_images_dir_path, output_dir,
-                max_samples_per_doc=1, max_samples_per_class=10,
+                doc_id, doc_mods_path, doc_page_ids_path, doc_images_dir_path, output_dir,
+                max_samples_per_class_per_doc=1, max_samples_per_class=10,
                 invalid_page_uuids=None, from_year=None, to_year=None):
     counter['docs'] += 1
     if counter['docs'] % 100 == 0 or counter['docs'] == 1:
         logger.info(counter)
 
-    if from_year is not None or to_year is not None:
-        years = get_year_from_doc_mods(doc_mods_path)
-        if years is None:
-            # logger.info(f'No year found for {doc_mods_path}')
-            return
-        if from_year is not None and to_year is not None:
-            if years[0] < from_year or years[1] > to_year:
-                return
-        if from_year is not None:
-            if years[0] < from_year:
-                return
-        if to_year is not None:
-            if years[1] > to_year:
-                return
-        # logger.info(f'{os.getgid()} {start_year} - {end_year}')
+    years = get_year_from_doc_mods(doc_mods_path)
+    if not are_years_valid(years, from_year, to_year):
+        return
 
     page_map = get_doc_page_map(doc_mods_dir_path=doc_mods_dir_path,
-                                doc_page_ids_path=doc_ids_path,
+                                doc_page_ids_path=doc_page_ids_path,
                                 doc_images_dir_path=doc_images_dir_path)
+
+    logger.info(page_map)
     if page_map is None:
         return
 
@@ -275,7 +350,7 @@ def process_doc(doc_mods_dir_path, counter, results,
 
     for page_type, page_ids in list(valid_page_ids.items()):
         random.shuffle(page_ids)
-        valid_page_ids[page_type] = page_ids[:max_samples_per_doc]
+        valid_page_ids[page_type] = page_ids[:max_samples_per_class_per_doc]
 
     valid_page_ids = {page_id for page_ids in valid_page_ids.values() for page_id in page_ids}
 
@@ -396,6 +471,7 @@ def get_doc_page_map(doc_mods_dir_path, doc_page_ids_path, doc_images_dir_path):
             image_path = None
         page_map[page_id] = {'order': i, 'mods_path': '', 'image_path': image_path, 'invalid': False, 'page_type': None}
     if len(page_map) == 0:
+        logger.warning(f'No page ids found for {doc_page_ids_path}')
         return None
     for mod in mods:
         page_id = os.path.splitext(os.path.basename(mod))[0]
@@ -412,10 +488,36 @@ def add_page_type_to_page_map(page_map):
             page_map[page_id]['page_type'] = get_page_type_from_page_mods(page_val['mods_path'])
 
 
+def are_years_valid(years, from_year, to_year):
+    if from_year is None and to_year is None:
+        return True
+    if years is None:
+        return False
+    if from_year is not None and to_year is not None:
+        if years[0] < from_year or years[1] > to_year:
+            return False
+    if from_year is not None:
+        if years[0] < from_year:
+            return False
+    if to_year is not None:
+        if years[1] > to_year:
+            return False
+    return True
+
+
 def is_dir_periodic(dir_path):
     for dir_path in os.listdir(dir_path):
         if not dir_path.endswith('.mods'):
             return True
+
+
+# https://stackoverflow.com/questions/24483182/python-split-list-into-n-chunks
+def chunks(l, n):
+    """Yield n number of sequential chunks from l."""
+    d, r = divmod(len(l), n)
+    for i in range(n):
+        si = (d+1)*(i if i < r else r) + d*(0 if i < r else i - r)
+        yield l[si:si+(d+1 if i < r else d)]
 
 
 if __name__ == '__main__':
