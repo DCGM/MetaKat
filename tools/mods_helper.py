@@ -1,10 +1,14 @@
+import logging
 import xml.etree.ElementTree as ET
 
 
 def get_year_from_doc_mods(mods_path):
     namespaces = {'mods': "http://www.loc.gov/mods/v3",
                   'mets': "http://www.loc.gov/METS/"}
-    tree = ET.parse(mods_path)
+    try:
+        tree = ET.parse(mods_path)
+    except ET.ParseError:
+        return None
     root = tree.getroot()
     date_element = root.findall(f".//mods:namePart[@type='date']", namespaces=namespaces)
     date = None
@@ -37,7 +41,10 @@ def get_year_from_doc_mods(mods_path):
 def get_number_from_number_mods(mods_path):
     namespaces = {'mods': "http://www.loc.gov/mods/v3",
                   'mets': "http://www.loc.gov/METS/"}
-    tree = ET.parse(mods_path)
+    try:
+        tree = ET.parse(mods_path)
+    except ET.ParseError:
+        return None
     root = tree.getroot()
     number_element = root.findall(f".//mods:partNumber", namespaces=namespaces)
     number = None
@@ -45,7 +52,7 @@ def get_number_from_number_mods(mods_path):
         number = number_element[0].text
     try:
         number = int(number)
-    except ValueError:
+    except (ValueError, TypeError):
         return None
     return number
 
@@ -62,8 +69,14 @@ page_type_classes = {x.lower(): x for x in page_type_classes}
 def get_page_type_from_page_mods(mods_path):
     namespaces = {'mods': "http://www.loc.gov/mods/v3",
                   'mets': "http://www.loc.gov/METS/"}
-    tree = ET.parse(mods_path)
+    try:
+        tree = ET.parse(mods_path)
+    except ET.ParseError:
+        return None
     root = tree.getroot()
     page_type_element = root.findall(f".//mods:part[@type]", namespaces=namespaces)
-    page_type = page_type_element[0].get('type')
-    return page_type_classes[page_type.lower()]
+    if len(page_type_element) != 0:
+        page_type = page_type_element[0].get('type')
+        if page_type.lower() in page_type_classes:
+            return page_type_classes[page_type.lower()]
+    return None
