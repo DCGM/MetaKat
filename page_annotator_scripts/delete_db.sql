@@ -1,0 +1,11 @@
+DELETE FROM list_objects;
+DELETE FROM position_history;
+DELETE FROM positions;
+DELETE FROM object_annotation_history;
+DELETE FROM object_annotations;
+DELETE FROM objects;
+DELETE FROM list_images;
+DELETE FROM lists;
+DELETE FROM image_annotations;
+DELETE FROM images;
+DELETE FROM cameras;
