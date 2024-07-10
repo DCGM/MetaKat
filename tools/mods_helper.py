@@ -61,7 +61,7 @@ page_type_classes = ('TitlePage,Table,TableOfContents,Index,Jacket,FrontEndSheet
                      'Blank,SheetMusic,Advertisement,Map,FrontJacket,FlyLeaf,ListOfIllustrations,Illustration,Spine,'
                      'CalibrationTable,Cover,Edge,ListOfTables,FrontEndPaper,BackEndPaper,ListOfMaps,Bibliography,'
                      'CustomInclude,Frontispiece,Errata,FragmentsOfBookbinding,BackEndPaper,FrontEndPaper,Preface,'
-                     'Abstract,Dedication,Imprimatur,Impressum,Obituary,Appendix,NormalPage')
+                     'Abstract,Dedication,Imprimatur,Impressum,Obituary,Appendix,NormalPage,Undefined')
 page_type_classes = page_type_classes.split(',')
 page_type_classes = {x.lower(): x for x in page_type_classes}
 

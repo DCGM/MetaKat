@@ -3,7 +3,7 @@ API_ADD_IMAGE_FROM_FOLDER_SCRIPT=$1
 SRC_PATH=$2
 API_KEY=$3
 
-for i in ${SRC_PATH}/*.json; do
+for i in ${SRC_PATH}/ann/*.json; do
 	echo ${i};
 	TYPE=$(basename ${i/.json/});
 	IMAGES=${SRC_PATH}/images/${TYPE}
