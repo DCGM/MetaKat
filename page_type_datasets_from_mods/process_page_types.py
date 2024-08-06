@@ -16,8 +16,8 @@ from multiprocessing_logging import install_mp_handler
 import cv2
 import numpy as np
 
-from tools.mods_helper import get_page_type_from_page_mods, get_year_from_doc_mods, page_type_classes, \
-    get_number_from_number_mods
+from tools.mods_helper import get_page_type_from_page_mods, get_year_from_doc_mods, \
+    get_number_from_number_mods, get_mods_jsonl
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ def parse_args():
 
     parser.add_argument('--mods-dir', required=True, type=str)
     parser.add_argument('--ids-jsonl', required=True, type=str)
+    parser.add_argument('--mods-jsonl', required=True, type=str)
     parser.add_argument('--images-dir', required=True, type=str)
     parser.add_argument('--output-dir', required=True, type=str)
 
@@ -37,11 +38,20 @@ def parse_args():
     group.add_argument('--book', action='store_true')
     group.add_argument('--periodic', action='store_true')
 
+    parser.add_argument('--page-types', type=str,
+                        default='TitlePage,Table,TableOfContents,Index,Jacket,FrontEndSheet,FrontCover,BackEndSheet,'
+                                'BackCover,Blank,SheetMusic,Advertisement,Map,FrontJacket,FlyLeaf,ListOfIllustrations,'
+                                'Illustration,Spine,CalibrationTable,Cover,Edge,ListOfTables,FrontEndPaper,BackEndPaper,'
+                                'ListOfMaps,Bibliography,CustomInclude,Frontispiece,Errata,FragmentsOfBookbinding,'
+                                'BackEndPaper,FrontEndPaper,Preface,Abstract,Dedication,Imprimatur,Impressum,Obituary,'
+                                'Appendix,NormalPage,Undefined')
+
     parser.add_argument('--max-years-per-periodic', type=int)
     parser.add_argument('--max-numbers-per-year', type=int)
 
-    parser.add_argument('--max-samples-per-class-per-doc', default=1000, type=int)
-    parser.add_argument('--max-samples-per-class', default=10500, type=int)
+    parser.add_argument('--max-samples-per-class-per-doc', default=1, type=int)
+    parser.add_argument('--max-samples-per-doc', type=int)
+    parser.add_argument('--max-samples-per-class', default=500, type=int)
 
     parser.add_argument('--existing-output-dir', type=str)
     parser.add_argument('--existing-counter', type=str)
@@ -56,7 +66,7 @@ def parse_args():
 
     parser.add_argument('--process-undefined-page-types', action='store_true')
 
-    parser.add_argument('--num-processes', default=4, type=int)
+    parser.add_argument('--num-processes', default=1, type=int)
 
     parser.add_argument('--logging-level', default=logging.INFO)
 
@@ -86,6 +96,8 @@ def main():
 
     logger.info(' '.join(sys.argv))
 
+    page_type_classes = args.page_types.split(',')
+
     if args.existing_output_dir is not None:
         args.invalid_doc_uuids = os.path.join(args.existing_output_dir, 'doc_uuids.txt')
         args.invalid_page_uuids = os.path.join(args.existing_output_dir, 'page_uuids.txt')
@@ -103,63 +115,88 @@ def main():
             invalid_page_uuids = f.readlines()
             invalid_page_uuids = {uuid.strip(): 0 for uuid in invalid_page_uuids if uuid.strip() != ''}
 
-    doc_mods_dir_paths = glob(os.path.join(args.mods_dir, '*/'))
-    doc_mods_dir_paths = [doc_mods_dir_path.rstrip('/') for doc_mods_dir_path in doc_mods_dir_paths]
+    #logger.info(f'Reading mods dirs from: {args.mods_dir}')
+    #doc_mods_dir_paths = glob(os.path.join(args.mods_dir, '*/'))
+    #doc_mods_dir_paths = [doc_mods_dir_path.rstrip('/') for doc_mods_dir_path in doc_mods_dir_paths]
+    #logger.info(f'Number of docs (mods): {len(doc_mods_dir_paths)}')
+    mods_jsonl = {}
+    with open(args.mods_jsonl) as f:
+        for line in f.readlines():
+            key, val = list(json.loads(line).items())[0]
+            mods_jsonl[key] = val
 
-    valid_doc_uuids = None
+    ids_jsonl = {}
+    with open(args.ids_jsonl) as f:
+        ids_json_lines = f.readlines()
+        for i, line in enumerate(ids_json_lines):
+            key, val = list(json.loads(line).items())[0]
+            if key not in mods_jsonl:
+                continue
+            #logger.info(f'IDS: {line}')
+            #logger.info(f'MODS: {key} {mods_jsonl[key]}')
+            if isinstance(val, dict) and args.periodic:
+                if not isinstance(mods_jsonl[key], dict):
+                    continue
+                for year_key, year_val in val.items():
+                    if year_key not in mods_jsonl[key]:
+                        continue
+                    if not isinstance(year_val, dict):
+                        continue
+                    for number_key, number_val in year_val.items():
+                        if number_key not in mods_jsonl[key][year_key]:
+                            continue
+                        if key not in ids_jsonl:
+                            ids_jsonl[key] = {}
+                        if year_key not in ids_jsonl[key]:
+                            ids_jsonl[key][year_key] = {}
+                        ids_jsonl[key][year_key][number_key] = number_val
+            elif isinstance(val, list) and args.book:
+                ids_jsonl[key] = val
+            if (i + 1) % 5000 == 0:
+                logger.info(f'Processing json lines: {i + 1}/{len(ids_json_lines)}')
+        logger.info(f'Json lines processed: {i + 1}/{len(ids_json_lines)}')
+
+    doc_uuids = ids_jsonl.keys()
+    doc_uuids = set(doc_uuids)
+
     if args.valid_doc_uuids is not None and os.path.exists(args.valid_doc_uuids):
         with open(args.valid_doc_uuids) as f:
             valid_doc_uuids = f.readlines()
             valid_doc_uuids = {uuid.strip(): 0 for uuid in valid_doc_uuids if uuid.strip() != ''}
+            doc_uuids = doc_uuids.intersection(valid_doc_uuids)
 
-    if valid_doc_uuids is not None:
-        new_doc_mods_dir_paths = []
-        for doc_mods_dir_path in doc_mods_dir_paths:
-            doc_id = os.path.basename(doc_mods_dir_path)
-            if doc_id in valid_doc_uuids:
-                new_doc_mods_dir_paths.append(doc_mods_dir_path)
-        doc_mods_dir_paths = new_doc_mods_dir_paths
-
-    invalid_doc_uuids = None
     if args.invalid_doc_uuids is not None and os.path.exists(args.invalid_doc_uuids):
         with open(args.invalid_doc_uuids) as f:
             invalid_doc_uuids = f.readlines()
             invalid_doc_uuids = {uuid.strip(): 0 for uuid in invalid_doc_uuids if uuid.strip() != ''}
-
-    if invalid_doc_uuids is not None:
-        new_doc_mods_dir_paths = []
-        for doc_mods_dir_path in doc_mods_dir_paths:
-            doc_id = os.path.basename(doc_mods_dir_path)
-            if doc_id not in invalid_doc_uuids:
-                new_doc_mods_dir_paths.append(doc_mods_dir_path)
-        doc_mods_dir_paths = new_doc_mods_dir_paths
-
-    random.shuffle(doc_mods_dir_paths)
+            doc_uuids = doc_uuids.difference(invalid_doc_uuids)
 
     old_counter = {}
     if args.existing_counter is not None and os.path.exists(args.existing_counter):
         with open(args.existing_counter) as f:
             old_counter = json.load(f)
 
-    ids_jsonl = {}
-    with open(args.ids_jsonl) as f:
-        for line in f.readlines():
-            key, val = list(json.loads(line).items())[0]
-            ids_jsonl[key] = val
+    if args.periodic:
+        logger.info(f'Number of docs (periodic) to process: {len(doc_uuids)}')
+    if args.book:
+        logger.info(f'Number of docs (book) to process: {len(doc_uuids)}')
+
+    doc_uuids = list(doc_uuids)
+    random.shuffle(doc_uuids)
 
     now = time.time()
     if args.num_processes > 1:
         with mp.Manager() as manager:
             counter = manager.dict()
             counter['docs'] = 0
-            for page_type_class in page_type_classes.values():
+            for page_type_class in page_type_classes:
                 if page_type_class in old_counter:
                     counter[page_type_class] = old_counter[page_type_class]
                 else:
                     counter[page_type_class] = 0
             logger.info(counter)
             results = manager.dict()
-            for page_type_class in page_type_classes.values():
+            for page_type_class in page_type_classes:
                 results[page_type_class] = manager.list()
             processed_doc_uuids = manager.list()
             processed_page_uuids = manager.list()
@@ -169,12 +206,15 @@ def main():
                                                results=results,
                                                processed_doc_uuids=processed_doc_uuids,
                                                processed_page_uuids=processed_page_uuids,
+                                               mods_dir=args.mods_dir,
                                                ids_jsonl=ids_jsonl,
+                                               mods_jsonl=mods_jsonl,
                                                images_dir=args.images_dir,
                                                output_dir=args.output_dir,
                                                max_years_per_periodic=args.max_years_per_periodic,
                                                max_numbers_per_year=args.max_numbers_per_year,
                                                max_samples_per_class_per_doc=args.max_samples_per_class_per_doc,
+                                               max_samples_per_doc=args.max_samples_per_doc,
                                                max_samples_per_class=args.max_samples_per_class,
                                                invalid_page_uuids=invalid_page_uuids,
                                                valid_page_uuids=valid_page_uuids,
@@ -184,7 +224,7 @@ def main():
                                                process_undefined_page_types=args.process_undefined_page_types)
             logger.info(args.num_processes)
             with manager.Pool(processes=args.num_processes) as pool:
-                pool.map(process_page_types_multi, doc_mods_dir_paths)
+                pool.map(process_page_types_multi, doc_uuids)
             # `d` is a DictProxy object that can be converted to dict
             counter = dict(counter)
             results = dict(results)
@@ -195,30 +235,33 @@ def main():
     else:
         counter = {}
         counter['docs'] = 0
-        for page_type_class in page_type_classes.values():
+        for page_type_class in page_type_classes:
             if page_type_class in old_counter:
                 counter[page_type_class] = old_counter[page_type_class]
             else:
                 counter[page_type_class] = 0
         logger.info(counter)
         results = {}
-        for page_type_class in page_type_classes.values():
+        for page_type_class in page_type_classes:
             results[page_type_class] = []
         processed_doc_uuids = []
         processed_page_uuids = []
-        for doc_mods_dir_path in doc_mods_dir_paths:
-            process_doc_page_types(top_level_mods_dir_path=doc_mods_dir_path,
+        for doc_uuid in doc_uuids:
+            process_doc_page_types(top_level_doc_uuid=doc_uuid,
                                    doc_type=doc_type,
                                    counter=counter,
                                    results=results,
                                    processed_doc_uuids=processed_doc_uuids,
                                    processed_page_uuids=processed_page_uuids,
+                                   mods_dir=args.mods_dir,
                                    ids_jsonl=ids_jsonl,
+                                   mods_jsonl=mods_jsonl,
                                    images_dir=args.images_dir,
                                    output_dir=args.output_dir,
                                    max_years_per_periodic=args.max_years_per_periodic,
                                    max_numbers_per_year=args.max_numbers_per_year,
                                    max_samples_per_class_per_doc=args.max_samples_per_class_per_doc,
+                                   max_samples_per_doc=args.max_samples_per_doc,
                                    max_samples_per_class=args.max_samples_per_class,
                                    invalid_page_uuids=invalid_page_uuids,
                                    valid_page_uuids=valid_page_uuids,
@@ -273,53 +316,62 @@ def main():
     logger.info(f'Elapsed time: {time.time() - now}')
 
 
-def process_doc_page_types(top_level_mods_dir_path, doc_type, counter, results,
+def process_doc_page_types(top_level_doc_uuid, doc_type, counter, results,
                            processed_doc_uuids, processed_page_uuids,
-                           ids_jsonl, images_dir, output_dir,
+                           mods_dir, ids_jsonl, mods_jsonl, images_dir, output_dir,
                            max_years_per_periodic=1, max_numbers_per_year=1,
-                           max_samples_per_class_per_doc=1, max_samples_per_class=10,
+                           max_samples_per_class_per_doc=1,
+                           max_samples_per_doc=None,
+                           max_samples_per_class=1,
                            invalid_page_uuids=None,
                            valid_page_uuids=None,
                            from_year=None, to_year=None,
                            export_orig_images=False,
                            process_undefined_page_types=False):
-    if top_level_mods_dir_path.endswith('.mods'):
-        return
 
-    doc_id = os.path.basename(top_level_mods_dir_path)
-
-    is_periodic_dir = is_dir_periodic(top_level_mods_dir_path)
+    is_periodic_dir = is_doc_periodic(top_level_doc_uuid, ids_jsonl)
     if doc_type == 'periodic' and is_periodic_dir:
-        year_mods_dir_paths = process_periodic(periodic_mods_dir_path=top_level_mods_dir_path,
-                                               max_years_per_periodic=max_years_per_periodic,
-                                               from_year=from_year,
-                                               to_year=to_year)
-        for year_mods_dir_path in year_mods_dir_paths:
-            number_mods_dir_paths = process_year(year_mods_dir_path=year_mods_dir_path,
-                                                 max_numbers_per_year=max_numbers_per_year)
-            for number_mods_dir_path in number_mods_dir_paths:
+        year_uuids = process_periodic(periodic_uuid=top_level_doc_uuid,
+                                      periodic_years_uuids=mods_jsonl[top_level_doc_uuid],
+                                      mods_dir=mods_dir,
+                                      max_years_per_periodic=max_years_per_periodic,
+                                      from_year=from_year,
+                                      to_year=to_year)
+        for year_uuid in year_uuids:
+            number_uuids = process_year(periodic_uuid=top_level_doc_uuid,
+                                        year_uuid=year_uuid,
+                                        year_numbers_uuids=mods_jsonl[top_level_doc_uuid][year_uuid],
+                                        mods_dir=mods_dir,
+                                        max_numbers_per_year=max_numbers_per_year)
+            for number_uuid in number_uuids:
                 counter['docs'] += 1
-                number_page_ids = ids_jsonl[os.path.basename(top_level_mods_dir_path)]\
-                                           [os.path.basename(year_mods_dir_path)]\
-                                           [os.path.basename(number_mods_dir_path)]
-                doc_id_tmp = os.path.basename(top_level_mods_dir_path).replace('uuid:', '')
-                doc_images_dir_path = os.path.join(images_dir, f'{doc_id_tmp}.images')
+                doc_mods_dir_path = os.path.join(mods_dir, top_level_doc_uuid, year_uuid, number_uuid)
+                try:
+                    number_page_uuids = ids_jsonl[top_level_doc_uuid][year_uuid][number_uuid]
+                    number_page_mods = mods_jsonl[top_level_doc_uuid][year_uuid][number_uuid]
+                except TypeError:
+                    logger.warning(f'Invalid number: {top_level_doc_uuid},{year_uuid},{number_uuid}')
+                    continue
+                doc_uuid_tmp = top_level_doc_uuid.replace('uuid:', '')
+                doc_images_dir_path = os.path.join(images_dir, f'{doc_uuid_tmp}.images')
                 if not os.path.exists(doc_images_dir_path):
-                    doc_images_dir_path = os.path.join(images_dir, doc_id_tmp)
+                    doc_images_dir_path = os.path.join(images_dir, doc_uuid_tmp)
                 if not os.path.exists(doc_images_dir_path):
                     logger.warning(f'Images dir not found: {doc_images_dir_path}|.images')
                     continue
-                process_doc(doc_mods_dir_path=number_mods_dir_path,
+                process_doc(doc_uuid=number_uuid,
                             counter=counter,
                             results=results,
                             processed_doc_uuids=processed_doc_uuids,
                             processed_page_uuids=processed_page_uuids,
-                            doc_id=doc_id,
-                            doc_mods_path=f'{number_mods_dir_path}.mods',
-                            doc_page_ids=number_page_ids,
+                            top_level_doc_uuid=top_level_doc_uuid,
+                            doc_mods_dir_path=doc_mods_dir_path,
+                            doc_page_ids=number_page_uuids,
+                            doc_page_mods=number_page_mods,
                             doc_images_dir_path=doc_images_dir_path,
                             output_dir=output_dir,
                             max_samples_per_class_per_doc=max_samples_per_class_per_doc,
+                            max_samples_per_doc=max_samples_per_doc,
                             max_samples_per_class=max_samples_per_class,
                             invalid_page_uuids=invalid_page_uuids,
                             valid_page_uuids=valid_page_uuids,
@@ -329,26 +381,28 @@ def process_doc_page_types(top_level_mods_dir_path, doc_type, counter, results,
         return
     elif doc_type == 'book' and not is_periodic_dir:
         counter['docs'] += 1
-        doc_id_tmp = doc_id.replace('uuid:', '')
-        doc_images_dir_path = os.path.join(images_dir, f'{doc_id_tmp}.images')
+        doc_uuid_tmp = top_level_doc_uuid.replace('uuid:', '')
+        doc_images_dir_path = os.path.join(images_dir, f'{doc_uuid_tmp}.images')
         if not os.path.exists(doc_images_dir_path):
-            doc_images_dir_path = os.path.join(images_dir, doc_id_tmp)
+            doc_images_dir_path = os.path.join(images_dir, doc_uuid_tmp)
         if not os.path.exists(doc_images_dir_path):
             logger.warning(f'Images dir not found: {doc_images_dir_path}|.images')
             return
         # logger.info(f'Book: {doc}')
-        doc_page_ids = ids_jsonl[os.path.basename(top_level_mods_dir_path)]
-        process_doc(doc_mods_dir_path=top_level_mods_dir_path,
+        doc_page_ids = ids_jsonl[top_level_doc_uuid]
+        process_doc(doc_uuid=top_level_doc_uuid,
                     counter=counter,
                     results=results,
                     processed_doc_uuids=processed_doc_uuids,
                     processed_page_uuids=processed_page_uuids,
-                    doc_id=doc_id,
-                    doc_mods_path=f'{top_level_mods_dir_path}.mods',
+                    top_level_doc_uuid=top_level_doc_uuid,
+                    doc_mods_dir_path=os.path.join(mods_dir, top_level_doc_uuid),
                     doc_page_ids=doc_page_ids,
+                    doc_page_mods=mods_jsonl[top_level_doc_uuid],
                     doc_images_dir_path=doc_images_dir_path,
                     output_dir=output_dir,
                     max_samples_per_class_per_doc=max_samples_per_class_per_doc,
+                    max_samples_per_doc=max_samples_per_doc,
                     max_samples_per_class=max_samples_per_class,
                     invalid_page_uuids=invalid_page_uuids,
                     valid_page_uuids=valid_page_uuids,
@@ -358,52 +412,64 @@ def process_doc_page_types(top_level_mods_dir_path, doc_type, counter, results,
                     process_undefined_page_types=process_undefined_page_types)
 
 
-def process_periodic(periodic_mods_dir_path,
+def process_periodic(periodic_uuid,
+                     periodic_years_uuids,
+                     mods_dir,
                      max_years_per_periodic=1,
                      from_year=None, to_year=None):
     years = OrderedDict()
-    for year_mods_dir_path in glob(os.path.join(periodic_mods_dir_path, '*/')):
-        year_mods_dir_path = year_mods_dir_path.rstrip('/')
-        year_mods_path = f'{year_mods_dir_path}.mods'
+    for year_uuid in periodic_years_uuids:
+        year_mods_path = os.path.join(mods_dir, periodic_uuid, f'{year_uuid}.mods')
+        if not os.path.exists(year_mods_path):
+            logger.warning(f'Mods file for year not found: {year_mods_path}')
+            continue
         year_years = get_year_from_doc_mods(year_mods_path)
         if not are_years_valid(year_years, from_year, to_year):
+            logger.warning(f'Invalid years: {year_mods_path} - {year_years} (from_year: {from_year}, to_year: {to_year})')
             continue
-        years[year_years[0]] = year_mods_dir_path
+        years[year_years[0]] = year_uuid
     if len(years) == 0:
         return []
     years = OrderedDict(sorted(years.items(), key=lambda x: x[0]))
     if max_years_per_periodic is None:
         max_years_per_periodic = len(years)
     years_chunked = list(chunks(list(years.values()), max_years_per_periodic))
-    year_mods_dir_paths = [random.choice(chunk) for chunk in years_chunked if len(chunk) > 0]
-    return year_mods_dir_paths
+    year_uuids = [random.choice(chunk) for chunk in years_chunked if len(chunk) > 0]
+    return year_uuids
 
 
-def process_year(year_mods_dir_path,
+def process_year(periodic_uuid,
+                 year_uuid,
+                 year_numbers_uuids,
+                 mods_dir,
                  max_numbers_per_year=1):
     numbers = OrderedDict()
-    for number_mods_dir_path in glob(os.path.join(year_mods_dir_path, '*/')):
-        number_mods_dir_path = number_mods_dir_path.rstrip('/')
-        number_mods_path = f'{number_mods_dir_path}.mods'
+    for number_uuid in year_numbers_uuids:
+        number_mods_path = os.path.join(mods_dir, periodic_uuid, year_uuid, f'{number_uuid}.mods')
+        if not os.path.exists(number_mods_path):
+            logger.warning(f'Mods file for number not found: {number_mods_path}')
+            continue
         number = get_number_from_number_mods(number_mods_path)
         if number is None:
-            numbers[-1] = number_mods_dir_path
+            numbers[-1] = number_uuid
         else:
-            numbers[number] = number_mods_dir_path
+            numbers[number] = number_uuid
     if len(numbers) == 0:
         return []
     numbers = OrderedDict(sorted(numbers.items(), key=lambda x: x[0]))
     if max_numbers_per_year is None:
         max_numbers_per_year = len(numbers)
     numbers_chunked = list(chunks(list(numbers.values()), max_numbers_per_year))
-    number_mods_dir_paths = [random.choice(chunk) for chunk in numbers_chunked if len(chunk) > 0]
-    return number_mods_dir_paths
+    number_uuids = [random.choice(chunk) for chunk in numbers_chunked if len(chunk) > 0]
+    return number_uuids
 
 
-def process_doc(doc_mods_dir_path, counter, results,
+def process_doc(doc_uuid, counter, results,
                 processed_doc_uuids, processed_page_uuids,
-                doc_id, doc_mods_path, doc_page_ids, doc_images_dir_path, output_dir,
-                max_samples_per_class_per_doc=1, max_samples_per_class=10,
+                top_level_doc_uuid, doc_mods_dir_path, doc_page_ids, doc_page_mods, doc_images_dir_path, output_dir,
+                max_samples_per_class_per_doc=1,
+                max_samples_per_doc=None,
+                max_samples_per_class=1,
                 invalid_page_uuids=None,
                 valid_page_uuids=None,
                 from_year=None, to_year=None,
@@ -412,12 +478,14 @@ def process_doc(doc_mods_dir_path, counter, results,
     if counter['docs'] % 100 == 0:
         logger.info(counter)
 
+    doc_mods_path = f'{doc_mods_dir_path}.mods'
     years = get_year_from_doc_mods(doc_mods_path)
     if not are_years_valid(years, from_year, to_year):
         return
 
     page_map = get_doc_page_map(doc_mods_dir_path=doc_mods_dir_path,
                                 doc_page_ids=doc_page_ids,
+                                doc_page_mods=doc_page_mods,
                                 doc_images_dir_path=doc_images_dir_path)
     if page_map is None:
         return
@@ -429,6 +497,7 @@ def process_doc(doc_mods_dir_path, counter, results,
         if not page_val['invalid'] and \
             page_val['image_path'] is not None and \
             page_val['page_type'] is not None and \
+            page_val['page_type'] in counter and \
                 counter[page_val['page_type']] < max_samples_per_class and \
                 (invalid_page_uuids is None or page_id not in invalid_page_uuids) and \
                 (valid_page_uuids is None or page_id in valid_page_uuids):
@@ -442,6 +511,10 @@ def process_doc(doc_mods_dir_path, counter, results,
         valid_page_ids[page_type] = page_ids[:max_samples_per_class_per_doc]
 
     valid_page_ids = {page_id for page_ids in valid_page_ids.values() for page_id in page_ids}
+    valid_page_ids = list(valid_page_ids)
+    random.shuffle(valid_page_ids)
+    if max_samples_per_doc is not None:
+        valid_page_ids = valid_page_ids[:max_samples_per_doc]
 
     page_map_list = list(page_map.items())
     for i, (page_id, page_val) in enumerate(page_map_list):
@@ -482,9 +555,9 @@ def process_doc(doc_mods_dir_path, counter, results,
                 orig_image_path = os.path.join(images_orig_dir, f'{page_id}.jpg')
                 if os.path.exists(page_val['image_path']):
                     shutil.copy2(page_val['image_path'], orig_image_path)
-            logger.info(f'{doc_mods_dir_path} {page_id} {page_val["page_type"]}')
+            logger.info(f'{doc_uuid} {page_id} {page_val["page_type"]}')
             results[page_val['page_type']].append(annotations)
-            processed_doc_uuids.append(doc_id)
+            processed_doc_uuids.append(top_level_doc_uuid)
             processed_page_uuids.append(page_id)
 
 
@@ -549,9 +622,7 @@ def get_side_image(image_path, img_shape, min_width=800):
     return img
 
 
-def get_doc_page_map(doc_mods_dir_path, doc_page_ids, doc_images_dir_path):
-    doc_id = os.path.basename(doc_mods_dir_path).replace('uuid:', '')
-    mods = glob(os.path.join(doc_mods_dir_path, '*.mods'))
+def get_doc_page_map(doc_mods_dir_path, doc_page_ids, doc_page_mods, doc_images_dir_path):
     if not doc_page_ids:
         return None
     page_map = OrderedDict()
@@ -564,12 +635,11 @@ def get_doc_page_map(doc_mods_dir_path, doc_page_ids, doc_images_dir_path):
     if len(page_map) == 0:
         logger.warning(f'No page ids found for {doc_page_ids}')
         return None
-    for mod in mods:
-        page_id = os.path.splitext(os.path.basename(mod))[0]
+    for page_id in doc_page_mods:
         if page_id in page_map:
-            page_map[page_id]['mods_path'] = mod
+            page_map[page_id]['mods_path'] = os.path.join(doc_mods_dir_path, f'{page_id}.mods')
         else:
-            logger.warning(f'mods {mod} not in {doc_id}.ids')
+            logger.warning(f'mods {os.path.join(doc_mods_dir_path, f"{page_id}.mods")} not in doc page ids')
     return page_map
 
 
@@ -582,10 +652,10 @@ def add_page_type_to_page_map(page_map, add_undefined_page_type=False):
 
 
 def are_years_valid(years, from_year, to_year):
-    if from_year is None and to_year is None:
-        return True
     if years is None:
         return False
+    if from_year is None and to_year is None:
+        return True
     if from_year is not None and to_year is not None:
         if years[0] < from_year or years[1] > to_year:
             return False
@@ -598,10 +668,13 @@ def are_years_valid(years, from_year, to_year):
     return True
 
 
-def is_dir_periodic(dir_path):
-    for dir_path in os.listdir(dir_path):
-        if not dir_path.endswith('.mods'):
-            return True
+def is_doc_periodic(top_level_uuid, ids_jsonl):
+    if top_level_uuid not in ids_jsonl:
+        logger.warning(f'{top_level_uuid} not in ids_jsonl, this should not happen')
+        return False
+    if isinstance(ids_jsonl[top_level_uuid], dict):
+        return True
+    return False
 
 
 # https://stackoverflow.com/questions/24483182/python-split-list-into-n-chunks

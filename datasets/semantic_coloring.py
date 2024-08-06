@@ -13,7 +13,7 @@ from pero_ocr.core import layout
 from pero_ocr.core.layout import TextLine
 import argparse
 
-from digilinka.datasets.ner import ner_pipeline, remove_special_tokens, connect_words, correct_spacing, dict_matching
+from datasets.ner import ner_pipeline, remove_special_tokens, connect_words, correct_spacing, dict_matching
 
 color_dict = {
     "T": (255, 0, 0),
@@ -26,6 +26,7 @@ color_dict = {
     "ČÍSLO": (0, 165, 255),
     "ŘÍMSKÉ ČÍSLO": (80, 200, 220)
 }
+
 
 def arg_parser():
     parser = argparse.ArgumentParser()
@@ -42,6 +43,7 @@ def arg_parser():
     parser.add_argument("--alpha", type=float, default=0.4)
 
     return parser.parse_args()
+
 
 def find_start_end_positions(mapping, text):
     start = -1
@@ -70,19 +72,25 @@ def find_start_end_positions(mapping, text):
         j += 1
 
     gap_to_prev_word = 0
-    while start - gap_to_prev_word > 0 and mapping[start - gap_to_prev_word - 1] in ["\u200b", " "]:
-        gap_to_prev_word += 1
-    start -= gap_to_prev_word // 2
-    gap_to_next_word = 0
-    while end + gap_to_next_word < len(mapping) and mapping[end + gap_to_next_word] in ["\u200b", " "]:
-        gap_to_next_word += 1
-    end += gap_to_next_word // 2
+    try:
+        while start - gap_to_prev_word > 0 and mapping[start - gap_to_prev_word - 1] in ["\u200b", " "]:
+            gap_to_prev_word += 1
+        start -= gap_to_prev_word // 2
+    except IndexError:
+        pass
 
+    gap_to_next_word = 0
+    try:
+        while end + gap_to_next_word < len(mapping) and mapping[end + gap_to_next_word] in ["\u200b", " "]:
+            gap_to_next_word += 1
+        end += gap_to_next_word // 2
+    except IndexError:
+        pass
     return start, end
 
 
 def get_bbox(text_line, start, end):
-    logits = np.array(text_line.get_dense_logits())
+    logits = np.array(text_line.get_dense_logits()[text_line.logit_coords[0]:text_line.logit_coords[1]])
     logits_cnt = logits.shape[0]
     text_line_width = text_line.polygon[:, 0].max() - text_line.polygon[:, 0].min()
 
@@ -128,6 +136,7 @@ def get_complete_bbox(text_line: TextLine, out):
         mapping.append(max_l)
 
     mapping = [text_line.characters[m].lower() for m in mapping]
+    mapping = mapping[text_line.logit_coords[0]:text_line.logit_coords[1]]
 
     start, end = find_start_end_positions(mapping, out[0])
     if start == -1 or end == -1:

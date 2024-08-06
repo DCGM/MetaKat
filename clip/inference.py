@@ -43,7 +43,7 @@ def main():
     logger.info(f"Using device: {device}")
 
     with open(args.prompts, "r") as f:
-        prompts = [x.strip() for x in  f.readlines()]
+        prompts = [x.strip() for x in f.readlines()]
 
     model, preprocess = clip.load("ViT-B/32", device=device)
     text = clip.tokenize(prompts).to(device)

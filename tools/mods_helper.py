@@ -1,5 +1,41 @@
+import json
 import logging
 import xml.etree.ElementTree as ET
+from pathlib import Path
+
+
+logger = logging.getLogger(__name__)
+
+
+def get_mods_jsonl(mods_dir):
+    mods_tree = {}
+    logger.info(f'Creating mods tree from {mods_dir} for periodics')
+    for m in Path(mods_dir).glob('*/*/*/*.mods'):
+        m = str(m.relative_to(mods_dir))
+        periodic, year, number, page = m.split('/')
+        if periodic not in mods_tree:
+            mods_tree[periodic] = {}
+        if year not in mods_tree[periodic]:
+            mods_tree[periodic][year] = {}
+        if number not in mods_tree[periodic][year]:
+            mods_tree[periodic][year][number] = list()
+        mods_tree[periodic][year][number].append(page.replace('.mods', ''))
+
+    logger.info(f'Creating mods tree from {mods_dir} for books')
+    for m in Path(mods_dir).glob('*/*.mods'):
+        m = str(m.relative_to(mods_dir))
+        doc, page = m.split('/')
+        if doc not in mods_tree:
+            mods_tree[doc] = list()
+        if isinstance(mods_tree[doc], list):
+            mods_tree[doc].append(page.replace('.mods', ''))
+
+    mods_jsonl = []
+    for doc, val in mods_tree.items():
+        jsonl = {doc: val}
+        mods_jsonl.append(json.dumps(jsonl))
+
+    return mods_jsonl
 
 
 def get_year_from_doc_mods(mods_path):

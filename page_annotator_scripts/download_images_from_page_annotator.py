@@ -42,11 +42,13 @@ def main():
     logger.info(' '.join(sys.argv))
 
     api = AnnotatorApi(args.api_key, args.url)
-    res, _ = api.get_image_list(camera_list=['pages'])
+    res, reason = api.get_image_list(camera_list=['pages'])
     annotated = defaultdict(lambda: 0)
     page_types = list(page_type_classes.values())
 
     out_all = []
+
+    logger.info(f"Total pages: {len(res)}, reason: {reason}")
 
     for r in res:
         if len(r['position']) == 1 and r['position'][0]['value']['type'] in page_types and not r['position'][0]['ignore']:
