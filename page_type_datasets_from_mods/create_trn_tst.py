@@ -30,13 +30,16 @@ def parse_args():
 def main():
     args = parse_args()
 
-    log_formatter = logging.Formatter('CREATE TRN TST - %(asctime)s - %(filename)s - %(levelname)s - %(message)s')
+    log_formatter = logging.Formatter('%(asctime)s - CREATE TRN TST - %(levelname)s - %(message)s')
     log_formatter.converter = time.gmtime
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler()
     handler.setFormatter(log_formatter)
+    file_handler = logging.FileHandler(os.path.join(os.path.dirname(args.output_pages_trn), 'create_trn_tst.log'))
+    file_handler.setFormatter(log_formatter)
     logger = logging.getLogger()
     logger.handlers = []
     logger.addHandler(handler)
+    logger.addHandler(file_handler)
     logger.setLevel(args.logging_level)
 
     logger.info(' '.join(sys.argv))
