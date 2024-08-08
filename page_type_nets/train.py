@@ -70,7 +70,6 @@ def parse_args():
 
     # Render
     parser.add_argument('--render-dir', default='./render', type=str)
-    parser.add_argument('--font', default='/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf')
 
     # Save
     parser.add_argument('--save-steps', default=1000, type=int)
@@ -138,11 +137,10 @@ def main():
 
     renderer = PageTypeRenderer(dataset=train_dataset,
                                 collator=PageTypeCollator(),
-                                font=args.font,
                                 dataloader_num_workers=args.dataloader_num_workers,
                                 max_batches=500,
                                 output_dir=args.render_dir)
-    renderer.render()
+    renderer.render(model=model)
 
     sys.exit(0)
 
@@ -196,7 +194,11 @@ def main():
 def init_model(model_checkpoint, dataset):
 
     logger.info(f'Loading model: {model_checkpoint}')
-    model = ViTForImageClassification.from_pretrained(model_checkpoint)
+    model = ViTForImageClassification.from_pretrained(model_checkpoint,
+                                                      num_labels=len(dataset.id2label),
+                                                      id2label=dataset.id2label,
+                                                      label2id=dataset.label2id,
+                                                      ignore_mismatched_sizes=True)
 
     return model
 

@@ -32,10 +32,12 @@ class PageTypeDataset(Dataset):
         self.label2id = {label: i for i, label in enumerate(page_type_classes.values())}
 
         image_mean, image_std = processor.image_mean, processor.image_std
+        self.image_mean = image_mean
+        self.image_std = image_std
         self.size = processor.size["height"]
-        logger.info(f"Image mean: {image_mean}, image std: {image_std}, size: {self.size}")
+        logger.info(f"Image mean: {self.image_mean}, image std: {self.image_std}, size: {self.size}")
 
-        normalize = v2.Normalize(mean=image_mean, std=image_std)
+        normalize = v2.Normalize(mean=self.image_mean, std=self.image_std)
 
         self.train_transform = v2.Compose([
             v2.Resize(max_size=self.size, size=self.size - 1),

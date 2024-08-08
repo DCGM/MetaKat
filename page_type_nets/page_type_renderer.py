@@ -4,6 +4,8 @@ import time
 import typing
 
 import cv2
+import numpy as np
+import torch
 from torch.utils.data import DataLoader
 from torchvision.utils import make_grid
 from transformers import PreTrainedModel, set_seed
@@ -22,7 +24,6 @@ class PageTypeRenderer:
     def __init__(self,
                  dataset: PageTypeDataset,
                  collator: PageTypeCollator,
-                 font: str,
                  dataloader_num_workers: int = 1,
                  batch_size: int = 20,
                  max_batches: int = 1,
@@ -31,7 +32,6 @@ class PageTypeRenderer:
         super().__init__()
         self.dataset = dataset
         self.collator = collator
-        self.font = font
         self.dataloader_num_workers = dataloader_num_workers
         self.batch_size = batch_size
         self.max_batches = max_batches
@@ -71,13 +71,45 @@ class PageTypeRenderer:
 
             images = []
             logger.info(batch['pixel_values'].shape)
-            for img in batch['pixel_values']:
+            for i, (img, label) in enumerate(zip(batch['pixel_values'], batch['labels'])):
                 img = img.permute(1, 2, 0)
-                img = img.cpu().detach()
+                img = img.cpu().detach().numpy()
+                img = img * self.dataset.image_std + self.dataset.image_mean
+                img = img * 255
+                img = img.astype('uint8')
+                img = img.copy()
+                img = np.hstack([np.zeros((img.shape[0], self.dataset.size, 3), dtype=np.uint8), img])
+
+                label = label.item()
+                img = cv2.putText(img, str(self.dataset.id2label[label]),
+                                  (7, 20),
+                                  cv2.FONT_HERSHEY_SIMPLEX,
+                                  0.5,
+                                  (255, 255, 255),
+                                  1)
+
+                if pred is not None:
+                    scores = torch.softmax(pred['logits'][i], dim=-1)
+                    for j, (pred_label, pred_score) in enumerate(zip(torch.sort(scores, descending=True).indices[:10],
+                                                                     torch.sort(scores, descending=True).values[:10])):
+                        if j == 0:
+                            pred_color = (0, 255, 0) if pred_label == label else (0, 0, 255)
+                        else:
+                            pred_color = (0, 100, 255)
+                        img = cv2.putText(img, f'{pred_score:.2f} {self.dataset.id2label[pred_label.item()][:15]}',
+                                          (7, 20 + (j + 1) * 20),
+                                          cv2.FONT_HERSHEY_SIMPLEX,
+                                          0.5,
+                                          pred_color,
+                                          1)
+
+                img = img.astype('float32') / 255.0
+                img = torch.from_numpy(img)
                 img = img.permute(2, 0, 1)
+
                 images.append(img)
 
-            batch_img = make_grid(images).numpy()
+            batch_img = make_grid(images, nrow=4).numpy()
             batch_img = batch_img.transpose(1, 2, 0)
             batch_img *= 255
             logger.info(batch_img.shape)
