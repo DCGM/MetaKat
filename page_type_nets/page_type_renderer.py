@@ -47,30 +47,27 @@ class PageTypeRenderer:
 
         batch_counter = 0
 
-        g_start = time.time()
-        l_start = time.time()
-        g_gen = 0
-        l_gen = 0
+        g_render = time.time()
+        l_render = time.time()
+        g_classification = 0
+        l_classification = 0
 
         logger.info('')
         logger.info(f'Rendering {self.dataset.name} dataset:')
         for batch in data_loader:
-            pixel_values = batch['pixel_values']
-            labels = batch['labels']
-            set_seed(42)
-
-            l_gen_start = time.time()
 
             pred = None
             if model is not None:
+                l_classification_start = time.time()
+
+                pixel_values = batch['pixel_values']
                 pixel_values = pixel_values.to(model.device)
                 pred = model(pixel_values=pixel_values)
 
-            l_gen_end = time.time()
-            l_gen += l_gen_end - l_gen_start
+                l_classification_end = time.time()
+                l_classification += l_classification_end - l_classification_start
 
             images = []
-            logger.info(batch['pixel_values'].shape)
             for i, (img, label) in enumerate(zip(batch['pixel_values'], batch['labels'])):
                 img = img.permute(1, 2, 0)
                 img = img.cpu().detach().numpy()
@@ -112,7 +109,6 @@ class PageTypeRenderer:
             batch_img = make_grid(images, nrow=4).numpy()
             batch_img = batch_img.transpose(1, 2, 0)
             batch_img *= 255
-            logger.info(batch_img.shape)
 
             output_dir = str(os.path.join(self.output_dir, self.dataset.name))
             os.makedirs(output_dir, exist_ok=True)
@@ -128,20 +124,20 @@ class PageTypeRenderer:
             l_end = time.time()
             if iteration is not None:
                 logger.info(
-                    f'iteration:{iteration}, output_path:{output_path}, render_time:{l_end - l_start}, gen_time:{l_gen}')
+                    f'iteration:{iteration}, output_path:{output_path}, render_time:{l_end - l_render}, gen_time:{l_classification}')
             else:
-                logger.info(f'output_path:{output_path}, render_time:{l_end - l_start}, gen_time:{l_gen}')
-            l_start = time.time()
-            g_gen += l_gen
-            l_gen = 0
+                logger.info(f'output_path:{output_path}, render_time:{l_end - l_render}, gen_time:{l_classification}')
+            l_render = time.time()
+            g_classification += l_classification
+            l_classification = 0
 
             batch_counter += 1
-            if batch_counter >= self.max_batches:
+            if self.max_batches != -1 and batch_counter >= self.max_batches:
                 break
 
         g_end = time.time()
 
         if iteration is not None:
-            logger.info(f'iteration:{iteration}, render_time:{g_end - g_start}, gen_time:{g_gen}')
+            logger.info(f'iteration:{iteration}, render_time:{g_end - g_render}, gen_time:{g_classification}')
         else:
-            logger.info(f'render_time:{g_end - g_start}, render_time:{g_gen}')
+            logger.info(f'render_time:{g_end - g_render}, render_time:{g_classification}')

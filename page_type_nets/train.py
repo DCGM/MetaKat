@@ -1,7 +1,9 @@
+import copy
 import json
 import os
 import time
 import sys
+import typing
 from functools import partial
 
 import numpy as np
@@ -10,14 +12,18 @@ from safe_gpu.safe_gpu import GPUOwner
 
 from page_type_nets.page_type_collator import PageTypeCollator
 from page_type_nets.page_type_dataset import PageTypeDataset
+from page_type_nets.page_type_evaluator import PageTypeEvaluator
 from page_type_nets.page_type_renderer import PageTypeRenderer
+from page_type_nets.page_type_trainer import PageTypeTrainer
+from page_type_nets.page_type_training_arguments import PageTypeTrainingArguments
 
 gpu_owner = GPUOwner(1)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 from clearml import Task
 
-from transformers import set_seed, TrainingArguments, Trainer, ViTForImageClassification, ViTImageProcessor
+from transformers import set_seed, TrainingArguments, ViTForImageClassification, ViTImageProcessor, \
+    TrainerCallback, TrainerState, PreTrainedModel
 
 import argparse
 import logging
@@ -39,6 +45,7 @@ def parse_args():
     parser.add_argument('--train-pages', required=True, type=str)
     parser.add_argument('--eval-pages', required=True, type=str)
     parser.add_argument('--dataloader-num-workers', type=int, default=4)
+    parser.add_argument('--eval-dataloader-num-workers', type=int, default=0)
 
     # Model
     parser.add_argument('--model-name', type=str, default='google/vit-base-patch16-224',
@@ -65,11 +72,12 @@ def parse_args():
 
     # Evaluation
     parser.add_argument('--eval-steps', default=500, type=int)
-    parser.add_argument('--eval-train-dataset', action='store_true')
     parser.add_argument('--eval-batch-size', default=20, type=int)
+    parser.add_argument('--eval-train-dataset', action='store_true')
+    parser.add_argument('--eval-train-max-pages', default=500, type=int)
 
     # Render
-    parser.add_argument('--render-dir', default='./render', type=str)
+    parser.add_argument('--render-dir', type=str)
 
     # Save
     parser.add_argument('--save-steps', default=1000, type=int)
@@ -118,13 +126,15 @@ def main():
         os.environ["CLEARML_TASK"] = args.task_name
 
     rnd = np.random.default_rng(seed=42)
-    rnd_seed_gen = partial(rnd.integers,0, 10000)
+    rnd_seed_gen = partial(rnd.integers, 0, 10000)
     set_seed(rnd_seed_gen())
 
-    train_dataset, eval_dataset = init_datasets(images_dir=args.images_dir,
-                                                train_pages=args.train_pages,
-                                                eval_pages=args.eval_pages,
-                                                processor=ViTImageProcessor.from_pretrained(args.model_name))
+    train_dataset, eval_datasets, eval_dataset_for_hg = init_datasets(images_dir=args.images_dir,
+                                                                      train_pages=args.train_pages,
+                                                                      eval_pages=args.eval_pages,
+                                                                      processor=ViTImageProcessor.from_pretrained(args.model_name),
+                                                                      eval_train_dataset=args.eval_train_dataset,
+                                                                      eval_train_max_pages=args.eval_train_max_pages)
     model_checkpoint = None
     if not args.resume_trainer:
         model_checkpoint = args.model_name
@@ -135,25 +145,16 @@ def main():
 
     logger.info(model)
 
-    renderer = PageTypeRenderer(dataset=train_dataset,
-                                collator=PageTypeCollator(),
-                                dataloader_num_workers=args.dataloader_num_workers,
-                                max_batches=500,
-                                output_dir=args.render_dir)
-    renderer.render(model=model)
-
-    sys.exit(0)
-
-    training_args = TrainingArguments(
+    training_args = PageTypeTrainingArguments(
         remove_unused_columns=False,
 
         evaluation_strategy='steps',
         eval_steps=args.eval_steps,
-        prediction_loss_only=True,
         metric_for_best_model='eval_loss',
 
         dataloader_num_workers=args.dataloader_num_workers,
         dataloader_persistent_workers=True,
+        prediction_loss_only=True,
 
         learning_rate=args.learning_rate,
         max_steps=args.max_steps,
@@ -172,13 +173,31 @@ def main():
         logging_steps=args.logging_steps
     )
 
-    trainer = Trainer(
+    trainer = PageTypeTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
+        eval_dataset=eval_dataset_for_hg,
         data_collator=PageTypeCollator()
     )
+
+    trainer.add_callback(PageTypeEvaluatorTrainerCallback(
+        evaluators=[PageTypeEvaluator(dataset=eval_dataset, collator=PageTypeCollator(),
+                                      dataloader_num_workers=args.eval_dataloader_num_workers,
+                                      shuffle_dataset=True)
+                    for eval_dataset in eval_datasets],
+        random_seed=42,
+        clearml_logger=clearml_logger))
+
+    if args.render_dir is not None:
+        trainer.add_callback(PageTypeRendererTrainerCallback(
+            renderers=[PageTypeRenderer(dataset=eval_dataset,
+                                        collator=PageTypeCollator(),
+                                        max_batches=-1 if eval_dataset.eval_dataset else 5,
+                                        shuffle_dataset=True,
+                                        dataloader_num_workers=args.eval_dataloader_num_workers,
+                                        output_dir=args.render_dir) for eval_dataset in eval_datasets],
+            random_seed=42))
 
     model_checkpoint = None
     if args.resume_trainer:
@@ -203,10 +222,72 @@ def init_model(model_checkpoint, dataset):
     return model
 
 
-def init_datasets(images_dir, train_pages, eval_pages, processor):
-    train_dataset = PageTypeDataset(images_dir=images_dir, pages=train_pages, processor=processor)
-    eval_dataset = PageTypeDataset(images_dir=images_dir, pages=eval_pages, processor=processor, eval=True)
-    return train_dataset, eval_dataset
+def init_datasets(images_dir, train_pages, eval_pages, processor,
+                  eval_train_dataset=False, eval_train_max_pages=500):
+    train_dataset = PageTypeDataset(images_dir=images_dir, pages=train_pages, processor=processor, augment=True)
+    eval_datasets = []
+    if eval_train_dataset:
+        eval_aug_train_dataset = copy.copy(train_dataset)
+        eval_aug_train_dataset.name += '_aug'
+        eval_aug_train_dataset.max_pages = eval_train_max_pages
+        eval_datasets.append(eval_aug_train_dataset)
+        eval_train_dataset = copy.copy(train_dataset)
+        eval_train_dataset.name += '_clean'
+        eval_train_dataset.augment = False
+        eval_train_dataset.max_pages = eval_train_max_pages
+        eval_datasets.append(eval_train_dataset)
+    eval_datasets.append(PageTypeDataset(images_dir=images_dir, pages=eval_pages, processor=processor, eval_dataset=True))
+    eval_dataset_for_hg = copy.copy(eval_datasets[-1])
+    eval_dataset_for_hg.max_pages = 10
+    return train_dataset, eval_datasets, eval_dataset_for_hg
+
+
+class PageTypeEvaluatorTrainerCallback(TrainerCallback):
+    def __init__(self, evaluators: typing.List[PageTypeEvaluator], random_seed=None, clearml_logger=None):
+        super().__init__()
+        self.evaluators = evaluators
+        self.clearml_logger = clearml_logger
+        self.last_show_iter = None
+        self.random_seed = random_seed
+
+    def on_evaluate(self, trn_args: TrainingArguments, state: TrainerState, control, model: PreTrainedModel, **kwargs):
+        # on_evaluate is called per each eval datasets, only do the evaluation once
+        if self.last_show_iter == state.global_step:
+            return
+
+        if self.random_seed is not None:
+            set_seed(self.random_seed)
+        for evaluator in self.evaluators:
+            metrics = evaluator.evaluate(model=model)
+            if self.clearml_logger is not None:
+                for key, val in metrics.items():
+                    logger.info(f'{state.global_step} - {evaluator.dataset.name} - {key}: {val}')
+                    self.clearml_logger.report_scalar(title=key,
+                                                      series=evaluator.dataset.name,
+                                                      value=val,
+                                                      iteration=state.global_step)
+            logger.info('')
+
+        self.last_show_iter = state.global_step
+
+
+class PageTypeRendererTrainerCallback(TrainerCallback):
+    def __init__(self, renderers: typing.List[PageTypeRenderer], random_seed=None):
+        super().__init__()
+        self.renderers = renderers
+        self.random_seed = random_seed
+        self.last_show_iter = None
+
+    def on_evaluate(self, trn_args: TrainingArguments, state: TrainerState, control, model: PreTrainedModel, **kwargs):
+        # on_evaluate is called per each eval datasets, only do the visualization once
+        if self.last_show_iter == state.global_step:
+            return
+        if self.random_seed is not None:
+            set_seed(self.random_seed)
+        for renderer in self.renderers:
+            renderer.render(model=model, iteration=state.global_step)
+
+        self.last_show_iter = state.global_step
 
 
 if __name__ == '__main__':
