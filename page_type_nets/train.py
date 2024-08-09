@@ -203,6 +203,7 @@ def main():
         model_checkpoint = args.model_name
         if args.start_step is not None:
             model_checkpoint = os.path.join(args.checkpoint_dir, f"checkpoint-{args.start_step}")
+        logger.info(f'Resuming from checkpoint: {model_checkpoint}')
     trainer.train(resume_from_checkpoint=model_checkpoint)
 
     if clearml_task is not None:
