@@ -192,7 +192,7 @@ def main():
         trainer.add_callback(PageTypeRendererTrainerCallback(
             renderers=[PageTypeRenderer(dataset=eval_dataset,
                                         collator=PageTypeCollator(),
-                                        max_batches=-1 if eval_dataset.eval_dataset else 5,
+                                        max_batches=5 if eval_dataset.eval_dataset else 5,
                                         shuffle_dataset=True,
                                         dataloader_num_workers=args.eval_dataloader_num_workers,
                                         output_dir=args.render_dir) for eval_dataset in eval_datasets],
