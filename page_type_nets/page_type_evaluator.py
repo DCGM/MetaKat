@@ -3,7 +3,7 @@ import logging
 import time
 
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, precision_recall_fscore_support
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel
 
@@ -83,25 +83,23 @@ class PageTypeEvaluator:
 
         metrics['loss'] = np.asarray(loss).mean()
         metrics['accuracy'] = accuracy_score(gt_labels, predictions)
-        metrics['weighted_f1'] = f1_score(gt_labels, predictions, average='weighted')
-        metrics['weighted_precision'] = precision_score(gt_labels, predictions, average='weighted')
-        metrics['weighted_recall'] = recall_score(gt_labels, predictions, average='weighted')
-        precision = precision_score(gt_labels, predictions, average=None)
-        recall = recall_score(gt_labels, predictions, average=None)
-        f1 = f1_score(gt_labels, predictions, average=None)
+
+        w_precision, w_recall, w_fscore, _ = precision_recall_fscore_support(gt_labels, predictions,
+                                                                             average='weighted',
+                                                                             labels=list(range(len(self.dataset.label2id))))
+        metrics['weighted_fscore'] = w_fscore
+        metrics['weighted_precision'] = w_precision
+        metrics['weighted_recall'] = w_recall
+
+        precision, recall, fscore, support = precision_recall_fscore_support(gt_labels, predictions,
+                                                                             average=None,
+                                                                             labels=list(range(len(self.dataset.label2id))))
         for label_name, label_id in self.dataset.label2id.items():
-            if label_id in f1:
-                metrics[f'f1_{label_name}'] = f1[label_id]
-            else:
-                metrics[f'f1_{label_name}'] = 0
-            if label_id in precision:
-                metrics[f'precision_{label_name}'] = precision[label_id]
-            else:
-                metrics[f'precision_{label_name}'] = 0
-            if label_id in recall:
-                metrics[f'recall_{label_name}'] = recall[label_id]
-            else:
-                metrics[f'recall_{label_name}'] = 0
+            metrics[f'fscore_{label_name}'] = fscore[label_id]
+            metrics[f'precision_{label_name}'] = precision[label_id]
+            metrics[f'recall_{label_name}'] = recall[label_id]
+            metrics[f'support_{label_name}'] = support[label_id]
+
         metrics['eval_time'] = g_end - g_start
 
         return metrics
