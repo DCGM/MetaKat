@@ -62,13 +62,15 @@ class PageTypeDataset(Dataset):
             v2.RandomApply(transforms=[v2.GaussianBlur(kernel_size=(5, 9))], p=0.1),
             v2.RandomApply(transforms=[v2.RandomAutocontrast()], p=0.1),
             v2.RandomApply(transforms=[v2.RandomEqualize()], p=0.1),
-            v2.ToTensor(),
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
             normalize
         ])
 
         self.norm_transform = v2.Compose([
             v2.Resize(max_size=self.size, size=self.size - 1, antialias=True),
-            v2.ToTensor(),
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
             normalize
         ])
 

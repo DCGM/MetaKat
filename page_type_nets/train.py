@@ -135,9 +135,8 @@ def main():
                                                                       processor=ViTImageProcessor.from_pretrained(args.model_name),
                                                                       eval_train_dataset=args.eval_train_dataset,
                                                                       eval_train_max_pages=args.eval_train_max_pages)
-    model_checkpoint = None
+    model_checkpoint = args.model_name
     if not args.resume_trainer:
-        model_checkpoint = args.model_name
         if args.start_step is not None:
             model_checkpoint = os.path.join(args.checkpoint_dir, f"checkpoint-{args.start_step}")
 
@@ -201,7 +200,7 @@ def main():
 
     model_checkpoint = None
     if args.resume_trainer:
-        model_checkpoint = args.model_checkpoint
+        model_checkpoint = args.model_name
         if args.start_step is not None:
             model_checkpoint = os.path.join(args.checkpoint_dir, f"checkpoint-{args.start_step}")
     trainer.train(resume_from_checkpoint=model_checkpoint)
