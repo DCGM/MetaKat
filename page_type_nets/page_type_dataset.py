@@ -43,7 +43,13 @@ class PageTypeDataset(Dataset):
         image_mean, image_std = processor.image_mean, processor.image_std
         self.image_mean = image_mean
         self.image_std = image_std
-        self.size = processor.size["height"]
+        logger.info(processor.size)
+        if 'height' in processor.size:
+            self.size = processor.size["height"]
+        elif 'shortest_edge' in processor.size:
+            self.size = processor.size["shortest_edge"]
+        else:
+            raise ValueError(f"Size {processor.size} not supported")
         logger.info(f'Initializing dataset {self.name} from {pages} with {len(self.pages)} pages')
         for page_type, count in self.page_type_counter.items():
             logger.info(f'{page_type}: {count}')

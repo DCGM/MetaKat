@@ -23,7 +23,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 from clearml import Task
 
 from transformers import set_seed, TrainingArguments, ViTForImageClassification, ViTImageProcessor, \
-    TrainerCallback, TrainerState, PreTrainedModel
+    TrainerCallback, TrainerState, PreTrainedModel, ResNetForImageClassification, AutoImageProcessor
 
 import argparse
 import logging
@@ -129,10 +129,12 @@ def main():
     rnd_seed_gen = partial(rnd.integers, 0, 10000)
     set_seed(rnd_seed_gen())
 
+    processor = init_processor(args.model_name)
+
     train_dataset, eval_datasets, eval_dataset_for_hg = init_datasets(images_dir=args.images_dir,
                                                                       train_pages=args.train_pages,
                                                                       eval_pages=args.eval_pages,
-                                                                      processor=ViTImageProcessor.from_pretrained(args.model_name),
+                                                                      processor=processor,
                                                                       eval_train_dataset=args.eval_train_dataset,
                                                                       eval_train_max_pages=args.eval_train_max_pages)
     model_checkpoint = args.model_name
@@ -210,14 +212,33 @@ def main():
         clearml_task.close()
 
 
+def init_processor(model_checkpoint):
+    if 'vit' in model_checkpoint:
+        processor = ViTImageProcessor.from_pretrained(model_checkpoint)
+    elif 'resnet' in model_checkpoint:
+        processor = AutoImageProcessor.from_pretrained(model_checkpoint)
+    else:
+        raise ValueError(f'Unknown model: {model_checkpoint}')
+    return processor
+
+
 def init_model(model_checkpoint, dataset):
 
     logger.info(f'Loading model: {model_checkpoint}')
-    model = ViTForImageClassification.from_pretrained(model_checkpoint,
-                                                      num_labels=len(dataset.id2label),
-                                                      id2label=dataset.id2label,
-                                                      label2id=dataset.label2id,
-                                                      ignore_mismatched_sizes=True)
+    if 'vit' in model_checkpoint:
+        model = ViTForImageClassification.from_pretrained(model_checkpoint,
+                                                          num_labels=len(dataset.id2label),
+                                                          id2label=dataset.id2label,
+                                                          label2id=dataset.label2id,
+                                                          ignore_mismatched_sizes=True)
+    elif 'resnet' in model_checkpoint:
+        model = ResNetForImageClassification.from_pretrained(model_checkpoint,
+                                                             num_labels=len(dataset.id2label),
+                                                             id2label=dataset.id2label,
+                                                             label2id=dataset.label2id,
+                                                             ignore_mismatched_sizes=True)
+    else:
+        raise ValueError(f'Unknown model: {model_checkpoint}')
 
     return model
 
@@ -272,10 +293,11 @@ class PageTypeEvaluatorTrainerCallback(TrainerCallback):
 
 
 class PageTypeRendererTrainerCallback(TrainerCallback):
-    def __init__(self, renderers: typing.List[PageTypeRenderer], random_seed=None):
+    def __init__(self, renderers: typing.List[PageTypeRenderer], random_seed=None, render_all_eval_dataset_per_steps=10000):
         super().__init__()
         self.renderers = renderers
         self.random_seed = random_seed
+        self.render_all_eval_dataset_per_steps = render_all_eval_dataset_per_steps
         self.last_show_iter = None
 
     def on_evaluate(self, trn_args: TrainingArguments, state: TrainerState, control, model: PreTrainedModel, **kwargs):
@@ -285,7 +307,11 @@ class PageTypeRendererTrainerCallback(TrainerCallback):
         if self.random_seed is not None:
             set_seed(self.random_seed)
         for renderer in self.renderers:
+            old_max_batches = renderer.max_batches
+            if renderer.dataset.eval_dataset and state.global_step % self.render_all_eval_dataset_per_steps == 0:
+                renderer.max_batches = -1
             renderer.render(model=model, iteration=state.global_step)
+            renderer.max_batches = old_max_batches
 
         self.last_show_iter = state.global_step
 
