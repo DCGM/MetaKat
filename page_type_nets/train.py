@@ -23,7 +23,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 from clearml import Task
 
 from transformers import set_seed, TrainingArguments, ViTForImageClassification, ViTImageProcessor, \
-    TrainerCallback, TrainerState, PreTrainedModel, ResNetForImageClassification, AutoImageProcessor
+    TrainerCallback, TrainerState, PreTrainedModel, ResNetForImageClassification, AutoImageProcessor, \
+    BeitImageProcessor, BeitForImageClassification
 
 import argparse
 import logging
@@ -217,6 +218,8 @@ def init_processor(model_checkpoint):
         processor = ViTImageProcessor.from_pretrained(model_checkpoint)
     elif 'resnet' in model_checkpoint:
         processor = AutoImageProcessor.from_pretrained(model_checkpoint)
+    elif 'beit' in model_checkpoint:
+        processor = BeitImageProcessor.from_pretrained(model_checkpoint)
     else:
         raise ValueError(f'Unknown model: {model_checkpoint}')
     return processor
@@ -237,6 +240,12 @@ def init_model(model_checkpoint, dataset):
                                                              id2label=dataset.id2label,
                                                              label2id=dataset.label2id,
                                                              ignore_mismatched_sizes=True)
+    elif 'beit' in model_checkpoint:
+        model = BeitForImageClassification.from_pretrained(model_checkpoint,
+                                                           num_labels=len(dataset.id2label),
+                                                           id2label=dataset.id2label,
+                                                           label2id=dataset.label2id,
+                                                           ignore_mismatched_sizes=True)
     else:
         raise ValueError(f'Unknown model: {model_checkpoint}')
 

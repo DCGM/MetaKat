@@ -43,7 +43,6 @@ class PageTypeDataset(Dataset):
         image_mean, image_std = processor.image_mean, processor.image_std
         self.image_mean = image_mean
         self.image_std = image_std
-        logger.info(processor.size)
         if 'height' in processor.size:
             self.size = processor.size["height"]
         elif 'shortest_edge' in processor.size:
