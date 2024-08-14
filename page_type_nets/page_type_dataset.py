@@ -1,14 +1,13 @@
 import logging
 import os
 import random
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict
 
 import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
-from transformers import ViTImageProcessor
 
 from tools.mods_helper import page_type_classes
 
@@ -19,7 +18,7 @@ class PageTypeDataset(Dataset):
     def __init__(self,
                  images_dir,
                  pages,
-                 processor: ViTImageProcessor,
+                 processor,
                  eval_dataset=False,
                  augment=False,
                  max_pages=None):
@@ -41,14 +40,14 @@ class PageTypeDataset(Dataset):
         self.label2id = {label: i for i, label in enumerate(page_type_classes.values())}
 
         image_mean, image_std = processor.image_mean, processor.image_std
-        self.image_mean = image_mean
-        self.image_std = image_std
         if 'height' in processor.size:
             self.size = processor.size["height"]
         elif 'shortest_edge' in processor.size:
             self.size = processor.size["shortest_edge"]
         else:
             raise ValueError(f"Size {processor.size} not supported")
+        self.image_mean = image_mean
+        self.image_std = image_std
         logger.info(f'Initializing dataset {self.name} from {pages} with {len(self.pages)} pages')
         for page_type, count in self.page_type_counter.items():
             logger.info(f'{page_type}: {count}')

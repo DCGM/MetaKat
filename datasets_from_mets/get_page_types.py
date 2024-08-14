@@ -30,6 +30,8 @@ def parse_args():
     parser.add_argument('--mastercopy-dir', required=True, type=str)
     parser.add_argument('--output-dir', required=True, type=str)
 
+    parser.add_argument('--export-neighbour-pages-mapping', action='store_true')
+
     parser.add_argument('--logging-level', default=logging.INFO)
 
     args = parser.parse_args()
@@ -49,10 +51,10 @@ def main():
 
     logger.info(' '.join(sys.argv))
 
-    get_page_types(args.mets, args.mastercopy_dir, args.output_dir)
+    get_page_types(args.mets, args.mastercopy_dir, args.output_dir, args.export_neighbour_pages_mapping)
 
 
-def get_page_types(mets, mastercopy_dir, output_dir):
+def get_page_types(mets, mastercopy_dir, output_dir, export_neighbour_pages_mapping):
     namespaces = {'mods': "http://www.loc.gov/mods/v3",
                   'mets': "http://www.loc.gov/METS/"}
     tree = etree.parse(mets)
@@ -88,17 +90,21 @@ def get_page_types(mets, mastercopy_dir, output_dir):
         page_types.append(page_type)
         out.append([mastercopy_dir, mastercopy_path, output_dir, page_type, dataset_page_id])
 
-    final_out_start_indexes = get_doc_pad_type_pages(page_types)
-    final_out_end_indexes = list(len(page_types) - 1 - np.asarray(get_doc_pad_type_pages(page_types[::-1])))
     all_indexes = list(range(len(out)))
-    random.shuffle(all_indexes)
-    final_random_indexes = all_indexes[:10]
-    final_no_normal_page_indexes = []
-    for i, pt in enumerate(page_types):
-        if pt != 'NormalPage':
-            final_no_normal_page_indexes.append(i)
-    final_out_indexes = final_out_start_indexes + final_out_end_indexes + final_random_indexes + final_no_normal_page_indexes
-    final_out_indexes = sorted(list(set(final_out_indexes)))
+    if export_neighbour_pages_mapping:
+        final_out_indexes = all_indexes
+    else:
+        final_out_start_indexes = get_doc_pad_type_pages(page_types)
+        final_out_end_indexes = list(len(page_types) - 1 - np.asarray(
+            (page_types[::-1])))
+        random.shuffle(all_indexes)
+        final_random_indexes = all_indexes[:10]
+        final_no_normal_page_indexes = []
+        for i, pt in enumerate(page_types):
+            if pt != 'NormalPage':
+                final_no_normal_page_indexes.append(i)
+        final_out_indexes = final_out_start_indexes + final_out_end_indexes + final_random_indexes + final_no_normal_page_indexes
+        final_out_indexes = sorted(list(set(final_out_indexes)))
 
     for i in final_out_indexes:
         if i > 0:
@@ -111,11 +117,19 @@ def get_page_types(mets, mastercopy_dir, output_dir):
         else:
             next_mastercopy_path = 'black'
         next_pages = len(out) - i - 1
-        export_page_to_output_dir_and_json(*out[i],
-                                           previous_mastercopy_path=previous_mastercopy_path,
-                                           previous_pages=previous_pages,
-                                           next_mastercopy_path=next_mastercopy_path,
-                                           next_pages=next_pages)
+
+        if export_neighbour_pages_mapping:
+            export_neighbour_pages(*out[i],
+                                   previous_mastercopy_path=previous_mastercopy_path,
+                                   previous_pages=previous_pages,
+                                   next_mastercopy_path=next_mastercopy_path,
+                                   next_pages=next_pages)
+        else:
+            export_page_to_output_dir_and_json(*out[i],
+                                               previous_mastercopy_path=previous_mastercopy_path,
+                                               previous_pages=previous_pages,
+                                               next_mastercopy_path=next_mastercopy_path,
+                                               next_pages=next_pages)
 
 
 def get_doc_pad_type_pages(page_types, max_subsequent_normal_pages=5):
@@ -147,16 +161,19 @@ def export_page_to_output_dir_and_json(mastercopy_dir,
                                        next_mastercopy_path=None,
                                        next_pages=None):
     logger.info(f'{"COPYING:":>20s} {mastercopy_path} - {dataset_page_id} - {page_type}')
-    img = cv2.imread(os.path.join(mastercopy_dir, os.path.basename(mastercopy_path)))
+    img_path = str(os.path.join(mastercopy_dir, os.path.basename(mastercopy_path)))
+    img = cv2.imread(img_path)
     if img.shape[0] > max_height:
         img = cv2.resize(img, [int(img.shape[1] * (max_height / img.shape[0])), max_height])
     xy_left_top = [0, 0]
     img_shape = img.shape
+
     if previous_mastercopy_path is not None:
         if previous_mastercopy_path == 'black':
             img_prev = np.full(img_shape, 150.0)
         else:
-            img_prev = cv2.imread(os.path.join(mastercopy_dir, os.path.basename(previous_mastercopy_path)))
+            img_prev_path = str(os.path.join(mastercopy_dir, os.path.basename(previous_mastercopy_path)))
+            img_prev = cv2.imread(img_prev_path)
             if img_prev.shape[0] > max_height:
                 img_prev = cv2.resize(img_prev, [int(img_prev.shape[1] * (max_height / img_prev.shape[0])), max_height])
         img = np.hstack((img_prev, img))
@@ -170,7 +187,8 @@ def export_page_to_output_dir_and_json(mastercopy_dir,
         if next_mastercopy_path == 'black':
             img_next = np.full(img_shape, 150.0)
         else:
-            img_next = cv2.imread(os.path.join(mastercopy_dir, os.path.basename(next_mastercopy_path)))
+            img_next_path = str(os.path.join(mastercopy_dir, os.path.basename(next_mastercopy_path)))
+            img_next = cv2.imread(img_next_path)
             if img_next.shape[0] > max_height:
                 img_next = cv2.resize(img_next, [int(img_next.shape[1] * (max_height / img_next.shape[0])), max_height])
         img = np.hstack((img, img_next))
@@ -201,6 +219,58 @@ def export_page_to_output_dir_and_json(mastercopy_dir,
     all_annotations.append(annotation_dict)
     with open(annotation_json_path, 'w') as f:
         json.dump(all_annotations, f)
+
+
+def export_neighbour_pages(mastercopy_dir,
+                           mastercopy_path,
+                           output_dir,
+                           page_type,
+                           dataset_page_id,
+                           max_height=1000,
+                           previous_mastercopy_path=None,
+                           previous_pages=None,
+                           next_mastercopy_path=None,
+                           next_pages=None):
+    export_neighbour_pages_mapping_line = ''
+    img_path = str(os.path.join(mastercopy_dir, os.path.basename(mastercopy_path)))
+    export_neighbour_pages_mapping_line += get_export_neighbour_pages_mapping_image_name(img_path)
+
+    img_prev_path = None
+    if previous_mastercopy_path is not None:
+        if previous_mastercopy_path != 'black':
+            img_prev_path = str(os.path.join(mastercopy_dir, os.path.basename(previous_mastercopy_path)))
+
+        if previous_pages is None:
+            previous_pages = 'None'
+
+    export_neighbour_pages_mapping_line += (f' {get_export_neighbour_pages_mapping_image_name(img_prev_path)}'
+                                            f' {previous_pages}')
+
+    img_next_path = None
+    if next_mastercopy_path is not None:
+        if next_mastercopy_path != 'black':
+            img_next_path = str(os.path.join(mastercopy_dir, os.path.basename(next_mastercopy_path)))
+
+        if next_pages is None:
+            next_pages = 'None'
+    export_neighbour_pages_mapping_line += (f' {get_export_neighbour_pages_mapping_image_name(img_next_path)}'
+                                            f' {next_pages}')
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    with open(os.path.join(output_dir, 'neighbour_pages_mapping.txt'), 'a') as f:
+        f.write(export_neighbour_pages_mapping_line + '\n')
+
+
+def get_export_neighbour_pages_mapping_image_name(image_path):
+    if image_path is None:
+        return 'None'
+    dir_name = image_path.split('/')[-3]
+    image_name = image_path.split('/')[-1]
+    if image_name.startswith('mc_'):
+        return image_name
+    else:
+        return f'{dir_name}.{image_name}'
 
 
 if __name__ == '__main__':

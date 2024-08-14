@@ -226,7 +226,6 @@ def init_processor(model_checkpoint):
 
 
 def init_model(model_checkpoint, dataset):
-
     logger.info(f'Loading model: {model_checkpoint}')
     if 'vit' in model_checkpoint:
         model = ViTForImageClassification.from_pretrained(model_checkpoint,
