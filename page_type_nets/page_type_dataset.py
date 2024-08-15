@@ -19,6 +19,10 @@ class PageTypeDataset(Dataset):
                  images_dir,
                  pages,
                  processor,
+                 neighbour_page_mapping=None,
+                 position_patch_size=16,
+                 position_prev_color=(255, 0, 0),
+                 position_next_color=(0, 255, 0),
                  eval_dataset=False,
                  augment=False,
                  max_pages=None):
@@ -54,7 +58,19 @@ class PageTypeDataset(Dataset):
         logger.info(f"Image mean: {self.image_mean}, image std: {self.image_std}, size: {self.size}")
         logger.info('')
 
-        normalize = v2.Normalize(mean=self.image_mean, std=self.image_std)
+        self.neighbour_page_mapping = None
+        if neighbour_page_mapping is not None:
+            self.neighbour_page_mapping = {}
+            with open(neighbour_page_mapping) as f:
+                for line in f.readlines():
+                    page_id, previous_page_id, previous_pages, next_page_id, next_pages = line.strip().split()
+                    self.neighbour_page_mapping[page_id] = [previous_page_id, previous_pages, next_page_id, next_pages]
+
+        self.position_patch_size = position_patch_size
+        self.position_prev_color = position_prev_color
+        self.position_next_color = position_next_color
+
+        self.normalize = v2.Normalize(mean=self.image_mean, std=self.image_std)
 
         self.aug_transform = v2.Compose([
             v2.Resize(max_size=self.size, size=self.size - 1, antialias=True),
@@ -68,14 +84,14 @@ class PageTypeDataset(Dataset):
             v2.RandomApply(transforms=[v2.RandomEqualize()], p=0.1),
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
-            normalize
+            self.normalize
         ])
 
         self.norm_transform = v2.Compose([
             v2.Resize(max_size=self.size, size=self.size - 1, antialias=True),
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
-            normalize
+            self.normalize
         ])
 
     def __len__(self):
@@ -92,10 +108,25 @@ class PageTypeDataset(Dataset):
             img = self.aug_transform(img)
         else:
             img = self.norm_transform(img)
-        padded_square_img = torch.zeros((3, self.size, self.size), dtype=torch.float32)
-        x_start = random.randint(0, padded_square_img.shape[1] - img.shape[1])
-        y_start = random.randint(0, padded_square_img.shape[2] - img.shape[2])
+        padded_square_img = self.normalize(torch.zeros((3, self.size, self.size), dtype=torch.float32))
+        if self.eval_dataset:
+            x_start = (self.size - img.shape[1]) // 2
+            y_start = (self.size - img.shape[2]) // 2
+        else:
+            x_start = random.randint(0, padded_square_img.shape[1] - img.shape[1])
+            y_start = random.randint(0, padded_square_img.shape[2] - img.shape[2])
         padded_square_img[:, x_start:x_start + img.shape[1], y_start:y_start + img.shape[2]] = img
+        if self.neighbour_page_mapping is not None:
+            previous_page_id, previous_pages, next_page_id, next_pages = self.neighbour_page_mapping[name]
+            total_pages = int(previous_pages) + int(next_pages)
+            if total_pages == 0:
+                relative_position = 0
+            else:
+                relative_position = float(previous_pages) / (float(previous_pages) + float(next_pages))
+            position_patch = np.full((self.position_patch_size ** 2, 3), self.position_prev_color, dtype=np.uint8)
+            position_patch[-int((self.position_patch_size ** 2) * relative_position):, :] = self.position_next_color
+            position_patch = position_patch.reshape(self.position_patch_size, self.position_patch_size, 3)
+            padded_square_img[:, :self.position_patch_size, :self.position_patch_size] = self.normalize(torch.from_numpy(position_patch).permute(2, 0, 1) / 255.0)
         sample = {'pixel_values': padded_square_img, 'label': self.label2id[label]}
         return sample
 

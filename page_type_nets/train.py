@@ -45,6 +45,8 @@ def parse_args():
     parser.add_argument('--images-dir', required=True, type=str)
     parser.add_argument('--train-pages', required=True, type=str)
     parser.add_argument('--eval-pages', required=True, type=str)
+    parser.add_argument('--neighbour-page-mapping', type=str)
+    parser.add_argument('--position-patch-size', type=int, default=16)
     parser.add_argument('--dataloader-num-workers', type=int, default=4)
     parser.add_argument('--eval-dataloader-num-workers', type=int, default=0)
 
@@ -136,6 +138,8 @@ def main():
                                                                       train_pages=args.train_pages,
                                                                       eval_pages=args.eval_pages,
                                                                       processor=processor,
+                                                                      neighbour_page_mapping=args.neighbour_page_mapping,
+                                                                      position_patch_size=args.position_patch_size,
                                                                       eval_train_dataset=args.eval_train_dataset,
                                                                       eval_train_max_pages=args.eval_train_max_pages)
     model_checkpoint = args.model_name
@@ -251,9 +255,13 @@ def init_model(model_checkpoint, dataset):
     return model
 
 
-def init_datasets(images_dir, train_pages, eval_pages, processor,
+def init_datasets(images_dir, train_pages, eval_pages, processor, neighbour_page_mapping=None,
+                  position_patch_size=16,
                   eval_train_dataset=False, eval_train_max_pages=500):
-    train_dataset = PageTypeDataset(images_dir=images_dir, pages=train_pages, processor=processor, augment=True)
+    train_dataset = PageTypeDataset(images_dir=images_dir, pages=train_pages, processor=processor,
+                                    neighbour_page_mapping=neighbour_page_mapping,
+                                    position_patch_size=position_patch_size,
+                                    augment=True)
     eval_datasets = []
     if eval_train_dataset:
         eval_aug_train_dataset = copy.copy(train_dataset)
@@ -265,7 +273,10 @@ def init_datasets(images_dir, train_pages, eval_pages, processor,
         eval_train_dataset.augment = False
         eval_train_dataset.max_pages = eval_train_max_pages
         eval_datasets.append(eval_train_dataset)
-    eval_datasets.append(PageTypeDataset(images_dir=images_dir, pages=eval_pages, processor=processor, eval_dataset=True))
+    eval_datasets.append(PageTypeDataset(images_dir=images_dir, pages=eval_pages, processor=processor,
+                                         neighbour_page_mapping=neighbour_page_mapping,
+                                         position_patch_size=position_patch_size,
+                                         eval_dataset=True))
     eval_dataset_for_hg = copy.copy(eval_datasets[-1])
     eval_dataset_for_hg.max_pages = 10
     return train_dataset, eval_datasets, eval_dataset_for_hg
