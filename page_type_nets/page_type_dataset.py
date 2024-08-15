@@ -124,7 +124,7 @@ class PageTypeDataset(Dataset):
             else:
                 relative_position = float(previous_pages) / (float(previous_pages) + float(next_pages))
             position_patch = np.full((self.position_patch_size ** 2, 3), self.position_prev_color, dtype=np.uint8)
-            position_patch[-int((self.position_patch_size ** 2) * relative_position):, :] = self.position_next_color
+            position_patch[:int((self.position_patch_size ** 2) * relative_position), :] = self.position_next_color
             position_patch = position_patch.reshape(self.position_patch_size, self.position_patch_size, 3)
             padded_square_img[:, :self.position_patch_size, :self.position_patch_size] = self.normalize(torch.from_numpy(position_patch).permute(2, 0, 1) / 255.0)
         sample = {'pixel_values': padded_square_img, 'label': self.label2id[label]}
