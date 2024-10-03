@@ -10,8 +10,8 @@ from torch.utils.data import DataLoader
 from torchvision.utils import make_grid
 from transformers import PreTrainedModel
 
-from metakat.page_type_nets.page_type_collator import PageTypeCollator
-from metakat.page_type_nets.page_type_dataset import PageTypeDataset
+from metakat.page_type.nets.page_type_collator import PageTypeCollator
+from metakat.page_type.nets.page_type_dataset import PageTypeDataset
 
 logger = logging.getLogger(__name__)
 

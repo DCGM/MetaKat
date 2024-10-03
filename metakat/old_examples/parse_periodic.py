@@ -1,4 +1,4 @@
-# File: parse_dataset.py
+# File: parse_periodic.py
 # Author: Jan Kohút, Jakub Křivánek
 # Date: 7. 5. 2024
 # Description: This file is used for preparing labels for Label Studio based on connected metadata.

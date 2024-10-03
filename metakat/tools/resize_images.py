@@ -2,15 +2,10 @@ import argparse
 import glob
 import logging
 import os
-import random
 import sys
 import time
-from collections import defaultdict
-from uuid import UUID
 
 import cv2
-
-from tools.mods_helper import page_type_classes
 
 logger = logging.getLogger(__name__)
 

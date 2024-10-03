@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import Trainer, PreTrainedModel, DataCollator, PreTrainedTokenizerBase, EvalPrediction, \
     TrainerCallback, is_datasets_available
 
-from metakat.page_type_nets.page_type_training_arguments import PageTypeTrainingArguments
+from metakat.page_type.nets.page_type_training_arguments import PageTypeTrainingArguments
 
 
 class PageTypeTrainer(Trainer):

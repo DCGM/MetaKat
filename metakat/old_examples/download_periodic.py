@@ -1,4 +1,4 @@
-# File: download_metadata.py
+# File: download_periodic.py
 # Author: Jakub Křivánek
 # Date: 7. 5. 2024
 # Description: This file contains the script for downloading metadata from Kramerius.
