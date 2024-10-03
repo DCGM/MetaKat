@@ -12,6 +12,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--mods-dir', required=True, type=str)
     parser.add_argument('--output-jsonl-file', required=True, type=str)
+    parser.add_argument('--process-three-level-doc', action='store_true')
     parser.add_argument('--logging-level', default=logging.INFO)
     return parser.parse_args()
 
@@ -30,7 +31,7 @@ def main():
 
     logger.info(' '.join(sys.argv))
 
-    mods_jsonl = get_mods_jsonl(args.mods_dir)
+    mods_jsonl = get_mods_jsonl(args.mods_dir, args.process_three_level_doc)
     with open(args.output_jsonl_file, 'w') as f:
         for line in mods_jsonl:
             f.write(line + '\n')

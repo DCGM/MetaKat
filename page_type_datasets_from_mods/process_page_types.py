@@ -17,7 +17,7 @@ import cv2
 import numpy as np
 
 from tools.mods_helper import get_page_type_from_page_mods, get_year_from_doc_mods, \
-    get_number_from_number_mods, get_mods_jsonl
+    get_number_from_number_mods, get_mods_jsonl, get_periodic_frequency_from_doc_mods
 
 logger = logging.getLogger(__name__)
 
@@ -39,19 +39,21 @@ def parse_args():
     group.add_argument('--periodic', action='store_true')
 
     parser.add_argument('--page-types', type=str,
-                        default='TitlePage,Table,TableOfContents,Index,Jacket,FrontEndSheet,FrontCover,BackEndSheet,'
-                                'BackCover,Blank,SheetMusic,Advertisement,Map,FrontJacket,FlyLeaf,ListOfIllustrations,'
-                                'Illustration,Spine,CalibrationTable,Cover,Edge,ListOfTables,FrontEndPaper,BackEndPaper,'
-                                'ListOfMaps,Bibliography,CustomInclude,Frontispiece,Errata,FragmentsOfBookbinding,'
-                                'BackEndPaper,FrontEndPaper,Preface,Abstract,Dedication,Imprimatur,Impressum,Obituary,'
-                                'Appendix,NormalPage,Undefined')
+                        default='Abstract,Advertisement,Appendix,BackCover,BackEndPaper,BackEndSheet,Bibliography,'
+                                'Blank,CalibrationTable,Cover,CustomInclude,Dedication,Edge,Errata,FlyLeaf,'
+                                'FragmentsOfBookbinding,FrontCover,FrontEndPaper,FrontEndSheet,FrontJacket,'
+                                'Frontispiece,Illustration,Impressum,Imprimatur,Index,Jacket,ListOfIllustrations,'
+                                'ListOfMaps,ListOfTables,Map,NormalPage,Obituary,Preface,SheetMusic,Spine,Table,'
+                                'TableOfContents,TitlePage')
 
     parser.add_argument('--max-years-per-periodic', type=int)
     parser.add_argument('--max-numbers-per-year', type=int)
 
     parser.add_argument('--max-samples-per-class-per-doc', default=1, type=int)
     parser.add_argument('--max-samples-per-doc', type=int)
-    parser.add_argument('--max-samples-per-class', default=500, type=int)
+    parser.add_argument('--max-samples-per-class', default=1500, type=int)
+
+    parser.add_argument('--max-docs', type=int)
 
     parser.add_argument('--existing-output-dir', type=str)
     parser.add_argument('--existing-counter', type=str)
@@ -123,7 +125,6 @@ def main():
     with open(args.mods_jsonl) as f:
         for line in f.readlines():
             key, val = list(json.loads(line).items())[0]
-            mods_jsonl[key] = val
 
     ids_jsonl = {}
     with open(args.ids_jsonl) as f:
@@ -176,13 +177,15 @@ def main():
         with open(args.existing_counter) as f:
             old_counter = json.load(f)
 
+    doc_uuids = list(doc_uuids)
+    random.shuffle(doc_uuids)
+    if args.max_docs is not None:
+        doc_uuids = doc_uuids[:args.max_docs]
+
     if args.periodic:
         logger.info(f'Number of docs (periodic) to process: {len(doc_uuids)}')
     if args.book:
         logger.info(f'Number of docs (book) to process: {len(doc_uuids)}')
-
-    doc_uuids = list(doc_uuids)
-    random.shuffle(doc_uuids)
 
     now = time.time()
     if args.num_processes > 1:
@@ -417,6 +420,7 @@ def process_periodic(periodic_uuid,
                      mods_dir,
                      max_years_per_periodic=1,
                      from_year=None, to_year=None):
+    logger.info(get_periodic_frequency_from_doc_mods(os.path.join(mods_dir, f'{periodic_uuid}.mods')))
     years = OrderedDict()
     for year_uuid in periodic_years_uuids:
         year_mods_path = os.path.join(mods_dir, periodic_uuid, f'{year_uuid}.mods')
