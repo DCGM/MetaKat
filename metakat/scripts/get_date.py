@@ -6,7 +6,7 @@ import os
 import sys
 import time
 
-from tools.mods_helper import  get_year_from_doc_mods
+from metakat.tools.mods_helper import  get_year_from_doc_mods
 
 logger = logging.getLogger(__name__)
 

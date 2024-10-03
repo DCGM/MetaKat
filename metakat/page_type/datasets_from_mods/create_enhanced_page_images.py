@@ -1,5 +1,4 @@
 import argparse
-import json
 import logging
 import os.path
 import sys
@@ -8,7 +7,7 @@ import time
 import cv2
 import numpy as np
 
-from tools.resize_images import resize_image_with_max_size
+from metakat.tools.resize_images import resize_image_with_max_size
 
 logger = logging.getLogger(__name__)
 

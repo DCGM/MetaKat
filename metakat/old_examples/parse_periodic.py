@@ -73,9 +73,9 @@ def main():
 
     if args.output_label_studio_dir is not None:
         if args.periodical:
-            label_studio_project_name = "digilinka-periodika"
+            label_studio_project_name = "MetaKat-periodika"
         else:
-            label_studio_project_name = "digilinka"
+            label_studio_project_name = "MetaKat"
 
         save_label_studio_storage(dataset,
                                   args.mastercopy_dir,
@@ -1116,7 +1116,7 @@ def split_bboxes(bbox1, bbox2, ratio=0.5, padding=10):
     return bbox1, bbox2
 
 
-def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, label_studio_project_name='digilinka',
+def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, label_studio_project_name='MetaKat',
                               must_include=None, always_include=None):
     images_dir = os.path.join(output_label_studio_dir, 'images')
     tasks_dir = os.path.join(output_label_studio_dir, 'tasks')
@@ -1482,7 +1482,7 @@ def get_label_studio_coords(bbox, img_shape):
     return x, y, width, height
 
 
-def create_label_studio_json(left_top, right_bottom, img_shape, img_name, label_studio_project_name="digilinka"):
+def create_label_studio_json(left_top, right_bottom, img_shape, img_name, label_studio_project_name="MetaKat"):
     label_studio_dict = dict()
     label_studio_dict['data'] = {'image': f'/data/local-files/?d={label_studio_project_name}/images/{img_name}'}
     predictions = []

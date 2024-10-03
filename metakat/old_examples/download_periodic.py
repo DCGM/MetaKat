@@ -118,7 +118,7 @@ def get_response(url, output_dir=None):
     if response.status_code != 200:
         print(f"Response status code: {response.status_code}, URL: {url}, skipping...")
     if response.status_code in [404, 403] and output_dir is not None:
-        structure_file = os.path.join("..", output_dir, "structure.txt")
+        structure_file = os.path.join("../..", output_dir, "structure.txt")
         uuid = url.split("uuid:")[1].split("/")[0]
         if not os.path.exists(structure_file):
             with open(structure_file, "w") as f:

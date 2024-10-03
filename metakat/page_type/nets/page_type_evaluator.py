@@ -3,12 +3,12 @@ import logging
 import time
 
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, precision_recall_fscore_support
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel
 
-from page_type_nets.page_type_collator import PageTypeCollator
-from page_type_nets.page_type_dataset import PageTypeDataset
+from metakat.page_type_nets.page_type_collator import PageTypeCollator
+from metakat.page_type_nets.page_type_dataset import PageTypeDataset
 
 logger = logging.getLogger(__name__)
 

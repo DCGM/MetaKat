@@ -7,7 +7,6 @@ import shutil
 import sys
 import time
 from collections import OrderedDict, defaultdict
-from glob import glob
 import multiprocessing as mp
 from functools import partial
 from uuid import uuid4
@@ -16,8 +15,8 @@ from multiprocessing_logging import install_mp_handler
 import cv2
 import numpy as np
 
-from tools.mods_helper import get_page_type_from_page_mods, get_year_from_doc_mods, \
-    get_number_from_number_mods, get_mods_jsonl, get_periodic_frequency_from_doc_mods
+from metakat.tools.mods_helper import get_page_type_from_page_mods, get_year_from_doc_mods, \
+    get_number_from_number_mods, get_periodic_frequency_from_doc_mods
 
 logger = logging.getLogger(__name__)
 

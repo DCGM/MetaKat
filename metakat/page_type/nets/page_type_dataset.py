@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
 
-from tools.mods_helper import page_type_classes
+from metakat.tools.mods_helper import page_type_classes
 
 logger = logging.getLogger(__name__)
 

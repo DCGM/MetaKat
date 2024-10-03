@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 from lxml import etree
 
-from datasets_from_mets.parse_dataset import get_mastercopy_path, get_mastercopy_name, get_dateset_page_id
+from metakat.old_examples.parse_periodic import get_mastercopy_path, get_mastercopy_name, get_dateset_page_id
 
 logger = logging.getLogger(__name__)
 

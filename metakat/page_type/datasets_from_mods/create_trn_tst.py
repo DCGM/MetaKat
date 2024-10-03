@@ -7,7 +7,7 @@ import time
 from collections import defaultdict
 from uuid import UUID
 
-from tools.mods_helper import page_type_classes
+from metakat.tools.mods_helper import page_type_classes
 
 logger = logging.getLogger(__name__)
 

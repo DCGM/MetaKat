@@ -3,7 +3,7 @@ import logging
 import sys
 import time
 
-from tools.mods_helper import get_mods_jsonl
+from metakat.tools.mods_helper import get_mods_jsonl
 
 logger = logging.getLogger(__name__)
 
