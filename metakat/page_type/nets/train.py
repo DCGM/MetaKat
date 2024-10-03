@@ -10,10 +10,10 @@ import numpy as np
 import torch
 from safe_gpu.safe_gpu import GPUOwner
 
-from metakat.page_type.nets.page_type_collator import PageTypeCollator
-from metakat.page_type.nets.page_type_dataset import PageTypeDataset
+from metakat.page_type.datasets.page_type_collator import PageTypeCollator
+from metakat.page_type.datasets.page_type_dataset import PageTypeDataset
 from metakat.page_type.nets.page_type_evaluator import PageTypeEvaluator
-from metakat.page_type.nets.page_type_renderer import PageTypeRenderer
+from metakat.page_type.datasets.page_type_renderer import PageTypeRenderer
 from metakat.page_type.nets.page_type_trainer import PageTypeTrainer
 from metakat.page_type.nets.page_type_training_arguments import PageTypeTrainingArguments
 

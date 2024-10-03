@@ -7,8 +7,8 @@ from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel
 
-from metakat.page_type.nets.page_type_collator import PageTypeCollator
-from metakat.page_type.nets.page_type_dataset import PageTypeDataset
+from metakat.page_type.datasets.page_type_collator import PageTypeCollator
+from metakat.page_type.datasets.page_type_dataset import PageTypeDataset
 
 logger = logging.getLogger(__name__)
 
