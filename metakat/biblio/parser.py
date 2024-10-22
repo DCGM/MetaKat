@@ -5,11 +5,9 @@ import os
 import glob
 
 def fix_text(text):
-    # Pokud je text, opravíme špatně zakódované znaky
     return ftfy.fix_text(text) if text else text
 
 def parse_mods(file_path):
-    # Načteme XML soubor s kódováním UTF-8
     with open(file_path, 'r', encoding='utf-8') as file:
         tree = ET.parse(file)
     root = tree.getroot()
@@ -52,15 +50,12 @@ def parse_mods(file_path):
     return data
 
 def process_folder(folder_path):
-    # Najdeme všechny soubory s příponou .mods v dané složce
     mods_files = glob.glob(os.path.join(folder_path, "*.mods"))
 
-    # Pokud ve složce nejsou žádné MODS soubory
     if not mods_files:
         print("Ve složce nejsou žádné soubory s příponou .mods")
         return
 
-    # Pro každý soubor zpracujeme a vypíšeme výsledky
     for mods_file in mods_files:
         print(f"\nZpracovávám soubor: {mods_file}")
         metadata = parse_mods(mods_file)
@@ -73,7 +68,6 @@ def process_folder(folder_path):
         print("Místo vydání:", metadata['place'])
 
 def process_file(file_path):
-    # Zpracujeme jednotlivý soubor
     metadata = parse_mods(file_path)
 
     print(f"\nZpracovávání souboru: {file_path}")
@@ -85,14 +79,11 @@ def process_file(file_path):
     print("Místo vydání:", metadata['place'])
 
 def main():
-    # Nastavení argumentů pro příkazovou řádku
     parser = argparse.ArgumentParser(description='Zpracování MODS souboru nebo složky s MODS soubory a extrakce bibliografických údajů.')
     parser.add_argument('path', help='Cesta k MODS souboru nebo složce s MODS soubory.')
 
-    # Načteme argumenty
     args = parser.parse_args()
 
-    # Kontrola, zda jde o soubor nebo složku
     if os.path.isfile(args.path):
         # Pokud je to soubor
         process_file(args.path)
