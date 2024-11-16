@@ -1,20 +1,27 @@
-import xml.etree.ElementTree as ET
-import argparse
-import ftfy
 import os
+import json
+import argparse
 import glob
+from lxml import etree
+import xml.etree.ElementTree as ET
+import ftfy
+import re
 
+# Funkce pro opravu textu
 def fix_text(text):
     return ftfy.fix_text(text) if text else text
 
+# Funkce pro normalizaci textu
+def normalize_text(text):
+    return re.sub(r'\s+', ' ', text.strip().lower())
+
+# Funkce pro načítání údajů z MODS
 def parse_mods(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
         tree = ET.parse(file)
     root = tree.getroot()
 
-    # namespace
     ns = {'mods': 'http://www.loc.gov/mods/v3'}
-
     data = {}
 
     # Název
@@ -29,69 +36,149 @@ def parse_mods(file_path):
             authors.append(fix_text(name.text))
     data['authors'] = authors
 
-    # ISBN
-    isbn = root.find(".//mods:identifier[@type='isbn']", ns)
-    data['isbn'] = fix_text(isbn.text) if isbn is not None else "N/A"
-
     # Datum vydání
     date_issued = root.find(".//mods:originInfo/mods:dateIssued", ns)
     data['date_issued'] = fix_text(date_issued.text) if date_issued is not None else "N/A"
 
-    # Vydavatelé
-    publishers = []
-    for publisher in root.findall(".//mods:originInfo/mods:publisher", ns):
-        publishers.append(fix_text(publisher.text))
-    data['publishers'] = publishers
-
-    # Místo vydání
-    place = root.find(".//mods:originInfo/mods:place/mods:placeTerm[@type='text']", ns)
-    data['place'] = fix_text(place.text) if place is not None else "N/A"
-
     return data
 
-def process_folder(folder_path):
-    mods_files = glob.glob(os.path.join(folder_path, "*.mods"))
 
-    if not mods_files:
-        print("Ve složce nejsou žádné soubory s příponou .mods")
-        return
+# Funkce pro přiřazení kategorií textům
+def assign_category(text):
+    categories = {
+        'titulek': ['uhlonošne útvary', 'tasmánii', 'název', 'headline', 'title'],
+        'cislo': ['číslo', 'ii', 'iii', 'iv', 'issue'],
+        'rocnik': ['ročník', 'number'],
+        'datum cisla': ['datum', 'issue date', 'date issued'],
+        'misto vydani': ['vydání', 'place of publication', 'place of print'],
+        'nakladatel': ['nakladatelství', 'publisher'],
+        'podtitulek': ['podtitulek', 'subtitle'],
+        'redaktor': ['redaktor', 'editor', 'writing', 'compiler'],
+        'vydavatel': ['vydavatel', 'publisher'],
+        'datum rocniku': ['datum ročníku', 'year of edition'],
+        'autor': ['autor', 'feistmantel', 'author', 'written by'],
+        'prekladatel': ['překladatel', 'translator'],
+        'ilustrator': ['ilustrátor', 'illustrator'],
+        'vydani': ['vydání', 'edition'],
+        'dil': ['díl', 'volume', 'part'],
+        'nazev dilu': ['název dílu', 'title of part'],
+        'cislo serie': ['číslo série', 'series number'],
+        'datum vydani': ['datum vydání', 'publication date'],
+        'serie': ['serie', 'series'],
+        'editor': ['editor'],
+        'tiskar': ['tiskař', 'printer'],
+        'misto tisku': ['místo tisku', 'place of print']
+    }
+    
+    # Text pro porovnání
+    normalized_text = normalize_text(text)
+    
+    # Procházení kategorií
+    for category, keywords in categories.items():
+        if any(keyword in normalized_text for keyword in keywords):
+            return category
+    
+    return 'unknown'
 
-    for mods_file in mods_files:
-        print(f"\nZpracovávám soubor: {mods_file}")
-        metadata = parse_mods(mods_file)
+# Funkce pro převod PAGE XML na JSON pro Label Studio
+def parse_page_xml_to_json(xml_path, mods_path, output_dir):
+    tree = etree.parse(xml_path)
+    page = tree.find(".//{http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15}Page")
+    image_filename = page.attrib["imageFilename"]
+    image_width = int(page.attrib["imageWidth"])
+    image_height = int(page.attrib["imageHeight"])
 
-        print("Název:", metadata['title'])
-        print("Autoři:", ", ".join(metadata['authors']))
-        print("ISBN:", metadata['isbn'])
-        print("Datum vydání:", metadata['date_issued'])
-        print("Vydavatelé:", ", ".join(metadata['publishers']))
-        print("Místo vydání:", metadata['place'])
+    data = parse_mods(mods_path)
+    title = data.get('title', 'N/A')
+    author = data.get('authors', ['N/A'])[0]  # Pokud více autorů, vezmeme první
+    date_issued = data.get('date_issued', 'N/A')
 
-def process_file(file_path):
-    metadata = parse_mods(file_path)
+    print(f"Title: {title}")
+    print(f"Author: {author}")
+    print(f"Date Issued: {date_issued}")
 
-    print(f"\nZpracovávání souboru: {file_path}")
-    print("Název:", metadata['title'])
-    print("Autoři:", ", ".join(metadata['authors']))
-    print("ISBN:", metadata['isbn'])
-    print("Datum vydání:", metadata['date_issued'])
-    print("Vydavatelé:", ", ".join(metadata['publishers']))
-    print("Místo vydání:", metadata['place'])
+    annotations = []
+
+    for text_region in page.findall(".//{http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15}TextRegion"):
+        coords = text_region.find(".//{http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15}Coords").attrib["points"]
+        points = [list(map(int, point.split(','))) for point in coords.split()]
+
+        x_min = min(p[0] for p in points)
+        y_min = min(p[1] for p in points)
+        x_max = max(p[0] for p in points)
+        y_max = max(p[1] for p in points)
+
+        x = (x_min / image_width) * 100
+        y = (y_min / image_height) * 100
+        width = ((x_max - x_min) / image_width) * 100
+        height = ((y_max - y_min) / image_height) * 100
+
+        text_equiv = text_region.find(".//{http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15}Unicode")
+        text = text_equiv.text if text_equiv is not None else ""
+
+        category = assign_category(text)
+
+        # pokud kategorie není 'unknown'
+        if category != "unknown":
+            annotations.append({
+                "from_name": "label",
+                "to_name": "image",
+                "type": "rectanglelabels",
+                "value": {
+                    "x": x,
+                    "y": y,
+                    "width": width,
+                    "height": height,
+                    "rectanglelabels": [category]
+                }
+            })
+
+    # Výstupní JSON
+    result = {
+        "data": {
+            "image": image_filename,
+            "title": title,
+            "author": author,
+            "date_issued": date_issued
+        },
+        "annotations": [
+            {
+                "result": annotations  # kategorie != "unknown"
+            }
+        ]
+    }
+
+    # Uložení JSON
+    output_path = os.path.join(output_dir, os.path.splitext(os.path.basename(xml_path))[0] + ".json")
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(result, f, ensure_ascii=False, indent=4)
 
 def main():
-    parser = argparse.ArgumentParser(description='Zpracování MODS souboru nebo složky s MODS soubory a extrakce bibliografických údajů.')
-    parser.add_argument('path', help='Cesta k MODS souboru nebo složce s MODS soubory.')
-
+    parser = argparse.ArgumentParser(description="Convert PAGE XML files to Label Studio JSON format.")
+    parser.add_argument("-i", "--input", type=str, required=True, help="Path to the directory containing PAGE XML files.")
+    parser.add_argument("-m", "--mods", type=str, required=True, help="Path to the directory containing MODS files.")
+    parser.add_argument("-o", "--output", type=str, required=True, help="Path to the output directory for JSON files.")
     args = parser.parse_args()
 
-    if os.path.isfile(args.path):
-        # Pokud je to soubor
-        process_file(args.path)
-    elif os.path.isdir(args.path):
-        # Pokud je to složka
-        process_folder(args.path)
-    else:
-        print("Zadaná cesta není platný soubor ani složka.")
+    xml_dir = args.input
+    mods_dir = args.mods
+    output_dir = args.output
+    os.makedirs(output_dir, exist_ok=True)
+
+    for xml_file in os.listdir(xml_dir):
+        if xml_file.endswith(".xml"):
+            xml_basename = os.path.splitext(xml_file)[0]
+            mods_file = os.path.join(mods_dir, f"{xml_basename}.mods")
+
+            if not os.path.isfile(mods_file):
+                print(f"MODS file for {xml_file} not found, skipping.")
+                continue
+
+            parse_page_xml_to_json(
+                os.path.join(xml_dir, xml_file),
+                mods_file,
+                output_dir
+            )
 
 if __name__ == "__main__":
     main()
