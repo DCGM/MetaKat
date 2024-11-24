@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 import ftfy
 import re
 from rapidfuzz import fuzz
+from pero_ocr.core.force_alignment import align_text_to_image
 
 # Funkce pro opravu textu
 def fix_text(text):
@@ -42,7 +43,7 @@ def parse_mods(file_path):
     data['date_issued'] = fix_text(date_issued.text) if date_issued is not None else "N/A"
 
     # Místo vydání
-    place = root.find(".//mods:originInfo/mods:place/mods:placeTerm", ns)
+    place = root.find(".//mods:originInfo/mods:place/mods:placeTerm[@type='text']", ns)
     data['place_of_publication'] = fix_text(place.text) if place is not None else None
 
     # Nakladatel
@@ -80,6 +81,8 @@ def parse_mods(file_path):
 
 # Funkce pro přiřazení kategorií textům
 def assign_category(text, data):
+    print('Assigning category:')
+    print(text)
     categories = {
         'titulek': ['title'],
         'rocnik': ['ročník', 'number'],
@@ -91,12 +94,12 @@ def assign_category(text, data):
         'prekladatel': ['translator'],
         'vydani': ['edition'],
         'dil': ['volume', 'part'],
-        'nazev dilu': ['title of part'],
-        'datum vydani': ['date_issued'],
+        'nazev dilu': ['title_of_part'],
+        'datum vydani': ['date_issued', 'year_of_publication'],
         'serie': ['serie', 'series'],
         'editor': ['editor'],
         'tiskar': ['printer'],
-        'misto tisku': ['place of print']
+        'misto tisku': ['place_of_print']
     }
     
     best_match = None
@@ -112,7 +115,7 @@ def assign_category(text, data):
 
                 # Vypočítej podobnost mezi textem a hodnotou
                 score = fuzz.partial_ratio(text.lower(), value.lower())
-                
+                print(category, score)
                 # Pokud skóre překročí práh a je nejlepší, ulož kategorii
                 if score > threshold and score > highest_score:
                     highest_score = score
@@ -129,12 +132,11 @@ def parse_page_xml_to_json(xml_path, mods_path, output_dir):
     image_height = int(page.attrib["imageHeight"])
 
     data = parse_mods(mods_path)
-
     print(data)
 
     annotations = []
 
-    for text_region in page.findall(".//{http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15}TextRegion"):
+    for text_region in page.findall(".//{http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15}TextLine"):
         coords = text_region.find(".//{http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15}Coords").attrib["points"]
         points = [list(map(int, point.split(','))) for point in coords.split()]
 
