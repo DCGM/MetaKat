@@ -1,13 +1,17 @@
 import os
 import json
 import argparse
-import glob
 from lxml import etree
 import xml.etree.ElementTree as ET
 import ftfy
 import re
 from rapidfuzz import fuzz
-from pero_ocr.core.force_alignment import align_text_to_image
+import sys
+import unicodedata
+
+sys.path.append('/home/maja/Plocha/BP-git/MetaKat/pero-ocr/pero_ocr/core')
+from force_alignment import align_text_to_image
+from pero_ocr.core import layout
 
 # Funkce pro opravu textu
 def fix_text(text):
@@ -15,7 +19,11 @@ def fix_text(text):
 
 # Funkce pro normalizaci textu
 def normalize_text(text):
-    return re.sub(r'\s+', ' ', text.strip().lower())
+    # Odstranit typografické uvozovky, speciální znaky a přebytečné mezery
+    text = re.sub(r'[„“"\'.,;:!?(){}[\]]', '', text)  # Odstraní typografické uvozovky a interpunkci
+    # Normalizace unicode pro odstranění diakritiky (háčky, čárky)
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    return text.strip().lower()  # Uprav text na malá písmena a ořeže přebytečné mezery
 
 # Funkce pro načítání údajů z MODS
 def parse_mods(file_path):
@@ -26,9 +34,14 @@ def parse_mods(file_path):
     ns = {'mods': 'http://www.loc.gov/mods/v3'}
     data = {}
 
+    def add_if_not_none(key, value):
+        """Přidá klíč-hodnotu do slovníku pouze tehdy, pokud hodnota není None."""
+        if value is not None and value != "N/A":
+            data[key] = value
+
     # Název
     title = root.find(".//mods:titleInfo/mods:title", ns)
-    data['title'] = fix_text(title.text) if title is not None else "N/A"
+    add_if_not_none('title', fix_text(title.text) if title is not None else None)
 
     # Autoři
     authors = []
@@ -36,67 +49,93 @@ def parse_mods(file_path):
         name = author.find("mods:namePart", ns)
         if name is not None:
             authors.append(fix_text(name.text))
-    data['authors'] = authors
+    add_if_not_none('authors', authors if authors else None)
+
+    # Překladatelé
+    translators = []
+    for translator in root.findall(".//mods:name[@role]/mods:role/mods:roleTerm[.='translator']", ns):
+        name = translator.find("../mods:namePart", ns)
+        if name is not None:
+            translators.append(fix_text(name.text))
+    add_if_not_none('translator', translators if translators else None)
+
+    # Ilustrátoři
+    illustrators = []
+    for illustrator in root.findall(".//mods:name[@role]/mods:role/mods:roleTerm[.='illustrator']", ns):
+        name = illustrator.find("../mods:namePart", ns)
+        if name is not None:
+            illustrators.append(fix_text(name.text))
+    add_if_not_none('illustrator', illustrators if illustrators else None)
 
     # Datum vydání
     date_issued = root.find(".//mods:originInfo/mods:dateIssued", ns)
-    data['date_issued'] = fix_text(date_issued.text) if date_issued is not None else "N/A"
+    add_if_not_none('date_issued', fix_text(date_issued.text) if date_issued is not None else None)
 
     # Místo vydání
     place = root.find(".//mods:originInfo/mods:place/mods:placeTerm[@type='text']", ns)
-    data['place_of_publication'] = fix_text(place.text) if place is not None else None
+    add_if_not_none('place_of_publication', fix_text(place.text) if place is not None else None)
 
     # Nakladatel
     publisher = root.find(".//mods:originInfo/mods:publisher", ns)
-    data['publisher'] = fix_text(publisher.text) if publisher is not None else None
+    add_if_not_none('publisher', fix_text(publisher.text) if publisher is not None else None)
 
     # Rok vydání
-    date_issued = root.find(".//mods:originInfo/mods:dateIssued", ns)
-    data['year_of_publication'] = fix_text(date_issued.text) if date_issued is not None else None
+    add_if_not_none('year_of_publication', 
+        fix_text(date_issued.text.split("-")[0]) if date_issued is not None else None)
 
-    # Jazyk
-    language = root.find(".//mods:language/mods:languageTerm[@type='code']", ns)
-    data['language'] = fix_text(language.text) if language is not None else None
-    
-    # Fyzický popis
-    physical_description = []
-    for extent in root.findall(".//mods:physicalDescription/mods:extent", ns):
-        physical_description.append(fix_text(extent.text))
-    data['physical_description'] = physical_description
+    # Podtitul
+    subtitle = root.find(".//mods:titleInfo/mods:subTitle", ns)
+    add_if_not_none('subtitle', fix_text(subtitle.text) if subtitle is not None else None)
 
-    # Žánr
-    genre = root.find(".//mods:genre", ns)
-    data['genre'] = fix_text(genre.text) if genre is not None else None
+    # Vydání
+    edition = root.find(".//mods:originInfo/mods:edition", ns)
+    add_if_not_none('edition', fix_text(edition.text) if edition is not None else None)
 
-    # Identifikátory
-    identifiers = {}
-    for identifier in root.findall(".//mods:identifier", ns):
-        id_type = identifier.get('type')
-        id_value = fix_text(identifier.text)
-        identifiers[id_type] = id_value
-    data['identifiers'] = identifiers
+    # Díl
+    volume = root.find(".//mods:part/mods:detail[@type='volume']/mods:number", ns)
+    add_if_not_none('volume', fix_text(volume.text) if volume is not None else None)
+
+    # Název dílu
+    title_of_part = root.find(".//mods:relatedItem[@type='series']/mods:titleInfo/mods:title", ns)
+    add_if_not_none('title_of_part', fix_text(title_of_part.text) if title_of_part is not None else None)
+
+    # Editoři
+    editors = []
+    for editor in root.findall(".//mods:name[@role]/mods:role/mods:roleTerm[.='editor']", ns):
+        name = editor.find("../mods:namePart", ns)
+        if name is not None:
+            editors.append(fix_text(name.text))
+    add_if_not_none('editor', editors if editors else None)
+
+    # Tiskaři
+    printers = []
+    for printer in root.findall(".//mods:name[@role]/mods:role/mods:roleTerm[.='printer']", ns):
+        name = printer.find("../mods:namePart", ns)
+        if name is not None:
+            printers.append(fix_text(name.text))
+    add_if_not_none('printer', printers if printers else None)
+
+    # Místo tisku
+    place_of_print = root.find(".//mods:originInfo/mods:place/mods:placeTerm[@type='print']", ns)
+    add_if_not_none('place_of_print', fix_text(place_of_print.text) if place_of_print is not None else None)
 
     return data
-
-
+    
 # Funkce pro přiřazení kategorií textům
 def assign_category(text, data):
-    print('Assigning category:')
-    print(text)
     categories = {
         'titulek': ['title'],
-        'rocnik': ['ročník', 'number'],
         'misto vydani': ['place_of_publication'],
         'nakladatel': ['publisher'],
         'podtitulek': ['subtitle'],
         'vydavatel': ['publisher'],
-        'autor': ['authors'],
+        'autor': ['authors', 'author'],
         'prekladatel': ['translator'],
+        'ilustrator': ['illustrator'],
         'vydani': ['edition'],
         'dil': ['volume', 'part'],
         'nazev dilu': ['title_of_part'],
         'datum vydani': ['date_issued', 'year_of_publication'],
-        'serie': ['serie', 'series'],
         'editor': ['editor'],
         'tiskar': ['printer'],
         'misto tisku': ['place_of_print']
@@ -104,18 +143,17 @@ def assign_category(text, data):
     
     best_match = None
     highest_score = 0
-    threshold=70
+    threshold=90
     
     for category, keys in categories.items():
         for key in keys:
             if key in data:
                 value = data[key]
-                if isinstance(value, list):  # Pokud je hodnota seznam
-                    value = " ".join(value)  # Spojí hodnoty seznamu do jednoho řetězce
+                if isinstance(value, list):
+                    value = " ".join(value)
 
                 # Vypočítej podobnost mezi textem a hodnotou
                 score = fuzz.partial_ratio(text.lower(), value.lower())
-                print(category, score)
                 # Pokud skóre překročí práh a je nejlepší, ulož kategorii
                 if score > threshold and score > highest_score:
                     highest_score = score
@@ -123,61 +161,176 @@ def assign_category(text, data):
 
     return best_match if best_match else "unknown"
 
+def check_logits_and_get_coords(pl, search_text, image_width, image_height):
+    """
+    Spustí check_logits a vrátí souřadnice pro text (pouze podřetězec), pokud byl nalezen.
+
+    :param pl: Objekt PageLayout.
+    :param search_text: Hledaný text.
+    :return: Souřadnice (nebo None, pokud nebyl text nalezen).
+    """
+    search_text = search_text.lower()  # case-insensitive.
+    
+    for line in pl.lines_iterator():
+        line_text = line.transcription.lower()
+        if search_text in line_text:
+            # Najít začátek a konec hledaného textu v rámci celého textu řádku
+            start_idx = line_text.index(search_text)
+            end_idx = start_idx + len(search_text)
+
+            # Zarovnat znaky na obrázek
+            x_char_alignment = align_text_to_image(line, 511)
+            x_start = x_char_alignment[start_idx] - 15
+            x_end = x_char_alignment[end_idx - 1]
+
+            # Y souřadnice se vypočítají z baseline a výšek textu
+            y_center = (line.baseline[0][1] + line.baseline[-1][1]) / 2
+            y_top = y_center - line.heights[0]
+            y_bottom = y_center + line.heights[1]
+
+            # Výpočet výšky a šířky pro podřetězec
+            width = x_end - x_start + 15 # padding
+            height = y_bottom - y_top
+
+            return {
+                "x": (x_start / image_width) * 100,
+                "y": (y_top / image_height) * 100,
+                "width": (width / image_width) * 100,
+                "height": (height / image_height) * 100,
+            }
+    return None
+
+def get_line_coordinates(line, image_width, image_height):
+    """
+    Získá normalizované souřadnice z OCR řádku.
+
+    :param line: OCR řádek.
+    :param image_width: Šířka obrázku.
+    :param image_height: Výška obrázku.
+    :return: Slovník s normalizovanými souřadnicemi.
+    """
+    x_min = min(p[0] for p in line.polygon)
+    y_min = min(p[1] for p in line.polygon)
+    x_max = max(p[0] for p in line.polygon)
+    y_max = max(p[1] for p in line.polygon)
+
+    return {
+        "x": (x_min / image_width) * 100,
+        "y": (y_min / image_height) * 100,
+        "width": ((x_max - x_min) / image_width) * 100,
+        "height": ((y_max - y_min) / image_height) * 100,
+    }
+
+def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_height, key):
+    """
+    Hledá shodu pro text a rozhoduje, zda přiřadit kategorii, nebo spustit check_logits.
+
+    :param search_text: Text k vyhledání.
+    :param annotations: Seznam anotací (JSON).
+    :param ocr_lines: OCR výstup.
+    :param pl: Objekt PageLayout.
+    :param image_width: Šířka obrázku.
+    :param image_height: Výška obrázku.
+    :param key: Klíč z MODS (pro kategorii).
+    """
+    threshold = 90
+    best_coords = None
+    for line, ocr_text in ocr_lines:
+        normalized_ocr_text = normalize_text(ocr_text)
+        normalized_search_text = normalize_text(search_text)
+
+        if (normalized_ocr_text == normalized_search_text):
+            #print(f"Shoda 100% pro '{normalized_search_text}' v OCR '{normalized_ocr_text}'")
+            best_coords = get_line_coordinates(line, image_width, image_height)
+
+            category = assign_category(search_text, {key: search_text})
+            annotations.append({
+                "from_name": "label",
+                "to_name": "image",
+                "type": "rectanglelabels",
+                "value": {
+                    "x": best_coords["x"],
+                    "y": best_coords["y"],
+                    "width": best_coords["width"],
+                    "height": best_coords["height"],
+                    "rectanglelabels": [category]
+                }
+            })
+        else:
+            score = fuzz.partial_ratio(normalized_search_text, normalized_ocr_text) # substringy v radku
+            score_changed_words = fuzz.token_sort_ratio(normalized_search_text, normalized_ocr_text) # prohozena slova
+            if score_changed_words > threshold:
+                words = normalized_search_text.split()
+                normalized_search_text = " ".join(reversed(words))
+            if score > threshold or score_changed_words > threshold:
+                print(f"Nalezen podretezec pro '{normalized_search_text}' a '{normalized_ocr_text}'")
+                category = assign_category(normalized_search_text, {key: normalized_ocr_text})
+
+                if category == 'titulek' or category == 'autor':
+                    best_coords = get_line_coordinates(line, image_width, image_height)
+                    annotations.append({
+                        "from_name": "label",
+                        "to_name": "image",
+                        "type": "rectanglelabels",
+                        "value": {
+                            "x": best_coords["x"],
+                            "y": best_coords["y"],
+                            "width": best_coords["width"],
+                            "height": best_coords["height"],
+                            "rectanglelabels": [category]
+                        }
+                    })
+                else:
+                    coords = check_logits_and_get_coords(pl, search_text, image_width, image_height)
+                    if coords:
+                        annotations.append({
+                            "from_name": "label",
+                            "to_name": "image",
+                            "type": "rectanglelabels",
+                            "value": {
+                                "x": coords["x"],
+                                "y": coords["y"],
+                                "width": coords["width"],
+                                "height": coords["height"],
+                                "rectanglelabels": [category]
+                            }
+                        })
+        best_coords = None
+
 # Funkce pro převod PAGE XML na JSON pro Label Studio
-def parse_page_xml_to_json(xml_path, mods_path, output_dir):
+def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
     tree = etree.parse(xml_path)
     page = tree.find(".//{http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15}Page")
     image_filename = page.attrib["imageFilename"]
     image_width = int(page.attrib["imageWidth"])
     image_height = int(page.attrib["imageHeight"])
 
+    # Načíst data z MODS
     data = parse_mods(mods_path)
-    print(data)
-
     annotations = []
 
-    for text_region in page.findall(".//{http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15}TextLine"):
-        coords = text_region.find(".//{http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15}Coords").attrib["points"]
-        points = [list(map(int, point.split(','))) for point in coords.split()]
+    # Uložení všech OCR řádků
+    pl = layout.PageLayout()
+    pl.from_pagexml(xml_path)
+    pl.load_logits(logits)
+    ocr_lines = [(line, line.transcription) for line in pl.lines_iterator()]
 
-        x_min = min(p[0] for p in points)
-        y_min = min(p[1] for p in points)
-        x_max = max(p[0] for p in points)
-        y_max = max(p[1] for p in points)
+    # Pro každý MODS údaj hledáme shody v OCR
+    for key, value in data.items():
+        if isinstance(value, list):
+            for item in value:
+                handle_text(item, annotations, ocr_lines, pl, image_width, image_height, key)
+        else:
+            handle_text(value, annotations, ocr_lines, pl, image_width, image_height, key)
 
-        x = (x_min / image_width) * 100
-        y = (y_min / image_height) * 100
-        width = ((x_max - x_min) / image_width) * 100
-        height = ((y_max - y_min) / image_height) * 100
-
-        text_equiv = text_region.find(".//{http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15}Unicode")
-        text = text_equiv.text if text_equiv is not None else ""
-
-        category = assign_category(text, data)
-
-        # pokud kategorie není 'unknown'
-        if category != "unknown":
-            annotations.append({
-                "from_name": "label",
-                "to_name": "image",
-                "type": "rectanglelabels",
-                "value": {
-                    "x": x,
-                    "y": y,
-                    "width": width,
-                    "height": height,
-                    "rectanglelabels": [category]
-                }
-            })
-
-    # Výstupní JSON
+    # Vytvořit výstupní JSON
     result = {
         "data": {
-            "image": image_filename+'.jpg'
+            "image": image_filename + '.jpg'
         },
         "annotations": [
             {
-                "result": annotations  # kategorie != "unknown"
+                "result": annotations  # Anotace (kategorie != "unknown")
             }
         ]
     }
@@ -191,11 +344,13 @@ def main():
     parser = argparse.ArgumentParser(description="Convert PAGE XML files to Label Studio JSON format.")
     parser.add_argument("-i", "--input", type=str, required=True, help="Path to the directory containing PAGE XML files.")
     parser.add_argument("-m", "--mods", type=str, required=True, help="Path to the directory containing MODS files.")
+    parser.add_argument("-l", "--logits", type=str, required=True, help="Path to the directory containing LOGITS files.")
     parser.add_argument("-o", "--output", type=str, required=True, help="Path to the output directory for JSON files.")
     args = parser.parse_args()
 
     xml_dir = args.input
     mods_dir = args.mods
+    logits_dir = args.logits
     output_dir = args.output
     os.makedirs(output_dir, exist_ok=True)
 
@@ -203,15 +358,20 @@ def main():
         if xml_file.endswith(".xml"):
             xml_basename = os.path.splitext(xml_file)[0]
             mods_file = os.path.join(mods_dir, f"{xml_basename}.mods")
+            logits_file = os.path.join(logits_dir, f"{xml_basename}.logits")
 
             if not os.path.isfile(mods_file):
                 print(f"MODS file for {xml_file} not found, skipping.")
                 continue
-
+            if not os.path.isfile(logits_file):
+                print(f"LOGITS file for {xml_file} not found, skipping.")
+                continue
+            print("PARSING FILE")
             parse_page_xml_to_json(
                 os.path.join(xml_dir, xml_file),
                 mods_file,
-                output_dir
+                output_dir,
+                logits_file
             )
 
 if __name__ == "__main__":
