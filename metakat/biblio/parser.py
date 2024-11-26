@@ -1,3 +1,6 @@
+# author: Marie Pařilová
+# date: 26.11.2024
+
 import os
 import json
 import argparse
@@ -8,25 +11,22 @@ import re
 from rapidfuzz import fuzz
 import sys
 import unicodedata
-
 sys.path.append('/home/maja/Plocha/BP-git/MetaKat/pero-ocr/pero_ocr/core')
 from force_alignment import align_text_to_image
 from pero_ocr.core import layout
 
-# Funkce pro opravu textu
 def fix_text(text):
+    '''Oprava textu na správný formát'''
     return ftfy.fix_text(text) if text else text
 
-# Funkce pro normalizaci textu
 def normalize_text(text):
-    # Odstranit typografické uvozovky, speciální znaky a přebytečné mezery
-    text = re.sub(r'[„“"\'.,;:!?(){}[\]]', '', text)  # Odstraní typografické uvozovky a interpunkci
-    # Normalizace unicode pro odstranění diakritiky (háčky, čárky)
+    '''Normalizace textu (odstranění interpunkce, převedení na malé písmena a ASCII)'''
+    text = re.sub(r'[„“"\'.,;:!?(){}[\]]', '', text)
     text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
-    return text.strip().lower()  # Uprav text na malá písmena a ořeže přebytečné mezery
+    return text.strip().lower()
 
-# Funkce pro načítání údajů z MODS
 def parse_mods(file_path):
+    '''Zpracování XML souboru ve formátu MODS a extrakce relevantních informací'''
     with open(file_path, 'r', encoding='utf-8') as file:
         tree = ET.parse(file)
     root = tree.getroot()
@@ -35,7 +35,7 @@ def parse_mods(file_path):
     data = {}
 
     def add_if_not_none(key, value):
-        """Přidá klíč-hodnotu do slovníku pouze tehdy, pokud hodnota není None."""
+        '''Přidá klíč-hodnotu do slovníku, pokud hodnota není None nebo "N/A"'''
         if value is not None and value != "N/A":
             data[key] = value
 
@@ -121,8 +121,8 @@ def parse_mods(file_path):
 
     return data
     
-# Funkce pro přiřazení kategorií textům
 def assign_category(text, data):
+    '''Přiřadí kategorii textu na základě shody s extrahovanými informacemi'''
     categories = {
         'titulek': ['title'],
         'misto vydani': ['place_of_publication'],
@@ -240,7 +240,6 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
         normalized_search_text = normalize_text(search_text)
 
         if (normalized_ocr_text == normalized_search_text):
-            #print(f"Shoda 100% pro '{normalized_search_text}' v OCR '{normalized_ocr_text}'")
             best_coords = get_line_coordinates(line, image_width, image_height)
 
             category = assign_category(search_text, {key: search_text})
@@ -263,7 +262,6 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
                 words = normalized_search_text.split()
                 normalized_search_text = " ".join(reversed(words))
             if score > threshold or score_changed_words > threshold:
-                print(f"Nalezen podretezec pro '{normalized_search_text}' a '{normalized_ocr_text}'")
                 category = assign_category(normalized_search_text, {key: normalized_ocr_text})
 
                 if category == 'titulek' or category == 'autor':
@@ -297,8 +295,8 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
                         })
         best_coords = None
 
-# Funkce pro převod PAGE XML na JSON pro Label Studio
 def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
+    '''Převede PAGE XML soubor na JSON pro Label Studio a přidá anotace na základě MODS dat'''
     tree = etree.parse(xml_path)
     page = tree.find(".//{http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15}Page")
     image_filename = page.attrib["imageFilename"]
@@ -323,7 +321,7 @@ def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
         else:
             handle_text(value, annotations, ocr_lines, pl, image_width, image_height, key)
 
-    # Vytvořit výstupní JSON
+    # výstupní JSON
     result = {
         "data": {
             "image": image_filename + '.jpg'
@@ -332,7 +330,8 @@ def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
             {
                 "result": annotations  # Anotace (kategorie != "unknown")
             }
-        ]
+        ],
+        "predictions": [ ]
     }
 
     # Uložení JSON
@@ -366,7 +365,7 @@ def main():
             if not os.path.isfile(logits_file):
                 print(f"LOGITS file for {xml_file} not found, skipping.")
                 continue
-            print("PARSING FILE")
+            #print("PARSING FILE")
             parse_page_xml_to_json(
                 os.path.join(xml_dir, xml_file),
                 mods_file,
