@@ -236,63 +236,65 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
     threshold = 90
     best_coords = None
     for line, ocr_text in ocr_lines:
-        normalized_ocr_text = normalize_text(ocr_text)
-        normalized_search_text = normalize_text(search_text)
 
-        if (normalized_ocr_text == normalized_search_text):
-            best_coords = get_line_coordinates(line, image_width, image_height)
+        if search_text is not None:
+            normalized_ocr_text = normalize_text(ocr_text)
+            normalized_search_text = normalize_text(search_text)
 
-            category = assign_category(search_text, {key: search_text})
-            annotations.append({
-                "from_name": "label",
-                "to_name": "image",
-                "type": "rectanglelabels",
-                "value": {
-                    "x": best_coords["x"],
-                    "y": best_coords["y"],
-                    "width": best_coords["width"],
-                    "height": best_coords["height"],
-                    "rectanglelabels": [category]
-                }
-            })
-        else:
-            score = fuzz.partial_ratio(normalized_search_text, normalized_ocr_text) # substringy v radku
-            score_changed_words = fuzz.token_sort_ratio(normalized_search_text, normalized_ocr_text) # prohozena slova
-            if score_changed_words > threshold:
-                words = normalized_search_text.split()
-                normalized_search_text = " ".join(reversed(words))
-            if score > threshold or score_changed_words > threshold:
-                category = assign_category(normalized_search_text, {key: normalized_ocr_text})
+            if (normalized_ocr_text == normalized_search_text):
+                best_coords = get_line_coordinates(line, image_width, image_height)
 
-                if category == 'titulek' or category == 'autor':
-                    best_coords = get_line_coordinates(line, image_width, image_height)
-                    annotations.append({
-                        "from_name": "label",
-                        "to_name": "image",
-                        "type": "rectanglelabels",
-                        "value": {
-                            "x": best_coords["x"],
-                            "y": best_coords["y"],
-                            "width": best_coords["width"],
-                            "height": best_coords["height"],
-                            "rectanglelabels": [category]
-                        }
-                    })
-                else:
-                    coords = check_logits_and_get_coords(pl, search_text, image_width, image_height)
-                    if coords:
+                category = assign_category(search_text, {key: search_text})
+                annotations.append({
+                    "from_name": "label",
+                    "to_name": "image",
+                    "type": "rectanglelabels",
+                    "value": {
+                        "x": best_coords["x"],
+                        "y": best_coords["y"],
+                        "width": best_coords["width"],
+                        "height": best_coords["height"],
+                        "rectanglelabels": [category]
+                    }
+                })
+            else:
+                score = fuzz.partial_ratio(normalized_search_text, normalized_ocr_text) # substringy v radku
+                score_changed_words = fuzz.token_sort_ratio(normalized_search_text, normalized_ocr_text) # prohozena slova
+                if score_changed_words > threshold:
+                    words = normalized_search_text.split()
+                    normalized_search_text = " ".join(reversed(words))
+                if score > threshold or score_changed_words > threshold:
+                    category = assign_category(normalized_search_text, {key: normalized_ocr_text})
+
+                    if category == 'titulek' or category == 'autor':
+                        best_coords = get_line_coordinates(line, image_width, image_height)
                         annotations.append({
                             "from_name": "label",
                             "to_name": "image",
                             "type": "rectanglelabels",
                             "value": {
-                                "x": coords["x"],
-                                "y": coords["y"],
-                                "width": coords["width"],
-                                "height": coords["height"],
+                                "x": best_coords["x"],
+                                "y": best_coords["y"],
+                                "width": best_coords["width"],
+                                "height": best_coords["height"],
                                 "rectanglelabels": [category]
                             }
                         })
+                    else:
+                        coords = check_logits_and_get_coords(pl, search_text, image_width, image_height)
+                        if coords:
+                            annotations.append({
+                                "from_name": "label",
+                                "to_name": "image",
+                                "type": "rectanglelabels",
+                                "value": {
+                                    "x": coords["x"],
+                                    "y": coords["y"],
+                                    "width": coords["width"],
+                                    "height": coords["height"],
+                                    "rectanglelabels": [category]
+                                }
+                            })
         best_coords = None
 
 def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
@@ -324,7 +326,7 @@ def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
     # výstupní JSON
     result = {
         "data": {
-            "image": image_filename + '.jpg'
+            "image": "/data/local-files/?d=digilinka_knihy/images/" + image_filename + '.jpg'
         },
         "annotations": [
             {
