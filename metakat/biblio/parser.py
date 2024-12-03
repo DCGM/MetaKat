@@ -297,6 +297,77 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
                             })
         best_coords = None
 
+def process_and_save_json(input_json, output_path, xml_path):
+    # Získáme anotace z JSON
+    annotations = input_json["annotations"][0]["result"]
+    
+    # Sloučení anotací
+    merged_annotations = merge_annotations(annotations)
+    
+    # Vytvoření výstupního JSON
+    result = {
+        "data": input_json["data"],
+        "annotations": [
+            {
+                "result": merged_annotations
+            }
+        ],
+        "predictions": input_json["predictions"]
+    }
+    
+    # Uložení JSON
+    output_path = os.path.join(output_path, os.path.splitext(os.path.basename(xml_path))[0] + ".json")
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(result, f, ensure_ascii=False, indent=4) 
+
+def merge_annotations(annotations):
+    merged = {}
+    
+    # Projdeme všechny anotace
+    for item in annotations:
+        label = item['value']['rectanglelabels'][0]  # Získáme kategorii
+        x = item['value']['x']
+        y = item['value']['y']
+        width = item['value']['width']
+        height = item['value']['height']
+        
+        # Vypočítáme konečné souřadnice boxu
+        x2 = x + width
+        y2 = y + height
+        
+        if label not in merged:
+            # Pokud kategorie neexistuje, vytvoříme nový záznam
+            merged[label] = {
+                "x": x,
+                "y": y,
+                "x2": x2,
+                "y2": y2
+            }
+        else:
+            # Spojíme boxy, najdeme minimální x, y a maximální x2, y2
+            merged[label]["x"] = min(merged[label]["x"], x)
+            merged[label]["y"] = min(merged[label]["y"], y)
+            merged[label]["x2"] = max(merged[label]["x2"], x2)
+            merged[label]["y2"] = max(merged[label]["y2"], y2)
+    
+    # Převod zpět na formát požadovaný pro JSON
+    merged_annotations = []
+    for label, box in merged.items():
+        merged_annotations.append({
+            "from_name": "label",
+            "to_name": "image",
+            "type": "rectanglelabels",
+            "value": {
+                "x": box["x"],
+                "y": box["y"],
+                "width": box["x2"] - box["x"],
+                "height": box["y2"] - box["y"],
+                "rectanglelabels": [label]
+            }
+        })
+    
+    return merged_annotations
+
 def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
     '''Převede PAGE XML soubor na JSON pro Label Studio a přidá anotace na základě MODS dat'''
     tree = etree.parse(xml_path)
@@ -336,10 +407,8 @@ def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
         "predictions": [ ]
     }
 
-    # Uložení JSON
-    output_path = os.path.join(output_dir, os.path.splitext(os.path.basename(xml_path))[0] + ".json")
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(result, f, ensure_ascii=False, indent=4)
+    # Zpracování a uložení
+    process_and_save_json(result, output_dir, xml_path)
 
 def main():
     parser = argparse.ArgumentParser(description="Convert PAGE XML files to Label Studio JSON format.")
