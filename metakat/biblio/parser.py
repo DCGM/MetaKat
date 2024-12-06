@@ -25,6 +25,11 @@ def normalize_text(text):
     text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
     return text.strip().lower()
 
+def remove_numbers(text):
+    """Odstraní všechna čísla z textu."""
+    text = re.sub(r'-', '', text)
+    return re.sub(r'\d+', '', text)
+
 def parse_mods(file_path):
     '''Zpracování XML souboru ve formátu MODS a extrakce relevantních informací'''
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -46,26 +51,50 @@ def parse_mods(file_path):
     # Autoři
     authors = []
     for author in root.findall(".//mods:name[@type='personal']", ns):
-        name = author.find("mods:namePart", ns)
-        if name is not None:
-            authors.append(fix_text(name.text))
+        role_terms = author.findall("mods:role/mods:roleTerm", ns)
+        if any(role.text == 'aut' for role in role_terms):
+            name_parts = author.findall("mods:namePart", ns)
+            name = " ".join(fix_text(part.text) for part in name_parts if part.text)
+            name = remove_numbers(name)
+            if name:
+                authors.append(name)
     add_if_not_none('authors', authors if authors else None)
 
     # Překladatelé
     translators = []
-    for translator in root.findall(".//mods:name[@role]/mods:role/mods:roleTerm[.='translator']", ns):
-        name = translator.find("../mods:namePart", ns)
-        if name is not None:
-            translators.append(fix_text(name.text))
-    add_if_not_none('translator', translators if translators else None)
+    for translator in root.findall(".//mods:name[@type='personal']", ns):
+        role_terms = translator.findall("mods:role/mods:roleTerm", ns)
+        if any(role.text == 'trl' for role in role_terms):
+            name_parts = translator.findall("mods:namePart", ns)
+            name = " ".join(fix_text(part.text) for part in name_parts if part.text)
+            name = remove_numbers(name)
+            if name:
+                translators.append(name)
+    add_if_not_none('translators', translators if translators else None)
 
     # Ilustrátoři
     illustrators = []
-    for illustrator in root.findall(".//mods:name[@role]/mods:role/mods:roleTerm[.='illustrator']", ns):
-        name = illustrator.find("../mods:namePart", ns)
-        if name is not None:
-            illustrators.append(fix_text(name.text))
-    add_if_not_none('illustrator', illustrators if illustrators else None)
+    for illustrator in root.findall(".//mods:name[@type='personal']", ns):
+        role_terms = illustrator.findall("mods:role/mods:roleTerm", ns)
+        if any(role.text == 'ill' for role in role_terms):
+            name_parts = illustrator.findall("mods:namePart", ns)
+            name = " ".join(fix_text(part.text) for part in name_parts if part.text)
+            name = remove_numbers(name)
+            if name:
+                illustrators.append(name)
+    add_if_not_none('illustrators', illustrators if illustrators else None)
+
+    # Editoři
+    editors = []
+    for editor in root.findall(".//mods:name[@type='personal']", ns):
+        role_terms = editor.findall("mods:role/mods:roleTerm", ns)
+        if any(role.text == 'edt' for role in role_terms):
+            name_parts = editor.findall("mods:namePart", ns)
+            name = " ".join(fix_text(part.text) for part in name_parts if part.text)
+            name = remove_numbers(name)
+            if name:
+                editors.append(name)
+    add_if_not_none('editors', editors if editors else None)
 
     # Datum vydání
     date_issued = root.find(".//mods:originInfo/mods:dateIssued", ns)
@@ -79,10 +108,6 @@ def parse_mods(file_path):
     publisher = root.find(".//mods:originInfo/mods:publisher", ns)
     add_if_not_none('publisher', fix_text(publisher.text) if publisher is not None else None)
 
-    # Rok vydání
-    add_if_not_none('year_of_publication', 
-        fix_text(date_issued.text.split("-")[0]) if date_issued is not None else None)
-
     # Podtitul
     subtitle = root.find(".//mods:titleInfo/mods:subTitle", ns)
     add_if_not_none('subtitle', fix_text(subtitle.text) if subtitle is not None else None)
@@ -91,33 +116,49 @@ def parse_mods(file_path):
     edition = root.find(".//mods:originInfo/mods:edition", ns)
     add_if_not_none('edition', fix_text(edition.text) if edition is not None else None)
 
-    # Díl
-    volume = root.find(".//mods:part/mods:detail[@type='volume']/mods:number", ns)
-    add_if_not_none('volume', fix_text(volume.text) if volume is not None else None)
+    # Díl (Part Number)
+    part_number = root.findall(".//mods:titleInfo/mods:partNumber", ns)
+    for pn in part_number:
+        pn = fix_text(pn.text)
+        add_if_not_none('part_number', pn if pn is not None else None)
 
-    # Název dílu
-    title_of_part = root.find(".//mods:relatedItem[@type='series']/mods:titleInfo/mods:title", ns)
-    add_if_not_none('title_of_part', fix_text(title_of_part.text) if title_of_part is not None else None)
-
-    # Editoři
-    editors = []
-    for editor in root.findall(".//mods:name[@role]/mods:role/mods:roleTerm[.='editor']", ns):
-        name = editor.find("../mods:namePart", ns)
-        if name is not None:
-            editors.append(fix_text(name.text))
-    add_if_not_none('editor', editors if editors else None)
+    # Název dílu (Part Name)
+    part_name = root.findall(".//mods:titleInfo/mods:partName", ns)
+    for pn in part_name:
+        pn = fix_text(pn.text)
+        add_if_not_none('part_name', pn if pn is not None else None)
 
     # Tiskaři
     printers = []
-    for printer in root.findall(".//mods:name[@role]/mods:role/mods:roleTerm[.='printer']", ns):
-        name = printer.find("../mods:namePart", ns)
-        if name is not None:
-            printers.append(fix_text(name.text))
-    add_if_not_none('printer', printers if printers else None)
+    for printer in root.findall(".//mods:name[@type='personal']", ns):
+        role_terms = printer.findall("mods:role/mods:roleTerm", ns)
+        if any(role.text == 'prt' for role in role_terms):
+            name_parts = printer.findall("mods:namePart", ns)
+            name = " ".join(fix_text(part.text) for part in name_parts if part.text)
+            name = remove_numbers(name)
+            if name:
+                printers.append(name)
+    add_if_not_none('printers', printers if printers else None)
+
+    # Tiskárna (Printer)
+    printer = root.findall(".//mods:originInfo[@eventType='manufacture']/mods:publisher", ns)
+    for pr in printer:
+        pr = fix_text(pr.text)
+        add_if_not_none('printers', pr if pr is not None else None)
 
     # Místo tisku
     place_of_print = root.find(".//mods:originInfo/mods:place/mods:placeTerm[@type='print']", ns)
     add_if_not_none('place_of_print', fix_text(place_of_print.text) if place_of_print is not None else None)
+
+    # Název série
+    series_title = root.find(".//mods:relatedItem[@type='series']/mods:titleInfo/mods:title", ns)
+    add_if_not_none('series', fix_text(series_title.text) if series_title is not None else None)
+
+    # Číslo série (Series Part Number)
+    if title is not None:
+        series_part_number = root.findall(".//mods:relatedItem[@type='series']/mods:titleInfo/mods:partNumber", ns)
+        for spn in series_part_number:
+            add_if_not_none('series_part_number', fix_text(spn.text) if spn is not None else None)
 
     return data
     
@@ -130,15 +171,18 @@ def assign_category(text, data):
         'podtitulek': ['subtitle'],
         'vydavatel': ['publisher'],
         'autor': ['authors', 'author'],
-        'prekladatel': ['translator'],
-        'ilustrator': ['illustrator'],
+        'prekladatel': ['translators'],
+        'ilustrator': ['illustrators'],
         'vydani': ['edition'],
-        'dil': ['volume', 'part'],
-        'nazev dilu': ['title_of_part'],
-        'datum vydani': ['date_issued', 'year_of_publication'],
-        'editor': ['editor'],
-        'tiskar': ['printer'],
-        'misto tisku': ['place_of_print']
+        'dil': ['part_number', 'part'],
+        'nazev dilu': ['part_name'],
+        'datum vydani': ['date_issued'],
+        'editor': ['editors'],
+        'tiskar': ['printers'],
+        'misto tisku': ['place_of_print'],
+        'serie': ['series'],
+        'vydani': ['edition'],
+        'cislo serie': ['series_part_number']
     }
     
     best_match = None
@@ -169,10 +213,12 @@ def check_logits_and_get_coords(pl, search_text, image_width, image_height):
     :param search_text: Hledaný text.
     :return: Souřadnice (nebo None, pokud nebyl text nalezen).
     """
+
     search_text = search_text.lower()  # case-insensitive.
-    
+
     for line in pl.lines_iterator():
         line_text = line.transcription.lower()
+        #print("LOGITS: ", search_text, "⌋", line_text)
         if search_text in line_text:
             # Najít začátek a konec hledaného textu v rámci celého textu řádku
             start_idx = line_text.index(search_text)
@@ -180,7 +226,7 @@ def check_logits_and_get_coords(pl, search_text, image_width, image_height):
 
             # Zarovnat znaky na obrázek
             x_char_alignment = align_text_to_image(line, 511)
-            x_start = x_char_alignment[start_idx]
+            x_start = x_char_alignment[start_idx] - 25
             x_end = x_char_alignment[end_idx - 1]
 
             # Y souřadnice se vypočítají z baseline a výšek textu
@@ -189,13 +235,12 @@ def check_logits_and_get_coords(pl, search_text, image_width, image_height):
             y_bottom = y_center + line.heights[1]
 
             # Výpočet výšky a šířky pro podřetězec
-            width = x_end - x_start + 15 # padding
+            width = (x_end - x_start) + 10
             height = y_bottom - y_top
-
             return {
                 "x": (x_start / image_width) * 100,
                 "y": (y_top / image_height) * 100,
-                "width": (width / image_width) * 100,
+                "width": (width / image_width) * 110,
                 "height": (height / image_height) * 100,
             }
     return None
@@ -233,18 +278,30 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
     :param image_height: Výška obrázku.
     :param key: Klíč z MODS (pro kategorii).
     """
+
     threshold = 90
     best_coords = None
+    min_ocr_length = 3  # Minimální délka OCR textu pro shodu
+
     for line, ocr_text in ocr_lines:
 
         if search_text is not None:
+            # Normalizace textu pro porovnání
             normalized_ocr_text = normalize_text(ocr_text)
             normalized_search_text = normalize_text(search_text)
+
+            # Pokud je OCR text příliš krátký, ignorujte ho
+            if len(normalized_ocr_text) < min_ocr_length:
+                continue  # Pokud je OCR text příliš krátký (např. "V")
+
+            #print("hledany:", normalized_search_text, "OCR:", normalized_ocr_text)
 
             if (normalized_ocr_text == normalized_search_text):
                 best_coords = get_line_coordinates(line, image_width, image_height)
 
                 category = assign_category(search_text, {key: search_text})
+                #print("Hledany text: ", normalized_search_text, "OCR text: ", ocr_text, "Kategorie: ", category, "100p line shoda")
+                #print("JE V JSON, 100percent line")
                 annotations.append({
                     "from_name": "label",
                     "to_name": "image",
@@ -259,14 +316,17 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
                 })
             else:
                 score = fuzz.partial_ratio(normalized_search_text, normalized_ocr_text) # substringy v radku
-                score_changed_words = fuzz.token_sort_ratio(normalized_search_text, normalized_ocr_text) # prohozena slova
-                if score_changed_words > threshold:
+                score_changed_words = fuzz.token_set_ratio(normalized_search_text, normalized_ocr_text) # prohozena slova
+
+                if score < score_changed_words and score_changed_words > threshold:
                     words = normalized_search_text.split()
                     normalized_search_text = " ".join(reversed(words))
-                if score > threshold or score_changed_words > threshold:
-                    category = assign_category(normalized_search_text, {key: normalized_ocr_text})
 
-                    if category == 'titulek' or category == 'autor':
+                if score > threshold or score_changed_words > threshold:
+                    category = assign_category(normalized_search_text, {key: normalized_search_text})
+                    #print("Hledany text:", normalized_search_text, "OCR text:", ocr_text, "Kategorie:", category, "Skore:", score, "/", score_changed_words)
+                    if category == 'titulek' or category == 'podtitulek':
+                        #print("JE V JSON, SUBSTRING, title")
                         best_coords = get_line_coordinates(line, image_width, image_height)
                         annotations.append({
                             "from_name": "label",
@@ -281,8 +341,9 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
                             }
                         })
                     else:
-                        coords = check_logits_and_get_coords(pl, search_text, image_width, image_height)
+                        coords = check_logits_and_get_coords(pl, normalized_search_text, image_width, image_height)
                         if coords:
+                            #print("JE V JSON, SUBSTRING, LOGITS")
                             annotations.append({
                                 "from_name": "label",
                                 "to_name": "image",
@@ -292,6 +353,21 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
                                     "y": coords["y"],
                                     "width": coords["width"],
                                     "height": coords["height"],
+                                    "rectanglelabels": [category]
+                                }
+                            })
+                        else:
+                            #print("JE V JSON SUBSTRING, LINE")
+                            best_coords = get_line_coordinates(line, image_width, image_height)
+                            annotations.append({
+                                "from_name": "label",
+                                "to_name": "image",
+                                "type": "rectanglelabels",
+                                "value": {
+                                    "x": best_coords["x"],
+                                    "y": best_coords["y"],
+                                    "width": best_coords["width"],
+                                    "height": best_coords["height"],
                                     "rectanglelabels": [category]
                                 }
                             })
@@ -307,12 +383,11 @@ def process_and_save_json(input_json, output_path, xml_path):
     # Vytvoření výstupního JSON
     result = {
         "data": input_json["data"],
-        "annotations": [
+        "predictions": [
             {
                 "result": merged_annotations
             }
-        ],
-        "predictions": input_json["predictions"]
+        ]
     }
     
     # Uložení JSON
@@ -379,6 +454,7 @@ def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
     # Načíst data z MODS
     data = parse_mods(mods_path)
     annotations = []
+    print(data)
 
     # Uložení všech OCR řádků
     pl = layout.PageLayout()
@@ -436,7 +512,8 @@ def main():
             if not os.path.isfile(logits_file):
                 print(f"LOGITS file for {xml_file} not found, skipping.")
                 continue
-            #print("PARSING FILE")
+            
+            #if xml_file.startswith("a1bcfc79"):
             parse_page_xml_to_json(
                 os.path.join(xml_dir, xml_file),
                 mods_file,
