@@ -180,7 +180,7 @@ def check_logits_and_get_coords(pl, search_text, image_width, image_height):
 
             # Zarovnat znaky na obrázek
             x_char_alignment = align_text_to_image(line, 511)
-            x_start = x_char_alignment[start_idx] - 15
+            x_start = x_char_alignment[start_idx]
             x_end = x_char_alignment[end_idx - 1]
 
             # Y souřadnice se vypočítají z baseline a výšek textu
