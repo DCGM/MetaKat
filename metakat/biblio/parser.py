@@ -395,39 +395,66 @@ def process_and_save_json(input_json, output_path, xml_path):
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=4) 
 
-def merge_annotations(annotations):
-    merged = {}
-    
-    # Projdeme všechny anotace
+def merge_annotations(annotations, scale_factor=2):
+    merged = []
+
     for item in annotations:
-        label = item['value']['rectanglelabels'][0]  # Získáme kategorii
+        label = item['value']['rectanglelabels'][0]
         x = item['value']['x']
         y = item['value']['y']
         width = item['value']['width']
         height = item['value']['height']
-        
-        # Vypočítáme konečné souřadnice boxu
+
         x2 = x + width
         y2 = y + height
-        
-        if label not in merged:
-            # Pokud kategorie neexistuje, vytvoříme nový záznam
-            merged[label] = {
+
+        merged_this = False
+        for existing in merged:
+            if existing["rectanglelabels"][0] == label:
+                reference_height = min(height, existing["height"])
+
+                if label in {"titulek", "podtitulek"}:
+                    max_distance = reference_height * scale_factor
+                    vertical_distance = abs(existing["y2"] - y)
+                    horizontal_overlap = max(0, min(existing["x2"], x2) - max(existing["x"], x))
+
+                    if vertical_distance <= max_distance and horizontal_overlap > 0:
+                        existing["x"] = min(existing["x"], x)
+                        existing["y"] = min(existing["y"], y)
+                        existing["x2"] = max(existing["x2"], x2)
+                        existing["y2"] = max(existing["y2"], y2)
+                        existing["height"] = max(existing["height"], height)
+                        merged_this = True
+                        break
+
+                else:
+                    horizontal_overlap = max(0, min(existing["x2"], x2) - max(existing["x"], x))
+                    vertical_overlap = max(0, min(existing["y2"], y2) - max(existing["y"], y))
+
+                    total_vertical_height = max(existing["y2"], y2) - min(existing["y"], y)
+                    vertical_overlap_ratio = vertical_overlap / total_vertical_height
+
+                    if horizontal_overlap > 0 and vertical_overlap_ratio >= 0.8:
+                        existing["x"] = min(existing["x"], x)
+                        existing["y"] = min(existing["y"], y)
+                        existing["x2"] = max(existing["x2"], x2)
+                        existing["y2"] = max(existing["y2"], y2)
+                        existing["height"] = max(existing["height"], height)
+                        merged_this = True
+                        break
+
+        if not merged_this:
+            merged.append({
                 "x": x,
                 "y": y,
                 "x2": x2,
-                "y2": y2
-            }
-        else:
-            # Spojíme boxy, najdeme minimální x, y a maximální x2, y2
-            merged[label]["x"] = min(merged[label]["x"], x)
-            merged[label]["y"] = min(merged[label]["y"], y)
-            merged[label]["x2"] = max(merged[label]["x2"], x2)
-            merged[label]["y2"] = max(merged[label]["y2"], y2)
-    
-    # Převod zpět na formát požadovaný pro JSON
+                "y2": y2,
+                "height": height,
+                "rectanglelabels": [label]
+            })
+
     merged_annotations = []
-    for label, box in merged.items():
+    for box in merged:
         merged_annotations.append({
             "from_name": "label",
             "to_name": "image",
@@ -437,10 +464,10 @@ def merge_annotations(annotations):
                 "y": box["y"],
                 "width": box["x2"] - box["x"],
                 "height": box["y2"] - box["y"],
-                "rectanglelabels": [label]
+                "rectanglelabels": box["rectanglelabels"]
             }
         })
-    
+
     return merged_annotations
 
 def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
