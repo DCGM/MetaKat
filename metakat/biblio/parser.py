@@ -413,7 +413,7 @@ def merge_annotations(annotations, scale_factor=2):
             if existing["rectanglelabels"][0] == label:
                 reference_height = min(height, existing["height"])
 
-                if label in {"titulek", "podtitulek"}:
+                if label in {"titulek", "podtitulek", "nakladatel", "vydavatel", "tiskar", "nazev dilu"}:
                     max_distance = reference_height * scale_factor
                     vertical_distance = abs(existing["y2"] - y)
                     horizontal_overlap = max(0, min(existing["x2"], x2) - max(existing["x"], x))
