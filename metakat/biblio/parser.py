@@ -169,11 +169,9 @@ def assign_category(text, data):
         'misto vydani': ['place_of_publication'],
         'nakladatel': ['publisher'],
         'podtitulek': ['subtitle'],
-        'vydavatel': ['publisher'],
         'autor': ['authors', 'author'],
         'prekladatel': ['translators'],
         'ilustrator': ['illustrators'],
-        'vydani': ['edition'],
         'dil': ['part_number', 'part'],
         'nazev dilu': ['part_name'],
         'datum vydani': ['date_issued'],
@@ -281,39 +279,37 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
 
     threshold = 90
     best_coords = None
-    min_ocr_length = 3  # Minimální délka OCR textu pro shodu
+    min_ocr_length = 3  # Minimální délka OCR textu
+    single_box = ['title', 'subtitle', 'part', 'part_name', 'series'] # Texty
+    completed_data = {}
+    normalized_search_text = normalize_text(search_text)
+
+    if key in single_box and key not in completed_data:
+        completed_data[key] = {"completed": False, "full_text": None}
 
     for line, ocr_text in ocr_lines:
-
         if search_text is not None:
-            # Normalizace textu pro porovnání
             normalized_ocr_text = normalize_text(ocr_text)
-            normalized_search_text = normalize_text(search_text)
 
-            # Pokud je OCR text příliš krátký, ignorujte ho
+            # text příliš krátký
             if len(normalized_ocr_text) < min_ocr_length:
-                continue  # Pokud je OCR text příliš krátký (např. "V")
-
+                continue
             #print("hledany:", normalized_search_text, "OCR:", normalized_ocr_text)
+
+            if key in single_box and completed_data[key]["completed"]:
+                continue
 
             if (normalized_ocr_text == normalized_search_text):
                 best_coords = get_line_coordinates(line, image_width, image_height)
-
                 category = assign_category(search_text, {key: search_text})
+                if key in single_box:
+                    if completed_data[key]["full_text"]:
+                        completed_data[key]["full_text"] += " " + normalized_ocr_text
+                    else:
+                        completed_data[key]["full_text"] = normalized_ocr_text
+
                 #print("Hledany text: ", normalized_search_text, "OCR text: ", ocr_text, "Kategorie: ", category, "100p line shoda")
                 #print("JE V JSON, 100percent line")
-                annotations.append({
-                    "from_name": "label",
-                    "to_name": "image",
-                    "type": "rectanglelabels",
-                    "value": {
-                        "x": best_coords["x"],
-                        "y": best_coords["y"],
-                        "width": best_coords["width"],
-                        "height": best_coords["height"],
-                        "rectanglelabels": [category]
-                    }
-                })
             else:
                 score = fuzz.partial_ratio(normalized_search_text, normalized_ocr_text) # substringy v radku
                 score_changed_words = fuzz.token_set_ratio(normalized_search_text, normalized_ocr_text) # prohozena slova
@@ -328,49 +324,37 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
                     if category == 'titulek' or category == 'podtitulek':
                         #print("JE V JSON, SUBSTRING, title")
                         best_coords = get_line_coordinates(line, image_width, image_height)
-                        annotations.append({
-                            "from_name": "label",
-                            "to_name": "image",
-                            "type": "rectanglelabels",
-                            "value": {
-                                "x": best_coords["x"],
-                                "y": best_coords["y"],
-                                "width": best_coords["width"],
-                                "height": best_coords["height"],
-                                "rectanglelabels": [category]
-                            }
-                        })
                     else:
-                        coords = check_logits_and_get_coords(pl, normalized_search_text, image_width, image_height)
-                        if coords:
+                        best_coords = check_logits_and_get_coords(pl, normalized_search_text, image_width, image_height)
+                        if best_coords:
                             #print("JE V JSON, SUBSTRING, LOGITS")
-                            annotations.append({
-                                "from_name": "label",
-                                "to_name": "image",
-                                "type": "rectanglelabels",
-                                "value": {
-                                    "x": coords["x"],
-                                    "y": coords["y"],
-                                    "width": coords["width"],
-                                    "height": coords["height"],
-                                    "rectanglelabels": [category]
-                                }
-                            })
+                            pass
                         else:
                             #print("JE V JSON SUBSTRING, LINE")
                             best_coords = get_line_coordinates(line, image_width, image_height)
-                            annotations.append({
-                                "from_name": "label",
-                                "to_name": "image",
-                                "type": "rectanglelabels",
-                                "value": {
-                                    "x": best_coords["x"],
-                                    "y": best_coords["y"],
-                                    "width": best_coords["width"],
-                                    "height": best_coords["height"],
-                                    "rectanglelabels": [category]
-                                }
-                            })
+                    if key in single_box:
+                        if completed_data[key]["full_text"]:
+                            completed_data[key]["full_text"] += " " + normalized_ocr_text
+                        else:
+                            completed_data[key]["full_text"] = normalized_ocr_text
+
+        if key in single_box and key in completed_data:
+            if (completed_data[key]["full_text"]) == normalized_search_text:
+                completed_data[key]["completed"] = True
+        
+        if best_coords is not None:
+            annotations.append({
+                "from_name": "label",
+                "to_name": "image",
+                "type": "rectanglelabels",
+                "value": {
+                    "x": best_coords["x"],
+                    "y": best_coords["y"],
+                    "width": best_coords["width"],
+                    "height": best_coords["height"],
+                    "rectanglelabels": [category]
+                }
+            })
         best_coords = None
 
 def process_and_save_json(input_json, output_path, xml_path):
@@ -379,13 +363,14 @@ def process_and_save_json(input_json, output_path, xml_path):
     
     # Sloučení anotací
     merged_annotations = merge_annotations(annotations)
+    filtered_annotations = check_count_of_boxes(merged_annotations)
     
     # Vytvoření výstupního JSON
     result = {
         "data": input_json["data"],
         "predictions": [
             {
-                "result": merged_annotations
+                "result": filtered_annotations
             }
         ]
     }
@@ -469,6 +454,50 @@ def merge_annotations(annotations, scale_factor=2):
         })
 
     return merged_annotations
+
+def check_count_of_boxes(annotations):
+    """
+    Filtruje anotace tak, aby pro určité kategorie v `single_box` zůstala pouze jedna anotace.
+    Pro některé kategorie vybírá boxy níže, pro ostatní výše na stránce.
+
+    :param annotations: List anotací (seznam slovníků obsahujících informace o anotacích).
+    :return: List filtrovaných anotací.
+    """
+    lower_priority = ['nakladatel', 'misto vydani', 'datum vydani']
+
+    upper_priority = ['titulek', 'podtitulek', 'vydani', 'dil', 'nazev dilu', 'serie', 'cislo serie']
+
+    multiple_boxes = ['editor', 'prekladatel', 'ilustrator', 'autor', 'tiskar']
+
+    filtered_single_boxes = {}
+
+    for annotation in annotations:
+        category = annotation["value"]["rectanglelabels"][0]
+        y = annotation["value"]["y"]
+
+        if category in lower_priority:
+            # spodní (nižší) box
+            if category in filtered_single_boxes:
+                if y > filtered_single_boxes[category]["value"]["y"]:  # Vyber box níže
+                    filtered_single_boxes[category] = annotation
+            else:
+                filtered_single_boxes[category] = annotation
+
+        elif category in upper_priority:
+            # horní (vyšší) box
+            if category in filtered_single_boxes:
+                if y < filtered_single_boxes[category]["value"]["y"]:  # Vyber box výše
+                    filtered_single_boxes[category] = annotation
+            else:
+                filtered_single_boxes[category] = annotation
+
+    filtered_annotations = list(filtered_single_boxes.values())
+    filtered_annotations += [
+        annotation for annotation in annotations
+        if annotation["value"]["rectanglelabels"][0] in multiple_boxes
+    ]
+
+    return filtered_annotations
 
 def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
     '''Převede PAGE XML soubor na JSON pro Label Studio a přidá anotace na základě MODS dat'''
