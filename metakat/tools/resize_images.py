@@ -57,6 +57,10 @@ def resize_image_with_max_size(img, max_size=224):
         new_width = max_size
         new_height = int(height * new_width / width)
 
+    # images width 2 or less caused error with padding
+    if new_width <= 2:
+        new_width = 3
+
     img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
     return img
 
