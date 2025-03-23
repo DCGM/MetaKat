@@ -2,6 +2,7 @@ import logging
 import os
 import random
 from collections import OrderedDict
+import re
 
 import cv2
 import numpy as np
@@ -25,10 +26,14 @@ class PageTypeDataset(Dataset):
                  position_next_color=(0, 255, 0),
                  eval_dataset=False,
                  augment=False,
-                 max_pages=None):
+                 max_pages=None,
+                 text_dir = None):
+
         self.images_dir = images_dir
+        self.text_dir = text_dir
         self.pages = []
         self.page_type_counter = OrderedDict()
+
         for page_type in page_type_classes.values():
             self.page_type_counter[page_type] = 0
         with open(pages) as f:
@@ -36,12 +41,20 @@ class PageTypeDataset(Dataset):
                 name, page_type = line.strip().split()
                 self.pages.append((name, page_type))
                 self.page_type_counter[page_type] += 1
+
         self.max_pages = max_pages
         self.name = os.path.basename(pages)
         self.augment = augment
         self.eval_dataset = eval_dataset
         self.id2label = {i: label for i, label in enumerate(page_type_classes.values())}
         self.label2id = {label: i for i, label in enumerate(page_type_classes.values())}
+
+        self.is_clip = False
+
+        if type(processor).__name__ == "CLIPProcessor":
+            self.is_clip = True
+            self.tokenizer = processor.tokenizer
+            processor = processor.image_processor
 
         image_mean, image_std = processor.image_mean, processor.image_std
         if 'height' in processor.size:
@@ -104,6 +117,7 @@ class PageTypeDataset(Dataset):
         img = cv2.imread(str(os.path.join(self.images_dir, name)))
         img = torch.from_numpy(np.array(img, dtype=np.float32) / 255.0)
         img = img.permute(2, 0, 1)
+
         if self.augment:
             img = self.aug_transform(img)
         else:
@@ -127,7 +141,27 @@ class PageTypeDataset(Dataset):
             position_patch[:int((self.position_patch_size ** 2) * relative_position), :] = self.position_next_color
             position_patch = position_patch.reshape(self.position_patch_size, self.position_patch_size, 3)
             padded_square_img[:, :self.position_patch_size, :self.position_patch_size] = self.normalize(torch.from_numpy(position_patch).permute(2, 0, 1) / 255.0)
-        sample = {'pixel_values': padded_square_img, 'label': self.label2id[label]}
+
+        if self.is_clip:
+            textfile_name = re.sub(r"\.jpg.*$", ".txt", name)
+
+            if self.text_dir is None:
+                logger.info(f"No text directory provided, labels of images will be used as text inputs")
+                text = re.sub(r'(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])', ' ', label)
+            else:
+                try:
+                    with open(os.path.join(self.text_dir, textfile_name), 'r') as f:
+                        text = f.read()
+                except FileNotFoundError:
+                    logger.info(f"Image: {name} does not have text description, label: {label} will be used as text input")
+                    text = re.sub(r'(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])', ' ', label)
+
+            result = self.tokenizer(text, return_tensors="pt", padding=True)
+            input_ids = result['input_ids']
+            attention_mask = result['attention_mask']
+
+            sample = {'pixel_values': padded_square_img, 'label': self.label2id[label], 'input_ids': input_ids, 'attention_mask': attention_mask}
+        else:
+            sample = {'pixel_values': padded_square_img, 'label': self.label2id[label]}
+
         return sample
-
-
