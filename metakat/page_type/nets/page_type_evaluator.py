@@ -57,10 +57,27 @@ class PageTypeEvaluator:
             pixel_values = batch['pixel_values']
             pixel_values = pixel_values.to(model.device)
 
+            is_clip = False
+            input_ids = None
+            attention_mask = None
+
+            if 'input_ids' in batch.keys() and 'attention_mask' in batch.keys():
+                is_clip = True
+
+                input_ids = batch['input_ids']
+                input_ids = input_ids.to(model.device)
+
+                attention_mask = batch['attention_mask']
+                attention_mask = attention_mask.to(model.device)
+
             labels = batch['labels']
             gt_labels.append(labels)
             labels = labels.to(model.device)
-            out = model(pixel_values=pixel_values, labels=labels)
+
+            if is_clip:
+                out = model(pixel_values=pixel_values, labels=labels, input_ids=input_ids, attention_mask=attention_mask)
+            else:
+                out = model(pixel_values=pixel_values, labels=labels)
 
             loss.append(out.loss.item())
             predictions.append(out.logits.argmax(dim=-1).cpu().numpy())
