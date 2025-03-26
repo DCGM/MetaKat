@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import torch
 import os
 from torch import nn
@@ -6,7 +7,7 @@ from transformers.utils import ModelOutput
 from transformers.modeling_outputs import BaseModelOutputWithPooling
 from typing import Optional, Union, Tuple, Any
 
-
+@dataclass
 class CLIPWithClassificationHeadOutput(ModelOutput):
     """
     Args:
@@ -38,8 +39,10 @@ class CLIPWithClassificationHeadOutput(ModelOutput):
         )
 
 class ClipWithClassificationHead(CLIPModel):
-    def __init__(self, config: CLIPConfig, num_classes: int = None):
+    def __init__(self, config: CLIPConfig) -> None:
         super().__init__(config)
+
+        self.num_labels = config.num_labels
 
         self.classificationHead = None
         self.init_classification_head()
@@ -52,7 +55,6 @@ class ClipWithClassificationHead(CLIPModel):
             pixel_values: Optional[torch.FloatTensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
             position_ids: Optional[torch.LongTensor] = None,
-            return_loss: Optional[bool] = None,
             output_attentions: Optional[bool] = None,
             output_hidden_states: Optional[bool] = None,
             return_dict: Optional[bool] = None,
@@ -87,8 +89,7 @@ class ClipWithClassificationHead(CLIPModel):
         text_embeds = self.text_projection(text_embeds)
 
         """
-        Used for one image and and more text inputs
-        Might use this later
+        # Combines one image with more text inputs for Classification
         
         batch_size = text_embeds.size(0)
         image_embeds = image_embeds.unsqueeze(0).expand(batch_size, -1, -1).squeeze(1)
@@ -97,19 +98,13 @@ class ClipWithClassificationHead(CLIPModel):
 
         combined_features = torch.cat((image_embeds, text_embeds), dim=-1)
 
-        print(combined_features.size())
-
         logits = self.classificationHead(combined_features)
 
-        print("LOGITS")
-        print(logits.size())
-        print("LABELS")
-        print(labels.size)
-
         loss = None
-        if return_loss:
-            loss_fcn = nn.CrossEntropyLoss()
-            loss = loss_fcn(logits, labels)
+        if labels is not None:
+            labels = labels.to(logits.device)
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
 
         if not return_dict:
             output = (logits, text_embeds, image_embeds, text_outputs, vision_outputs)
@@ -128,13 +123,13 @@ class ClipWithClassificationHead(CLIPModel):
         text_dim = self.config.text_config.projection_dim
         vision_dim = self.config.vision_config.projection_dim
 
-        num_classes = self.config.num_classes
+        num_labels = self.num_labels
 
         self.classificationHead = nn.Sequential(
             nn.Linear(text_dim + vision_dim, 512),
             nn.ReLU(),
             nn.Dropout(0.1),
-            nn.Linear(512, num_classes),
+            nn.Linear(512, num_labels),
         )
 
     @classmethod
