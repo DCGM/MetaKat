@@ -58,16 +58,13 @@ class PageTypeEvaluator:
             pixel_values = pixel_values.to(model.device)
 
             is_clip = False
-            input_ids = None
-            attention_mask = None
+            input_ids = batch.get('input_ids')
+            attention_mask = batch.get('attention_mask')
 
-            if 'input_ids' in batch.keys() and 'attention_mask' in batch.keys():
+            if input_ids is not None and attention_mask is not None:
                 is_clip = True
 
-                input_ids = batch['input_ids']
                 input_ids = input_ids.to(model.device)
-
-                attention_mask = batch['attention_mask']
                 attention_mask = attention_mask.to(model.device)
 
             labels = batch['labels']
