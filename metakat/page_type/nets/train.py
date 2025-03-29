@@ -16,6 +16,7 @@ from metakat.page_type.nets.page_type_evaluator import PageTypeEvaluator
 from metakat.page_type.datasets.page_type_renderer import PageTypeRenderer
 from metakat.page_type.nets.page_type_trainer import PageTypeTrainer
 from metakat.page_type.nets.page_type_training_arguments import PageTypeTrainingArguments
+from metakat.page_type.Clip.ClipModelWithClassificationHead import ClipWithClassificationHead
 
 gpu_owner = GPUOwner(1)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -24,7 +25,7 @@ from clearml import Task
 
 from transformers import set_seed, TrainingArguments, ViTForImageClassification, ViTImageProcessor, \
     TrainerCallback, TrainerState, PreTrainedModel, ResNetForImageClassification, AutoImageProcessor, \
-    BeitImageProcessor, BeitForImageClassification
+    BeitImageProcessor, BeitForImageClassification, CLIPProcessor
 
 import argparse
 import logging
@@ -43,6 +44,7 @@ def parse_args():
 
     # Datasets
     parser.add_argument('--images-dir', required=True, type=str)
+    parser.add_argument('--texts-dir', required=False, type=str)
     parser.add_argument('--train-pages', required=True, type=str)
     parser.add_argument('--eval-pages', required=True, type=str)
     parser.add_argument('--neighbour-page-mapping', type=str)
@@ -135,6 +137,7 @@ def main():
     processor = init_processor(args.model_name)
 
     train_dataset, eval_datasets, eval_dataset_for_hg = init_datasets(images_dir=args.images_dir,
+                                                                      texts_dir=args.texts_dir,
                                                                       train_pages=args.train_pages,
                                                                       eval_pages=args.eval_pages,
                                                                       processor=processor,
@@ -202,7 +205,8 @@ def main():
                                         max_batches=5 if eval_dataset.eval_dataset else 5,
                                         shuffle_dataset=True,
                                         dataloader_num_workers=args.eval_dataloader_num_workers,
-                                        output_dir=args.render_dir) for eval_dataset in eval_datasets],
+                                        output_dir=args.render_dir,
+                                        processor=processor) for eval_dataset in eval_datasets],
             random_seed=42))
 
     model_checkpoint = None
@@ -218,7 +222,9 @@ def main():
 
 
 def init_processor(model_checkpoint):
-    if 'vit' in model_checkpoint:
+    if 'clip' in model_checkpoint:
+        processor = CLIPProcessor.from_pretrained(model_checkpoint)
+    elif 'vit' in model_checkpoint:
         processor = ViTImageProcessor.from_pretrained(model_checkpoint)
     elif 'resnet' in model_checkpoint:
         processor = AutoImageProcessor.from_pretrained(model_checkpoint)
@@ -231,7 +237,13 @@ def init_processor(model_checkpoint):
 
 def init_model(model_checkpoint, dataset):
     logger.info(f'Loading model: {model_checkpoint}')
-    if 'vit' in model_checkpoint:
+    if 'clip' in model_checkpoint:
+        model = ClipWithClassificationHead.from_pretrained(model_checkpoint,
+                                                           num_labels=len(dataset.id2label),
+                                                           id2label=dataset.id2label,
+                                                           label2id=dataset.label2id,
+                                                           ignore_mismatched_sizes=True)
+    elif 'vit' in model_checkpoint:
         model = ViTForImageClassification.from_pretrained(model_checkpoint,
                                                           num_labels=len(dataset.id2label),
                                                           id2label=dataset.id2label,
@@ -255,10 +267,10 @@ def init_model(model_checkpoint, dataset):
     return model
 
 
-def init_datasets(images_dir, train_pages, eval_pages, processor, neighbour_page_mapping=None,
+def init_datasets(images_dir, texts_dir, train_pages, eval_pages, processor, neighbour_page_mapping=None,
                   position_patch_size=16,
                   eval_train_dataset=False, eval_train_max_pages=500):
-    train_dataset = PageTypeDataset(images_dir=images_dir, pages=train_pages, processor=processor,
+    train_dataset = PageTypeDataset(images_dir=images_dir, text_dir=texts_dir, pages=train_pages, processor=processor,
                                     neighbour_page_mapping=neighbour_page_mapping,
                                     position_patch_size=position_patch_size,
                                     augment=True)
@@ -273,7 +285,7 @@ def init_datasets(images_dir, train_pages, eval_pages, processor, neighbour_page
         eval_train_dataset.augment = False
         eval_train_dataset.max_pages = eval_train_max_pages
         eval_datasets.append(eval_train_dataset)
-    eval_datasets.append(PageTypeDataset(images_dir=images_dir, pages=eval_pages, processor=processor,
+    eval_datasets.append(PageTypeDataset(images_dir=images_dir, text_dir=texts_dir, pages=eval_pages, processor=processor,
                                          neighbour_page_mapping=neighbour_page_mapping,
                                          position_patch_size=position_patch_size,
                                          eval_dataset=True))
