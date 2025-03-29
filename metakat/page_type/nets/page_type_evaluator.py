@@ -61,7 +61,7 @@ class PageTypeEvaluator:
             input_ids = batch.get('input_ids')
             attention_mask = batch.get('attention_mask')
 
-            if input_ids is not None and attention_mask is not None:
+            if input_ids is not None and attention_mask is not None and 'Clip' in  type(model).__name__:
                 is_clip = True
 
                 input_ids = input_ids.to(model.device)
