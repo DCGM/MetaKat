@@ -107,6 +107,9 @@ class PageTypeDataset(Dataset):
             self.normalize
         ])
 
+        if self.text_dir is None:
+            logger.info(f"No text directory provided, labels of images will be used as text inputs")
+
     def __len__(self):
         if self.max_pages is not None:
             return min(len(self.pages), self.max_pages)
@@ -146,8 +149,8 @@ class PageTypeDataset(Dataset):
             textfile_name = re.sub(r"\.jpg.*$", ".txt", name)
 
             if self.text_dir is None:
-                logger.info(f"No text directory provided, labels of images will be used as text inputs")
                 text = re.sub(r'(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])', ' ', label)
+                text = "A page of type " + text
             else:
                 try:
                     with open(os.path.join(self.text_dir, textfile_name), 'r') as f:
@@ -155,6 +158,7 @@ class PageTypeDataset(Dataset):
                 except FileNotFoundError:
                     logger.info(f"Image: {name} does not have text description, label: {label} will be used as text input")
                     text = re.sub(r'(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])', ' ', label)
+                    text = "A page of type " + text
 
             result = self.tokenizer(text, return_tensors="pt", padding=True)
             input_ids = result['input_ids']
