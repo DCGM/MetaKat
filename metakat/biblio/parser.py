@@ -1,5 +1,7 @@
-# author: Marie Pařilová
-# date: 26.11.2024
+# autor: Marie Pařilová
+# datum: 12.5.2025
+# Nástroj pro poloautomatické zarovnání OCR a metadat titulních stran knih.
+# Tato práce je součástí bakalářské práce.
 
 import os
 import json
@@ -11,9 +13,12 @@ import re
 from rapidfuzz import fuzz
 import sys
 import unicodedata
-sys.path.append('/home/maja/Plocha/BP-git/MetaKat/pero-ocr/pero_ocr/core')
+sys.path.append('/MetaKat/pero-ocr/pero_ocr/core')
 from force_alignment import align_text_to_image
 from pero_ocr.core import layout
+
+radek = 1 # Pomocna promenna pro nezarovnane udaje
+nezarovnane_annotace = []
 
 def fix_text(text):
     '''Oprava textu na správný formát'''
@@ -33,7 +38,7 @@ def remove_numbers(text):
 def parse_mods(file_path):
     '''Zpracování XML souboru ve formátu MODS a extrakce relevantních informací'''
     with open(file_path, 'r', encoding='utf-8') as file:
-        tree = ET.parse(file)
+        tree = etree.parse(file)
     root = tree.getroot()
 
     ns = {'mods': 'http://www.loc.gov/mods/v3'}
@@ -45,15 +50,15 @@ def parse_mods(file_path):
             data[key] = value
 
     # Název
-    title = root.find(".//mods:titleInfo/mods:title", ns)
-    add_if_not_none('title', fix_text(title.text) if title is not None else None)
+    title = root.xpath(".//mods:titleInfo[not(ancestor::mods:relatedItem)]/mods:title", namespaces=ns)
+    add_if_not_none('title', fix_text(title[0].text) if title else None)
 
     # Autoři
     authors = []
-    for author in root.findall(".//mods:name[@type='personal']", ns):
-        role_terms = author.findall("mods:role/mods:roleTerm", ns)
+    for author in root.xpath(".//mods:name[@type='personal']", namespaces=ns):
+        role_terms = author.xpath("mods:role/mods:roleTerm", namespaces=ns)
         if any(role.text == 'aut' for role in role_terms):
-            name_parts = author.findall("mods:namePart", ns)
+            name_parts = author.xpath("mods:namePart", namespaces=ns)
             name = " ".join(fix_text(part.text) for part in name_parts if part.text)
             name = remove_numbers(name)
             if name:
@@ -62,10 +67,10 @@ def parse_mods(file_path):
 
     # Překladatelé
     translators = []
-    for translator in root.findall(".//mods:name[@type='personal']", ns):
-        role_terms = translator.findall("mods:role/mods:roleTerm", ns)
+    for translator in root.xpath(".//mods:name[@type='personal']", namespaces=ns):
+        role_terms = translator.xpath("mods:role/mods:roleTerm", namespaces=ns)
         if any(role.text == 'trl' for role in role_terms):
-            name_parts = translator.findall("mods:namePart", ns)
+            name_parts = translator.xpath("mods:namePart", namespaces=ns)
             name = " ".join(fix_text(part.text) for part in name_parts if part.text)
             name = remove_numbers(name)
             if name:
@@ -74,10 +79,10 @@ def parse_mods(file_path):
 
     # Ilustrátoři
     illustrators = []
-    for illustrator in root.findall(".//mods:name[@type='personal']", ns):
-        role_terms = illustrator.findall("mods:role/mods:roleTerm", ns)
+    for illustrator in root.xpath(".//mods:name[@type='personal']", namespaces=ns):
+        role_terms = illustrator.xpath("mods:role/mods:roleTerm", namespaces=ns)
         if any(role.text == 'ill' for role in role_terms):
-            name_parts = illustrator.findall("mods:namePart", ns)
+            name_parts = illustrator.xpath("mods:namePart", namespaces=ns)
             name = " ".join(fix_text(part.text) for part in name_parts if part.text)
             name = remove_numbers(name)
             if name:
@@ -86,54 +91,67 @@ def parse_mods(file_path):
 
     # Editoři
     editors = []
-    for editor in root.findall(".//mods:name[@type='personal']", ns):
-        role_terms = editor.findall("mods:role/mods:roleTerm", ns)
+    for editor in root.xpath(".//mods:name[@type='personal']", namespaces=ns):
+        role_terms = editor.xpath("mods:role/mods:roleTerm", namespaces=ns)
         if any(role.text == 'edt' for role in role_terms):
-            name_parts = editor.findall("mods:namePart", ns)
+            name_parts = editor.xpath("mods:namePart", namespaces=ns)
             name = " ".join(fix_text(part.text) for part in name_parts if part.text)
             name = remove_numbers(name)
             if name:
                 editors.append(name)
     add_if_not_none('editors', editors if editors else None)
 
-    # Datum vydání
-    date_issued = root.find(".//mods:originInfo/mods:dateIssued", ns)
-    add_if_not_none('date_issued', fix_text(date_issued.text) if date_issued is not None else None)
+    # Datum vydání (Date Issued)
+    date_issued_elem = root.find(".//mods:originInfo/mods:dateIssued", ns)
+    if date_issued_elem is not None and date_issued_elem.text:
+        date_issued_text = fix_text(date_issued_elem.text)
+        date_issued_text = date_issued_text.replace("v roce ", "").strip()
+        add_if_not_none('date_issued', date_issued_text)
 
     # Místo vydání
-    place = root.find(".//mods:originInfo/mods:place/mods:placeTerm[@type='text']", ns)
-    add_if_not_none('place_of_publication', fix_text(place.text) if place is not None else None)
+    place_elem = root.find(".//mods:originInfo/mods:place/mods:placeTerm[@type='text']", ns)
+    if place_elem is not None and place_elem.text:
+        place_text = fix_text(place_elem.text)
+        place_text = place_text.replace("v ", "").strip()
+        add_if_not_none('place_of_publication', place_text)
 
-    # Nakladatel
-    publisher = root.find(".//mods:originInfo/mods:publisher", ns)
-    add_if_not_none('publisher', fix_text(publisher.text) if publisher is not None else None)
+    # Nakladatel (Publisher)
+    publisher_elem = root.find(".//mods:originInfo/mods:publisher", ns)
+    if publisher_elem is not None and publisher_elem.text:
+        publisher_text = fix_text(publisher_elem.text)
+        publisher_text = publisher_text.replace("nakladatel,", "").replace("nákladem", "").strip()
+        add_if_not_none('publisher', publisher_text)
 
     # Podtitul
-    subtitle = root.find(".//mods:titleInfo/mods:subTitle", ns)
-    add_if_not_none('subtitle', fix_text(subtitle.text) if subtitle is not None else None)
+    subtitle = root.xpath(".//mods:titleInfo/mods:subTitle", namespaces=ns)
+    add_if_not_none('subtitle', fix_text(subtitle[0].text) if subtitle else None)
 
-    # Vydání
-    edition = root.find(".//mods:originInfo/mods:edition", ns)
-    add_if_not_none('edition', fix_text(edition.text) if edition is not None else None)
+    # Vydání (Edition)
+    edition_elem = root.find(".//mods:originInfo/mods:edition", ns)
+    if edition_elem is not None and edition_elem.text:
+        edition_text = fix_text(edition_elem.text)
+        edition_text = edition_text.replace("vydání", "").replace("vyd.", "").strip()
+        add_if_not_none('edition', edition_text)
 
     # Díl (Part Number)
-    part_number = root.findall(".//mods:titleInfo/mods:partNumber", ns)
+    part_number = root.xpath(".//mods:titleInfo/mods:partNumber", namespaces=ns)
     for pn in part_number:
-        pn = fix_text(pn.text)
-        add_if_not_none('part_number', pn if pn is not None else None)
+        add_if_not_none('part_number', fix_text(pn.text) if pn.text else None)
 
     # Název dílu (Part Name)
-    part_name = root.findall(".//mods:titleInfo/mods:partName", ns)
+    part_name = root.xpath(".//mods:titleInfo/mods:partName", namespaces=ns)
     for pn in part_name:
-        pn = fix_text(pn.text)
-        add_if_not_none('part_name', pn if pn is not None else None)
+        if pn.text:
+            part_text = fix_text(pn.text)
+            part_text = part_text.replace("díl", "").strip()
+            add_if_not_none('part_name', part_text)
 
     # Tiskaři
     printers = []
-    for printer in root.findall(".//mods:name[@type='personal']", ns):
-        role_terms = printer.findall("mods:role/mods:roleTerm", ns)
+    for printer in root.xpath(".//mods:name[@type='personal']", namespaces=ns):
+        role_terms = printer.xpath("mods:role/mods:roleTerm", namespaces=ns)
         if any(role.text == 'prt' for role in role_terms):
-            name_parts = printer.findall("mods:namePart", ns)
+            name_parts = printer.xpath("mods:namePart", namespaces=ns)
             name = " ".join(fix_text(part.text) for part in name_parts if part.text)
             name = remove_numbers(name)
             if name:
@@ -141,27 +159,36 @@ def parse_mods(file_path):
     add_if_not_none('printers', printers if printers else None)
 
     # Tiskárna (Printer)
-    printer = root.findall(".//mods:originInfo[@eventType='manufacture']/mods:publisher", ns)
-    for pr in printer:
-        pr = fix_text(pr.text)
-        add_if_not_none('printers', pr if pr is not None else None)
+    printer_elements = root.xpath(".//mods:originInfo[@eventType='manufacture']/mods:publisher", namespaces=ns)
+    printers = []
+    for printer_elem in printer_elements:
+        printer_text = fix_text(printer_elem.text) if printer_elem.text else None
+        if printer_text:
+            printer_text = printer_text.replace("tiskem, ", "").replace("vytiskla", "").strip()
+            printers.append(printer_text)
+    add_if_not_none('printers', printers if printers else None)
 
-    # Místo tisku
-    place_of_print = root.find(".//mods:originInfo/mods:place/mods:placeTerm[@type='print']", ns)
-    add_if_not_none('place_of_print', fix_text(place_of_print.text) if place_of_print is not None else None)
+    # Místo tisku (Place of Print)
+    place_elements = root.xpath(".//mods:originInfo[@eventType='manufacture']/mods:place/mods:placeTerm", namespaces=ns)
+    places = []
+    for place_elem in place_elements:
+        place_text = fix_text(place_elem.text) if place_elem.text else None
+        if place_text:
+            place_text = place_text.replace("v ", "").strip()
+            places.append(place_text)
+    add_if_not_none('place_of_print', places if places else None)
 
     # Název série
-    series_title = root.find(".//mods:relatedItem[@type='series']/mods:titleInfo/mods:title", ns)
-    add_if_not_none('series', fix_text(series_title.text) if series_title is not None else None)
+    series_title = root.xpath(".//mods:relatedItem[@type='series']/mods:titleInfo/mods:title", namespaces=ns)
+    add_if_not_none('series', fix_text(series_title[0].text) if series_title else None)
 
     # Číslo série (Series Part Number)
-    if title is not None:
-        series_part_number = root.findall(".//mods:relatedItem[@type='series']/mods:titleInfo/mods:partNumber", ns)
-        for spn in series_part_number:
-            add_if_not_none('series_part_number', fix_text(spn.text) if spn is not None else None)
+    series_part_number = root.xpath(".//mods:relatedItem[@type='series']/mods:titleInfo/mods:partNumber", namespaces=ns)
+    for spn in series_part_number:
+        add_if_not_none('series_part_number', fix_text(spn.text) if spn.text else None)
 
     return data
-    
+
 def assign_category(text, data):
     '''Přiřadí kategorii textu na základě shody s extrahovanými informacemi'''
     categories = {
@@ -216,7 +243,6 @@ def check_logits_and_get_coords(pl, search_text, image_width, image_height):
 
     for line in pl.lines_iterator():
         line_text = line.transcription.lower()
-        #print("LOGITS: ", search_text, "⌋", line_text)
         if search_text in line_text:
             # Najít začátek a konec hledaného textu v rámci celého textu řádku
             start_idx = line_text.index(search_text)
@@ -283,18 +309,21 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
     single_box = ['title', 'subtitle', 'part', 'part_name', 'series'] # Texty
     completed_data = {}
     normalized_search_text = normalize_text(search_text)
+    zarovnani = False
+    global radek
+    global nezarovnane_annotace
 
     if key in single_box and key not in completed_data:
         completed_data[key] = {"completed": False, "full_text": None}
 
     for line, ocr_text in ocr_lines:
         if search_text is not None:
+            best_coords = None
             normalized_ocr_text = normalize_text(ocr_text)
 
             # text příliš krátký
             if len(normalized_ocr_text) < min_ocr_length:
                 continue
-            #print("hledany:", normalized_search_text, "OCR:", normalized_ocr_text)
 
             if key in single_box and completed_data[key]["completed"]:
                 continue
@@ -308,8 +337,6 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
                     else:
                         completed_data[key]["full_text"] = normalized_ocr_text
 
-                #print("Hledany text: ", normalized_search_text, "OCR text: ", ocr_text, "Kategorie: ", category, "100p line shoda")
-                #print("JE V JSON, 100percent line")
             else:
                 score = fuzz.partial_ratio(normalized_search_text, normalized_ocr_text) # substringy v radku
                 score_changed_words = fuzz.token_set_ratio(normalized_search_text, normalized_ocr_text) # prohozena slova
@@ -320,17 +347,13 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
 
                 if score > threshold or score_changed_words > threshold:
                     category = assign_category(normalized_search_text, {key: normalized_search_text})
-                    #print("Hledany text:", normalized_search_text, "OCR text:", ocr_text, "Kategorie:", category, "Skore:", score, "/", score_changed_words)
                     if category == 'titulek' or category == 'podtitulek':
-                        #print("JE V JSON, SUBSTRING, title")
                         best_coords = get_line_coordinates(line, image_width, image_height)
                     else:
                         best_coords = check_logits_and_get_coords(pl, normalized_search_text, image_width, image_height)
                         if best_coords:
-                            #print("JE V JSON, SUBSTRING, LOGITS")
                             pass
                         else:
-                            #print("JE V JSON SUBSTRING, LINE")
                             best_coords = get_line_coordinates(line, image_width, image_height)
                     if key in single_box:
                         if completed_data[key]["full_text"]:
@@ -343,6 +366,7 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
                 completed_data[key]["completed"] = True
         
         if best_coords is not None:
+            zarovnani = True
             annotations.append({
                 "from_name": "label",
                 "to_name": "image",
@@ -353,19 +377,41 @@ def handle_text(search_text, annotations, ocr_lines, pl, image_width, image_heig
                     "width": best_coords["width"],
                     "height": best_coords["height"],
                     "rectanglelabels": [category]
+                },
+                "meta": {
+                    "text": [search_text]
                 }
             })
-        best_coords = None
+
+    if not zarovnani:
+        # nepodařilo se zarovnat
+        category = assign_category(search_text, {key: search_text})
+        y_offset = radek * 5
+        ann = ({
+            "from_name": "label",
+            "to_name": "image",
+            "type": "rectanglelabels",
+            "value": {
+                "x": 1,
+                "y": y_offset,
+                "width": 10,
+                "height": 2,
+                "rectanglelabels": [category]
+            },
+            "meta": {
+                "text": [search_text]
+            }
+        })
+        nezarovnane_annotace.append(ann)
+        radek += 1
 
 def process_and_save_json(input_json, output_path, xml_path):
-    # Získáme anotace z JSON
     annotations = input_json["annotations"][0]["result"]
     
-    # Sloučení anotací
     merged_annotations = merge_annotations(annotations)
     filtered_annotations = check_count_of_boxes(merged_annotations)
-    
-    # Vytvoření výstupního JSON
+    filtered_annotations.extend(nezarovnane_annotace)
+
     result = {
         "data": input_json["data"],
         "predictions": [
@@ -389,6 +435,7 @@ def merge_annotations(annotations, scale_factor=2):
         y = item['value']['y']
         width = item['value']['width']
         height = item['value']['height']
+        meta_text = item.get('meta', {}).get('text', [])
 
         x2 = x + width
         y2 = y + height
@@ -409,6 +456,8 @@ def merge_annotations(annotations, scale_factor=2):
                         existing["x2"] = max(existing["x2"], x2)
                         existing["y2"] = max(existing["y2"], y2)
                         existing["height"] = max(existing["height"], height)
+                        existing["meta_text"].extend(meta_text)
+                        existing["meta_text"] = list(set(existing["meta_text"]))
                         merged_this = True
                         break
 
@@ -425,6 +474,8 @@ def merge_annotations(annotations, scale_factor=2):
                         existing["x2"] = max(existing["x2"], x2)
                         existing["y2"] = max(existing["y2"], y2)
                         existing["height"] = max(existing["height"], height)
+                        existing["meta_text"].extend(meta_text)
+                        existing["meta_text"] = list(set(existing["meta_text"]))
                         merged_this = True
                         break
 
@@ -435,7 +486,8 @@ def merge_annotations(annotations, scale_factor=2):
                 "x2": x2,
                 "y2": y2,
                 "height": height,
-                "rectanglelabels": [label]
+                "rectanglelabels": [label],
+                "meta_text": meta_text[:]
             })
 
     merged_annotations = []
@@ -450,6 +502,9 @@ def merge_annotations(annotations, scale_factor=2):
                 "width": box["x2"] - box["x"],
                 "height": box["y2"] - box["y"],
                 "rectanglelabels": box["rectanglelabels"]
+            },
+            "meta": {
+                "text": box["meta_text"]
             }
         })
 
@@ -510,7 +565,9 @@ def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
     # Načíst data z MODS
     data = parse_mods(mods_path)
     annotations = []
-    print(data)
+    nezarovnane_annotace.clear()
+    global radek
+    radek = 1
 
     # Uložení všech OCR řádků
     pl = layout.PageLayout()
@@ -569,7 +626,6 @@ def main():
                 print(f"LOGITS file for {xml_file} not found, skipping.")
                 continue
             
-            #if xml_file.startswith("a1bcfc79"):
             parse_page_xml_to_json(
                 os.path.join(xml_dir, xml_file),
                 mods_file,
