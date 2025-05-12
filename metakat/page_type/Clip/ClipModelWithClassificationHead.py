@@ -128,7 +128,7 @@ class ClipWithClassificationHead(CLIPModel):
         self.classificationHead = nn.Sequential(
             nn.Linear(text_dim + vision_dim, 512),
             nn.ReLU(),
-            nn.Dropout(0.1),
+            nn.Dropout(0.3),
             nn.Linear(512, num_labels),
         )
 

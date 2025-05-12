@@ -3,6 +3,7 @@ import logging
 import time
 
 import numpy as np
+import torch.nn
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from torch.utils.data import DataLoader
 from transformers import PreTrainedModel
@@ -24,7 +25,9 @@ class PageTypeEvaluator:
                  dataloader_num_workers: int = 0,
                  shuffle_dataset: bool = False,
                  batch_size: int = 20,
-                 max_batches: int = -1):
+                 max_batches: int = -1,
+                 processor = None,
+                 orig_clip = False):
         super().__init__()
         self.dataset = dataset
         self.collator = collator
@@ -32,6 +35,8 @@ class PageTypeEvaluator:
         self.shuffle_dataset = shuffle_dataset
         self.batch_size = batch_size
         self.max_batches = max_batches
+        self.processor = processor
+        self.orig_clip = orig_clip
 
     def evaluate(self, model: PreTrainedModel):
         metrics = collections.OrderedDict()
@@ -53,13 +58,35 @@ class PageTypeEvaluator:
         loss = []
         predictions = []
         gt_labels = []
+
+        clip_input_ids = None
+        clip_attention_mask = None
+        if self.orig_clip is True and type(self.processor).__name__ == 'CLIPProcessor':
+            clip_labels = []
+
+            for idx, name in self.dataset.id2label.items():
+                clip_labels.append("A page of type " + name)
+
+            tokenizer = self.processor.tokenizer
+            token_out = tokenizer(text=clip_labels, return_tensors='pt', padding=True)
+
+            clip_input_ids = token_out['input_ids']
+            clip_input_ids = clip_input_ids.to(model.device)
+
+            clip_attention_mask = token_out['attention_mask']
+            clip_attention_mask = clip_attention_mask.to(model.device)
+
         for batch in data_loader:
             pixel_values = batch['pixel_values']
             pixel_values = pixel_values.to(model.device)
 
             is_clip = False
-            input_ids = batch.get('input_ids')
-            attention_mask = batch.get('attention_mask')
+            input_ids = None
+            attention_mask = None
+
+            if self.orig_clip is False:
+                input_ids = batch.get('input_ids')
+                attention_mask = batch.get('attention_mask')
 
             if input_ids is not None and attention_mask is not None and 'Clip' in  type(model).__name__:
                 is_clip = True
@@ -71,13 +98,24 @@ class PageTypeEvaluator:
             gt_labels.append(labels)
             labels = labels.to(model.device)
 
-            if is_clip:
+            if self.orig_clip is True:
+                out = model(pixel_values=pixel_values, attention_mask=clip_attention_mask, input_ids=clip_input_ids, return_loss = False)
+            elif is_clip:
                 out = model(pixel_values=pixel_values, labels=labels, input_ids=input_ids, attention_mask=attention_mask)
             else:
                 out = model(pixel_values=pixel_values, labels=labels)
 
-            loss.append(out.loss.item())
-            predictions.append(out.logits.argmax(dim=-1).cpu().numpy())
+            if self.orig_clip is True:
+                logits_per_image = out.logits_per_image
+                loss_fn = torch.nn.CrossEntropyLoss()
+                clip_loss = loss_fn(logits_per_image, labels)
+
+                loss.append(clip_loss.item())
+                predictions.append(logits_per_image.argmax(dim=1).cpu().numpy())
+
+            else:
+                loss.append(out.loss.item())
+                predictions.append(out.logits.argmax(dim=-1).cpu().numpy())
 
             batch_counter += 1
             show_processed_batch_freq = 10

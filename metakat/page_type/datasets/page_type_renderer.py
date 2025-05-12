@@ -15,6 +15,8 @@ from metakat.page_type.datasets.page_type_dataset import PageTypeDataset
 
 logger = logging.getLogger(__name__)
 
+# Disabling parallelism to avoid deadlocks
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 class RendererDimMismatch(Exception):
     pass
@@ -29,7 +31,9 @@ class PageTypeRenderer:
                  max_batches: int = 1,
                  shuffle_dataset: bool = False,
                  output_dir: str = './',
-                 processor = None):
+                 processor = None,
+                 orig_clip = False
+                 ):
         super().__init__()
         self.dataset = dataset
         self.collator = collator
@@ -39,6 +43,7 @@ class PageTypeRenderer:
         self.shuffle_dataset = shuffle_dataset
         self.output_dir = output_dir
         self.processor = processor
+        self.orig_clip = orig_clip
 
     def render(self, model: typing.Optional[PreTrainedModel] = None, iteration: int = None):
         data_loader = DataLoader(dataset=self.dataset,
@@ -58,22 +63,44 @@ class PageTypeRenderer:
         if type(self.processor).__name__ == 'CLIPProcessor':
             clip_tokenizer = self.processor.tokenizer
 
+        clip_input_ids = None
+        clip_attention_mask = None
+        if self.orig_clip and clip_tokenizer is not None:
+            clip_labels = []
+
+            for idx, name in self.dataset.id2label.items():
+                clip_labels.append("A page of type " + name)
+
+            tokenizer = self.processor.tokenizer
+            token_out = tokenizer(text=clip_labels, return_tensors='pt', padding=True)
+
+            clip_input_ids = token_out['input_ids']
+            clip_input_ids = clip_input_ids.to(model.device)
+
+            clip_attention_mask = token_out['attention_mask']
+            clip_attention_mask = clip_attention_mask.to(model.device)
+
         logger.info('')
         logger.info(f'Rendering {self.dataset.name} dataset:')
         for batch in data_loader:
 
             pred = None
             decoded_texts = None
+            input_ids = None
+            attention_mask = None
             if model is not None:
                 l_classification_start = time.time()
 
                 pixel_values = batch['pixel_values']
                 pixel_values = pixel_values.to(model.device)
 
-                input_ids = batch.get('input_ids')
-                attention_mask = batch.get('attention_mask')
+                if self.orig_clip is False:
+                    input_ids = batch.get('input_ids')
+                    attention_mask = batch.get('attention_mask')
 
-                if input_ids is not None and attention_mask is not None and 'Clip' in  type(model).__name__:
+                if self.orig_clip is True:
+                    pred = model(pixel_values=pixel_values, attention_mask=clip_attention_mask, input_ids=clip_input_ids, return_loss = False)
+                elif input_ids is not None and attention_mask is not None and 'Clip' in  type(model).__name__:
                     input_ids = input_ids.to(model.device)
                     attention_mask = attention_mask.to(model.device)
 
@@ -108,7 +135,11 @@ class PageTypeRenderer:
                                   1)
 
                 if pred is not None:
-                    scores = torch.softmax(pred['logits'][i], dim=-1)
+                    if self.orig_clip is False:
+                        scores = torch.softmax(pred['logits'][i], dim=-1)
+                    else:
+                        scores = torch.softmax(pred['logits_per_image'][i], dim=-1)
+
                     for j, (pred_label, pred_score) in enumerate(zip(torch.sort(scores, descending=True).indices[:10],
                                                                      torch.sort(scores, descending=True).values[:10])):
                         if j == 0:

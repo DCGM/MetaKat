@@ -49,10 +49,10 @@ class PageTypeDataset(Dataset):
         self.id2label = {i: label for i, label in enumerate(page_type_classes.values())}
         self.label2id = {label: i for i, label in enumerate(page_type_classes.values())}
 
-        self.is_clip = False
+        self.clip_proc = False
 
         if type(processor).__name__ == "CLIPProcessor":
-            self.is_clip = True
+            self.clip_proc = True
             self.tokenizer = processor.tokenizer
             processor = processor.image_processor
 
@@ -107,7 +107,7 @@ class PageTypeDataset(Dataset):
             self.normalize
         ])
 
-        if self.text_dir is None:
+        if self.clip_proc and self.text_dir is None:
             logger.info(f"No text directory provided, labels of images will be used as text inputs")
 
     def __len__(self):
@@ -145,8 +145,8 @@ class PageTypeDataset(Dataset):
             position_patch = position_patch.reshape(self.position_patch_size, self.position_patch_size, 3)
             padded_square_img[:, :self.position_patch_size, :self.position_patch_size] = self.normalize(torch.from_numpy(position_patch).permute(2, 0, 1) / 255.0)
 
-        if self.is_clip:
-            textfile_name = re.sub(r"\.jpg.*$", ".txt", name)
+        if self.clip_proc:
+            textfile_name = re.sub(r"\.jp.*$", ".txt", name)
 
             if self.text_dir is None:
                 text = re.sub(r'(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])', ' ', label)

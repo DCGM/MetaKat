@@ -5,6 +5,8 @@ import time
 import sys
 import typing
 from functools import partial
+from torch.optim import AdamW
+from transformers import get_linear_schedule_with_warmup
 
 import numpy as np
 import torch
@@ -17,6 +19,7 @@ from metakat.page_type.datasets.page_type_renderer import PageTypeRenderer
 from metakat.page_type.nets.page_type_trainer import PageTypeTrainer
 from metakat.page_type.nets.page_type_training_arguments import PageTypeTrainingArguments
 from metakat.page_type.Clip.ClipModelWithClassificationHead import ClipWithClassificationHead
+from metakat.page_type.Clip.ClipModelWithLoss import ClipWithLoss
 
 gpu_owner = GPUOwner(1)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -91,6 +94,8 @@ def parse_args():
     parser.add_argument('--logging-steps', default=20, type=int)
     parser.add_argument('--logging-level', default=logging.INFO)
 
+    parser.add_argument('--orig_clip', action='store_true', help="Use original CLIP model")
+
     args = parser.parse_args()
 
     return args
@@ -150,7 +155,7 @@ def main():
         if args.start_step is not None:
             model_checkpoint = os.path.join(args.checkpoint_dir, f"checkpoint-{args.start_step}")
 
-    model = init_model(model_checkpoint, train_dataset)
+    model = init_model(model_checkpoint, train_dataset, orig_clip=args.orig_clip)
 
     logger.info(model)
 
@@ -182,18 +187,27 @@ def main():
         logging_steps=args.logging_steps
     )
 
+    optimizer = AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.05)
+
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=args.warmup_steps,
+        num_training_steps=args.max_steps
+    )
+
     trainer = PageTypeTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset_for_hg,
-        data_collator=PageTypeCollator()
+        data_collator=PageTypeCollator(),
+        optimizers=(optimizer, scheduler)
     )
 
     trainer.add_callback(PageTypeEvaluatorTrainerCallback(
         evaluators=[PageTypeEvaluator(dataset=eval_dataset, collator=PageTypeCollator(),
                                       dataloader_num_workers=args.eval_dataloader_num_workers,
-                                      shuffle_dataset=True)
+                                      shuffle_dataset=True, processor=processor, orig_clip=args.orig_clip)
                     for eval_dataset in eval_datasets],
         random_seed=42,
         clearml_logger=clearml_logger))
@@ -206,7 +220,8 @@ def main():
                                         shuffle_dataset=True,
                                         dataloader_num_workers=args.eval_dataloader_num_workers,
                                         output_dir=args.render_dir,
-                                        processor=processor) for eval_dataset in eval_datasets],
+                                        processor=processor,
+                                        orig_clip=args.orig_clip) for eval_dataset in eval_datasets],
             random_seed=42))
 
     model_checkpoint = None
@@ -235,9 +250,11 @@ def init_processor(model_checkpoint):
     return processor
 
 
-def init_model(model_checkpoint, dataset):
+def init_model(model_checkpoint, dataset, orig_clip=False):
     logger.info(f'Loading model: {model_checkpoint}')
-    if 'clip' in model_checkpoint:
+    if orig_clip:
+        model = ClipWithLoss.from_pretrained(model_checkpoint)
+    elif 'clip' in model_checkpoint:
         model = ClipWithClassificationHead.from_pretrained(model_checkpoint,
                                                            num_labels=len(dataset.id2label),
                                                            id2label=dataset.id2label,
