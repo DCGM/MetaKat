@@ -1,0 +1,6 @@
+path: ./
+train: images/train
+val: images/val
+
+nc: 6
+names: ['cislo strany', 'jine cislo', 'jiny nadpis', 'kapitola', 'nadpis v textu', 'podnadpis']
