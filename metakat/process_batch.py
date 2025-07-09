@@ -87,7 +87,7 @@ def init_io(batch_dir: str, metakat_json: str, proarc_json: str, batch_id: UUID 
     else:
         proarc_io = None
 
-    page_index = 0
+    batch_index = 0
     if metakat_io.page_to_image_mapping is None:
         metakat_io.page_to_image_mapping = {}
     if metakat_io.page_to_alto_mapping is None:
@@ -104,10 +104,13 @@ def init_io(batch_dir: str, metakat_json: str, proarc_json: str, batch_id: UUID 
             page_id = next(pid for pid, img in metakat_io.page_to_image_mapping.items() if img == image_name)
         else:
             page_id = uuid4()
-            metakat_page = MetakatPage(id=page_id, batch_id=metakat_io.batch_id, pageIndex=page_index)
+            metakat_page = MetakatPage(id=page_id,
+                                       batch_id=metakat_io.batch_id,
+                                       batch_index=batch_index,
+                                       pageIndex=batch_index)
             metakat_io.elements.append(metakat_page)
             metakat_io.page_to_image_mapping[page_id] = image_name
-        page_index += 1
+        batch_index += 1
         xml_name = f'{name}.xml'
         xml_path = os.path.join(batch_dir, xml_name)
         if os.path.exists(xml_path):

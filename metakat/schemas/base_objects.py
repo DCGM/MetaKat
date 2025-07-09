@@ -55,6 +55,30 @@ class PageType(str, enum.Enum):
     TABLE_OF_CONTENTS = "TableOfContents"
     TITLE_PAGE = "TitlePage"
 
+class BiblioType(str, enum.Enum):
+    TITLE = "Title"
+    SUBTITLE = "Subtitle"
+    PART_NAME = "PartName"
+    PART_NUMBER = "PartNumber"
+    SERIES_NAME = "SeriesName"
+    SERIES_NUMBER = "SeriesNumber"
+    EDITION = "Edition"
+    PUBLISHER = "Publisher"
+    PLACE_TERM = "PlaceTerm"
+    DATE_ISSUED = "DateIssued"
+    MANUFACTURE_PUBLISHER = "ManucturePublisher"
+    MANUFACTURE_PLACE_TERM = "ManufacturePlaceTerm"
+    AUTHOR = "Author"
+    ILLUSTRATOR = "Illustrator"
+    TRANSLATOR = "Translator"
+    EDITOR = "Editor"
+    REDAKTOR = "Redaktor"
+    PERIODICAL_VOLUME_PART_NUMBER = "PeriodicalVolumePartNumber"
+    PERIODICAL_VOLUME_DATE_ISSUED = "PeriodicalVolumeDateIssued"
+    PERIODICAL_ISSUE_PART_NUMBER = "PeriodicalIssuePartNumber"
+    PERIODICAL_ISSUE_DATE_ISSUED = "PeriodicalIssueDateIssued"
+
+
 class MetakatTitle(BaseModel):
     type: DocumentType = DocumentType.TITLE
     periodical: bool
@@ -83,8 +107,8 @@ class MetakatVolume(BaseModel):
     illustrator: Optional[List[Tuple[str, float, UUID]]] = None
     translator: Optional[List[Tuple[str, float, UUID]]] = None
     editor: Optional[List[Tuple[str, float, UUID]]] = None
-    seriesName: Optional[Tuple[str, float, UUID]] = None
-    seriesNumber: Optional[Tuple[str, float, UUID]] = None
+    seriesName: Optional[List[Tuple[str, float, UUID]]] = None
+    seriesNumber: Optional[List[Tuple[str, float, UUID]]] = None
 
 class MetakatIssue(BaseModel):
     type: DocumentType = DocumentType.ISSUE
@@ -104,6 +128,7 @@ class MetakatPage(BaseModel):
     type: DocumentType = DocumentType.PAGE
     id: UUID
     batch_id: UUID
+    batch_index: int
     parent_id: Optional[UUID] = None
     pageIndex: Optional[int] = None
     pageNumber: Optional[Tuple[str, float, UUID]] = None
@@ -142,9 +167,18 @@ class MetakatArticle(BaseModel):
     abstract: Optional[Tuple[str, float, UUID]] = None
     keywords: Optional[Tuple[str, float, UUID]] = None
 
+MetakatElement = Union[
+    MetakatTitle,
+    MetakatVolume,
+    MetakatIssue,
+    MetakatPage,
+    MetakatChapter,
+    MetakatArticle
+]
+
 class MetakatIO(BaseModel):
     batch_id: UUID
-    elements: List[Union[MetakatTitle, MetakatVolume, MetakatIssue, MetakatPage, MetakatChapter, MetakatArticle]] = Field(default_factory=list)
+    elements: List[MetakatElement] = Field(default_factory=list)
     detection_to_page_mapping: Optional[Dict[UUID, UUID]] = None
     page_to_alto_mapping: Optional[Dict[UUID, str]] = None
     page_to_xml_mapping: Optional[Dict[UUID, str]] = None
