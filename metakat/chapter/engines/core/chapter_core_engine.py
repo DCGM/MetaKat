@@ -5,37 +5,38 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
-from schemas.base_objects import BiblioType
+from schemas.base_objects import ChapterType
 
 logger = logging.getLogger(__name__)
 
 
-class BiblioEngineCore(ABC):
-    def __init__(self, engine_dir: str):
-        self.engine_dir = engine_dir
-        config_path = os.path.join(engine_dir, "metakat_engine_config.json")
+class ChapterCoreEngine(ABC):
+    def __init__(self, core_engine_dir: str):
+        logger.info(f"Loading chapter core engine from: {core_engine_dir}")
+        self.engine_dir = core_engine_dir
+        config_path = os.path.join(core_engine_dir, "metakat_engine_config.json")
         if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Engine config not found at {config_path}")
+            raise FileNotFoundError(f"Chapter core engine config not found at {config_path}")
         with open(config_path, "r", encoding="utf-8") as f:
             self.config = json.load(f)
 
-        self.name = self.config["name"]
-        self.id2label = self.config["id2label"]
+        logger.info(f"Chapter core engine config: \n{json.dumps(self.config, indent=4)}")
 
-        logger.info(f"Loading biblio engine '{self.name}' from {engine_dir}")
+        self.name = self.config['name']
+        self.id2label = self.config['id2label']
+
         if not isinstance(self.id2label, dict):
-            raise ValueError(f"Invalid id2label format in config: {self.id2label}")
-        if not all(isinstance(k, int) and isinstance(v, str) for k, v in self.id2label.items()):
             raise ValueError(f"Invalid id2label format in config: {self.id2label}")
         if not self.id2label:
             raise ValueError("id2label cannot be empty in config")
 
         for my_id, label in self.id2label.items():
             try:
-                BiblioType(label)
+                ChapterType(label)
             except ValueError:
-                raise ValueError(f"Invalid BiblioType label in config: '{my_id}: {label}'")
+                raise ValueError(f"Invalid ChapterType label in config: '{my_id}: {label}'")
 
+        logger.info(f"Loaded chapter core engine: {self.name}")
         logger.info(f"{len(self.id2label)}")
 
     @abstractmethod

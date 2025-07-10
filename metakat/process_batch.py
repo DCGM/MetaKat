@@ -10,7 +10,8 @@ import xml.etree.ElementTree as ET
 
 from natsort import natsorted
 
-from metakat.page_type.engines.definitions import page_type_engines
+from page_type.engines.core.definitions import page_type_core_engines
+from metakat.biblio.engines.bind.definitions import load_biblio_bind_engine
 from metakat.schemas.base_objects import MetakatIO, ProarcIO, MetakatPage
 
 logger = logging.getLogger(__name__)
@@ -23,9 +24,12 @@ def parse_args():
     parser.add_argument('--metakat-json', type=str)
     parser.add_argument('--proarc-json', type=str)
 
-    parser.add_argument('--page-type-engine', type=str, help='Path to directory containing page type engine')
-    parser.add_argument('--biblio-engine', type=str, help='Path to directory containing biblio engine')
-    parser.add_argument('--chapter-engine', type=str, help='Path to directory containing chapter engine')
+    parser.add_argument('--page-type-core-engine', type=str, help='Path to directory containing page type core engine')
+    parser.add_argument('--page-type-bind-engine', type=str, help='Path to directory containing page type bind engine')
+    parser.add_argument('--biblio-core-engine', type=str, help='Path to directory containing biblio core engine')
+    parser.add_argument('--biblio-bind-engine', type=str, help='Path to directory containing biblio bind engine')
+    parser.add_argument('--chapter-core-engine', type=str, help='Path to directory containing chapter core engine')
+    parser.add_argument('--chapter-bind-engine', type=str, help='Path to directory containing chapter bind engine')
 
     parser.add_argument('--output-metakat-json', type=str, help='Path to output Metakat JSON file')
 
@@ -54,18 +58,36 @@ def main():
         proarc_json=args.proarc_json
     )
 
-    if args.page_type_engine is not None:
-        metakat_engine_config_path = os.path.join(args.page_type_engine, 'metakat_engine_config.json')
-        if not os.path.exists(metakat_engine_config_path):
-            raise FileNotFoundError(f"Page type engine config not found at {metakat_engine_config_path}")
-        with open(metakat_engine_config_path, 'r') as f:
-            metakat_engine_config = json.load(f)
-        page_type_engine = page_type_engines[metakat_engine_config['name']](args.page_type_engine)
-        metakat_io = page_type_engine.process_for_metakat(
+    if args.page_type_bind_engine is not None and args.page_type_core_engine is not None:
+        page_type_bind_engine = page_type_core_engines.load_page_type_bind_engine(
+            args.page_type_bind_engine,
+            args.page_type_core_engine
+        )
+        metakat_io = page_type_bind_engine.process(
             batch_dir=args.batch_dir,
             metakat_io=metakat_io,
             proarc_io=proarc_io
-        )[0]
+        )
+
+    if args.biblio_bind_engine is not None and args.biblio_core_engine is not None:
+        biblio_bind_engine = load_biblio_bind_engine(args.biblio_bind_engine, args.biblio_core_engine)
+        metakat_io = biblio_bind_engine.process(
+            batch_dir=args.batch_dir,
+            metakat_io=metakat_io,
+            proarc_io=proarc_io
+        )
+
+    if args.chapter_bind_engine is not None and args.chapter_core_engine is not None:
+        chapter_bind_engine = page_type_core_engines.load_chapter_bind_engine(
+            args.chapter_bind_engine,
+            args.chapter_core_engine
+        )
+        metakat_io = chapter_bind_engine.process(
+            batch_dir=args.batch_dir,
+            metakat_io=metakat_io,
+            proarc_io=proarc_io
+        )
+
 
     if args.output_metakat_json is not None:
         with open(args.output_metakat_json, 'w') as f:

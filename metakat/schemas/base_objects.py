@@ -78,6 +78,10 @@ class BiblioType(str, enum.Enum):
     PERIODICAL_ISSUE_PART_NUMBER = "PeriodicalIssuePartNumber"
     PERIODICAL_ISSUE_DATE_ISSUED = "PeriodicalIssueDateIssued"
 
+class ChapterType(str, enum.Enum):
+    PAGE_NUMBER = "PageNumber"
+    CHAPTER = "Chapter"
+
 
 class MetakatTitle(BaseModel):
     type: DocumentType = DocumentType.TITLE

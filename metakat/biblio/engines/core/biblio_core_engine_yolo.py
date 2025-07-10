@@ -3,22 +3,22 @@ import logging
 from typing import List
 
 from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
-from biblio.engines.core.biblio_engine_core import BiblioEngineCore
+from biblio.engines.core.biblio_core_engine import BiblioCoreEngine
 
 
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
 
 logger = logging.getLogger(__name__)
 
-class BiblioEngineCoreYOLO(BiblioEngineCore):
-    def __init__(self, engine_dir,
+class BiblioCoreEngineYOLO(BiblioCoreEngine):
+    def __init__(self, core_engine_dir,
                  yolo_batch_size=32,
                  yolo_confidence_threshold=0.25,
                  yolo_image_size=640,
                  min_alto_word_area_in_detection_to_match=0.65):
-        super().__init__(engine_dir=engine_dir)
+        super().__init__(core_engine_dir=core_engine_dir)
         self.engine_yolo_alto = EngineYOLOALTO(
-            engine_dir=engine_dir,
+            engine_dir=core_engine_dir,
             yolo_batch_size=yolo_batch_size,
             yolo_confidence_threshold=yolo_confidence_threshold,
             yolo_image_size=yolo_image_size,
