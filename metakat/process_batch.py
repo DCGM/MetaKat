@@ -10,8 +10,10 @@ import xml.etree.ElementTree as ET
 
 from natsort import natsorted
 
-from page_type.engines.core.definitions import page_type_core_engines
+from chapter.engines.bind.definitions import load_chapter_bind_engine
+from page_type.engines.bind.definitions import load_page_type_bind_engine
 from metakat.biblio.engines.bind.definitions import load_biblio_bind_engine
+
 from metakat.schemas.base_objects import MetakatIO, ProarcIO, MetakatPage
 
 logger = logging.getLogger(__name__)
@@ -59,7 +61,7 @@ def main():
     )
 
     if args.page_type_bind_engine is not None and args.page_type_core_engine is not None:
-        page_type_bind_engine = page_type_core_engines.load_page_type_bind_engine(
+        page_type_bind_engine = load_page_type_bind_engine(
             args.page_type_bind_engine,
             args.page_type_core_engine
         )
@@ -78,7 +80,7 @@ def main():
         )
 
     if args.chapter_bind_engine is not None and args.chapter_core_engine is not None:
-        chapter_bind_engine = page_type_core_engines.load_chapter_bind_engine(
+        chapter_bind_engine = load_chapter_bind_engine(
             args.chapter_bind_engine,
             args.chapter_core_engine
         )
@@ -88,6 +90,9 @@ def main():
             proarc_io=proarc_io
         )
 
+    logger.info("")
+    MetakatIO.model_validate_json(json.dumps(metakat_io.model_dump(mode="json")))
+    logger.info("MetakatIO has been successfully validated")
 
     if args.output_metakat_json is not None:
         with open(args.output_metakat_json, 'w') as f:

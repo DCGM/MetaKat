@@ -1,13 +1,12 @@
 import copy
 import logging
 import os
-from typing import Dict, List, Tuple
 from collections import OrderedDict
 
 from natsort import natsorted
 
 from page_type.engines.bind.page_type_bind_engine import PageTypeBindEngine
-from schemas.base_objects import MetakatIO, ProarcIO, PageType, MetakatPage
+from schemas.base_objects import MetakatIO, ProarcIO, PageType, DocumentType
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ class PageTypeBindEngineBase(PageTypeBindEngine):
             (os.path.join(batch_dir, y), x) for x, y in metakat_io.page_to_image_mapping.items())
         )
 
-        page_id_to_metakat_page = {page.id: page for page in metakat_io.elements if isinstance(page, MetakatPage)}
+        page_id_to_metakat_page = {page.id: page for page in metakat_io.elements if page.type == DocumentType.PAGE.value}
         logger.info(f"Processing {len(image_path_to_page_id)} MetaKatPage elements with page type core engine")
         predictions = self.core_engine.process(list(image_path_to_page_id.keys()))
         logger.info(f"Page type core engine returned {len(predictions)} predictions")

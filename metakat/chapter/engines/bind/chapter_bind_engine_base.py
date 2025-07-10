@@ -6,6 +6,7 @@ from typing import List, Tuple
 from uuid import uuid4
 
 from chapter.engines.bind.chapter_bind_engine import ChapterBindEngine
+from chapter.engines.bind.chapter_parser import parse_page_number
 from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
 
 from schemas.base_objects import MetakatIO, ProarcIO, DocumentType, MetakatPage, ChapterType, \
@@ -20,15 +21,12 @@ class ChapterBindEngineBase(ChapterBindEngine):
 
     def process(self, batch_dir: str, metakat_io: MetakatIO, proarc_io: ProarcIO = None) -> MetakatIO:
         metakat_io = copy.deepcopy(metakat_io)
-        pages = [el for el in metakat_io.elements if el.type == DocumentType.PAGE]
+        pages = [el for el in metakat_io.elements if el.type == DocumentType.PAGE.value]
         pages = sorted(pages, key=lambda x: x.batch_index)
-        logger.info(f"Getting title pages from {len(pages)} pages")
-        title_pages = self.filter_title_pages(pages, 20)
-        logger.info(f"Found {len(title_pages)} title pages")
 
-        images = [os.path.join(batch_dir, metakat_io.page_to_image_mapping[page.id]) for page in title_pages if
+        images = [os.path.join(batch_dir, metakat_io.page_to_image_mapping[page.id]) for page in pages if
                   page.id in metakat_io.page_to_image_mapping]
-        alto_files = [os.path.join(batch_dir, metakat_io.page_to_alto_mapping[page.id]) for page in title_pages if
+        alto_files = [os.path.join(batch_dir, metakat_io.page_to_alto_mapping[page.id]) for page in pages if
                       page.id in metakat_io.page_to_alto_mapping]
 
         logger.info(f"Processing {len(images)} images with chapter core engine")
@@ -37,7 +35,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                     f"{sum([len(p.matched_detections) for p in matched_pages if p.matched_detections is not None])} "
                     f"detections")
 
-        metakat_page_id_to_metakat_page = {page.id: page for page in metakat_io.elements if isinstance(page, MetakatPage)}
+        metakat_page_id_to_metakat_page = {page.id: page for page in metakat_io.elements if page.type == DocumentType.PAGE.value}
         matched_page_file_name_to_metakat_page = {v: metakat_page_id_to_metakat_page[k] for k, v in metakat_io.page_to_image_mapping.items()}
 
         logger.info(f"Adding page numbers to MetaKatPage elements")
@@ -67,24 +65,34 @@ class ChapterBindEngineBase(ChapterBindEngine):
         detection_id_to_detection_bbox = {}
         for matched_detection in matched_page.matched_detections:
             class_id = matched_detection.get_class_id()
-            if class_id not in self.core_engine.id2label:
-                logger.warning(
-                    f"Id {class_id} ({matched_detection.get_class()}) not found in id2label mapping (read from metakat_engine_config.json), skipping detection")
-                continue
-            chapter_type = ChapterType(self.core_engine.id2label[class_id])
-
             detection_bbox = (matched_detection.detector_parser_annotated_bounding_box.x,
                               matched_detection.detector_parser_annotated_bounding_box.y,
                               matched_detection.detector_parser_annotated_bounding_box.width,
                               matched_detection.detector_parser_annotated_bounding_box.height)
             detection_id = uuid4()
-            detection = (matched_detection.get_text(),
-                         matched_detection.get_confidence(),
-                         detection_id)
+            detection_text = matched_detection.get_text()
+            detection_confidence = matched_detection.get_confidence()
+
+            if class_id not in self.core_engine.id2label:
+                logger.warning(f"CLASS_ID {class_id} ({matched_detection.get_class()}) not in id2label, skipping - "
+                               f"val: {detection_text}, "
+                               f"conf: {detection_confidence}, "
+                               f"bbox: {detection_bbox}, "
+                               f"file_name: {matched_page.detector_parser_page.image_filename}")
+                continue
+            chapter_type = ChapterType(self.core_engine.id2label[class_id])
 
             if chapter_type == ChapterType.PAGE_NUMBER:
-                if metakat_page.pageNumber is None or metakat_page.pageNumber[1] < detection[1]:
-                    metakat_page.pageNumber = detection
+                detection_text_parsed = parse_page_number(detection_text)
+                if not detection_text_parsed:
+                    logger.warning(f"Invalid PAGE_NUMBER, skipping - "
+                                   f"val: {detection_text}, "
+                                   f"conf: {detection_confidence}, "
+                                   f"bbox: {detection_bbox}, "
+                                   f"file_name: {matched_page.detector_parser_page.image_filename}")
+                    continue
+                if metakat_page.pageNumber is None or metakat_page.pageNumber[1] < detection_confidence:
+                    metakat_page.pageNumber = (detection_text_parsed, detection_confidence, detection_id)
             else:
                 continue
 

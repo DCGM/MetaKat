@@ -15,9 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 class PageTypeCoreEngineViT(PageTypeCoreEngine):
-    def __init__(self, engine_dir):
+    def __init__(self, core_engine_dir):
+        super().__init__(core_engine_dir)
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.model, self.processor = self.load_model_and_processor(engine_dir)
+        self.model, self.processor = self.load_model_and_processor(core_engine_dir)
 
     def process(self, images: List[str]) -> Dict[str, List[float]]:
         predictions = {}
@@ -28,7 +29,7 @@ class PageTypeCoreEngineViT(PageTypeCoreEngine):
             if (i + 1) % 100 == 0:
                 logger.info(f"Processed {i + 1}/{len(images)} images")
         if len(images) % 100 != 0:
-            logger.info(f"Processed {len(images)/len(images)} images")
+            logger.info(f"Processed {len(images)}/{len(images)} images")
         return predictions
 
     def predict_probs(self, image_path: str) -> List[float]:

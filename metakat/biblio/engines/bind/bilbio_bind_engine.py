@@ -22,7 +22,7 @@ class BiblioBindEngine(ABC):
         with open(config_path, "r", encoding="utf-8") as f:
             self.config = json.load(f)
 
-        logger.info(f"Biblio bind engine config: \n{json.dumps(self.config, indent=4)}")
+        logger.info(f"Biblio bind engine config {config_path}: \n{json.dumps(self.config, indent=4)}")
 
         self.name = self.config['name']
 

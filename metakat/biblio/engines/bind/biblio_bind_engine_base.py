@@ -2,10 +2,9 @@ import copy
 import logging
 import os
 
-from typing import List, Tuple, Union, Optional
-from uuid import uuid4, UUID
+from typing import List, Tuple, Optional, Union
+from uuid import uuid4
 
-from biblio.engines.core.biblio_core_engine import BiblioCoreEngine
 from biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
 from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
 
@@ -21,10 +20,10 @@ class BiblioBindEngineBase(BiblioBindEngine):
 
     def process(self, batch_dir: str, metakat_io: MetakatIO, proarc_io: ProarcIO = None) -> MetakatIO:
         metakat_io = copy.deepcopy(metakat_io)
-        pages = [el for el in metakat_io.elements if el.type == DocumentType.PAGE]
+        pages = [el for el in metakat_io.elements if el.type == DocumentType.PAGE.value]
         pages = sorted(pages, key=lambda x: x.batch_index)
         logger.info(f"Getting title pages from {len(pages)} pages")
-        title_pages = self.filter_title_pages(pages, 20)
+        title_pages = self.filter_title_pages(pages, 5)
         logger.info(f"Found {len(title_pages)} title pages")
 
         images = [os.path.join(batch_dir, metakat_io.page_to_image_mapping[page.id]) for page in title_pages if
@@ -38,44 +37,127 @@ class BiblioBindEngineBase(BiblioBindEngine):
                     f"{sum([len(p.matched_detections) for p in matched_pages if p.matched_detections is not None])} "
                     f"detections")
 
-        matched_page_file_name_to_metakat_page_id = {v: k for k, v in metakat_io.page_to_image_mapping.items()}
+        metakat_page_id_to_metakat_page = {page.id: page for page in metakat_io.elements if
+                                           page.type == DocumentType.PAGE.value}
+        matched_page_file_name_to_metakat_page = {v: metakat_page_id_to_metakat_page[k] for k, v in
+                                                  metakat_io.page_to_image_mapping.items()}
 
         logger.info(f"Creating MetaKatVolume and MetaKatIssue elements from detections")
-        metakat_elements, detection_id_to_detection_bbox, detection_id_to_page_id = self.extract_metakat_elements_from_detections(
-            matched_pages, matched_page_file_name_to_metakat_page_id)
+        metakat_elements, detection_id_to_detection_bbox, detection_id_to_page_id = self.get_volume_issue_from_detections(
+            matched_pages, matched_page_file_name_to_metakat_page)
         logger.info(f"Created {len(metakat_elements)} MetaKatVolume and MetaKatIssue elements from detections")
         logger.info(f"Creating MetaKatTitle element, and filtering MetaKatVolume elements")
-        metakat_elements = self.finalize_metakat_elements(metakat_elements)
+        page_id_to_batch_index = {p.id: p.batch_index for p in metakat_io.elements if p.type == DocumentType.PAGE.value}
+        metakat_elements = self.finalize_periodical_volumes(metakat_elements, page_id_to_batch_index)
+        title_element = self.get_title(metakat_elements)
+        if title_element is not None:
+            metakat_elements = [title_element] + metakat_elements
         logger.info(f"Adding {len(metakat_elements)} MetaKat elements to MetaKatIO")
         metakat_io.elements = metakat_elements + metakat_io.elements
+        logger.info(f"Binding MetaKat elements")
+        self.bind(metakat_io)
         return metakat_io
 
-    def finalize_metakat_elements(self, metakat_elements: List[MetakatElement]) -> List[MetakatElement]:
-        elements = self.finalize_metakat_periodical_volumes(metakat_elements)
-        title_element = self.get_metakat_title_element(elements)
-        if title_element is not None:
-            elements = [title_element] + elements
-        return elements
+    def bind(self, metakat_io: MetakatIO):
+        infant_pages = []
+        infant_issues = []
+        infant_volumes = []
+        title = None
+        for element in metakat_io.elements:
+            if element.type == DocumentType.PAGE.value and element.parent_id is None:
+                infant_pages.append(element)
+            elif element.type == DocumentType.ISSUE.value and element.parent_id is None:
+                infant_issues.append(element)
+            elif element.type == DocumentType.VOLUME.value and element.parent_id is None:
+                infant_volumes.append(element)
+            if element.type == DocumentType.TITLE.value:
+                title = element
+
+        # We assume only one title in batch
+        if title is not None and infant_volumes:
+            for volume in infant_volumes:
+                volume.parent_id = title.id
+
+        pages = [p for p in metakat_io.elements if p.type == DocumentType.PAGE.value]
+
+        if infant_issues:
+            self.bind_pages(pages, infants=infant_pages, parents=infant_issues)
+            self.bind_issues(pages, infants=infant_issues, parents=infant_volumes)
+        elif infant_pages:
+            self.bind_pages(pages, infants=infant_pages, parents=infant_volumes)
+
+
+    def bind_pages(self,
+                   pages: List[MetakatPage],
+                   infants: List[Union[MetakatPage]],
+                   parents: List[Union[MetakatVolume, MetakatIssue]]):
+        if not pages or not parents or not infants:
+            return
+
+        page_id_to_batch_index = {p.id: p.batch_index for p in pages}
+        batch_index_to_infants = {infant.batch_index: infant for infant in infants}
+        parents_to_batch_index = {parent.id: page_id_to_batch_index[parent.page_id] for parent in parents}
+
+        sorted_parents = sorted(parents, key=lambda x: parents_to_batch_index[x.id])
+        current_parent_index = 0
+        current_parent = sorted_parents[current_parent_index]
+        for page in pages:
+            if current_parent_index < len(sorted_parents) - 1 and parents_to_batch_index[sorted_parents[current_parent_index + 1].id] == page.batch_index:
+                current_parent = sorted_parents[current_parent_index + 1]
+                current_parent_index += 1
+
+            current_infant = batch_index_to_infants.get(page.batch_index, None)
+            if current_infant is not None:
+                current_infant.parent_id = current_parent.id
+
+            if page.pageType in [PageType.BACK_COVER, PageType.FRONT_COVER] and parents_to_batch_index[current_parent.id] < page.batch_index:
+                if current_parent_index < len(sorted_parents) - 1:
+                    current_parent = sorted_parents[current_parent_index + 1]
+                    current_parent_index += 1
+
+    def bind_issues(self,
+                    pages: List[MetakatPage],
+                    infants: List[MetakatIssue],
+                    parents: List[MetakatVolume]):
+        if not pages or not parents or not infants:
+            return
+
+        page_id_to_batch_index = {p.id: p.batch_index for p in pages}
+        infants_to_batch_index = {issue.id: page_id_to_batch_index[issue.page_id] for issue in infants}
+        parents_to_batch_index = {volume.id: page_id_to_batch_index[volume.page_id] for volume in parents}
+
+        sorted_parents = sorted(parents, key=lambda v: parents_to_batch_index[v.id])
+
+        current_parent_index = 0
+        for issue in sorted(infants, key=lambda i: infants_to_batch_index[i.id]):
+            issue_batch_index = infants_to_batch_index[issue.id]
+
+            while current_parent_index + 1 < len(sorted_parents) and \
+                    parents_to_batch_index[sorted_parents[current_parent_index + 1].id] <= issue_batch_index:
+                current_parent_index += 1
+
+            issue.parent_id = sorted_parents[current_parent_index].id
 
     # Create the MetakatTitle element from the list of MetakatElements
     # Extract the title and subtitle from the MetakatVolume element that has the most confident title detection
-    def get_metakat_title_element(self, elements: List[MetakatElement]) -> Optional[MetakatTitle]:
-        title_element = None
+    def get_title(self, elements: List[MetakatElement]) -> Optional[MetakatTitle]:
+        volume_element = None
         for element in elements:
-            if isinstance(element, MetakatVolume):
-                if element.title and (title_element is None or element.title[1] > title_element.title[1]):
-                    title_element = element
+            if element.type == DocumentType.VOLUME.value:
+                if element.title and (volume_element is None or element.title[1] > volume_element.title[1]):
+                    volume_element = element
 
-        if title_element is not None:
+        if volume_element is not None:
             return MetakatTitle(
                 id=uuid4(),
-                periodical=title_element.periodical,
-                title=title_element.title,
-                subTitle=title_element.subTitle
+                periodical=volume_element.periodical,
+                title=volume_element.title,
+                subTitle=volume_element.subTitle
             )
+
         return None
 
-    def finalize_metakat_periodical_volumes(self, metakat_elements: List[MetakatElement]) -> List[MetakatElement]:
+    def finalize_periodical_volumes(self, metakat_elements: List[MetakatElement], page_id_to_batch_index: dict) -> List[MetakatElement]:
         periodical_volume_bags = []
         periodical_volumes = [el for el in metakat_elements if isinstance(el, MetakatVolume) and el.periodical]
 
@@ -84,7 +166,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
             if periodical_volume.partNumber is not None and periodical_volume.dateIssued is not None:
                 added = False
                 for pb in periodical_volume_bags:
-                    if pb.add_volume(periodical_volume):
+                    if pb.add_volume(periodical_volume, page_id_to_batch_index):
                         added = True
                         break
                 if not added:
@@ -96,7 +178,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 (periodical_volume.partNumber is None and periodical_volume.dateIssued is not None)):
                 added = False
                 for pb in periodical_volume_bags:
-                    if pb.add_volume(periodical_volume):
+                    if pb.add_volume(periodical_volume, page_id_to_batch_index):
                         added = True
                         break
                 if not added:
@@ -108,41 +190,41 @@ class BiblioBindEngineBase(BiblioBindEngine):
             for volume in pb.volumes:
                 volume_id_to_root_volume_id[volume.id] = root_volume.id
 
-        issues = [el for el in metakat_elements if isinstance(el, MetakatIssue)]
-        for issues in issues:
-            if issues.parent_id in volume_id_to_root_volume_id:
-                issues.parent_id = volume_id_to_root_volume_id[issues.parent_id]
-
-        volumes = [pb.root_volume for pb in periodical_volume_bags]
+        volumes = []
+        for pb in periodical_volume_bags:
+            new_volume = copy.deepcopy(pb.root_volume)
+            new_volume.page_id = pb.root_page_id
+            volumes.append(new_volume)
+        issues = [el for el in metakat_elements if el.type == DocumentType.ISSUE.value]
 
         elements = volumes + issues
         for el in metakat_elements:
-            if not (isinstance(el, MetakatVolume) and el.periodical) and not isinstance(el, MetakatIssue):
+            if not (el.type == DocumentType.VOLUME.value and el.periodical) and not el.type == DocumentType.ISSUE.value:
                 elements.append(el)
 
         return elements
 
-    def extract_metakat_elements_from_detections(self,
-        matched_pages: List[ALTOMatchedPage],
-        matched_page_file_name_to_metakat_page_id: dict
-    ) -> Tuple[List[MetakatElement], dict, dict]:
+    def get_volume_issue_from_detections(self,
+                                         matched_pages: List[ALTOMatchedPage],
+                                         matched_page_file_name_to_metakat_page: dict
+                                         ) -> Tuple[List[MetakatElement], dict, dict]:
         elements = []
         detection_id_to_detection_bbox = {}
         detection_id_to_page_id = {}
         for matched_page in matched_pages:
-            page_elements, page_id_to_detection_bbox = self.get_metakat_elements_from_page(matched_page)
+            metakat_page = matched_page_file_name_to_metakat_page[matched_page.detector_parser_page.image_filename]
+            page_elements, page_id_to_detection_bbox = self.get_volume_issue_from_page(matched_page, metakat_page)
             elements.extend(page_elements)
             detection_id_to_detection_bbox.update(page_id_to_detection_bbox)
-            metakat_page_id = matched_page_file_name_to_metakat_page_id[matched_page.detector_parser_page.image_filename]
             for detection_id, bbox in page_id_to_detection_bbox.items():
-                detection_id_to_page_id[detection_id] = metakat_page_id
+                detection_id_to_page_id[detection_id] = metakat_page.id
         return elements, detection_id_to_detection_bbox, detection_id_to_page_id
 
-    def get_metakat_elements_from_page(self, matched_page: ALTOMatchedPage) -> Tuple[List[MetakatElement], dict]:
+    def get_volume_issue_from_page(self, matched_page: ALTOMatchedPage, metakat_page: MetakatPage) -> Tuple[List[MetakatElement], dict]:
         elements = []
         detection_id_to_detection_bbox = {}
-        metakat_volume = MetakatVolume(id=uuid4(), periodical=False)
-        metakat_issue = MetakatIssue(id=uuid4())
+        metakat_volume = MetakatVolume(id=uuid4(), page_id=metakat_page.id, periodical=False)
+        metakat_issue = MetakatIssue(id=uuid4(), page_id=metakat_page.id)
         for matched_detection in matched_page.matched_detections:
             class_id = matched_detection.get_class_id()
             if class_id not in self.core_engine.id2label:
@@ -333,9 +415,10 @@ class PeriodicalMetakatVolumeBag:
         if not volume.periodical:
             raise ValueError("Volume must be a periodical volume")
         self.root_volume = volume
+        self.root_page_id = volume.page_id
         self.volumes = []
 
-    def add_volume(self, volume: MetakatVolume):
+    def add_volume(self, volume: MetakatVolume, page_id_to_batch_index: dict) -> bool:
         if not volume.periodical:
             return False
         if volume.partNumber is None and volume.dateIssued is None:
@@ -349,7 +432,7 @@ class PeriodicalMetakatVolumeBag:
             if volume.partNumber is not None and volume.dateIssued is not None:
                 if volume.partNumber[1] + volume.dateIssued[1] > self.root_volume.partNumber[1] + self.root_volume.dateIssued[1]:
                     self.volumes.append(self.root_volume)
-                    self.root_volume = volume
+                    self.root_volume = self.change_root_volume(volume, page_id_to_batch_index)
                 else:
                     self.volumes.append(volume)
                 return True
@@ -367,7 +450,7 @@ class PeriodicalMetakatVolumeBag:
             self.root_volume.partNumber == volume.partNumber:
             if volume.partNumber[1] > self.root_volume.partNumber[1]:
                 self.volumes.append(self.root_volume)
-                self.root_volume = volume
+                self.root_volume = self.change_root_volume(volume, page_id_to_batch_index)
             else:
                 self.volumes.append(volume)
             return True
@@ -377,11 +460,18 @@ class PeriodicalMetakatVolumeBag:
             self.root_volume.dateIssued == volume.dateIssued:
             if volume.dateIssued[1] > self.root_volume.dateIssued[1]:
                 self.volumes.append(self.root_volume)
-                self.root_volume = volume
+                self.root_volume = self.change_root_volume(volume, page_id_to_batch_index)
             else:
                 self.volumes.append(volume)
             return True
         return False
+
+    def change_root_volume(self, volume: MetakatVolume, page_id_to_batch_index: dict):
+        if not volume.periodical:
+            raise ValueError("Volume must be a periodical volume")
+        self.root_volume = volume
+        if page_id_to_batch_index[volume.page_id] < page_id_to_batch_index[self.root_volume.page_id]:
+            self.root_page_id = volume.page_id
 
 
 
