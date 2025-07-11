@@ -5,11 +5,13 @@ import os
 from typing import List, Tuple, Optional, Union
 from uuid import uuid4
 
+from natsort import natsorted
+
 from biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
 from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
 
 from schemas.base_objects import MetakatIO, ProarcIO, DocumentType, MetakatPage, PageType, BiblioType, \
-    MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle
+    MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle, HierarchyType
 
 logger = logging.getLogger(__name__)
 
@@ -23,16 +25,19 @@ class BiblioBindEngineBase(BiblioBindEngine):
         pages = [el for el in metakat_io.elements if el.type == DocumentType.PAGE.value]
         pages = sorted(pages, key=lambda x: x.batch_index)
         logger.info(f"Getting title pages from {len(pages)} pages")
-        title_pages = self.filter_title_pages(pages, 5)
+        title_pages = self.filter_title_pages(pages, 1)
         logger.info(f"Found {len(title_pages)} title pages")
 
         images = [os.path.join(batch_dir, metakat_io.page_to_image_mapping[page.id]) for page in title_pages if
                   page.id in metakat_io.page_to_image_mapping]
         alto_files = [os.path.join(batch_dir, metakat_io.page_to_alto_mapping[page.id]) for page in title_pages if
                       page.id in metakat_io.page_to_alto_mapping]
+        images = natsorted(images)
+        alto_files = natsorted(alto_files)
 
         logger.info(f"Processing {len(images)} images with biblio core engine")
         matched_pages = self.core_engine.process(images, alto_files)
+        matched_pages = natsorted(matched_pages, key=lambda x: x.detector_parser_page.image_filename)
         logger.info(f"Biblio core engine returned "
                     f"{sum([len(p.matched_detections) for p in matched_pages if p.matched_detections is not None])} "
                     f"detections")
@@ -143,14 +148,16 @@ class BiblioBindEngineBase(BiblioBindEngine):
     def get_title(self, elements: List[MetakatElement]) -> Optional[MetakatTitle]:
         volume_element = None
         for element in elements:
-            if element.type == DocumentType.VOLUME.value:
+            if (element.type == DocumentType.VOLUME.value and
+                (element.hierarchy == HierarchyType.PERIODICAL or
+                 element.hierarchy == HierarchyType.MULTIPART)):
                 if element.title and (volume_element is None or element.title[1] > volume_element.title[1]):
                     volume_element = element
 
         if volume_element is not None:
             return MetakatTitle(
                 id=uuid4(),
-                periodical=volume_element.periodical,
+                hierarchy=volume_element.hierarchy,
                 title=volume_element.title,
                 subTitle=volume_element.subTitle
             )
@@ -159,7 +166,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
 
     def finalize_periodical_volumes(self, metakat_elements: List[MetakatElement], page_id_to_batch_index: dict) -> List[MetakatElement]:
         periodical_volume_bags = []
-        periodical_volumes = [el for el in metakat_elements if isinstance(el, MetakatVolume) and el.periodical]
+        periodical_volumes = [el for el in metakat_elements if el.type == DocumentType.VOLUME.value and el.hierarchy == HierarchyType.PERIODICAL]
 
         # First add volumes that have both partNumber and dateIssued
         for periodical_volume in periodical_volumes:
@@ -199,7 +206,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
 
         elements = volumes + issues
         for el in metakat_elements:
-            if not (el.type == DocumentType.VOLUME.value and el.periodical) and not el.type == DocumentType.ISSUE.value:
+            if not (el.type == DocumentType.VOLUME.value and el.hierarchy == HierarchyType.PERIODICAL) and not el.type == DocumentType.ISSUE.value:
                 elements.append(el)
 
         return elements
@@ -223,7 +230,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
     def get_volume_issue_from_page(self, matched_page: ALTOMatchedPage, metakat_page: MetakatPage) -> Tuple[List[MetakatElement], dict]:
         elements = []
         detection_id_to_detection_bbox = {}
-        metakat_volume = MetakatVolume(id=uuid4(), page_id=metakat_page.id, periodical=False)
+        metakat_volume = MetakatVolume(id=uuid4(), page_id=metakat_page.id, hierarchy=HierarchyType.MONOGRAPH)
         metakat_issue = MetakatIssue(id=uuid4(), page_id=metakat_page.id)
         for matched_detection in matched_page.matched_detections:
             class_id = matched_detection.get_class_id()
@@ -243,12 +250,12 @@ class BiblioBindEngineBase(BiblioBindEngine):
                          detection_id)
 
             if biblio_type == BiblioType.PERIODICAL_VOLUME_PART_NUMBER:
-                metakat_volume.periodical = True
+                metakat_volume.hierarchy = HierarchyType.PERIODICAL
                 if metakat_volume.partNumber is None or metakat_volume.partNumber[1] < detection[1]:
                     metakat_volume.partNumber = detection
 
             elif biblio_type == BiblioType.PERIODICAL_VOLUME_DATE_ISSUED:
-                metakat_volume.periodical = True
+                metakat_volume.hierarchy = HierarchyType.PERIODICAL
                 if metakat_volume.dateIssued is None or metakat_volume.dateIssued[1] < detection[1]:
                     metakat_volume.dateIssued = detection
 
@@ -314,7 +321,15 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 else:
                     metakat_issue.manufacturePlaceTerm.append(detection)
 
+            elif biblio_type == BiblioType.PART_NUMBER:
+                if metakat_volume.hierarchy == HierarchyType.MONOGRAPH:
+                    metakat_volume.hierarchy = HierarchyType.MULTIPART
+                if metakat_volume.partNumber is None or metakat_volume.partNumber[1] < detection[1]:
+                    metakat_volume.partNumber = detection
+
             elif biblio_type == BiblioType.PART_NAME:
+                if metakat_volume.hierarchy == HierarchyType.MONOGRAPH:
+                    metakat_volume.hierarchy = HierarchyType.MULTIPART
                 if metakat_volume.partName is None or metakat_volume.partName[1] < detection[1]:
                     metakat_volume.partName = detection
 
@@ -412,20 +427,19 @@ class BiblioBindEngineBase(BiblioBindEngine):
 
 class PeriodicalMetakatVolumeBag:
     def __init__(self, volume: MetakatVolume):
-        if not volume.periodical:
+        if volume.hierarchy != HierarchyType.PERIODICAL:
             raise ValueError("Volume must be a periodical volume")
         self.root_volume = volume
         self.root_page_id = volume.page_id
         self.volumes = []
 
     def add_volume(self, volume: MetakatVolume, page_id_to_batch_index: dict) -> bool:
-        if not volume.periodical:
+        if volume.hierarchy != HierarchyType.PERIODICAL:
             return False
         if volume.partNumber is None and volume.dateIssued is None:
             return False
         if self.root_volume.partNumber != volume.partNumber and self.root_volume.dateIssued != volume.dateIssued:
             return False
-
 
         if self.root_volume.partNumber is not None and self.root_volume.dateIssued is not None:
             # Added volume has both partNumber and dateIssued
@@ -467,7 +481,7 @@ class PeriodicalMetakatVolumeBag:
         return False
 
     def change_root_volume(self, volume: MetakatVolume, page_id_to_batch_index: dict):
-        if not volume.periodical:
+        if volume.hierarchy != HierarchyType.PERIODICAL:
             raise ValueError("Volume must be a periodical volume")
         self.root_volume = volume
         if page_id_to_batch_index[volume.page_id] < page_id_to_batch_index[self.root_volume.page_id]:

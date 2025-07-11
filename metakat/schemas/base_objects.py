@@ -1,6 +1,6 @@
 import enum
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, Tuple, List, Union, Dict, Annotated, Literal
 from uuid import UUID
 
@@ -14,6 +14,16 @@ class DocumentType(str, enum.Enum):
     SUPPLEMENT = "supplement"
     CHAPTER = "chapter"
     ARTICLE = "article"
+
+class HierarchyType(str, enum.Enum):
+    MULTIPART = "multipart"
+    MONOGRAPH = "monograph"
+    PERIODICAL = "periodical"
+
+class PageSideType(str, enum.Enum):
+    LEFT = "left"
+    RIGHT = "right"
+    SINGLE_PAGE = "single_page"
 
 class PageType(str, enum.Enum):
     ABSTRACT = "Abstract"
@@ -88,15 +98,25 @@ class MetakatBaseModel(BaseModel):
 
 class MetakatTitle(MetakatBaseModel):
     type: Literal["title"] = "title"
-    periodical: bool
+    hierarchy: Optional[HierarchyType] = None
     id: UUID
     page_id: Optional[UUID] = None
     title: Optional[Tuple[str, float, UUID]] = None
     subTitle: Optional[Tuple[str, float, UUID]] = None
 
+    @field_validator("hierarchy")
+    @classmethod
+    def check_valid_hierarchy(cls, v):
+        if v is not None and v not in {
+            HierarchyType.MULTIPART,
+            HierarchyType.PERIODICAL,
+        }:
+            raise ValueError("Only 'multipart' or 'periodical' are allowed")
+        return v
+
 class MetakatVolume(MetakatBaseModel):
     type: Literal["volume"] = "volume"
-    periodical: bool
+    hierarchy: Optional[HierarchyType] = None
     id: UUID
     parent_id: Optional[UUID] = None
     page_id: Optional[UUID] = None
@@ -143,6 +163,7 @@ class MetakatPage(MetakatBaseModel):
     pageIndex: Optional[int] = None
     pageNumber: Optional[Tuple[str, float, UUID]] = None
     pageType: Optional[Tuple[PageType, float]] = None
+    side: Optional[Tuple[PageSideType, float]] = None
 
 class MetakatSupplement(MetakatBaseModel):
     type: Literal["supplement"] = "supplement"
@@ -198,6 +219,8 @@ class MetakatIO(MetakatBaseModel):
     page_to_xml_mapping: Optional[Dict[UUID, str]] = None
     page_to_image_mapping: Optional[Dict[UUID, str]] = None
     detection_to_bbox: Optional[Dict[UUID, Tuple[float, float, float, float]]] = None
+
+MetakatIO.model_rebuild()
 ###################################################
 
 

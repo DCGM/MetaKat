@@ -105,12 +105,14 @@ def main():
 
 def init_io(batch_dir: str, metakat_json: str, proarc_json: str, batch_id: UUID = uuid4()) -> Tuple[MetakatIO, ProarcIO]:
     if metakat_json is not None:
-        metakat_io = MetakatIO.from_json(metakat_json)
+        with open(metakat_json, 'r', encoding='utf-8') as f:
+            metakat_io = MetakatIO.model_validate_json(f.read())
     else:
         metakat_io = MetakatIO(batch_id=batch_id)
 
     if proarc_json is not None:
-        proarc_io = ProarcIO.from_json(proarc_json)
+        with open(proarc_json, 'r', encoding='utf-8') as f:
+            proarc_io = ProarcIO.model_validate_json(f.read())
     else:
         proarc_io = None
 
