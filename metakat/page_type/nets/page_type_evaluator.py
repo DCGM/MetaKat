@@ -1,3 +1,12 @@
+"""
+File: page_type_evaluator.py
+Author: [Jan Kohut, Matej Smida]
+Date: 2025-05-12
+Description: Evaluates dataset
+             for [for evaluating purposes].
+"""
+
+#This code was created by Jan Kohut
 import collections
 import logging
 import time
@@ -59,8 +68,11 @@ class PageTypeEvaluator:
         predictions = []
         gt_labels = []
 
+#This code was created by Matej Smida
+
         clip_input_ids = None
         clip_attention_mask = None
+        #creates text prompts "a page of type {type} for classic CLIP evaluation"
         if self.orig_clip is True and type(self.processor).__name__ == 'CLIPProcessor':
             clip_labels = []
 
@@ -84,6 +96,7 @@ class PageTypeEvaluator:
             input_ids = None
             attention_mask = None
 
+            #Gets processed text from batch
             if self.orig_clip is False:
                 input_ids = batch.get('input_ids')
                 attention_mask = batch.get('attention_mask')
@@ -105,6 +118,7 @@ class PageTypeEvaluator:
             else:
                 out = model(pixel_values=pixel_values, labels=labels)
 
+            #calculates loss for original CLIP through cross entropy
             if self.orig_clip is True:
                 logits_per_image = out.logits_per_image
                 loss_fn = torch.nn.CrossEntropyLoss()
@@ -114,6 +128,7 @@ class PageTypeEvaluator:
                 predictions.append(logits_per_image.argmax(dim=1).cpu().numpy())
 
             else:
+#This code was created by Jan Kohut
                 loss.append(out.loss.item())
                 predictions.append(out.logits.argmax(dim=-1).cpu().numpy())
 

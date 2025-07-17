@@ -1,3 +1,12 @@
+"""
+File: train.py
+Author: [Jan Kohut, Matej Smida]
+Date: 2025-05-12
+Description: main training loop
+             for [for training purposes].
+"""
+
+#This code was created by Jan Kohut
 import copy
 import json
 import os
@@ -187,6 +196,8 @@ def main():
         logging_steps=args.logging_steps
     )
 
+# This code was created by Matej Smida
+
     optimizer = AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.05)
 
     scheduler = get_linear_schedule_with_warmup(
@@ -203,6 +214,8 @@ def main():
         data_collator=PageTypeCollator(),
         optimizers=(optimizer, scheduler)
     )
+
+# This code was created by Jan Kohut
 
     trainer.add_callback(PageTypeEvaluatorTrainerCallback(
         evaluators=[PageTypeEvaluator(dataset=eval_dataset, collator=PageTypeCollator(),
@@ -249,6 +262,7 @@ def init_processor(model_checkpoint):
         raise ValueError(f'Unknown model: {model_checkpoint}')
     return processor
 
+#This code was created by Matej Smida
 
 def init_model(model_checkpoint, dataset, orig_clip=False):
     logger.info(f'Loading model: {model_checkpoint}')
@@ -260,6 +274,7 @@ def init_model(model_checkpoint, dataset, orig_clip=False):
                                                            id2label=dataset.id2label,
                                                            label2id=dataset.label2id,
                                                            ignore_mismatched_sizes=True)
+# This code was created by Jan Kohut
     elif 'vit' in model_checkpoint:
         model = ViTForImageClassification.from_pretrained(model_checkpoint,
                                                           num_labels=len(dataset.id2label),

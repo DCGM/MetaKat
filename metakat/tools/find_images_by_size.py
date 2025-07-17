@@ -1,3 +1,11 @@
+"""
+File: find_images_by_size.py
+Author: [Matej Smida]
+Date: 2025-05-12
+Description: find all images of certain size from dataset
+             for [for debugging].
+"""
+
 import argparse
 import glob
 import logging

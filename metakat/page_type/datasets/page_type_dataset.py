@@ -1,3 +1,12 @@
+"""
+File: page_type_dataset.py
+Author: [Jan Kohut, Matej Smida]
+Date: 2025-05-12
+Description: dataset (training, testing, ...) from input data
+             for [for training purposes].
+"""
+
+#this code has been created by Jan Kohut
 import logging
 import os
 import random
@@ -145,6 +154,7 @@ class PageTypeDataset(Dataset):
             position_patch = position_patch.reshape(self.position_patch_size, self.position_patch_size, 3)
             padded_square_img[:, :self.position_patch_size, :self.position_patch_size] = self.normalize(torch.from_numpy(position_patch).permute(2, 0, 1) / 255.0)
 
+#This code has been created by Matej Smida
         if self.clip_proc:
             textfile_name = re.sub(r"\.jp.*$", ".txt", name)
 

@@ -1,3 +1,11 @@
+"""
+File: page_type_trainer.py
+Author: [Jan Kohut]
+Date: 2025-05-12
+Description: Customized training arguments
+             for [for training purposes].
+"""
+
 import logging
 from dataclasses import dataclass, field
 

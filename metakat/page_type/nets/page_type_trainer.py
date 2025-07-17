@@ -1,4 +1,10 @@
-
+"""
+File: page_type_trainer.py
+Author: [Jan Kohut]
+Date: 2025-05-12
+Description: Customized trainer
+             for [for training purposes].
+"""
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import datasets

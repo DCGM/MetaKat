@@ -1,3 +1,12 @@
+"""
+File: page_type_collator.py
+Author: [Jan Kohut, Matej Smida]
+Date: 2025-05-12
+Description: Creates batches from input data
+             for [image classification on ViT and custom CLIP model].
+"""
+
+# This code has been created by Jan Kohut
 import logging
 import torch
 from torch.nn.utils.rnn import pad_sequence
@@ -13,6 +22,7 @@ class PageTypeCollator(object):
         batch = {'pixel_values': torch.stack([d['pixel_values'] for d in data]),
                 'labels': torch.tensor([d['label'] for d in data])}
 
+# This code has been created by Matej Smida
         if 'input_ids' in data[0] and 'attention_mask' in data[0]:
             input_ids = [d["input_ids"].squeeze(0) for d in data]
             attention_mask = [d["attention_mask"].squeeze(0) for d in data]

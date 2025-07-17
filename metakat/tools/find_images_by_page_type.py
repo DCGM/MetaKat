@@ -1,3 +1,11 @@
+"""
+File: find_images_by_page_type.py
+Author: [Matej Smida]
+Date: 2025-05-12
+Description: find all images of certain page type from dataset
+             for [for debugging and dataset creating].
+"""
+
 import argparse
 import glob
 import logging

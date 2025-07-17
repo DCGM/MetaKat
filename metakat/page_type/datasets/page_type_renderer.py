@@ -1,3 +1,12 @@
+"""
+File: page_type_renderer.py
+Author: [Jan Kohut, Matej Smida]
+Date: 2025-05-12
+Description: renders output images that were classified with probability of classes
+             for [for evaluating purposes].
+"""
+
+#This code was created by Jan Kohut
 import logging
 import os
 import time
@@ -59,6 +68,7 @@ class PageTypeRenderer:
         g_classification = 0
         l_classification = 0
 
+#This code was created by Matej Smida
         clip_tokenizer = None
         if type(self.processor).__name__ == 'CLIPProcessor':
             clip_tokenizer = self.processor.tokenizer
@@ -80,6 +90,7 @@ class PageTypeRenderer:
             clip_attention_mask = token_out['attention_mask']
             clip_attention_mask = clip_attention_mask.to(model.device)
 
+#This code was created by Jan Kohut
         logger.info('')
         logger.info(f'Rendering {self.dataset.name} dataset:')
         for batch in data_loader:
@@ -94,6 +105,7 @@ class PageTypeRenderer:
                 pixel_values = batch['pixel_values']
                 pixel_values = pixel_values.to(model.device)
 
+#This code was created by Matej Smida
                 if self.orig_clip is False:
                     input_ids = batch.get('input_ids')
                     attention_mask = batch.get('attention_mask')
@@ -109,6 +121,7 @@ class PageTypeRenderer:
                     decoded_texts = clip_tokenizer.batch_decode(input_ids, skip_special_tokens=True)
                 else:
                     pred = model(pixel_values=pixel_values)
+#This code was created by Jan Kohut
 
                 l_classification_end = time.time()
                 l_classification += l_classification_end - l_classification_start
@@ -152,7 +165,8 @@ class PageTypeRenderer:
                                           0.5,
                                           pred_color,
                                           1)
-
+#This code was created by Matej Smida
+                #This creates empty space next to image and class probabilities with text if text was provided during training
                 if decoded_texts:
                     line = ""
                     max_height = 0
@@ -181,6 +195,7 @@ class PageTypeRenderer:
                                       (255, 255, 255),
                                       1)
 
+#This code was created by Jan Kohut
                 img = img.astype('float32') / 255.0
                 img = torch.from_numpy(img)
                 img = img.permute(2, 0, 1)
