@@ -1,3 +1,11 @@
+"""
+File: ClipModelWithClassificationHead.py
+Author: [Matej Smida]
+Date: 2025-05-12
+Description: Implements a modified CLIP model based on Hugging Face transformers
+             for [image classification on custom data, implements custom classification head].
+"""
+
 from dataclasses import dataclass
 import torch
 import os
@@ -88,14 +96,6 @@ class ClipWithClassificationHead(CLIPModel):
         text_embeds = text_outputs[1]
         text_embeds = self.text_projection(text_embeds)
 
-        """
-        # Combines one image with more text inputs for Classification
-        
-        batch_size = text_embeds.size(0)
-        image_embeds = image_embeds.unsqueeze(0).expand(batch_size, -1, -1).squeeze(1)
-        print(f"EMBDEDS {image_embeds.size()}")
-        """
-
         combined_features = torch.cat((image_embeds, text_embeds), dim=-1)
 
         logits = self.classificationHead(combined_features)
@@ -131,14 +131,3 @@ class ClipWithClassificationHead(CLIPModel):
             nn.Dropout(0.3),
             nn.Linear(512, num_labels),
         )
-
-    @classmethod
-    def from_pretrained(
-            cls,
-            pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
-            **kwargs,
-    ):
-        model = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
-        model.init_classification_head()
-
-        return model

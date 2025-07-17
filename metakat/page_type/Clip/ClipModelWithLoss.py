@@ -1,3 +1,11 @@
+"""
+File: ClipModelWithLoss.py
+Author: [Matej Smida]
+Date: 2025-05-12
+Description: Implements a modified CLIP model based on Hugging Face transformers
+             for [image classification on custom data, returns loss while training for fine-tuning purposes].
+"""
+
 from typing import Optional, Union, Tuple
 
 import torch
