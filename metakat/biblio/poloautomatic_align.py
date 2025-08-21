@@ -13,8 +13,7 @@ import re
 from rapidfuzz import fuzz
 import sys
 import unicodedata
-sys.path.append('/MetaKat/pero-ocr/pero_ocr/core')
-from force_alignment import align_text_to_image
+from pero_ocr.core.force_alignment import align_text_to_image
 from pero_ocr.core import layout
 
 radek = 1 # Pomocna promenna pro nezarovnane udaje
@@ -586,7 +585,7 @@ def parse_page_xml_to_json(xml_path, mods_path, output_dir, logits):
     # výstupní JSON
     result = {
         "data": {
-            "image": "/data/local-files/?d=digilinka_knihy/images/" + image_filename + '.jpg'
+            "image": "/data/local-files/?d=digilinka_knihy_private/images/" + image_filename
         },
         "annotations": [
             {
