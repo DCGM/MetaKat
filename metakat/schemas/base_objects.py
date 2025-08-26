@@ -1,6 +1,6 @@
 import enum
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, StringConstraints
 from typing import Optional, Tuple, List, Union, Dict, Annotated, Literal
 from uuid import UUID
 
@@ -226,7 +226,26 @@ MetakatIO.model_rebuild()
 
 #ProArc
 ####################################################
-class ProarcIO(BaseModel):
-    batch_id: UUID
+# pattern: "^uuid:.*"
+Pid = Annotated[str, StringConstraints(pattern=r"^uuid:.*")]
 
+class PackageType(str, enum.Enum):
+    periodical = "periodical"
+    monograph = "monograph"
+
+class ObjectModel(str, enum.Enum):
+    title = "title"
+    volume = "volume"
+    unit = "unit"
+
+class ObjectItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # additionalProperties: false
+    pid: Pid
+    model: ObjectModel
+    metadata: str
+
+class ProarcIO(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # additionalProperties: false
+    type: PackageType
+    objects: List[ObjectItem]
 ###################################################

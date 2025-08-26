@@ -80,8 +80,8 @@ def main():
         save_label_studio_storage(dataset,
                                   args.mastercopy_dir,
                                   args.output_label_studio_dir,
-                                  must_include=[x.strip() for x in args.label_studio_predictions_must_include.split(",")],
-                                  always_include=[x.strip() for x in args.label_studio_predictions_always_include.split(",")],
+                                  must_include=[x.strip() for x in args.label_studio_predictions_must_include.split(",")] if args.label_studio_predictions_must_include else None,
+                                  always_include=[x.strip() for x in args.label_studio_predictions_always_include.split(",")] if args.label_studio_predictions_always_include else None,
                                   label_studio_project_name=label_studio_project_name)
 
 
@@ -102,38 +102,37 @@ def parse_dataset(mets: str,
     if parse_peridical:
         periodical_dirs = [dir for dir in list_full_paths(mets) if os.path.isdir(dir)]
         for periodical_dir in periodical_dirs:
-            periodical_metadata = [file for file in list_full_paths(periodical_dir) if file.endswith('.xml')][0]
+            periodical_metadata = [file for file in list_full_paths(periodical_dir) if file.endswith('.mods')][0]
             periodical_uuid = os.path.basename(periodical_metadata)
             periodical_tree = etree.parse(periodical_metadata)
-            year_dirs = [dir for dir in list_full_paths(periodical_dir) if os.path.isdir(dir)]
-            for year_dir in year_dirs:
-                year_metadata = [file for file in list_full_paths(year_dir) if file.endswith('.xml')][0]
-                year_uuid = os.path.basename(year_metadata)
-                year_tree = etree.parse(year_metadata)
+            volume_dirs = [dir for dir in list_full_paths(periodical_dir) if os.path.isdir(dir)]
+            for volume_dir in volume_dirs:
+                volume_metadata = [file for file in list_full_paths(volume_dir) if file.endswith('.mods')][0]
+                volume_uuid = os.path.basename(volume_metadata)
+                volume_tree = etree.parse(volume_metadata)
 
-                volume_dirs = [dir for dir in list_full_paths(year_dir) if os.path.isdir(dir)]
-                for volume_dir in volume_dirs:
-                    volume_metadata = [file for file in list_full_paths(volume_dir) if file.endswith('.xml')][0]
-                    volume_uuid = os.path.basename(volume_metadata)
-                    volume_tree = etree.parse(volume_metadata)
+                issue_dirs = [dir for dir in list_full_paths(volume_dir) if os.path.isdir(dir)]
+                for issue_dir in issue_dirs:
+                    issue_metadata = [file for file in list_full_paths(issue_dir) if file.endswith('.mods')][0]
+                    issue_uuid = os.path.basename(issue_metadata)
+                    issue_tree = etree.parse(issue_metadata)
 
-                    pages_dir = os.path.join(volume_dir, "pages")
-                    title_page_metadata = [file for file in list_full_paths(pages_dir) if file.endswith('.xml')][0]
-                    title_page_uuid = os.path.basename(title_page_metadata).split('_')[0].split('uuid:')[1]
+                    pages_dir = os.path.join(issue_dir, "pages")
+                    title_page_metadata = [file for file in list_full_paths(pages_dir) if file.endswith('.mods')][0]
+                    title_page_uuid = os.path.splitext(os.path.basename(title_page_metadata))[0]
 
                     logger.debug(f'{"PERIODICAL UUID:":>20s} {periodical_uuid}')
-                    logger.debug(f'{"YEAR UUID:":>20s} {year_uuid}')
                     logger.debug(f'{"VOLUME UUID:":>20s} {volume_uuid}')
+                    logger.debug(f'{"ISSUE UUID:":>20s} {issue_uuid}')
                     logger.debug(f'{"TITLE PAGE UUID:":>20s} {title_page_uuid}')
 
-                    if ".xml" in title_page_uuid:
-                        title_page_file = f'{title_page_uuid}'
-                    else:
-                        title_page_file = f'{title_page_uuid}.xml'
-                    if not os.path.exists(os.path.join(page_xml_dir, title_page_file)):
+                    title_page_file = f'{title_page_uuid}.xml'
+                    page_xml_path = os.path.join(page_xml_dir, title_page_file)
+                    if not os.path.exists(page_xml_path):
+                        logger.warning(f'PAGE XML FILE NOT FOUND: {page_xml_path}, SKIPPING')
                         continue
                     title_page_layout = layout.PageLayout()
-                    title_page_layout.from_pagexml(os.path.join(page_xml_dir, title_page_file))
+                    title_page_layout.from_pagexml(page_xml_path)
 
                     title = periodical_tree.xpath(f"mods:mods/mods:titleInfo[not(contains(@type, 'alternative'))]/mods:title/text()", namespaces=namespaces)
                     if title:
@@ -155,7 +154,7 @@ def parse_dataset(mets: str,
                             dataset_subtitle_id = f'{title_page_uuid}.subtitle'
                             dataset[title_page_uuid]['subtitle'] = [[dataset_subtitle_id, subtitle, mapped_subtitle_bbox]]
 
-                    publisher = volume_tree.xpath(f"//mods:publisher/text()", namespaces=namespaces)
+                    publisher = issue_tree.xpath(f"//mods:publisher/text()", namespaces=namespaces)
                     if publisher:
                         publisher = publisher[0]
                         map_publisher_out = map_publisher(title_page_layout, publisher)
@@ -165,7 +164,7 @@ def parse_dataset(mets: str,
                             dataset_publisher_id = f'{title_page_uuid}.publisher'
                             dataset[title_page_uuid]['publisher'] = [[dataset_publisher_id, publisher, mapped_publisher_bbox]]
 
-                    date = volume_tree.xpath(f"//mods:dateIssued/text()", namespaces=namespaces)
+                    date = issue_tree.xpath(f"//mods:dateIssued/text()", namespaces=namespaces)
                     if date:
                         date = date[0]
                         map_date_out = map_date(title_page_layout, date)
@@ -175,33 +174,31 @@ def parse_dataset(mets: str,
                             dataset_date_id = f'{title_page_uuid}.date'
                             dataset[title_page_uuid]['date'] = [[dataset_date_id, date, mapped_date_bbox]]
 
-                    volume_number = volume_tree.xpath(f"//mods:partNumber/text()", namespaces=namespaces)
+                    issue_number = issue_tree.xpath(f"//mods:partNumber/text()", namespaces=namespaces)
+                    if not issue_number:
+                        issue_number = issue_tree.xpath(f"//mods:part/mods:detail/mods:number/text()", namespaces=namespaces)
+                    if issue_number:
+                        issue_number = issue_number[0]
+                        map_issue_number_out = map_issue_number(title_page_layout, issue_number)
+                        if map_issue_number_out is not None:
+                            mapped_issue_number_lines, _ = map_issue_number_out
+                            mapped_issue_number_bbox = create_bounding_box_for_lines(mapped_issue_number_lines)
+                            dataset_issue_number_id = f'{title_page_uuid}.issue_number'
+                            dataset[title_page_uuid]['issue_number'] = [[dataset_issue_number_id, issue_number, mapped_issue_number_bbox]]
+
+                    volume_number = volume_tree.xpath(f"//mods:titleInfo/mods:partNumber/text()", namespaces=namespaces)
                     if not volume_number:
                         volume_number = volume_tree.xpath(f"//mods:part/mods:detail/mods:number/text()", namespaces=namespaces)
                     if volume_number:
                         volume_number = volume_number[0]
-                        map_volume_number_out = map_volume_number(title_page_layout, volume_number)
-                        if map_volume_number_out is not None:
-                            mapped_volume_number_lines, _ = map_volume_number_out
-                            mapped_volume_number_bbox = create_bounding_box_for_lines(mapped_volume_number_lines)
-                            dataset_volume_number_id = f'{title_page_uuid}.volume_number'
-                            dataset[title_page_uuid]['volume_number'] = [[dataset_volume_number_id, volume_number, mapped_volume_number_bbox]]
+                        map_volume_out = map_volume_number(title_page_layout, volume_number)
+                        if map_volume_out is not None:
+                            mapped_volume_lines, _ = map_volume_out
+                            mapped_volume_bbox = create_bounding_box_for_lines(mapped_volume_lines)
+                            dataset_volume_id = f'{title_page_uuid}.volume'
+                            dataset[title_page_uuid]['volume'] = [[dataset_volume_id, volume_number, mapped_volume_bbox]]
 
-                    year_number = year_tree.xpath(f"//mods:titleInfo/mods:partNumber/text()", namespaces=namespaces)
-                    if not year_number:
-                        year_number = year_tree.xpath(f"//mods:part/mods:detail/mods:number/text()", namespaces=namespaces)
-                    if not year_number:
-                        print(f'YEAR NUMBER NOT FOUND: {year_number}')
-                    if year_number:
-                        year_number = year_number[0]
-                        map_year_out = map_year_number(title_page_layout, year_number)
-                        if map_year_out is not None:
-                            mapped_year_lines, _ = map_year_out
-                            mapped_year_bbox = create_bounding_box_for_lines(mapped_year_lines)
-                            dataset_year_id = f'{title_page_uuid}.year'
-                            dataset[title_page_uuid]['year'] = [[dataset_year_id, year_number, mapped_year_bbox]]
-
-                    place = volume_tree.xpath(f"//mods:placeTerm/text()", namespaces=namespaces)
+                    place = issue_tree.xpath(f"//mods:placeTerm/text()", namespaces=namespaces)
                     if place:
                         place = place[0]
                         map_place_out = map_place(title_page_layout, place)
@@ -567,31 +564,31 @@ def map_number(page_layout: layout.PageLayout, number: str,
     return [TextLine(id='number_not_mapped')], 1
 
 
-def map_year_number(page_layout: layout.PageLayout, year: str, max_year_transcription_relative_distance: float = 0.4):
+def map_volume_number(page_layout: layout.PageLayout, volume: str, max_volume_transcription_relative_distance: float = 0.4):
 
-    logger.debug(f'{"YEAR TO ALIGN:":>20s} {year}')
+    logger.debug(f'{"VOLUME TO ALIGN:":>20s} {volume}')
     
     roman_year = None
-    year_without_dot = year.replace(".", "")
+    year_without_dot = volume.replace(".", "")
     if year_without_dot.isnumeric():
         roman_year = str(int_to_roman(int(year_without_dot)))
 
-    year_transcription_edit_distances = []
+    volume_transcription_edit_distances = []
     for text_line in page_layout.lines_iterator():
         if text_line.transcription.strip() == '':
             continue
-        year_transcription_edit_distances.append([text_line,
-                                                 Levenshtein.distance(text_line.transcription.lower(), year.lower()),
-                                                 Levenshtein.distance(text_line.transcription.lower(), "rok " + year.lower()),
-                                                 Levenshtein.distance(text_line.transcription.lower(), "ročník " + year.lower())])
+        volume_transcription_edit_distances.append([text_line,
+                                                  Levenshtein.distance(text_line.transcription.lower(), volume.lower()),
+                                                  Levenshtein.distance(text_line.transcription.lower(), "rok " + volume.lower()),
+                                                  Levenshtein.distance(text_line.transcription.lower(), "ročník " + volume.lower())])
         if roman_year:
-            year_transcription_edit_distances[-1].append(Levenshtein.distance(text_line.transcription.lower(), roman_year.lower()))
-            year_transcription_edit_distances[-1].append(Levenshtein.distance(text_line.transcription.lower(), "rok " + roman_year.lower()))
-            year_transcription_edit_distances[-1].append(Levenshtein.distance(text_line.transcription.lower(), "ročník " + roman_year.lower()))
+            volume_transcription_edit_distances[-1].append(Levenshtein.distance(text_line.transcription.lower(), roman_year.lower()))
+            volume_transcription_edit_distances[-1].append(Levenshtein.distance(text_line.transcription.lower(), "rok " + roman_year.lower()))
+            volume_transcription_edit_distances[-1].append(Levenshtein.distance(text_line.transcription.lower(), "ročník " + roman_year.lower()))
             
     matched_lines = []
     match = False
-    for line in year_transcription_edit_distances:
+    for line in volume_transcription_edit_distances:
         text_line = line[0]
         year_d = line[1]
         year_rok_d = line[2]
@@ -600,52 +597,52 @@ def map_year_number(page_layout: layout.PageLayout, year: str, max_year_transcri
             roman_year_d = line[4]
             roman_year_rok_d = line[5]
             roman_year_rocnik_d = line[6]
-        match, relative_similarity = compare_orig_to_transcription(year,
+        match, relative_similarity = compare_orig_to_transcription(volume,
                                                                    text_line.transcription,
                                                                    year_d,
-                                                                   max_year_transcription_relative_distance)
+                                                                   max_volume_transcription_relative_distance)
         if not match:
-            match, relative_similarity = compare_orig_to_transcription("rok " + year,
+            match, relative_similarity = compare_orig_to_transcription("rok " + volume,
                                                                        text_line.transcription,
                                                                        year_rok_d,
-                                                                       max_year_transcription_relative_distance)
+                                                                       max_volume_transcription_relative_distance)
         if not match:
-            match, relative_similarity = compare_orig_to_transcription("ročník " + year,
+            match, relative_similarity = compare_orig_to_transcription("ročník " + volume,
                                                                        text_line.transcription,
                                                                        year_rocnik_d,
-                                                                       max_year_transcription_relative_distance)
+                                                                       max_volume_transcription_relative_distance)
         if not match and roman_year:
             match, relative_similarity = compare_orig_to_transcription(roman_year,
                                                                        text_line.transcription,
                                                                        roman_year_d,
-                                                                       max_year_transcription_relative_distance)
+                                                                       max_volume_transcription_relative_distance)
         if not match and roman_year:
             match, relative_similarity = compare_orig_to_transcription("rok " + roman_year,
                                                                        text_line.transcription,
                                                                        roman_year_rok_d,
-                                                                       max_year_transcription_relative_distance)
+                                                                       max_volume_transcription_relative_distance)
         if not match and roman_year:
             match, relative_similarity = compare_orig_to_transcription("ročník " + roman_year,
                                                                        text_line.transcription,
                                                                        roman_year_rocnik_d,
-                                                                       max_year_transcription_relative_distance)
+                                                                       max_volume_transcription_relative_distance)
         if match:
             matched_lines.append([text_line, relative_similarity])
 
     if len(matched_lines) > 0:
         matched_lines = sorted(matched_lines, key=lambda x: x[0].baseline[0][1])
-        year_text_line, year_transcription_edit_distance = matched_lines[0]
+        volume_text_line, volume_transcription_edit_distance = matched_lines[0]
 
     if len(matched_lines) > 0:
-        logger.debug(f'{"OCR:":>20s} {year_text_line.transcription}')
-        logger.debug(f'{"METS:":>20s} {year}')
+        logger.debug(f'{"OCR:":>20s} {volume_text_line.transcription}')
+        logger.debug(f'{"METS:":>20s} {volume}')
         logger.debug(f'{"MAPPED":>20s}')
-        logger.debug(f'{"ED:":>20s} {year_transcription_edit_distance}')
+        logger.debug(f'{"ED:":>20s} {volume_transcription_edit_distance}')
         logger.debug(f'{"RS:":>20s} {relative_similarity}')
-        return [year_text_line], relative_similarity
+        return [volume_text_line], relative_similarity
 
     logger.debug(f'{"MAPPING FAILED, relative distance is too high":>20s}\n')
-    return [TextLine(id='year_not_mapped')], 1
+    return [TextLine(id='volume_not_mapped')], 1
 
 
 def map_title(page_layout: layout.PageLayout, title: str,
@@ -745,6 +742,7 @@ def map_publisher(page_layout: layout.PageLayout, publisher: str,
                                                                    max_publisher_transcription_relative_distance)
 
         if match:
+            end_align_index = min(end_align_index, len(n_char_to_n_line_mapping) - 1)
             align_lines = list(page_layout.lines_iterator())[n_char_to_n_line_mapping[start_align_index]:
                                                              n_char_to_n_line_mapping[end_align_index] + 1]
             alignments.append([start_align_index, end_align_index,
@@ -822,17 +820,17 @@ def map_date(page_layout: layout.PageLayout, date: str):
     return [TextLine(id='date_not_mapped')], 1
 
 
-def map_volume_number(page_layout: layout.PageLayout, volume_number: str,
-                      max_number_transcription_relative_distance: float = 0.2):
+def map_issue_number(page_layout: layout.PageLayout, issue_number: str,
+                     max_number_transcription_relative_distance: float = 0.2):
 
-    logger.debug(f'{"NUMBER TO ALIGN:":>20s} {volume_number}')
+    logger.debug(f'{"NUMBER TO ALIGN:":>20s} {issue_number}')
 
     number_transcription_edit_distances = []
     for text_line in page_layout.lines_iterator():
         if text_line.transcription.strip() == '':
             continue
         number_transcription_edit_distances.append([text_line,
-                                                    Levenshtein.distance(text_line.transcription.lower(), volume_number.lower())])
+                                                    Levenshtein.distance(text_line.transcription.lower(), issue_number.lower())])
     number_transcription_edit_distances = sorted(number_transcription_edit_distances, key=lambda x: x[-1])
 
     number_text_line = None
@@ -846,13 +844,13 @@ def map_volume_number(page_layout: layout.PageLayout, volume_number: str,
 
     if not match:
         number_text_line, number_transcription_edit_distance = sorted(number_transcription_edit_distances, key=lambda x: x[-1])[0]
-        match, relative_similarity = compare_orig_to_transcription(volume_number,
+        match, relative_similarity = compare_orig_to_transcription(issue_number,
                                                                    number_text_line.transcription,
                                                                    number_transcription_edit_distance,
                                                                    max_number_transcription_relative_distance)
     if match:
         logger.debug(f'{"OCR:":>20s} {number_text_line.transcription}')
-        logger.debug(f'{"METS:":>20s} {volume_number}')
+        logger.debug(f'{"METS:":>20s} {issue_number}')
         logger.debug(f'{"MAPPED":>20s}')
         try:
             logger.debug(f'{"ED:":>20s} {number_transcription_edit_distance}')
@@ -862,7 +860,7 @@ def map_volume_number(page_layout: layout.PageLayout, volume_number: str,
             return [number_text_line], 1
 
     logger.debug(f'{"MAPPING FAILED, relative distance is too high":>20s}\n')
-    return [TextLine(id='number_not_mapped')], 1
+    return [TextLine(id='issue_number_not_mapped')], 1
 
 
 def map_place(page_layout: layout.PageLayout, place: str, max_place_transcription_relative_distance: float = 0.2):
@@ -954,7 +952,7 @@ def connect_table_of_contents(table_of_contents_element, mastercopy_elements, na
     return table_of_contents_id, mastercopy_path
 
 
-def create_bounding_box_for_lines(lines: list[layout.TextLine], pad: int = 25):
+def create_bounding_box_for_lines(lines: list[layout.TextLine], pad: int = 0):
     if not lines:
         return
     if lines[0].id == 'chapter_not_mapped':
@@ -987,12 +985,12 @@ def create_bounding_box_for_lines(lines: list[layout.TextLine], pad: int = 25):
                 [400, 400],
                 [400, 480],
                 [50, 480]]
-    if lines[0].id == 'volume_number_not_mapped':
+    if lines[0].id == 'issue_number_not_mapped':
         return [[50, 50],
                 [100, 50],
                 [100, 100],
                 [50, 100]]
-    if lines[0].id == 'year_not_mapped':
+    if lines[0].id == 'volume_not_mapped':
         return [[50, 500],
                 [400, 500],
                 [400, 580],
@@ -1063,15 +1061,15 @@ def render_dataset(dataset, mastercopy_dir, output_render_dir):
                 pts = pts.reshape((-1, 1, 2))
                 img = cv2.polylines(img, pts=[pts],
                                     isClosed=True, color=(142, 31, 33), thickness=2)
-        if 'volume_number' in data:
-            for _, _, volume_number_bbox in data['volume_number']:
-                pts = np.asarray(volume_number_bbox, dtype=np.int32)
+        if 'issue_number' in data:
+            for _, _, issue_number_bbox in data['issue_number']:
+                pts = np.asarray(issue_number_bbox, dtype=np.int32)
                 pts = pts.reshape((-1, 1, 2))
                 img = cv2.polylines(img, pts=[pts],
                                     isClosed=True, color=(0, 165, 255), thickness=2)
-        if 'year' in data:
-            for _, _, year_bbox in data['year']:
-                pts = np.asarray(year_bbox, dtype=np.int32)
+        if 'volume' in data:
+            for _, _, volume_bbox in data['volume']:
+                pts = np.asarray(volume_bbox, dtype=np.int32)
                 pts = pts.reshape((-1, 1, 2))
                 img = cv2.polylines(img, pts=[pts],
                                     isClosed=True, color=(0, 255, 0), thickness=2)
@@ -1118,9 +1116,9 @@ def split_bboxes(bbox1, bbox2, ratio=0.5, padding=10):
 
 def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, label_studio_project_name='MetaKat',
                               must_include=None, always_include=None):
-    images_dir = os.path.join(output_label_studio_dir, 'images')
+    # images_dir = os.path.join(output_label_studio_dir, 'images')
     tasks_dir = os.path.join(output_label_studio_dir, 'tasks')
-    os.makedirs(images_dir, exist_ok=True)
+    # os.makedirs(images_dir, exist_ok=True)
     os.makedirs(tasks_dir, exist_ok=True)
 
     skipped_annotations = 0
@@ -1145,13 +1143,13 @@ def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, 
         if 'mastercopy_path' not in data:
             logger.warning(f'{"MASTERCOPY PATH MISSING, SKIPPING":>20s} {page_id}')
             continue
-        mastercopy_name = os.path.basename(data['mastercopy_path'])
-        mastercopy_path = os.path.join(mastercopy_dir, mastercopy_name)
-        img = cv2.imread(mastercopy_path, cv2.IMREAD_COLOR)
+        mastercopy_name = os.path.splitext(os.path.basename(data['mastercopy_path']))[0]
         img_name = f'{mastercopy_name}.jpg'
-        img_path = os.path.join(images_dir, img_name)
-        if not os.path.exists(img_path):
-            cv2.imwrite(img_path, img)
+        img_path = os.path.join(mastercopy_dir, img_name)
+        img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        # img_path = os.path.join(images_dir, img_name)
+        # if not os.path.exists(img_path):
+        #     cv2.imwrite(img_path, img)
 
         task_name = f'{mastercopy_name}.json'
         task_path = os.path.join(tasks_dir, task_name)
@@ -1289,16 +1287,16 @@ def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, 
                 new_annotations += 1
                 results.append(result)
 
-        if 'volume_number' in data:
-            for volume_number_id, volume_number, volume_number_bbox in data['volume_number']:
-                if volume_number_id in existing_ids:
+        if 'issue_number' in data:
+            for issue_number_id, issue_number, issue_number_bbox in data['issue_number']:
+                if issue_number_id in existing_ids:
                     skipped_annotations += 1
                     continue
-                x, y, width, height = get_label_studio_coords(volume_number_bbox, img.shape)
+                x, y, width, height = get_label_studio_coords(issue_number_bbox, img.shape)
                 result = {
-                    "id": volume_number_id,
+                    "id": issue_number_id,
                     "meta": {
-                        "text": [volume_number]
+                        "text": [issue_number]
                     },
                     "type": "rectanglelabels",
                     "from_name": "label",
@@ -1320,16 +1318,16 @@ def save_label_studio_storage(dataset, mastercopy_dir, output_label_studio_dir, 
                 new_annotations += 1
                 results.append(result)
 
-        if 'year' in data:
-            for year_id, year, year_bbox in data['year']:
-                if year_id in existing_ids:
+        if 'volume' in data:
+            for volume_id, volume, volume_bbox in data['volume']:
+                if volume_id in existing_ids:
                     skipped_annotations += 1
                     continue
-                x, y, width, height = get_label_studio_coords(year_bbox, img.shape)
+                x, y, width, height = get_label_studio_coords(volume_bbox, img.shape)
                 result = {
-                    "id": year_id,
+                    "id": volume_id,
                     "meta": {
-                        "text": [year]
+                        "text": [volume]
                     },
                     "type": "rectanglelabels",
                     "from_name": "label",
