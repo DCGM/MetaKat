@@ -1,3 +1,6 @@
 [submodule "pero-ocr"]
 	path = pero-ocr
 	url = https://github.com/DCGM/pero-ocr.git
+[submodule "detector-wrapper"]
+	path = detector-wrapper
+	url = git@github.com:DCGM/detector-wrapper.git
