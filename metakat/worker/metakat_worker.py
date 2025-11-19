@@ -1,4 +1,7 @@
-
+import os
+import tempfile
+import shutil
+from pathlib import Path
 from metakat.worker.config import config
 import logging, logging.config
 logging.config.dictConfig(config.LOGGING_CONFIG)
@@ -10,6 +13,7 @@ from doc_worker.doc_worker_wrapper import DocWorkerWrapper, WorkerResponse
 from doc_api.api.schemas.base_objects import Job
 from doc_api.connector import Connector
 
+from metakat.process_batch import process_batch
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +42,103 @@ class MetakatWorker(DocWorkerWrapper):
             WorkerResponse indicating success or failure
         """
         try:
+            if alto_dir is None:
+                logger.error("ALTO files are required")
+                return WorkerResponse.fail("ALTO files are required")
             
+            # Create temporary directory with symlinks to images and ALTO files
+            tmp_batch_dir = tempfile.mkdtemp(prefix="metakat_batch_")
+            
+            try:
+                logger.info(f"Creating temporary batch directory: {tmp_batch_dir}")
+                
+                # Create symlinks for image files
+                images_path = Path(images_dir)
+                for image_file in images_path.iterdir():
+                    if image_file.is_file():
+                        symlink_path = Path(tmp_batch_dir) / image_file.name
+                        symlink_path.symlink_to(image_file.resolve())
+                
+                # Create symlinks for ALTO files
+                alto_path = Path(alto_dir)
+                for alto_file in alto_path.iterdir():
+                    if alto_file.is_file():
+                        symlink_path = Path(tmp_batch_dir) / alto_file.name
+                        symlink_path.symlink_to(alto_file.resolve())
 
-            return WorkerResponse.ok()
+                # Construct engine paths
+                page_type_core_path = self._get_engine_path(
+                    engine_dir, 'page_type_core_engine', job.engine_definition
+                )
+                page_type_bind_path = self._get_engine_path(
+                    engine_dir, 'page_type_bind_engine', job.engine_definition
+                )
+                biblio_core_path = self._get_engine_path(
+                    engine_dir, 'biblio_core_engine', job.engine_definition
+                )
+                biblio_bind_path = self._get_engine_path(
+                    engine_dir, 'biblio_bind_engine', job.engine_definition
+                )
+                chapter_core_path = self._get_engine_path(
+                    engine_dir, 'chapter_core_engine', job.engine_definition
+                )
+                chapter_bind_path = self._get_engine_path(
+                    engine_dir, 'chapter_bind_engine', job.engine_definition
+                )
+
+                process_batch(
+                    batch_dir=tmp_batch_dir,
+                    proarc_json=meta_file,
+                    page_type_core_engine=page_type_core_path,
+                    page_type_bind_engine=page_type_bind_path,
+                    biblio_core_engine=biblio_core_path,
+                    biblio_bind_engine=biblio_bind_path,
+                    chapter_core_engine=chapter_core_path,
+                    chapter_bind_engine=chapter_bind_path,
+                    output_metakat_json=os.path.join(results_dir, "metakat.json"))
+
+                return WorkerResponse.ok()
+            
+            finally:
+                # Clean up temporary directory
+                if os.path.exists(tmp_batch_dir):
+                    logger.info(f"Cleaning up temporary batch directory: {tmp_batch_dir}")
+                    shutil.rmtree(tmp_batch_dir)
             
         except Exception as e:
             logger.exception("MetakatWorker processing failed")
             return WorkerResponse.fail("MetakatWorker processing failed", exception=e)
+
+
+    def _get_engine_path(self, engine_dir: str, engine_key: str, engine_definition: dict) -> str:
+            """
+            Construct the full path to an engine based on the engine definition key.
+            
+            The key format is expected to be: {category}_{engine_type}_engine
+            For example: 'page_type_core_engine', 'biblio_bind_engine', 'chapter_core_engine'
+            
+            Args:
+                engine_dir: Base engine directory
+                engine_key: Key from engine_definition (e.g., 'page_type_core_engine')
+                engine_definition: Dictionary containing engine definitions
+                
+            Returns:
+                Full path to the engine directory
+            """
+            # Parse the key to extract category and engine_type
+            # Remove '_engine' suffix and split
+            key_parts = engine_key.replace('_engine', '').split('_')
+            
+            # Last part is the engine type (core/bind)
+            engine_type = key_parts[-1]
+            
+            # Everything before that is the category
+            category = '_'.join(key_parts[:-1])
+            
+            # Get the engine name from the definition
+            engine_name = engine_definition[engine_key]
+            
+            return os.path.join(engine_dir, category, engine_type, engine_name)
 
 
 def main():

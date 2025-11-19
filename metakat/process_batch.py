@@ -54,38 +54,83 @@ def main():
 
     logger.info(' '.join(sys.argv))
 
-    metakat_io, proarc_io = init_io(
+    process_batch(
         batch_dir=args.batch_dir,
         metakat_json=args.metakat_json,
-        proarc_json=args.proarc_json
+        proarc_json=args.proarc_json,
+        page_type_core_engine=args.page_type_core_engine,
+        page_type_bind_engine=args.page_type_bind_engine,
+        biblio_core_engine=args.biblio_core_engine,
+        biblio_bind_engine=args.biblio_bind_engine,
+        chapter_core_engine=args.chapter_core_engine,
+        chapter_bind_engine=args.chapter_bind_engine,
+        output_metakat_json=args.output_metakat_json
+    )
+    
+
+def process_batch(
+    batch_dir: str,
+    metakat_json: str = None,
+    proarc_json: str = None,
+    page_type_core_engine: str = None,
+    page_type_bind_engine: str = None,
+    biblio_core_engine: str = None,
+    biblio_bind_engine: str = None,
+    chapter_core_engine: str = None,
+    chapter_bind_engine: str = None,
+    output_metakat_json: str = None
+) -> MetakatIO:
+    """
+    Process a batch directory and return the processed MetakatIO object.
+    
+    Args:
+        batch_dir: Path to the batch directory
+        metakat_json: Path to input Metakat JSON file
+        proarc_json: Path to input ProARC JSON file
+        page_type_core_engine: Path to page type core engine directory
+        page_type_bind_engine: Path to page type bind engine directory
+        biblio_core_engine: Path to biblio core engine directory
+        biblio_bind_engine: Path to biblio bind engine directory
+        chapter_core_engine: Path to chapter core engine directory
+        chapter_bind_engine: Path to chapter bind engine directory
+        output_metakat_json: Path to output Metakat JSON file
+        logging_level: Logging level
+        
+    Returns:
+        Processed MetakatIO object
+    """
+    metakat_io, proarc_io = init_io(
+        batch_dir=batch_dir,
+        metakat_json=metakat_json,
+        proarc_json=proarc_json
     )
 
-    if args.page_type_bind_engine is not None and args.page_type_core_engine is not None:
-        page_type_bind_engine = load_page_type_bind_engine(
-            args.page_type_bind_engine,
-            args.page_type_core_engine
+    if page_type_bind_engine is not None and page_type_core_engine is not None:
+        page_type_bind_engine_obj = load_page_type_bind_engine(
+            page_type_bind_engine,
+            page_type_core_engine
         )
-        metakat_io = page_type_bind_engine.process(
-            batch_dir=args.batch_dir,
+        metakat_io = page_type_bind_engine_obj.process(
+            batch_dir=batch_dir,
             metakat_io=metakat_io,
             proarc_io=proarc_io
         )
 
-    if args.biblio_bind_engine is not None and args.biblio_core_engine is not None:
-        biblio_bind_engine = load_biblio_bind_engine(args.biblio_bind_engine, args.biblio_core_engine)
-        metakat_io = biblio_bind_engine.process(
-            batch_dir=args.batch_dir,
+    if biblio_bind_engine is not None and biblio_core_engine is not None:
+        biblio_bind_engine_obj = load_biblio_bind_engine(biblio_bind_engine, biblio_core_engine)
+        metakat_io = biblio_bind_engine_obj.process(
+            batch_dir=batch_dir,
             metakat_io=metakat_io,
             proarc_io=proarc_io
         )
 
-    if args.chapter_bind_engine is not None and args.chapter_core_engine is not None:
-        chapter_bind_engine = load_chapter_bind_engine(
-            args.chapter_bind_engine,
-            args.chapter_core_engine
+    if chapter_bind_engine is not None and chapter_core_engine is not None:
+        chapter_bind_engine_obj = load_chapter_bind_engine(
+            chapter_bind_engine,
+            chapter_core_engine
         )
-        metakat_io = chapter_bind_engine.process(
-            batch_dir=args.batch_dir,
+        metakat_io = chapter_bind_engine_obj.process(
+            batch_dir=batch_dir,
             metakat_io=metakat_io,
             proarc_io=proarc_io
         )
@@ -94,13 +139,12 @@ def main():
     MetakatIO.model_validate_json(json.dumps(metakat_io.model_dump(mode="json")))
     logger.info("MetakatIO has been successfully validated")
 
-    if args.output_metakat_json is not None:
-        with open(args.output_metakat_json, 'w') as f:
+    if output_metakat_json is not None:
+        with open(output_metakat_json, 'w') as f:
             json.dump(metakat_io.model_dump(mode="json"), f, indent=4, ensure_ascii=False)
-        logger.info(f"MetakatIO saved to {args.output_metakat_json}")
-
-
-
+        logger.info(f"MetakatIO saved to {output_metakat_json}")
+    
+    return metakat_io
 
 
 def init_io(batch_dir: str, metakat_json: str, proarc_json: str, batch_id: UUID = uuid4()) -> Tuple[MetakatIO, ProarcIO]:
@@ -179,8 +223,6 @@ def detect_xml_format(xml_path: str) -> str:
             return 'UNKNOWN'
     except ET.ParseError:
         return 'INVALID_XML'
-
-
 
 
 if __name__ == '__main__':
