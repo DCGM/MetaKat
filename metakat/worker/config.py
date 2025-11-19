@@ -57,7 +57,7 @@ class Config:
                     'when': 'midnight',
                     'utc': True,
                     'formatter': 'base',
-                    'filename': os.path.join(self.LOGGING_DIR, f'server.log')
+                    'filename': os.path.join(self.LOGGING_DIR, f'worker.log')
                 }
             },
             'loggers': {
