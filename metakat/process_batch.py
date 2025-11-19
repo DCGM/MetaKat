@@ -10,8 +10,8 @@ import xml.etree.ElementTree as ET
 
 from natsort import natsorted
 
-from chapter.engines.bind.definitions import load_chapter_bind_engine
-from page_type.engines.bind.definitions import load_page_type_bind_engine
+from metakat.chapter.engines.bind.definitions import load_chapter_bind_engine
+from metakat.page_type.engines.bind.definitions import load_page_type_bind_engine
 from metakat.biblio.engines.bind.definitions import load_biblio_bind_engine
 
 from metakat.schemas.base_objects import MetakatIO, ProarcIO, MetakatPage

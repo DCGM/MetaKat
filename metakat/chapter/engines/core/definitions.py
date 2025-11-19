@@ -1,8 +1,8 @@
 import os
 import json
 
-from chapter.engines.core.chapter_core_engine import ChapterCoreEngine
-from chapter.engines.core.chapter_core_engine_yolo import ChapterCoreEngineYOLO
+from metakat.chapter.engines.core.chapter_core_engine import ChapterCoreEngine
+from metakat.chapter.engines.core.chapter_core_engine_yolo import ChapterCoreEngineYOLO
 
 chapter_core_engines = {
     'chapter_core_engine_yolo': ChapterCoreEngineYOLO

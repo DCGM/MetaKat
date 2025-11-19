@@ -1,7 +1,7 @@
 import json
 import os
 from abc import ABC, abstractmethod
-from chapter.engines.core.definitions import load_chapter_core_engine
+from metakat.chapter.engines.core.definitions import load_chapter_core_engine
 
 from metakat.schemas.base_objects import MetakatIO, ProarcIO
 

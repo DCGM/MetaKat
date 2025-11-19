@@ -3,7 +3,7 @@ import logging
 from typing import List
 
 from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
-from biblio.engines.core.biblio_core_engine import BiblioCoreEngine
+from metakat.biblio.engines.core.biblio_core_engine import BiblioCoreEngine
 
 
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO

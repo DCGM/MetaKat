@@ -1,8 +1,8 @@
 import os
 import json
 
-from chapter.engines.bind.chapter_bind_engine import ChapterBindEngine
-from chapter.engines.bind.chapter_bind_engine_base import ChapterBindEngineBase
+from metakat.chapter.engines.bind.chapter_bind_engine import ChapterBindEngine
+from metakat.chapter.engines.bind.chapter_bind_engine_base import ChapterBindEngineBase
 
 chapter_bind_engines = {
     'chapter_bind_engine_base': ChapterBindEngineBase,

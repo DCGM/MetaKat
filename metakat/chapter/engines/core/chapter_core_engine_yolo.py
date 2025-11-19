@@ -2,7 +2,7 @@ import logging
 
 from typing import List
 
-from chapter.engines.core.chapter_core_engine import ChapterCoreEngine
+from metakat.chapter.engines.core.chapter_core_engine import ChapterCoreEngine
 from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
 
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO

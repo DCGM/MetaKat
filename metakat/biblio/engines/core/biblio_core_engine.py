@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
-from schemas.base_objects import BiblioType
+from metakat.schemas.base_objects import BiblioType
 
 logger = logging.getLogger(__name__)
 

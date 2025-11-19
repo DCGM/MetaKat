@@ -7,10 +7,10 @@ from uuid import uuid4
 
 from natsort import natsorted
 
-from biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
+from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
 from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
 
-from schemas.base_objects import MetakatIO, ProarcIO, DocumentType, MetakatPage, PageType, BiblioType, \
+from metakat.schemas.base_objects import MetakatIO, ProarcIO, DocumentType, MetakatPage, PageType, BiblioType, \
     MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle, HierarchyType
 
 logger = logging.getLogger(__name__)

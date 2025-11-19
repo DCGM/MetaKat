@@ -5,11 +5,11 @@ import os
 from typing import List, Tuple
 from uuid import uuid4
 
-from chapter.engines.bind.chapter_bind_engine import ChapterBindEngine
-from chapter.engines.bind.chapter_parser import parse_page_number
+from metakat.chapter.engines.bind.chapter_bind_engine import ChapterBindEngine
+from metakat.chapter.engines.bind.chapter_parser import parse_page_number
 from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
 
-from schemas.base_objects import MetakatIO, ProarcIO, DocumentType, MetakatPage, ChapterType, \
+from metakat.schemas.base_objects import MetakatIO, ProarcIO, DocumentType, MetakatPage, ChapterType, \
      MetakatElement
 
 logger = logging.getLogger(__name__)

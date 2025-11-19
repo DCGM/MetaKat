@@ -2,8 +2,10 @@ import os
 import tempfile
 import shutil
 from pathlib import Path
-from metakat.worker.config import config
 import logging, logging.config
+
+from metakat.worker.config import config
+config.create_dirs()
 logging.config.dictConfig(config.LOGGING_CONFIG)
 
 import argparse
@@ -14,6 +16,7 @@ from doc_api.api.schemas.base_objects import Job
 from doc_api.connector import Connector
 
 from metakat.process_batch import process_batch
+
 
 logger = logging.getLogger(__name__)
 
