@@ -7,3 +7,6 @@
 [submodule "libs/DocAPI"]
 	path = libs/DocAPI
 	url = git@github.com:DCGM/DocAPI.git
+[submodule "libs/detector-wrapper"]
+	path = libs/detector-wrapper
+	url = git@github.com:DCGM/detector-wrapper.git
