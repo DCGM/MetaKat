@@ -23,10 +23,11 @@ logger = logging.getLogger(__name__)
 
 class MetakatWorker(DocWorkerWrapper):
 
-    def process_job(self, 
+    def process_job(self,
                     job: Job,
+                    job_log_file_handler: logging.FileHandler,
                     images_dir: str,
-                    results_dir: str,
+                    result_dir: str,
                     alto_dir: Optional[str] = None,
                     page_xml_dir: Optional[str] = None,
                     meta_file: Optional[str] = None,
@@ -34,8 +35,9 @@ class MetakatWorker(DocWorkerWrapper):
         """        
         Args:
             job: The job object containing job metadata
+            job_log_file_handler: File handler for logging job processing into job-specific log file
             images_dir: Directory path containing the downloaded images
-            results_dir: Directory path where processing results should be saved
+            result_dir: Directory path where processing results should be saved
             alto_dir: Optional directory path containing ALTO XML files
             page_xml_dir: Optional directory path containing PAGE XML files
             meta_file: Optional path to the meta.json file
@@ -45,6 +47,8 @@ class MetakatWorker(DocWorkerWrapper):
             WorkerResponse indicating success or failure
         """
         try:
+            logger.addHandler(job_log_file_handler)
+
             if alto_dir is None:
                 logger.error("ALTO files are required")
                 return WorkerResponse.fail("ALTO files are required")
@@ -98,7 +102,7 @@ class MetakatWorker(DocWorkerWrapper):
                     biblio_bind_engine=biblio_bind_path,
                     chapter_core_engine=chapter_core_path,
                     chapter_bind_engine=chapter_bind_path,
-                    output_metakat_json=os.path.join(results_dir, "metakat.json"))
+                    output_metakat_json=os.path.join(result_dir, "metakat.json"))
 
                 return WorkerResponse.ok()
             
@@ -111,6 +115,9 @@ class MetakatWorker(DocWorkerWrapper):
         except Exception as e:
             logger.exception("MetakatWorker processing failed")
             return WorkerResponse.fail("MetakatWorker processing failed", exception=e)
+
+        finally:
+            logger.removeHandler(job_log_file_handler)
 
 
     def _get_engine_path(self, engine_dir: str, engine_key: str, engine_definition: dict) -> str:

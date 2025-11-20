@@ -65,7 +65,7 @@ class EngineYOLOALTO:
             )
 
             detector_parser = DetectorParser()
-            detector_parser.parse_yolo(yolo_dir=tmp_yolo_output_dir)
+            detector_parser.parse_yolo(yolo_dir=tmp_yolo_output_dir, image_filenames=[os.path.basename(img) for img in images])
 
         alto_match = ALTOMatch(detector_parser=detector_parser,
                                alto_export_files=alto_files,
