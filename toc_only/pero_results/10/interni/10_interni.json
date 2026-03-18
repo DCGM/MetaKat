@@ -1,0 +1,332 @@
+[
+    {
+        "bbox": [
+            1328,
+            1060,
+            1396,
+            1101
+        ],
+        "category": "page_number",
+        "text": "120",
+        "conf": 0.9111889004707336
+    },
+    {
+        "bbox": [
+            1328,
+            1225,
+            1396,
+            1267
+        ],
+        "category": "page_number",
+        "text": "152",
+        "conf": 0.9096197485923767
+    },
+    {
+        "bbox": [
+            1327,
+            1116,
+            1396,
+            1156
+        ],
+        "category": "page_number",
+        "text": "130",
+        "conf": 0.909306526184082
+    },
+    {
+        "bbox": [
+            1327,
+            890,
+            1396,
+            931
+        ],
+        "category": "page_number",
+        "text": "104",
+        "conf": 0.9061989784240723
+    },
+    {
+        "bbox": [
+            1328,
+            1001,
+            1394,
+            1042
+        ],
+        "category": "page_number",
+        "text": "114",
+        "conf": 0.904559314250946
+    },
+    {
+        "bbox": [
+            1327,
+            945,
+            1395,
+            986
+        ],
+        "category": "page_number",
+        "text": "109",
+        "conf": 0.9026508927345276
+    },
+    {
+        "bbox": [
+            1346,
+            779,
+            1396,
+            820
+        ],
+        "category": "page_number",
+        "text": "47",
+        "conf": 0.901218831539154
+    },
+    {
+        "bbox": [
+            1327,
+            1397,
+            1395,
+            1438
+        ],
+        "category": "page_number",
+        "text": "174",
+        "conf": 0.9012056589126587
+    },
+    {
+        "bbox": [
+            1328,
+            1341,
+            1395,
+            1382
+        ],
+        "category": "page_number",
+        "text": "163",
+        "conf": 0.8990417718887329
+    },
+    {
+        "bbox": [
+            1328,
+            1285,
+            1396,
+            1326
+        ],
+        "category": "page_number",
+        "text": "159",
+        "conf": 0.8982887268066406
+    },
+    {
+        "bbox": [
+            183,
+            771,
+            350,
+            817
+        ],
+        "category": "chapter_L1",
+        "text": "Maturita",
+        "conf": 0.8982545733451843
+    },
+    {
+        "bbox": [
+            1346,
+            725,
+            1396,
+            765
+        ],
+        "category": "page_number",
+        "text": "34",
+        "conf": 0.8978915214538574
+    },
+    {
+        "bbox": [
+            1346,
+            668,
+            1396,
+            709
+        ],
+        "category": "page_number",
+        "text": "27",
+        "conf": 0.896827220916748
+    },
+    {
+        "bbox": [
+            1328,
+            1170,
+            1396,
+            1211
+        ],
+        "category": "page_number",
+        "text": "139",
+        "conf": 0.8965849876403809
+    },
+    {
+        "bbox": [
+            183,
+            718,
+            280,
+            760
+        ],
+        "category": "chapter_L1",
+        "text": "Basa",
+        "conf": 0.8936062455177307
+    },
+    {
+        "bbox": [
+            182,
+            883,
+            338,
+            929
+        ],
+        "category": "chapter_L1",
+        "text": "Opuštěn",
+        "conf": 0.8868575096130371
+    },
+    {
+        "bbox": [
+            181,
+            994,
+            387,
+            1041
+        ],
+        "category": "chapter_L1",
+        "text": "Fortepiano",
+        "conf": 0.8865945935249329
+    },
+    {
+        "bbox": [
+            180,
+            1217,
+            615,
+            1265
+        ],
+        "category": "chapter_L1",
+        "text": "Každá lež není hříchem",
+        "conf": 0.8841248750686646
+    },
+    {
+        "bbox": [
+            1344,
+            833,
+            1396,
+            874
+        ],
+        "category": "page_number",
+        "text": "59",
+        "conf": 0.883699893951416
+    },
+    {
+        "bbox": [
+            182,
+            1334,
+            321,
+            1377
+        ],
+        "category": "chapter_L1",
+        "text": "Kohout",
+        "conf": 0.8776583075523376
+    },
+    {
+        "bbox": [
+            182,
+            1388,
+            430,
+            1435
+        ],
+        "category": "chapter_L1",
+        "text": "Na trojtřídce",
+        "conf": 0.8738983273506165
+    },
+    {
+        "bbox": [
+            181,
+            826,
+            502,
+            875
+        ],
+        "category": "chapter_L1",
+        "text": "Na prvním místě",
+        "conf": 0.8726494312286377
+    },
+    {
+        "bbox": [
+            182,
+            661,
+            501,
+            708
+        ],
+        "category": "chapter_L1",
+        "text": "Studentská láska",
+        "conf": 0.8704642057418823
+    },
+    {
+        "bbox": [
+            183,
+            1050,
+            742,
+            1098
+        ],
+        "category": "chapter_L1",
+        "text": "Figurálka od Roberta Führera",
+        "conf": 0.8700578808784485
+    },
+    {
+        "bbox": [
+            183,
+            938,
+            464,
+            984
+        ],
+        "category": "chapter_L1",
+        "text": "Nemilé setkání",
+        "conf": 0.8692505955696106
+    },
+    {
+        "bbox": [
+            177,
+            1279,
+            1063,
+            1328
+        ],
+        "category": "chapter_L1",
+        "text": "Druhá inspekce, čili s poctivostí se nikam nedojde",
+        "conf": 0.8599352240562439
+    },
+    {
+        "bbox": [
+            182,
+            1161,
+            767,
+            1210
+        ],
+        "category": "chapter_L1",
+        "text": "Svěcení stříkačky. Hasičský ples",
+        "conf": 0.8567885160446167
+    },
+    {
+        "bbox": [
+            183,
+            1104,
+            285,
+            1149
+        ],
+        "category": "chapter_L1",
+        "text": "Šibal",
+        "conf": 0.8536321520805359
+    },
+    {
+        "bbox": [
+            1362,
+            614,
+            1397,
+            651
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8492395877838135
+    },
+    {
+        "bbox": [
+            182,
+            604,
+            397,
+            651
+        ],
+        "category": "chapter_L1",
+        "text": "Matčin slib",
+        "conf": 0.8417379260063171
+    }
+]

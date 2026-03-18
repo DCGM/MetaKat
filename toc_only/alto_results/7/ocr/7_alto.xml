@@ -1,0 +1,171 @@
+<?xml version='1.0' encoding='utf-8'?>
+<alto xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.loc.gov/standards/alto/ns-v2#">
+  <Description>
+    <MeasurementUnit>pixel</MeasurementUnit>
+    <sourceImageInformation>
+      <fileName>7</fileName>
+    </sourceImageInformation>
+    <OCRProcessing ID="IdOcr">
+      <ocrProcessingStep>
+        <processingDateTime>2026-03-16T12:56:22.709020</processingDateTime>
+        <processingSoftware>
+          <softwareCreator>Project PERO</softwareCreator>
+          <softwareName>PERO OCR</softwareName>
+          <softwareVersion>v0.1.0</softwareVersion>
+        </processingSoftware>
+      </ocrProcessingStep>
+    </OCRProcessing>
+  </Description>
+  <Layout>
+    <Page ID="id_7" PHYSICAL_IMG_NR="1" HEIGHT="2112" WIDTH="1344">
+      <TopMargin HEIGHT="173" WIDTH="1344" VPOS="0" HPOS="0"/>
+      <LeftMargin HEIGHT="2112" WIDTH="179" VPOS="0" HPOS="0"/>
+      <RightMargin HEIGHT="2112" WIDTH="0" VPOS="0" HPOS="1344"/>
+      <BottomMargin HEIGHT="0" WIDTH="1344" VPOS="2112" HPOS="0"/>
+      <PrintSpace HEIGHT="1938" WIDTH="1164" VPOS="173" HPOS="179">
+        <TextBlock ID="block_r007" HEIGHT="53" WIDTH="180" VPOS="173" HPOS="467">
+          <TextLine BASELINE="212" VPOS="173" HPOS="467" HEIGHT="53" WIDTH="180">
+            <String CONTENT="OBSAH" HEIGHT="52" WIDTH="147" VPOS="174" HPOS="475" WC="1.0"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r006" HEIGHT="92" WIDTH="281" VPOS="264" HPOS="411">
+          <TextLine BASELINE="298" VPOS="264" HPOS="411" HEIGHT="45" WIDTH="281">
+            <String CONTENT="Úvodní" HEIGHT="46" WIDTH="142" VPOS="263" HPOS="419" WC="1"/>
+            <SP WIDTH="4" VPOS="263" HPOS="561"/>
+            <String CONTENT="slovo" HEIGHT="46" WIDTH="95" VPOS="263" HPOS="581" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="344" VPOS="307" HPOS="523" HEIGHT="49" WIDTH="60">
+            <String CONTENT="(9)" HEIGHT="49" WIDTH="60" VPOS="306" HPOS="523" WC="1.0"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r000" HEIGHT="485" WIDTH="738" VPOS="396" HPOS="179">
+          <TextLine BASELINE="431" VPOS="396" HPOS="525" HEIGHT="46" WIDTH="38">
+            <String CONTENT="I" HEIGHT="46" WIDTH="20" VPOS="396" HPOS="535" WC="1.0"/>
+          </TextLine>
+          <TextLine BASELINE="475" VPOS="438" HPOS="248" HEIGHT="51" WIDTH="619">
+            <String CONTENT="Osvícenství" HEIGHT="47" WIDTH="221" VPOS="439" HPOS="256" WC="1"/>
+            <SP WIDTH="4" VPOS="439" HPOS="477"/>
+            <String CONTENT="za" HEIGHT="46" WIDTH="35" VPOS="441" HPOS="503" WC="1"/>
+            <SP WIDTH="4" VPOS="441" HPOS="538"/>
+            <String CONTENT="Marie" HEIGHT="47" WIDTH="113" VPOS="441" HPOS="570" WC="1"/>
+            <SP WIDTH="4" VPOS="441" HPOS="684"/>
+            <String CONTENT="Terezie" HEIGHT="47" WIDTH="139" VPOS="443" HPOS="712" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="524" VPOS="484" HPOS="500" HEIGHT="52" WIDTH="97">
+            <String CONTENT="(17)" HEIGHT="52" WIDTH="83" VPOS="485" HPOS="507" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="599" VPOS="567" HPOS="514" HEIGHT="44" WIDTH="58">
+            <String CONTENT="II" HEIGHT="44" WIDTH="36" VPOS="566" HPOS="529" WC="1.0"/>
+          </TextLine>
+          <TextLine BASELINE="645" VPOS="611" HPOS="268" HEIGHT="48" WIDTH="569">
+            <String CONTENT="Církevní" HEIGHT="45" WIDTH="160" VPOS="612" HPOS="276" WC="1"/>
+            <SP WIDTH="4" VPOS="612" HPOS="436"/>
+            <String CONTENT="reformy" HEIGHT="45" WIDTH="148" VPOS="612" HPOS="459" WC="1"/>
+            <SP WIDTH="4" VPOS="612" HPOS="608"/>
+            <String CONTENT="Josefa" HEIGHT="45" WIDTH="111" VPOS="612" HPOS="645" WC="1"/>
+            <SP WIDTH="4" VPOS="612" HPOS="757"/>
+            <String CONTENT="II." HEIGHT="45" WIDTH="48" VPOS="612" HPOS="788" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="696" VPOS="661" HPOS="503" HEIGHT="47" WIDTH="91">
+            <String CONTENT="(32)" HEIGHT="47" WIDTH="80" VPOS="660" HPOS="512" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="775" VPOS="742" HPOS="502" HEIGHT="46" WIDTH="78">
+            <String CONTENT="III" HEIGHT="45" WIDTH="61" VPOS="741" HPOS="513" WC="1.0"/>
+          </TextLine>
+          <TextLine BASELINE="822" VPOS="788" HPOS="179" HEIGHT="48" WIDTH="738">
+            <String CONTENT="Osvícenské" HEIGHT="43" WIDTH="208" VPOS="788" HPOS="189" WC="1"/>
+            <SP WIDTH="4" VPOS="788" HPOS="398"/>
+            <String CONTENT="červánky" HEIGHT="44" WIDTH="167" VPOS="788" HPOS="427" WC="1"/>
+            <SP WIDTH="4" VPOS="788" HPOS="594"/>
+            <String CONTENT="na" HEIGHT="43" WIDTH="41" VPOS="789" HPOS="629" WC="1"/>
+            <SP WIDTH="4" VPOS="789" HPOS="671"/>
+            <String CONTENT="české" HEIGHT="44" WIDTH="98" VPOS="789" HPOS="698" WC="1"/>
+            <SP WIDTH="4" VPOS="789" HPOS="796"/>
+            <String CONTENT="půdě" HEIGHT="44" WIDTH="84" VPOS="791" HPOS="826" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="868" VPOS="835" HPOS="498" HEIGHT="46" WIDTH="95">
+            <String CONTENT="(51)" HEIGHT="45" WIDTH="83" VPOS="834" HPOS="511" WC="1.0"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r003" HEIGHT="140" WIDTH="447" VPOS="917" HPOS="331">
+          <TextLine BASELINE="949" VPOS="917" HPOS="505" HEIGHT="44" WIDTH="68">
+            <String CONTENT="IV" HEIGHT="42" WIDTH="31" VPOS="917" HPOS="521" WC="1.0"/>
+          </TextLine>
+          <TextLine BASELINE="997" VPOS="961" HPOS="331" HEIGHT="48" WIDTH="447">
+            <String CONTENT="Návrat" HEIGHT="46" WIDTH="134" VPOS="963" HPOS="333" WC="1"/>
+            <SP WIDTH="4" VPOS="963" HPOS="468"/>
+            <String CONTENT="bible" HEIGHT="45" WIDTH="91" VPOS="962" HPOS="491" WC="1"/>
+            <SP WIDTH="4" VPOS="962" HPOS="583"/>
+            <String CONTENT="do" HEIGHT="45" WIDTH="37" VPOS="962" HPOS="614" WC="1"/>
+            <SP WIDTH="4" VPOS="962" HPOS="651"/>
+            <String CONTENT="Čech" HEIGHT="45" WIDTH="80" VPOS="963" HPOS="683" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="1044" VPOS="1009" HPOS="500" HEIGHT="48" WIDTH="93">
+            <String CONTENT="(70)" HEIGHT="48" WIDTH="83" VPOS="1008" HPOS="509" WC="1"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r001" HEIGHT="146" WIDTH="661" VPOS="1087" HPOS="218">
+          <TextLine BASELINE="1120" VPOS="1087" HPOS="518" HEIGHT="45" WIDTH="46">
+            <String CONTENT="V" HEIGHT="43" WIDTH="17" VPOS="1087" HPOS="527" WC="1.0"/>
+          </TextLine>
+          <TextLine BASELINE="1172" VPOS="1138" HPOS="218" HEIGHT="48" WIDTH="661">
+            <String CONTENT="Legenda" HEIGHT="46" WIDTH="159" VPOS="1137" HPOS="226" WC="1"/>
+            <SP WIDTH="4" VPOS="1137" HPOS="386"/>
+            <String CONTENT="o" HEIGHT="46" WIDTH="17" VPOS="1137" HPOS="414" WC="1"/>
+            <SP WIDTH="4" VPOS="1137" HPOS="432"/>
+            <String CONTENT="kněžích" HEIGHT="46" WIDTH="142" VPOS="1137" HPOS="452" WC="1"/>
+            <SP WIDTH="4" VPOS="1137" HPOS="594"/>
+            <String CONTENT="buditelských" HEIGHT="47" WIDTH="240" VPOS="1137" HPOS="623" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="1219" VPOS="1183" HPOS="500" HEIGHT="50" WIDTH="96">
+            <String CONTENT="(96)" HEIGHT="50" WIDTH="85" VPOS="1182" HPOS="512" WC="1"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r002" HEIGHT="196" WIDTH="655" VPOS="1267" HPOS="223">
+          <TextLine BASELINE="1300" VPOS="1267" HPOS="508" HEIGHT="46" WIDTH="70">
+            <String CONTENT="VI" HEIGHT="44" WIDTH="50" VPOS="1267" HPOS="522" WC="1.0"/>
+          </TextLine>
+          <TextLine BASELINE="1348" VPOS="1315" HPOS="223" HEIGHT="44" WIDTH="655">
+            <String CONTENT="Náboženské" HEIGHT="43" WIDTH="222" VPOS="1315" HPOS="230" WC="1"/>
+            <SP WIDTH="4" VPOS="1315" HPOS="453"/>
+            <String CONTENT="smýšlení" HEIGHT="42" WIDTH="173" VPOS="1317" HPOS="482" WC="1"/>
+            <SP WIDTH="4" VPOS="1317" HPOS="655"/>
+            <String CONTENT="v" HEIGHT="41" WIDTH="13" VPOS="1317" HPOS="678" WC="1"/>
+            <SP WIDTH="4" VPOS="1317" HPOS="692"/>
+            <String CONTENT="městech" HEIGHT="42" WIDTH="144" VPOS="1317" HPOS="720" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="1393" VPOS="1363" HPOS="403" HEIGHT="42" WIDTH="298">
+            <String CONTENT="a" HEIGHT="40" WIDTH="15" VPOS="1365" HPOS="413" WC="1"/>
+            <SP WIDTH="4" VPOS="1365" HPOS="428"/>
+            <String CONTENT="na" HEIGHT="40" WIDTH="43" VPOS="1364" HPOS="458" WC="1"/>
+            <SP WIDTH="4" VPOS="1364" HPOS="501"/>
+            <String CONTENT="venkově" HEIGHT="40" WIDTH="152" VPOS="1363" HPOS="532" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="1450" VPOS="1412" HPOS="494" HEIGHT="51" WIDTH="116">
+            <String CONTENT="(135)" HEIGHT="51" WIDTH="103" VPOS="1412" HPOS="500" WC="1"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r004" HEIGHT="98" WIDTH="351" VPOS="1502" HPOS="375">
+          <TextLine BASELINE="1534" VPOS="1502" HPOS="375" HEIGHT="42" WIDTH="351">
+            <String CONTENT="Závěrečná" HEIGHT="42" WIDTH="184" VPOS="1502" HPOS="391" WC="1"/>
+            <SP WIDTH="4" VPOS="1502" HPOS="575"/>
+            <String CONTENT="úvaha" HEIGHT="42" WIDTH="105" VPOS="1502" HPOS="608" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="1587" VPOS="1554" HPOS="495" HEIGHT="46" WIDTH="114">
+            <String CONTENT="(158)" HEIGHT="46" WIDTH="99" VPOS="1553" HPOS="505" WC="1.0"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r005" HEIGHT="100" WIDTH="284" VPOS="1638" HPOS="409">
+          <TextLine BASELINE="1672" VPOS="1638" HPOS="409" HEIGHT="45" WIDTH="284">
+            <String CONTENT="Rejstřík" HEIGHT="45" WIDTH="150" VPOS="1638" HPOS="420" WC="1"/>
+            <SP WIDTH="4" VPOS="1638" HPOS="570"/>
+            <String CONTENT="osob" HEIGHT="45" WIDTH="75" VPOS="1638" HPOS="602" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="1727" VPOS="1690" HPOS="491" HEIGHT="49" WIDTH="118">
+            <String CONTENT="(167)" HEIGHT="49" WIDTH="105" VPOS="1689" HPOS="503" WC="1"/>
+          </TextLine>
+        </TextBlock>
+      </PrintSpace>
+    </Page>
+  </Layout>
+</alto>

@@ -1,0 +1,68 @@
+[
+    {
+        "bbox": [
+            331,
+            1108,
+            695,
+            1156
+        ],
+        "category": "chapter_L1",
+        "text": "Prodej dehtu a smoly",
+        "conf": 0.9026370644569397
+    },
+    {
+        "bbox": [
+            331,
+            1051,
+            743,
+            1101
+        ],
+        "category": "chapter_L1",
+        "text": "Dobývání dehtu a smoly",
+        "conf": 0.8716347813606262
+    },
+    {
+        "bbox": [
+            1547,
+            1156,
+            1584,
+            1194
+        ],
+        "category": "page_number",
+        "text": "6",
+        "conf": 0.8649413585662842
+    },
+    {
+        "bbox": [
+            1551,
+            1053,
+            1583,
+            1089
+        ],
+        "category": "page_number",
+        "text": "3",
+        "conf": 0.8611119389533997
+    },
+    {
+        "bbox": [
+            334,
+            1163,
+            558,
+            1208
+        ],
+        "category": "chapter_L1",
+        "text": "Jména místní",
+        "conf": 0.8583453893661499
+    },
+    {
+        "bbox": [
+            1550,
+            1102,
+            1584,
+            1142
+        ],
+        "category": "page_number",
+        "text": "5",
+        "conf": 0.8256721496582031
+    }
+]

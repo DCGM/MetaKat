@@ -1,0 +1,277 @@
+[
+    {
+        "chapter_name": "Uvod",
+        "polygon": [
+            [
+                344,
+                591
+            ],
+            [
+                463,
+                591
+            ],
+            [
+                463,
+                641
+            ],
+            [
+                344,
+                641
+            ]
+        ],
+        "page_name": "11",
+        "chapter_number": "1.",
+        "start_page": null,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Poloha Bukovca",
+        "polygon": [
+            [
+                344,
+                652
+            ],
+            [
+                676,
+                652
+            ],
+            [
+                676,
+                706
+            ],
+            [
+                344,
+                706
+            ]
+        ],
+        "page_name": "11",
+        "chapter_number": "2.",
+        "start_page": null,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Obyvatelia Bukovca",
+        "polygon": [
+            [
+                341,
+                715
+            ],
+            [
+                744,
+                715
+            ],
+            [
+                744,
+                768
+            ],
+            [
+                341,
+                768
+            ]
+        ],
+        "page_name": "11",
+        "chapter_number": "3.",
+        "start_page": 15,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Hospodárske pomery",
+        "polygon": [
+            [
+                344,
+                779
+            ],
+            [
+                766,
+                779
+            ],
+            [
+                766,
+                832
+            ],
+            [
+                344,
+                832
+            ]
+        ],
+        "page_name": "11",
+        "chapter_number": "4.",
+        "start_page": 18,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Židovstvo na Bukovci",
+        "polygon": [
+            [
+                344,
+                840
+            ],
+            [
+                795,
+                840
+            ],
+            [
+                795,
+                892
+            ],
+            [
+                344,
+                892
+            ]
+        ],
+        "page_name": "11",
+        "chapter_number": "5.",
+        "start_page": 32,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Politické pomery",
+        "polygon": [
+            [
+                344,
+                904
+            ],
+            [
+                685,
+                904
+            ],
+            [
+                685,
+                957
+            ],
+            [
+                344,
+                957
+            ]
+        ],
+        "page_name": "11",
+        "chapter_number": "6.",
+        "start_page": 40,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Zakladanie družstva",
+        "polygon": [
+            [
+                343,
+                967
+            ],
+            [
+                747,
+                967
+            ],
+            [
+                747,
+                1019
+            ],
+            [
+                343,
+                1019
+            ]
+        ],
+        "page_name": "11",
+        "chapter_number": "7.",
+        "start_page": 48,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Učinkovanie",
+        "polygon": [
+            [
+                344,
+                1030
+            ],
+            [
+                595,
+                1030
+            ],
+            [
+                595,
+                1082
+            ],
+            [
+                344,
+                1082
+            ]
+        ],
+        "page_name": "11",
+        "chapter_number": "8.",
+        "start_page": 59,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Nové časy",
+        "polygon": [
+            [
+                345,
+                1093
+            ],
+            [
+                564,
+                1093
+            ],
+            [
+                564,
+                1146
+            ],
+            [
+                345,
+                1146
+            ]
+        ],
+        "page_name": "11",
+        "chapter_number": "9.",
+        "start_page": 73,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Dôsledky",
+        "polygon": [
+            [
+                345,
+                1157
+            ],
+            [
+                538,
+                1157
+            ],
+            [
+                538,
+                1210
+            ],
+            [
+                345,
+                1210
+            ]
+        ],
+        "page_name": "11",
+        "chapter_number": "10.",
+        "start_page": 83,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Jubilejná slávnost Družstva",
+        "polygon": [
+            [
+                346,
+                1220
+            ],
+            [
+                893,
+                1220
+            ],
+            [
+                893,
+                1272
+            ],
+            [
+                346,
+                1272
+            ]
+        ],
+        "page_name": "11",
+        "chapter_number": "11.",
+        "start_page": 89,
+        "subchapters": []
+    }
+]

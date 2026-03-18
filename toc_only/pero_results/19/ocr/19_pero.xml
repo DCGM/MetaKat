@@ -1,0 +1,383 @@
+<?xml version='1.0' encoding='utf-8'?>
+<PcGts xmlns="http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15/pagecontent.xsd">
+  <Metadata>
+    <Creator>Pero OCR</Creator>
+    <Created>2026-03-16T12:59:39.995998+00:00</Created>
+    <LastChange>2026-03-16T12:59:39.995998+00:00</LastChange>
+  </Metadata>
+  <Page imageFilename="19" imageWidth="1320" imageHeight="2317">
+    <TextRegion id="region_36_chapter_L1">
+      <Coords points="111,806 550,806 550,859 111,859"/>
+      <TextLine id="region_36_chapter_L1-l002" index="0" custom="heights_v2:[30.7,11.3]">
+        <Coords points="550,810 528,809 472,812 424,812 373,809 322,809 268,812 219,812 167,812 113,809 111,844 111,851 167,854 219,854 270,854 322,851 371,851 424,854 475,854 526,851 550,852 550,810"/>
+        <Baseline points="111,840 167,843 219,843 269,843 322,840 372,840 424,843 474,843 527,840 550,841"/>
+        <TextEquiv conf="0.958">
+          <Unicode>Čeřowka, Einleitungsgedicht</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_37_page_number">
+      <Coords points="1128,814 1162,814 1162,852 1128,852"/>
+    </TextRegion>
+    <TextRegion id="region_23_chapter_L1">
+      <Coords points="112,862 274,862 274,905 112,905"/>
+      <TextLine id="region_23_chapter_L1-l005" index="0" custom="heights_v2:[28.1,10.2]">
+        <Coords points="274,863 228,864 112,864 112,903 229,903 274,902 274,863"/>
+        <Baseline points="112,893 228,893 274,891"/>
+        <TextEquiv conf="0.872">
+          <Unicode>Karthauſe</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_34_page_number">
+      <Coords points="1127,861 1163,861 1163,900 1127,900"/>
+      <TextLine id="region_34_page_number-l005" index="0" custom="heights_v2:[28.1,10.2]">
+        <Coords points="1127,900 1162,900 1162,862 1127,862 1127,900"/>
+        <Baseline points="1127,890 1162,890"/>
+        <TextEquiv conf="1.000">
+          <Unicode>4</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_16_chapter_L1">
+      <Coords points="109,909 208,909 208,953 109,953"/>
+      <TextLine id="region_16_chapter_L1-l006" index="0" custom="heights_v2:[28.4,10.5]">
+        <Coords points="208,912 111,914 111,953 208,950 208,912"/>
+        <Baseline points="111,942 208,940"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Zebin</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_31_page_number">
+      <Coords points="1125,910 1161,910 1161,949 1125,949"/>
+      <TextLine id="region_31_page_number-l006" index="0" custom="heights_v2:[28.4,10.5]">
+        <Coords points="1125,910 1125,947 1159,947 1159,910 1125,910"/>
+        <Baseline points="1125,936 1159,936"/>
+        <TextEquiv conf="1.000">
+          <Unicode>7</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_28_chapter_L1">
+      <Coords points="110,955 448,955 448,1001 110,1001"/>
+      <TextLine id="region_28_chapter_L1-l007" index="0" custom="heights_v2:[30.6,11.5]">
+        <Coords points="448,956 345,956 231,956 111,956 111,998 231,998 345,998 448,998 448,956"/>
+        <Baseline points="111,986 231,986 345,986 448,986"/>
+        <TextEquiv conf="0.958">
+          <Unicode>Waldstein in Gitschin</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_6_page_number">
+      <Coords points="1113,958 1159,958 1159,997 1113,997"/>
+      <TextLine id="region_6_page_number-l007" index="0" custom="heights_v2:[30.6,11.5]">
+        <Coords points="1113,958 1113,996 1156,995 1155,958 1113,958"/>
+        <Baseline points="1113,984 1156,983"/>
+        <TextEquiv conf="1.000">
+          <Unicode>11</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_26_chapter_L1">
+      <Coords points="109,1006 264,1006 264,1048 109,1048"/>
+      <TextLine id="region_26_chapter_L1-l008" index="0" custom="heights_v2:[30.0,11.3]">
+        <Coords points="264,1006 109,1006 109,1044 228,1047 264,1047 264,1006"/>
+        <Baseline points="109,1033 228,1036 264,1036"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Kumburg</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_12_page_number">
+      <Coords points="1111,1006 1160,1006 1160,1044 1111,1044"/>
+      <TextLine id="region_12_page_number-l008" index="0" custom="heights_v2:[30.0,11.3]">
+        <Coords points="1111,1006 1111,1044 1159,1044 1159,1006 1111,1006"/>
+        <Baseline points="1111,1033 1159,1033"/>
+        <TextEquiv conf="1.000">
+          <Unicode>14</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_27_chapter_L1">
+      <Coords points="109,1052 243,1052 243,1095 109,1095"/>
+      <TextLine id="region_27_chapter_L1-l009" index="0" custom="heights_v2:[30.8,11.6]">
+        <Coords points="243,1052 111,1052 111,1091 231,1091 243,1092 243,1052"/>
+        <Baseline points="111,1080 231,1080 243,1080"/>
+        <TextEquiv conf="0.999">
+          <Unicode>Bradlec</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_8_page_number">
+      <Coords points="1111,1052 1159,1052 1159,1092 1111,1092"/>
+      <TextLine id="region_8_page_number-l009" index="0" custom="heights_v2:[30.8,11.6]">
+        <Coords points="1111,1052 1111,1090 1159,1088 1159,1085 1158,1052 1111,1052"/>
+        <Baseline points="1111,1078 1159,1077"/>
+        <TextEquiv conf="1.000">
+          <Unicode>19</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_32_chapter_L1">
+      <Coords points="108,1099 408,1099 408,1145 108,1145"/>
+      <TextLine id="region_32_chapter_L1-l010" index="0" custom="heights_v2:[31.6,11.7]">
+        <Coords points="109,1099 108,1141 108,1141 229,1144 342,1141 408,1141 408,1099 301,1099 227,1101 152,1099 109,1099"/>
+        <Baseline points="108,1130 228,1132 342,1130 408,1130"/>
+        <TextEquiv conf="0.984">
+          <Unicode>Das Rieſengebirge</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_0_page_number">
+      <Coords points="1110,1102 1158,1102 1158,1141 1110,1141"/>
+      <TextLine id="region_0_page_number-l010" index="0" custom="heights_v2:[31.6,11.7]">
+        <Coords points="1110,1102 1110,1138 1156,1138 1156,1102 1110,1102"/>
+        <Baseline points="1110,1127 1156,1127"/>
+        <TextEquiv conf="1.000">
+          <Unicode>22</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_21_chapter_L1">
+      <Coords points="109,1149 218,1149 218,1192 109,1192"/>
+      <TextLine id="region_21_chapter_L1-l011" index="0" custom="heights_v2:[32.0,11.6]">
+        <Coords points="218,1149 111,1149 111,1191 218,1191 218,1149"/>
+        <Baseline points="111,1179 218,1179"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Tabor</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_14_page_number">
+      <Coords points="1109,1150 1157,1150 1157,1189 1109,1189"/>
+      <TextLine id="region_14_page_number-l011" index="0" custom="heights_v2:[32.0,11.6]">
+        <Coords points="1109,1150 1109,1187 1153,1188 1154,1150 1109,1150"/>
+        <Baseline points="1109,1175 1153,1176"/>
+        <TextEquiv conf="1.000">
+          <Unicode>27</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_22_chapter_L1">
+      <Coords points="109,1197 247,1197 247,1240 109,1240"/>
+      <TextLine id="region_22_chapter_L1-l012" index="0" custom="heights_v2:[32.7,11.7]">
+        <Coords points="247,1197 111,1197 111,1238 231,1238 247,1238 247,1197"/>
+        <Baseline points="111,1226 231,1226 247,1226"/>
+        <TextEquiv conf="0.975">
+          <Unicode>Prachow</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_4_page_number">
+      <Coords points="1109,1200 1157,1200 1157,1238 1109,1238"/>
+      <TextLine id="region_4_page_number-l012" index="0" custom="heights_v2:[32.7,11.7]">
+        <Coords points="1109,1200 1109,1238 1156,1238 1156,1200 1109,1200"/>
+        <Baseline points="1109,1226 1156,1226"/>
+        <TextEquiv conf="1.000">
+          <Unicode>31</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_9_chapter_L1">
+      <Coords points="108,1244 227,1244 227,1288 108,1288"/>
+      <TextLine id="region_9_chapter_L1-l013" index="0" custom="heights_v2:[32.9,12.2]">
+        <Coords points="227,1288 227,1244 111,1244 111,1288 227,1288"/>
+        <Baseline points="111,1276 227,1276"/>
+        <TextEquiv conf="0.566">
+          <Unicode>Welisch</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_1_page_number">
+      <Coords points="1109,1248 1157,1248 1157,1286 1109,1286"/>
+      <TextLine id="region_1_page_number-l013" index="0" custom="heights_v2:[32.9,12.2]">
+        <Coords points="1109,1248 1109,1285 1156,1285 1156,1248 1109,1248"/>
+        <Baseline points="1109,1273 1156,1273"/>
+        <TextEquiv conf="1.000">
+          <Unicode>33</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_15_chapter_L1">
+      <Coords points="107,1293 274,1293 274,1336 107,1336"/>
+      <TextLine id="region_15_chapter_L1-l014" index="0" custom="heights_v2:[31.7,12.1]">
+        <Coords points="274,1293 107,1293 107,1332 225,1335 274,1335 274,1293"/>
+        <Baseline points="107,1320 225,1323 274,1323"/>
+        <TextEquiv conf="0.877">
+          <Unicode>Seemöven</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_13_page_number">
+      <Coords points="1108,1295 1156,1295 1156,1334 1108,1334"/>
+      <TextLine id="region_13_page_number-l014" index="0" custom="heights_v2:[31.7,12.1]">
+        <Coords points="1108,1295 1108,1334 1119,1334 1153,1334 1154,1295 1108,1295"/>
+        <Baseline points="1108,1322 1153,1323"/>
+        <TextEquiv conf="1.000">
+          <Unicode>37</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_30_chapter_L1">
+      <Coords points="107,1340 220,1340 220,1383 107,1383"/>
+      <TextLine id="region_30_chapter_L1-l015" index="0" custom="heights_v2:[31.0,12.2]">
+        <Coords points="220,1340 107,1340 107,1382 220,1382 220,1340"/>
+        <Baseline points="107,1369 220,1369"/>
+        <TextEquiv conf="0.932">
+          <Unicode>Troſky</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_3_page_number">
+      <Coords points="1108,1343 1156,1343 1156,1382 1108,1382"/>
+      <TextLine id="region_3_page_number-l015" index="0" custom="heights_v2:[31.0,12.2]">
+        <Coords points="1108,1343 1108,1382 1153,1382 1153,1343 1108,1343"/>
+        <Baseline points="1108,1369 1153,1369"/>
+        <TextEquiv conf="1.000">
+          <Unicode>41</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_17_chapter_L1">
+      <Coords points="108,1389 284,1389 284,1432 108,1432"/>
+      <TextLine id="region_17_chapter_L1-l016" index="0" custom="heights_v2:[30.0,11.8]">
+        <Coords points="108,1389 108,1428 222,1431 284,1431 284,1389 222,1389 211,1389 108,1389"/>
+        <Baseline points="108,1416 222,1419 284,1419"/>
+        <TextEquiv conf="0.999">
+          <Unicode>Gegenwart</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_2_page_number">
+      <Coords points="1108,1391 1156,1391 1156,1430 1108,1430"/>
+      <TextLine id="region_2_page_number-l016" index="0" custom="heights_v2:[30.0,11.8]">
+        <Coords points="1108,1391 1108,1430 1156,1430 1156,1391 1108,1391"/>
+        <Baseline points="1108,1419 1156,1419"/>
+        <TextEquiv conf="1.000">
+          <Unicode>43</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_18_chapter_L1">
+      <Coords points="105,1436 278,1436 278,1479 105,1479"/>
+      <TextLine id="region_18_chapter_L1-l017" index="0" custom="heights_v2:[29.7,11.9]">
+        <Coords points="105,1436 105,1475 222,1478 278,1478 278,1436 222,1436 209,1436 105,1436"/>
+        <Baseline points="105,1463 222,1466 278,1466"/>
+        <TextEquiv conf="0.998">
+          <Unicode>Naturliebe</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_20_page_number">
+      <Coords points="1107,1439 1155,1439 1155,1478 1107,1478"/>
+      <TextLine id="region_20_page_number-l017" index="0" custom="heights_v2:[29.7,11.9]">
+        <Coords points="1107,1439 1107,1478 1153,1478 1153,1439 1107,1439"/>
+        <Baseline points="1107,1466 1153,1466"/>
+        <TextEquiv conf="1.000">
+          <Unicode>47</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_35_chapter_L1">
+      <Coords points="104,1484 209,1484 209,1525 104,1525"/>
+      <TextLine id="region_35_chapter_L1-l018" index="0" custom="heights_v2:[29.7,11.7]">
+        <Coords points="209,1484 105,1484 105,1522 209,1522 209,1484"/>
+        <Baseline points="105,1510 209,1510"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Abend</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_10_page_number">
+      <Coords points="1107,1486 1155,1486 1155,1526 1107,1526"/>
+      <TextLine id="region_10_page_number-l018" index="0" custom="heights_v2:[29.7,11.7]">
+        <Coords points="1107,1486 1107,1525 1153,1525 1153,1486 1107,1486"/>
+        <Baseline points="1107,1513 1153,1513"/>
+        <TextEquiv conf="1.000">
+          <Unicode>49</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_29_chapter_L1">
+      <Coords points="105,1530 392,1530 392,1577 105,1577"/>
+      <TextLine id="region_29_chapter_L1-l019" index="0" custom="heights_v2:[30.4,11.4]">
+        <Coords points="392,1532 337,1532 222,1532 105,1532 105,1574 222,1574 337,1574 392,1574 392,1532"/>
+        <Baseline points="105,1563 222,1563 337,1563 392,1563"/>
+        <TextEquiv conf="0.701">
+          <Unicode>Nach zehn Jahren</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_5_page_number">
+      <Coords points="1106,1536 1154,1536 1154,1575 1106,1575"/>
+      <TextLine id="region_5_page_number-l019" index="0" custom="heights_v2:[30.4,11.4]">
+        <Coords points="1106,1536 1106,1574 1153,1574 1153,1536 1106,1536"/>
+        <Baseline points="1106,1563 1153,1563"/>
+        <TextEquiv conf="1.000">
+          <Unicode>51</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_11_chapter_L1">
+      <Coords points="105,1579 286,1579 286,1623 105,1623"/>
+      <TextLine id="region_11_chapter_L1-l020" index="0" custom="heights_v2:[30.8,11.3]">
+        <Coords points="286,1579 105,1579 105,1618 222,1618 286,1619 286,1579"/>
+        <Baseline points="105,1607 222,1607 286,1608"/>
+        <TextEquiv conf="0.909">
+          <Unicode>Wanderlust</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_7_page_number">
+      <Coords points="1105,1583 1154,1583 1154,1622 1105,1622"/>
+      <TextLine id="region_7_page_number-l020" index="0" custom="heights_v2:[30.8,11.3]">
+        <Coords points="1105,1583 1105,1621 1153,1621 1153,1583 1105,1583"/>
+        <Baseline points="1105,1609 1153,1609"/>
+        <TextEquiv conf="1.000">
+          <Unicode>53</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_19_chapter_L1">
+      <Coords points="107,1625 471,1625 471,1672 107,1672"/>
+      <TextLine id="region_19_chapter_L1-l021" index="0" custom="heights_v2:[30.3,11.0]">
+        <Coords points="107,1625 107,1664 222,1667 337,1667 453,1667 471,1668 471,1626 454,1626 337,1626 222,1626 181,1625 107,1625"/>
+        <Baseline points="107,1653 222,1656 337,1656 454,1656 471,1657"/>
+        <TextEquiv conf="0.490">
+          <Unicode>Teřowka, Schlußgedicht</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_25_page_number">
+      <Coords points="1105,1630 1153,1630 1153,1669 1105,1669"/>
+      <TextLine id="region_25_page_number-l021" index="0" custom="heights_v2:[30.3,11.0]">
+        <Coords points="1105,1630 1105,1668 1153,1667 1153,1658 1152,1630 1105,1630"/>
+        <Baseline points="1105,1657 1153,1656"/>
+        <TextEquiv conf="1.000">
+          <Unicode>54</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_33_chapter_L1">
+      <Coords points="105,1675 318,1675 318,1721 105,1721"/>
+      <TextLine id="region_33_chapter_L1-l022" index="0" custom="heights_v2:[29.5,10.7]">
+        <Coords points="105,1675 105,1714 138,1714 172,1714 208,1717 243,1717 278,1717 313,1717 318,1717 318,1676 313,1676 278,1676 243,1676 208,1676 191,1675 105,1675"/>
+        <Baseline points="105,1703 138,1703 173,1703 208,1706 243,1706 278,1706 313,1706 318,1706"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Anmerkungen</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_24_page_number">
+      <Coords points="1104,1679 1152,1679 1152,1719 1104,1719"/>
+      <TextLine id="region_24_page_number-l024" index="0" custom="heights_v2:[26.0,9.0]">
+        <Coords points="1104,1715 1150,1715 1150,1680 1104,1680 1104,1715"/>
+        <Baseline points="1104,1706 1150,1706"/>
+        <TextEquiv conf="1.000">
+          <Unicode>57</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+  </Page>
+</PcGts>

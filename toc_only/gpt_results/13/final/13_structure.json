@@ -1,0 +1,352 @@
+[
+    {
+        "chapter_name": "Předmluva",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 5,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                617
+            ],
+            [
+                898,
+                617
+            ],
+            [
+                898,
+                679
+            ],
+            [
+                224,
+                679
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Hospodářské poměry na Slovensku",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 7,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                679
+            ],
+            [
+                898,
+                679
+            ],
+            [
+                898,
+                741
+            ],
+            [
+                224,
+                741
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Pastvinářství na Slovensku",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 12,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                741
+            ],
+            [
+                898,
+                741
+            ],
+            [
+                898,
+                803
+            ],
+            [
+                224,
+                803
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Chov dobytka (statistika)",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 14,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                803
+            ],
+            [
+                898,
+                803
+            ],
+            [
+                898,
+                864
+            ],
+            [
+                224,
+                864
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Kůň",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 22,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                864
+            ],
+            [
+                898,
+                864
+            ],
+            [
+                898,
+                926
+            ],
+            [
+                224,
+                926
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Osli a muli",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 31,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                926
+            ],
+            [
+                898,
+                926
+            ],
+            [
+                898,
+                988
+            ],
+            [
+                224,
+                988
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Skot",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 32,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                988
+            ],
+            [
+                898,
+                988
+            ],
+            [
+                898,
+                1050
+            ],
+            [
+                224,
+                1050
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Mlékařství na Slovensku",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 39,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                1050
+            ],
+            [
+                898,
+                1050
+            ],
+            [
+                898,
+                1112
+            ],
+            [
+                224,
+                1112
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Ovce",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 40,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                1112
+            ],
+            [
+                898,
+                1112
+            ],
+            [
+                898,
+                1173
+            ],
+            [
+                224,
+                1173
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Prase",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 69,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                1173
+            ],
+            [
+                898,
+                1173
+            ],
+            [
+                898,
+                1235
+            ],
+            [
+                224,
+                1235
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Kozy",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 74,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                1235
+            ],
+            [
+                898,
+                1235
+            ],
+            [
+                898,
+                1297
+            ],
+            [
+                224,
+                1297
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Drůbež",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 75,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                1297
+            ],
+            [
+                898,
+                1297
+            ],
+            [
+                898,
+                1359
+            ],
+            [
+                224,
+                1359
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Chov bource morušového",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 77,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                1359
+            ],
+            [
+                898,
+                1359
+            ],
+            [
+                898,
+                1420
+            ],
+            [
+                224,
+                1420
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Doslov",
+        "page_name": "13",
+        "chapter_number": null,
+        "start_page": 78,
+        "subchapters": [],
+        "polygon": [
+            [
+                224,
+                1420
+            ],
+            [
+                898,
+                1420
+            ],
+            [
+                898,
+                1482
+            ],
+            [
+                224,
+                1482
+            ]
+        ]
+    }
+]

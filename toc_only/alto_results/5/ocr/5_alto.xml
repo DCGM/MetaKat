@@ -1,0 +1,73 @@
+<?xml version='1.0' encoding='utf-8'?>
+<alto xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.loc.gov/standards/alto/ns-v2#">
+  <Description>
+    <MeasurementUnit>pixel</MeasurementUnit>
+    <sourceImageInformation>
+      <fileName>5</fileName>
+    </sourceImageInformation>
+    <OCRProcessing ID="IdOcr">
+      <ocrProcessingStep>
+        <processingDateTime>2026-03-16T12:56:15.598396</processingDateTime>
+        <processingSoftware>
+          <softwareCreator>Project PERO</softwareCreator>
+          <softwareName>PERO OCR</softwareName>
+          <softwareVersion>v0.1.0</softwareVersion>
+        </processingSoftware>
+      </ocrProcessingStep>
+    </OCRProcessing>
+  </Description>
+  <Layout>
+    <Page ID="id_5" PHYSICAL_IMG_NR="1" HEIGHT="2243" WIDTH="1377">
+      <TopMargin HEIGHT="518" WIDTH="1377" VPOS="0" HPOS="0"/>
+      <LeftMargin HEIGHT="2243" WIDTH="170" VPOS="0" HPOS="0"/>
+      <RightMargin HEIGHT="2243" WIDTH="0" VPOS="0" HPOS="1377"/>
+      <BottomMargin HEIGHT="0" WIDTH="1377" VPOS="2243" HPOS="0"/>
+      <PrintSpace HEIGHT="1724" WIDTH="1206" VPOS="518" HPOS="170">
+        <TextBlock ID="block_r003" HEIGHT="55" WIDTH="336" VPOS="518" HPOS="453">
+          <TextLine BASELINE="560" VPOS="518" HPOS="453" HEIGHT="55" WIDTH="336">
+            <String CONTENT="Obsah:" HEIGHT="55" WIDTH="315" VPOS="518" HPOS="474" WC="1.0"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r001" HEIGHT="52" WIDTH="299" VPOS="681" HPOS="176">
+          <TextLine BASELINE="720" VPOS="681" HPOS="176" HEIGHT="52" WIDTH="299">
+            <String CONTENT="Zákon" HEIGHT="52" WIDTH="120" VPOS="680" HPOS="189" WC="1"/>
+            <SP WIDTH="4" VPOS="680" HPOS="309"/>
+            <String CONTENT="srdce" HEIGHT="52" WIDTH="113" VPOS="680" HPOS="346" WC="1"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r002" HEIGHT="49" WIDTH="232" VPOS="791" HPOS="176">
+          <TextLine BASELINE="827" VPOS="791" HPOS="176" HEIGHT="49" WIDTH="232">
+            <String CONTENT="Dvorečtí" HEIGHT="49" WIDTH="181" VPOS="790" HPOS="188" WC="1"/>
+            <SP WIDTH="4" VPOS="790" HPOS="370"/>
+            <String CONTENT="." HEIGHT="49" WIDTH="12" VPOS="790" HPOS="395" WC="1"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r000" HEIGHT="52" WIDTH="321" VPOS="895" HPOS="170">
+          <TextLine BASELINE="933" VPOS="895" HPOS="170" HEIGHT="52" WIDTH="321">
+            <String CONTENT="Zaprodaná" HEIGHT="56" WIDTH="219" VPOS="893" HPOS="189" WC="1"/>
+            <SP WIDTH="4" VPOS="893" HPOS="409"/>
+            <String CONTENT="." HEIGHT="53" WIDTH="18" VPOS="894" HPOS="458" WC="1"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r004" HEIGHT="60" WIDTH="71" VPOS="893" HPOS="498">
+          <TextLine BASELINE="936" VPOS="893" HPOS="498" HEIGHT="60" WIDTH="71">
+            <String CONTENT="." HEIGHT="58" WIDTH="25" VPOS="894" HPOS="521" WC="0.98"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r006" HEIGHT="170" WIDTH="156" VPOS="783" HPOS="904">
+          <TextLine BASELINE="826" VPOS="783" HPOS="906" HEIGHT="60" WIDTH="154">
+            <String CONTENT="." HEIGHT="57" WIDTH="19" VPOS="784" HPOS="927" WC="1.0"/>
+            <SP WIDTH="4" VPOS="784" HPOS="947"/>
+            <String CONTENT="55" HEIGHT="58" WIDTH="49" VPOS="782" HPOS="995" WC="1.0"/>
+          </TextLine>
+          <TextLine BASELINE="935" VPOS="891" HPOS="904" HEIGHT="61" WIDTH="153">
+            <String CONTENT="." HEIGHT="59" WIDTH="18" VPOS="892" HPOS="926" WC="1"/>
+            <SP WIDTH="4" VPOS="892" HPOS="945"/>
+            <String CONTENT="153" HEIGHT="58" WIDTH="76" VPOS="891" HPOS="966" WC="1"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r005" HEIGHT="101" WIDTH="132" VPOS="1112" HPOS="554"/>
+      </PrintSpace>
+    </Page>
+  </Layout>
+</alto>

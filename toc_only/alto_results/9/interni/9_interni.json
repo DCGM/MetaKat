@@ -1,0 +1,420 @@
+[
+    {
+        "bbox": [
+            1349,
+            1461,
+            1410,
+            1498
+        ],
+        "category": "page_number",
+        "text": "128",
+        "conf": 0.9202026724815369
+    },
+    {
+        "bbox": [
+            1348,
+            1371,
+            1408,
+            1409
+        ],
+        "category": "page_number",
+        "text": "111",
+        "conf": 0.919408917427063
+    },
+    {
+        "bbox": [
+            1348,
+            1417,
+            1410,
+            1453
+        ],
+        "category": "page_number",
+        "text": "116",
+        "conf": 0.9191547632217407
+    },
+    {
+        "bbox": [
+            1347,
+            1504,
+            1410,
+            1542
+        ],
+        "category": "page_number",
+        "text": "140",
+        "conf": 0.9149978756904602
+    },
+    {
+        "bbox": [
+            1350,
+            1328,
+            1409,
+            1365
+        ],
+        "category": "page_number",
+        "text": "104",
+        "conf": 0.9130958318710327
+    },
+    {
+        "bbox": [
+            1363,
+            974,
+            1411,
+            1011
+        ],
+        "category": "page_number",
+        "text": "49",
+        "conf": 0.9109886884689331
+    },
+    {
+        "bbox": [
+            1362,
+            1284,
+            1410,
+            1320
+        ],
+        "category": "page_number",
+        "text": "95",
+        "conf": 0.9107557535171509
+    },
+    {
+        "bbox": [
+            1364,
+            885,
+            1411,
+            922
+        ],
+        "category": "page_number",
+        "text": "33",
+        "conf": 0.9106910228729248
+    },
+    {
+        "bbox": [
+            1362,
+            1241,
+            1409,
+            1276
+        ],
+        "category": "page_number",
+        "text": "86",
+        "conf": 0.909991979598999
+    },
+    {
+        "bbox": [
+            1364,
+            931,
+            1412,
+            967
+        ],
+        "category": "page_number",
+        "text": "44",
+        "conf": 0.9095784425735474
+    },
+    {
+        "bbox": [
+            1363,
+            843,
+            1410,
+            878
+        ],
+        "category": "page_number",
+        "text": "24",
+        "conf": 0.9094676971435547
+    },
+    {
+        "bbox": [
+            1362,
+            1019,
+            1410,
+            1056
+        ],
+        "category": "page_number",
+        "text": "53",
+        "conf": 0.9077890515327454
+    },
+    {
+        "bbox": [
+            1363,
+            1109,
+            1410,
+            1144
+        ],
+        "category": "page_number",
+        "text": "64",
+        "conf": 0.9042083024978638
+    },
+    {
+        "bbox": [
+            1363,
+            1196,
+            1409,
+            1231
+        ],
+        "category": "page_number",
+        "text": "81",
+        "conf": 0.9037340879440308
+    },
+    {
+        "bbox": [
+            342,
+            1237,
+            857,
+            1282
+        ],
+        "category": "chapter_L1",
+        "text": "O hloupém Peciválovi (z Polsky)",
+        "conf": 0.9028301239013672
+    },
+    {
+        "bbox": [
+            1362,
+            1063,
+            1411,
+            1101
+        ],
+        "category": "page_number",
+        "text": "58",
+        "conf": 0.9019762277603149
+    },
+    {
+        "bbox": [
+            345,
+            1018,
+            647,
+            1060
+        ],
+        "category": "chapter_L1",
+        "text": "Popelka (z Bulhar)",
+        "conf": 0.8990709781646729
+    },
+    {
+        "bbox": [
+            343,
+            1193,
+            745,
+            1236
+        ],
+        "category": "chapter_L1",
+        "text": "Sněhurka (z Veliké Rusi)",
+        "conf": 0.8958171010017395
+    },
+    {
+        "bbox": [
+            1348,
+            1550,
+            1411,
+            1586
+        ],
+        "category": "page_number",
+        "text": "149",
+        "conf": 0.8949413895606995
+    },
+    {
+        "bbox": [
+            344,
+            927,
+            726,
+            971
+        ],
+        "category": "chapter_L1",
+        "text": "Špalíček (z Veliké Rusi)",
+        "conf": 0.8935266733169556
+    },
+    {
+        "bbox": [
+            345,
+            884,
+            621,
+            926
+        ],
+        "category": "chapter_L1",
+        "text": "Osud (ze Srbska)",
+        "conf": 0.8921552300453186
+    },
+    {
+        "bbox": [
+            340,
+            1503,
+            775,
+            1546
+        ],
+        "category": "chapter_L1",
+        "text": "Rybářův syn (ze Slovinska)",
+        "conf": 0.8914791345596313
+    },
+    {
+        "bbox": [
+            346,
+            795,
+            809,
+            839
+        ],
+        "category": "chapter_L1",
+        "text": "Čtvero větrův (z Veliké Rusi)",
+        "conf": 0.891241729259491
+    },
+    {
+        "bbox": [
+            344,
+            840,
+            883,
+            884
+        ],
+        "category": "chapter_L1",
+        "text": "Nesmrtelný Kostěj (z Veliké Rusi)",
+        "conf": 0.8888821005821228
+    },
+    {
+        "bbox": [
+            344,
+            1414,
+            932,
+            1458
+        ],
+        "category": "chapter_L1",
+        "text": "Zlatá jablka a devět pavic (z Bulhar)",
+        "conf": 0.888293981552124
+    },
+    {
+        "bbox": [
+            345,
+            1282,
+            941,
+            1325
+        ],
+        "category": "chapter_L1",
+        "text": "Zázračný visutý zámek (z Charvátska)",
+        "conf": 0.8877903819084167
+    },
+    {
+        "bbox": [
+            342,
+            1061,
+            1099,
+            1105
+        ],
+        "category": "chapter_L1",
+        "text": "Ilja Muromec a Slavík loupežník (z Veliké Rusi)",
+        "conf": 0.8870874047279358
+    },
+    {
+        "bbox": [
+            344,
+            1105,
+            861,
+            1149
+        ],
+        "category": "chapter_L1",
+        "text": "O Ivanovi hlupci (z Veliké Rusi)",
+        "conf": 0.8866962194442749
+    },
+    {
+        "bbox": [
+            347,
+            750,
+            813,
+            796
+        ],
+        "category": "chapter_L1",
+        "text": "Drak a carův syn (ze Srbska)",
+        "conf": 0.8862003087997437
+    },
+    {
+        "bbox": [
+            343,
+            1149,
+            757,
+            1193
+        ],
+        "category": "chapter_L1",
+        "text": "Baba-Jaga (z Veliké Rusi)",
+        "conf": 0.8844398856163025
+    },
+    {
+        "bbox": [
+            343,
+            1546,
+            801,
+            1590
+        ],
+        "category": "chapter_L1",
+        "text": "Dobré děti (z Haličské Rusi)",
+        "conf": 0.8829535841941833
+    },
+    {
+        "bbox": [
+            1365,
+            797,
+            1411,
+            835
+        ],
+        "category": "page_number",
+        "text": "17",
+        "conf": 0.8815622925758362
+    },
+    {
+        "bbox": [
+            341,
+            1458,
+            865,
+            1502
+        ],
+        "category": "chapter_L1",
+        "text": "O žabce královně (z Veliké Rusi)",
+        "conf": 0.880501925945282
+    },
+    {
+        "bbox": [
+            343,
+            1370,
+            836,
+            1414
+        ],
+        "category": "chapter_L1",
+        "text": "Čert a Cigán (z Haličské Rusi)",
+        "conf": 0.8800862431526184
+    },
+    {
+        "bbox": [
+            344,
+            971,
+            1001,
+            1015
+        ],
+        "category": "chapter_L1",
+        "text": "O krásné panně a zlé babě (z Jižní Rusi)",
+        "conf": 0.876625657081604
+    },
+    {
+        "bbox": [
+            1364,
+            1151,
+            1410,
+            1187
+        ],
+        "category": "page_number",
+        "text": "77",
+        "conf": 0.8719298839569092
+    },
+    {
+        "bbox": [
+            341,
+            1326,
+            1329,
+            1371
+        ],
+        "category": "chapter_L1",
+        "text": "O třech bratřích, dvou moudrých a jednom hloupém (z Kašub)",
+        "conf": 0.8558829426765442
+    },
+    {
+        "bbox": [
+            1380,
+            755,
+            1411,
+            789
+        ],
+        "category": "page_number",
+        "text": "7",
+        "conf": 0.8140157461166382
+    }
+]

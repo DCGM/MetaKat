@@ -1,0 +1,365 @@
+[
+    {
+        "bbox": [
+            344,
+            904,
+            685,
+            957
+        ],
+        "category": "chapter_L1",
+        "text": "Politické pomery",
+        "conf": 0.8990800380706787
+    },
+    {
+        "bbox": [
+            345,
+            1093,
+            564,
+            1146
+        ],
+        "category": "chapter_L1",
+        "text": "Nové časy",
+        "conf": 0.8862296938896179
+    },
+    {
+        "bbox": [
+            344,
+            652,
+            676,
+            706
+        ],
+        "category": "chapter_L1",
+        "text": "Poloha Bukovca",
+        "conf": 0.8815892934799194
+    },
+    {
+        "bbox": [
+            344,
+            840,
+            795,
+            892
+        ],
+        "category": "chapter_L1",
+        "text": "Židovstvo na Bukovci",
+        "conf": 0.878402054309845
+    },
+    {
+        "bbox": [
+            344,
+            1030,
+            595,
+            1082
+        ],
+        "category": "chapter_L1",
+        "text": "Učinkovanie",
+        "conf": 0.8770800232887268
+    },
+    {
+        "bbox": [
+            344,
+            779,
+            766,
+            832
+        ],
+        "category": "chapter_L1",
+        "text": "Hospodárske pomery",
+        "conf": 0.8743023872375488
+    },
+    {
+        "bbox": [
+            345,
+            1157,
+            538,
+            1210
+        ],
+        "category": "chapter_L1",
+        "text": "Dôsledky",
+        "conf": 0.8737455010414124
+    },
+    {
+        "bbox": [
+            341,
+            715,
+            744,
+            768
+        ],
+        "category": "chapter_L1",
+        "text": "Obyvatelia Bukovca",
+        "conf": 0.8697541356086731
+    },
+    {
+        "bbox": [
+            343,
+            967,
+            747,
+            1019
+        ],
+        "category": "chapter_L1",
+        "text": "Zakladanie družstva",
+        "conf": 0.8679777979850769
+    },
+    {
+        "bbox": [
+            346,
+            1220,
+            893,
+            1272
+        ],
+        "category": "chapter_L1",
+        "text": "Jubilejná slávnost Družstva",
+        "conf": 0.8650724291801453
+    },
+    {
+        "bbox": [
+            344,
+            591,
+            463,
+            641
+        ],
+        "category": "chapter_L1",
+        "text": "Uvod",
+        "conf": 0.8596795797348022
+    },
+    {
+        "bbox": [
+            1220,
+            965,
+            1279,
+            1012
+        ],
+        "category": "page_number",
+        "text": "48",
+        "conf": 0.858837366104126
+    },
+    {
+        "bbox": [
+            288,
+            844,
+            333,
+            890
+        ],
+        "category": "chapter_number",
+        "text": "5.",
+        "conf": 0.8584892749786377
+    },
+    {
+        "bbox": [
+            287,
+            1033,
+            333,
+            1079
+        ],
+        "category": "chapter_number",
+        "text": "8.",
+        "conf": 0.8579827547073364
+    },
+    {
+        "bbox": [
+            1217,
+            838,
+            1278,
+            886
+        ],
+        "category": "page_number",
+        "text": "32",
+        "conf": 0.856589138507843
+    },
+    {
+        "bbox": [
+            268,
+            1160,
+            334,
+            1205
+        ],
+        "category": "chapter_number",
+        "text": "10.",
+        "conf": 0.8532968163490295
+    },
+    {
+        "bbox": [
+            1219,
+            1154,
+            1279,
+            1201
+        ],
+        "category": "page_number",
+        "text": "83",
+        "conf": 0.8525201082229614
+    },
+    {
+        "bbox": [
+            1219,
+            776,
+            1277,
+            822
+        ],
+        "category": "page_number",
+        "text": "18",
+        "conf": 0.8478777408599854
+    },
+    {
+        "bbox": [
+            1219,
+            902,
+            1278,
+            947
+        ],
+        "category": "page_number",
+        "text": "40",
+        "conf": 0.8399970531463623
+    },
+    {
+        "bbox": [
+            287,
+            1096,
+            333,
+            1141
+        ],
+        "category": "chapter_number",
+        "text": "9.",
+        "conf": 0.8333012461662292
+    },
+    {
+        "bbox": [
+            288,
+            907,
+            333,
+            952
+        ],
+        "category": "chapter_number",
+        "text": "6.",
+        "conf": 0.831466555595398
+    },
+    {
+        "bbox": [
+            1219,
+            712,
+            1277,
+            762
+        ],
+        "category": "page_number",
+        "text": "15",
+        "conf": 0.8293615579605103
+    },
+    {
+        "bbox": [
+            266,
+            1223,
+            334,
+            1267
+        ],
+        "category": "chapter_number",
+        "text": "11.",
+        "conf": 0.8289793133735657
+    },
+    {
+        "bbox": [
+            287,
+            655,
+            332,
+            703
+        ],
+        "category": "chapter_number",
+        "text": "2.",
+        "conf": 0.8239920139312744
+    },
+    {
+        "bbox": [
+            1218,
+            1218,
+            1277,
+            1264
+        ],
+        "category": "page_number",
+        "text": "89",
+        "conf": 0.822665810585022
+    },
+    {
+        "bbox": [
+            287,
+            719,
+            333,
+            766
+        ],
+        "category": "chapter_number",
+        "text": "3.",
+        "conf": 0.8219809532165527
+    },
+    {
+        "bbox": [
+            289,
+            784,
+            333,
+            827
+        ],
+        "category": "chapter_number",
+        "text": "4.",
+        "conf": 0.8184443116188049
+    },
+    {
+        "bbox": [
+            287,
+            594,
+            332,
+            641
+        ],
+        "category": "chapter_number",
+        "text": "1.",
+        "conf": 0.8165051937103271
+    },
+    {
+        "bbox": [
+            1219,
+            1091,
+            1278,
+            1139
+        ],
+        "category": "page_number",
+        "text": "73",
+        "conf": 0.7894970178604126
+    },
+    {
+        "bbox": [
+            1233,
+            588,
+            1277,
+            636
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.7870456576347351
+    },
+    {
+        "bbox": [
+            287,
+            970,
+            333,
+            1017
+        ],
+        "category": "chapter_number",
+        "text": "7.",
+        "conf": 0.772949755191803
+    },
+    {
+        "bbox": [
+            1234,
+            649,
+            1277,
+            695
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.767626941204071
+    },
+    {
+        "bbox": [
+            1218,
+            1029,
+            1279,
+            1075
+        ],
+        "category": "page_number",
+        "text": "59",
+        "conf": 0.7652568817138672
+    }
+]

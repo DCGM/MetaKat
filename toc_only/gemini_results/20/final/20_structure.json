@@ -1,0 +1,177 @@
+[
+    {
+        "chapter_name": "KYVADLO VĚČNOSTI",
+        "page_name": "20",
+        "chapter_number": null,
+        "start_page": 7,
+        "subchapters": [],
+        "polygon": [
+            [
+                279,
+                398
+            ],
+            [
+                1280,
+                398
+            ],
+            [
+                1280,
+                478
+            ],
+            [
+                279,
+                478
+            ]
+        ]
+    },
+    {
+        "chapter_name": "ŠTĚDROVEČERNÍ NADĚLENÍ",
+        "page_name": "20",
+        "chapter_number": null,
+        "start_page": 80,
+        "subchapters": [],
+        "polygon": [
+            [
+                132,
+                490
+            ],
+            [
+                1427,
+                490
+            ],
+            [
+                1427,
+                572
+            ],
+            [
+                132,
+                572
+            ]
+        ]
+    },
+    {
+        "chapter_name": "VŠECHNY VÁS POCHOVÁM",
+        "page_name": "20",
+        "chapter_number": null,
+        "start_page": 97,
+        "subchapters": [],
+        "polygon": [
+            [
+                176,
+                581
+            ],
+            [
+                1383,
+                581
+            ],
+            [
+                1383,
+                664
+            ],
+            [
+                176,
+                664
+            ]
+        ]
+    },
+    {
+        "chapter_name": "SERVANA STŘECHA",
+        "page_name": "20",
+        "chapter_number": null,
+        "start_page": 122,
+        "subchapters": [],
+        "polygon": [
+            [
+                312,
+                673
+            ],
+            [
+                1248,
+                673
+            ],
+            [
+                1248,
+                756
+            ],
+            [
+                312,
+                756
+            ]
+        ]
+    },
+    {
+        "chapter_name": "HODINKY",
+        "page_name": "20",
+        "chapter_number": null,
+        "start_page": 173,
+        "subchapters": [],
+        "polygon": [
+            [
+                417,
+                765
+            ],
+            [
+                1143,
+                765
+            ],
+            [
+                1143,
+                847
+            ],
+            [
+                417,
+                847
+            ]
+        ]
+    },
+    {
+        "chapter_name": "SEZIMA",
+        "page_name": "20",
+        "chapter_number": null,
+        "start_page": 202,
+        "subchapters": [],
+        "polygon": [
+            [
+                468,
+                856
+            ],
+            [
+                1091,
+                856
+            ],
+            [
+                1091,
+                939
+            ],
+            [
+                468,
+                939
+            ]
+        ]
+    },
+    {
+        "chapter_name": "SILHUETA",
+        "page_name": "20",
+        "chapter_number": null,
+        "start_page": 240,
+        "subchapters": [],
+        "polygon": [
+            [
+                421,
+                948
+            ],
+            [
+                1138,
+                948
+            ],
+            [
+                1138,
+                1030
+            ],
+            [
+                421,
+                1030
+            ]
+        ]
+    }
+]

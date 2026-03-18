@@ -1,0 +1,377 @@
+[
+    {
+        "chapter_name": "Úvod",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 5,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                594
+            ],
+            [
+                1202,
+                594
+            ],
+            [
+                1202,
+                625
+            ],
+            [
+                140,
+                625
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Jak vzniká den a noc",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 10,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                636
+            ],
+            [
+                1202,
+                636
+            ],
+            [
+                1202,
+                667
+            ],
+            [
+                140,
+                667
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Nádhera jitra",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 19,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                677
+            ],
+            [
+                1202,
+                677
+            ],
+            [
+                1202,
+                709
+            ],
+            [
+                140,
+                709
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Ranní zpěv ptactva",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 22,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                719
+            ],
+            [
+                1202,
+                719
+            ],
+            [
+                1202,
+                750
+            ],
+            [
+                140,
+                750
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Kuropění",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 29,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                761
+            ],
+            [
+                1202,
+                761
+            ],
+            [
+                1202,
+                792
+            ],
+            [
+                140,
+                792
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Postup života na zemi",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 33,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                803
+            ],
+            [
+                1202,
+                803
+            ],
+            [
+                1202,
+                834
+            ],
+            [
+                140,
+                834
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Poledne",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 49,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                844
+            ],
+            [
+                1202,
+                844
+            ],
+            [
+                1202,
+                876
+            ],
+            [
+                140,
+                876
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Slunce",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 55,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                886
+            ],
+            [
+                1202,
+                886
+            ],
+            [
+                1202,
+                917
+            ],
+            [
+                140,
+                917
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Večer",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 61,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                928
+            ],
+            [
+                1202,
+                928
+            ],
+            [
+                1202,
+                959
+            ],
+            [
+                140,
+                959
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Spánek rostlin",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 66,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                969
+            ],
+            [
+                1202,
+                969
+            ],
+            [
+                1202,
+                1001
+            ],
+            [
+                140,
+                1001
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Noc",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 72,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                1011
+            ],
+            [
+                1202,
+                1011
+            ],
+            [
+                1202,
+                1043
+            ],
+            [
+                140,
+                1043
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Život ve vesmíru?",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 79,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                1053
+            ],
+            [
+                1202,
+                1053
+            ],
+            [
+                1202,
+                1084
+            ],
+            [
+                140,
+                1084
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Noční život zvířat",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 85,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                1095
+            ],
+            [
+                1202,
+                1095
+            ],
+            [
+                1202,
+                1126
+            ],
+            [
+                140,
+                1126
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Spánek utěšitel",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 96,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                1136
+            ],
+            [
+                1202,
+                1136
+            ],
+            [
+                1202,
+                1168
+            ],
+            [
+                140,
+                1168
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Doslov",
+        "page_name": "14",
+        "chapter_number": null,
+        "start_page": 100,
+        "subchapters": [],
+        "polygon": [
+            [
+                140,
+                1178
+            ],
+            [
+                1202,
+                1178
+            ],
+            [
+                1202,
+                1209
+            ],
+            [
+                140,
+                1209
+            ]
+        ]
+    }
+]

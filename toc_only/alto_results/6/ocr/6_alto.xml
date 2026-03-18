@@ -1,0 +1,116 @@
+<?xml version='1.0' encoding='utf-8'?>
+<alto xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.loc.gov/standards/alto/ns-v2#">
+  <Description>
+    <MeasurementUnit>pixel</MeasurementUnit>
+    <sourceImageInformation>
+      <fileName>6</fileName>
+    </sourceImageInformation>
+    <OCRProcessing ID="IdOcr">
+      <ocrProcessingStep>
+        <processingDateTime>2026-03-16T12:56:17.742711</processingDateTime>
+        <processingSoftware>
+          <softwareCreator>Project PERO</softwareCreator>
+          <softwareName>PERO OCR</softwareName>
+          <softwareVersion>v0.1.0</softwareVersion>
+        </processingSoftware>
+      </ocrProcessingStep>
+    </OCRProcessing>
+  </Description>
+  <Layout>
+    <Page ID="id_6" PHYSICAL_IMG_NR="1" HEIGHT="1622" WIDTH="1002">
+      <TopMargin HEIGHT="540" WIDTH="1002" VPOS="0" HPOS="0"/>
+      <LeftMargin HEIGHT="1622" WIDTH="109" VPOS="0" HPOS="0"/>
+      <RightMargin HEIGHT="1622" WIDTH="0" VPOS="0" HPOS="1002"/>
+      <BottomMargin HEIGHT="0" WIDTH="1002" VPOS="1622" HPOS="0"/>
+      <PrintSpace HEIGHT="1081" WIDTH="892" VPOS="540" HPOS="109">
+        <TextBlock ID="block_r002" HEIGHT="64" WIDTH="208" VPOS="540" HPOS="435">
+          <TextLine BASELINE="591" VPOS="540" HPOS="435" HEIGHT="64" WIDTH="208">
+            <String CONTENT="OBSAH." HEIGHT="65" WIDTH="199" VPOS="540" HPOS="445" WC="1.0"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r004" HEIGHT="31" WIDTH="62" VPOS="646" HPOS="915">
+          <TextLine BASELINE="669" VPOS="646" HPOS="915" HEIGHT="31" WIDTH="62">
+            <String CONTENT="Str." HEIGHT="31" WIDTH="54" VPOS="645" HPOS="922" WC="1"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r000" HEIGHT="190" WIDTH="451" VPOS="687" HPOS="109">
+          <TextLine BASELINE="713" VPOS="687" HPOS="112" HEIGHT="34" WIDTH="215">
+            <String CONTENT="Staří" HEIGHT="33" WIDTH="73" VPOS="687" HPOS="118" WC="1"/>
+            <SP WIDTH="4" VPOS="687" HPOS="191"/>
+            <String CONTENT="přátelé" HEIGHT="32" WIDTH="104" VPOS="688" HPOS="213" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="792" VPOS="765" HPOS="110" HEIGHT="37" WIDTH="449">
+            <String CONTENT="Notářovo" HEIGHT="32" WIDTH="138" VPOS="765" HPOS="116" WC="1"/>
+            <SP WIDTH="4" VPOS="765" HPOS="255"/>
+            <String CONTENT="tajemství" HEIGHT="34" WIDTH="146" VPOS="765" HPOS="281" WC="1"/>
+            <SP WIDTH="4" VPOS="765" HPOS="428"/>
+            <String CONTENT="." HEIGHT="32" WIDTH="10" VPOS="768" HPOS="463" WC="1"/>
+            <SP WIDTH="4" VPOS="768" HPOS="473"/>
+            <String CONTENT="." HEIGHT="32" WIDTH="10" VPOS="768" HPOS="492" WC="1"/>
+            <SP WIDTH="4" VPOS="768" HPOS="502"/>
+            <String CONTENT="." HEIGHT="32" WIDTH="10" VPOS="769" HPOS="529" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="869" VPOS="841" HPOS="109" HEIGHT="36" WIDTH="374">
+            <String CONTENT="Dívka" HEIGHT="34" WIDTH="84" VPOS="842" HPOS="117" WC="1"/>
+            <SP WIDTH="4" VPOS="842" HPOS="201"/>
+            <String CONTENT="z" HEIGHT="34" WIDTH="13" VPOS="843" HPOS="231" WC="1"/>
+            <SP WIDTH="4" VPOS="843" HPOS="244"/>
+            <String CONTENT="venkova" HEIGHT="34" WIDTH="125" VPOS="843" HPOS="264" WC="1"/>
+            <SP WIDTH="4" VPOS="843" HPOS="389"/>
+            <String CONTENT="." HEIGHT="34" WIDTH="11" VPOS="843" HPOS="423" WC="1"/>
+            <SP WIDTH="4" VPOS="843" HPOS="434"/>
+            <String CONTENT="." HEIGHT="34" WIDTH="11" VPOS="843" HPOS="457" WC="1"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r001" HEIGHT="30" WIDTH="111" VPOS="695" HPOS="361">
+          <TextLine BASELINE="717" VPOS="695" HPOS="361" HEIGHT="30" WIDTH="111">
+            <String CONTENT="." HEIGHT="28" WIDTH="3" VPOS="695" HPOS="360" WC="1"/>
+            <SP WIDTH="4" VPOS="695" HPOS="364"/>
+            <String CONTENT="." HEIGHT="28" WIDTH="9" VPOS="695" HPOS="385" WC="1"/>
+            <SP WIDTH="4" VPOS="695" HPOS="395"/>
+            <String CONTENT="." HEIGHT="28" WIDTH="9" VPOS="696" HPOS="423" WC="1"/>
+            <SP WIDTH="4" VPOS="696" HPOS="432"/>
+            <String CONTENT="." HEIGHT="28" WIDTH="9" VPOS="697" HPOS="460" WC="1"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="block_r003" HEIGHT="188" WIDTH="332" VPOS="698" HPOS="646">
+          <TextLine BASELINE="718" VPOS="698" HPOS="893" HEIGHT="26" WIDTH="85">
+            <String CONTENT="3" HEIGHT="26" WIDTH="8" VPOS="697" HPOS="956" WC="0.53"/>
+          </TextLine>
+          <TextLine BASELINE="796" VPOS="762" HPOS="684" HEIGHT="49" WIDTH="292">
+            <String CONTENT="." HEIGHT="43" WIDTH="16" VPOS="763" HPOS="703" WC="1"/>
+            <SP WIDTH="4" VPOS="763" HPOS="720"/>
+            <String CONTENT="." HEIGHT="43" WIDTH="16" VPOS="764" HPOS="739" WC="1"/>
+            <SP WIDTH="4" VPOS="764" HPOS="755"/>
+            <String CONTENT="." HEIGHT="43" WIDTH="13" VPOS="766" HPOS="774" WC="1"/>
+            <SP WIDTH="4" VPOS="766" HPOS="788"/>
+            <String CONTENT="." HEIGHT="43" WIDTH="17" VPOS="767" HPOS="812" WC="1"/>
+            <SP WIDTH="4" VPOS="767" HPOS="829"/>
+            <String CONTENT="." HEIGHT="42" WIDTH="14" VPOS="767" HPOS="847" WC="1"/>
+            <SP WIDTH="4" VPOS="767" HPOS="862"/>
+            <String CONTENT="." HEIGHT="42" WIDTH="15" VPOS="767" HPOS="883" WC="1"/>
+            <SP WIDTH="4" VPOS="767" HPOS="898"/>
+            <String CONTENT="87" HEIGHT="43" WIDTH="37" VPOS="766" HPOS="934" WC="1"/>
+          </TextLine>
+          <TextLine BASELINE="875" VPOS="845" HPOS="646" HEIGHT="40" WIDTH="330">
+            <String CONTENT="." HEIGHT="37" WIDTH="14" VPOS="848" HPOS="668" WC="1"/>
+            <SP WIDTH="4" VPOS="848" HPOS="683"/>
+            <String CONTENT="." HEIGHT="36" WIDTH="14" VPOS="846" HPOS="705" WC="1"/>
+            <SP WIDTH="4" VPOS="846" HPOS="720"/>
+            <String CONTENT="." HEIGHT="36" WIDTH="11" VPOS="846" HPOS="740" WC="1"/>
+            <SP WIDTH="4" VPOS="846" HPOS="752"/>
+            <String CONTENT="." HEIGHT="36" WIDTH="11" VPOS="845" HPOS="777" WC="1"/>
+            <SP WIDTH="4" VPOS="845" HPOS="788"/>
+            <String CONTENT="." HEIGHT="36" WIDTH="11" VPOS="845" HPOS="814" WC="1"/>
+            <SP WIDTH="4" VPOS="845" HPOS="825"/>
+            <String CONTENT="." HEIGHT="36" WIDTH="14" VPOS="845" HPOS="846" WC="1"/>
+            <SP WIDTH="4" VPOS="845" HPOS="860"/>
+            <String CONTENT="." HEIGHT="36" WIDTH="12" VPOS="846" HPOS="887" WC="1"/>
+            <SP WIDTH="4" VPOS="846" HPOS="900"/>
+            <String CONTENT="137" HEIGHT="38" WIDTH="52" VPOS="846" HPOS="919" WC="1"/>
+          </TextLine>
+        </TextBlock>
+      </PrintSpace>
+    </Page>
+  </Layout>
+</alto>

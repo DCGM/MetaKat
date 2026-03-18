@@ -1,0 +1,220 @@
+<?xml version='1.0' encoding='utf-8'?>
+<PcGts xmlns="http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15/pagecontent.xsd">
+  <Metadata>
+    <Creator>Pero OCR</Creator>
+    <Created>2026-03-16T12:59:51.899117+00:00</Created>
+    <LastChange>2026-03-16T12:59:51.899117+00:00</LastChange>
+  </Metadata>
+  <Page imageFilename="21" imageWidth="1748" imageHeight="2362">
+    <TextRegion id="region_20_page_number">
+      <Coords points="859,202 950,202 950,258 859,258"/>
+      <TextLine id="region_20_page_number-l001" index="0" custom="heights_v2:[38.9,14.1]">
+        <Coords points="950,202 876,202 859,203 859,256 893,254 935,254 950,254 950,202"/>
+        <Baseline points="859,242 893,240 935,240 950,240"/>
+        <TextEquiv conf="1.000">
+          <Unicode>165</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_16_chapter_L1">
+      <Coords points="320,706 440,706 440,768 320,768"/>
+      <TextLine id="region_16_chapter_L1-l003" index="0" custom="heights_v2:[33.6,12.3]">
+        <Coords points="440,722 432,722 393,722 359,719 320,719 320,764 356,764 393,767 432,767 440,767 440,722"/>
+        <Baseline points="320,752 357,752 393,755 432,755 440,755"/>
+        <TextEquiv conf="0.968">
+          <Unicode>Uvod</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_19_page_number">
+      <Coords points="1251,723 1401,723 1401,786 1251,786"/>
+      <TextLine id="region_19_page_number-l004" index="0" custom="heights_v2:[34.8,11.3]">
+        <Coords points="1265,778 1310,775 1349,775 1394,772 1391,726 1346,729 1310,729 1262,732 1265,778"/>
+        <Baseline points="1265,767 1310,764 1349,764 1393,761"/>
+        <TextEquiv conf="0.667">
+          <Unicode>3 - 9</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_11_chapter_L1">
+      <Coords points="319,810 635,810 635,874 319,874"/>
+      <TextLine id="region_11_chapter_L1-l005" index="0" custom="heights_v2:[34.7,12.8]">
+        <Coords points="635,822 620,822 578,819 533,819 488,819 447,819 402,819 360,819 319,819 319,867 360,867 402,867 447,867 488,867 533,867 575,867 620,870 635,870 635,822"/>
+        <Baseline points="319,854 360,854 402,854 447,854 488,854 533,854 575,854 620,857 635,857"/>
+        <TextEquiv conf="0.963">
+          <Unicode>Soupis tisků</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_18_page_number">
+      <Coords points="1250,821 1474,821 1474,889 1250,889"/>
+      <TextLine id="region_18_page_number-l006" index="0" custom="heights_v2:[34.1,10.6]">
+        <Coords points="1250,877 1274,877 1310,877 1346,877 1381,877 1417,880 1462,880 1462,835 1417,835 1384,832 1346,832 1310,832 1274,832 1250,832 1250,877"/>
+        <Baseline points="1250,866 1274,866 1310,866 1346,866 1381,866 1417,869 1462,869"/>
+        <TextEquiv conf="0.989">
+          <Unicode>10 — 123</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_17_chapter_L1">
+      <Coords points="313,917 1175,917 1175,979 313,979"/>
+      <TextLine id="region_17_chapter_L1-l007" index="0" custom="heights_v2:[35.7,12.4]">
+        <Coords points="1175,979 1175,933 1095,929 965,929 837,926 707,926 579,923 450,923 315,920 314,968 450,971 578,971 707,974 836,974 965,977 1093,977 1130,979 1175,979"/>
+        <Baseline points="315,956 450,959 578,959 707,962 836,962 965,965 1094,965 1175,969"/>
+        <TextEquiv conf="0.995">
+          <Unicode>Seznam zkratek citované literatury</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_7_page_number">
+      <Coords points="1245,921 1495,921 1495,990 1245,990"/>
+      <TextLine id="region_7_page_number-l007" index="0" custom="heights_v2:[35.7,12.4]">
+        <Coords points="1245,984 1352,986 1489,986 1489,938 1352,938 1245,936 1245,984"/>
+        <Baseline points="1245,971 1352,974 1489,974"/>
+        <TextEquiv conf="0.818">
+          <Unicode>124 — 125</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_6_chapter_L1">
+      <Coords points="306,1013 1052,1013 1052,1079 306,1079"/>
+      <TextLine id="region_6_chapter_L1-l008" index="0" custom="heights_v2:[36.8,13.2]">
+        <Coords points="1052,1079 1052,1029 963,1027 831,1024 701,1024 573,1021 444,1018 309,1018 309,1068 443,1068 572,1071 701,1074 830,1074 962,1077 1044,1079 1052,1079"/>
+        <Baseline points="309,1055 444,1055 572,1058 701,1061 830,1061 962,1064 1052,1066"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Přehled tiskařů a nakladatelů</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_3_page_number">
+      <Coords points="1243,1023 1491,1023 1491,1088 1243,1088"/>
+      <TextLine id="region_3_page_number-l008" index="0" custom="heights_v2:[36.8,13.2]">
+        <Coords points="1243,1081 1349,1083 1486,1083 1486,1033 1349,1033 1243,1031 1243,1081"/>
+        <Baseline points="1243,1067 1349,1070 1486,1070"/>
+        <TextEquiv conf="0.772">
+          <Unicode>126 — 128</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_4_chapter_L1">
+      <Coords points="311,1114 901,1114 901,1182 311,1182"/>
+      <TextLine id="region_4_chapter_L1-l009" index="0" custom="heights_v2:[36.0,12.6]">
+        <Coords points="901,1130 830,1130 702,1127 572,1127 445,1121 311,1118 311,1166 443,1169 572,1175 701,1175 830,1178 901,1178 901,1130"/>
+        <Baseline points="311,1154 444,1157 572,1163 701,1163 830,1166 901,1166"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Tisky podle místa tisku</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_12_page_number">
+      <Coords points="1242,1121 1491,1121 1491,1193 1242,1193"/>
+      <TextLine id="region_12_page_number-l009" index="0" custom="heights_v2:[36.0,12.6]">
+        <Coords points="1242,1184 1345,1184 1480,1187 1481,1139 1346,1136 1242,1136 1242,1184"/>
+        <Baseline points="1242,1172 1346,1172 1480,1175"/>
+        <TextEquiv conf="0.929">
+          <Unicode>129 - 136</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_1_chapter_L1">
+      <Coords points="310,1216 881,1216 881,1285 310,1285"/>
+      <TextLine id="region_1_chapter_L1-l010" index="0" custom="heights_v2:[38.8,14.0]">
+        <Coords points="881,1226 818,1226 748,1223 671,1223 599,1223 527,1223 453,1223 382,1220 310,1220 310,1273 380,1273 453,1276 527,1276 599,1276 671,1276 746,1276 818,1279 881,1279 881,1226"/>
+        <Baseline points="310,1259 381,1259 453,1262 527,1262 599,1262 671,1262 746,1262 818,1265 881,1265"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Chronologický rejstřík</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_2_page_number">
+      <Coords points="1243,1227 1487,1227 1487,1293 1243,1293"/>
+      <TextLine id="region_2_page_number-l011" index="0" custom="heights_v2:[40.0,14.2]">
+        <Coords points="1243,1288 1244,1288 1280,1288 1319,1288 1355,1288 1393,1288 1429,1288 1474,1288 1474,1234 1429,1234 1393,1234 1355,1234 1319,1234 1280,1234 1244,1234 1243,1234 1243,1288"/>
+        <Baseline points="1243,1274 1244,1274 1280,1274 1319,1274 1355,1274 1393,1274 1429,1274 1474,1274"/>
+        <TextEquiv conf="0.780">
+          <Unicode>137 - 141</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_15_chapter_L1">
+      <Coords points="308,1318 970,1318 970,1383 308,1383"/>
+      <TextLine id="region_15_chapter_L1-l012" index="0" custom="heights_v2:[37.4,13.6]">
+        <Coords points="970,1329 965,1329 885,1326 803,1326 719,1326 638,1326 559,1323 473,1323 394,1320 308,1320 308,1371 392,1371 473,1374 557,1374 638,1377 719,1377 803,1377 884,1377 965,1380 970,1380 970,1329"/>
+        <Baseline points="308,1358 393,1358 473,1361 557,1361 638,1364 719,1364 803,1364 884,1364 965,1367 970,1367"/>
+        <TextEquiv conf="0.990">
+          <Unicode>Bibliografické konkordance</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_9_page_number">
+      <Coords points="1240,1323 1489,1323 1489,1393 1240,1393"/>
+      <TextLine id="region_9_page_number-l013" index="0" custom="heights_v2:[39.2,14.0]">
+        <Coords points="1240,1386 1268,1386 1307,1386 1349,1386 1387,1386 1429,1386 1477,1386 1477,1333 1429,1333 1387,1333 1349,1333 1307,1333 1268,1333 1240,1333 1240,1386"/>
+        <Baseline points="1240,1373 1268,1373 1307,1373 1349,1373 1387,1373 1429,1373 1477,1373"/>
+        <TextEquiv conf="0.928">
+          <Unicode>142 — 148</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_10_chapter_L1">
+      <Coords points="307,1416 650,1416 650,1480 307,1480"/>
+      <TextLine id="region_10_chapter_L1-l015" index="0" custom="heights_v2:[36.8,14.4]">
+        <Coords points="650,1426 602,1426 545,1426 485,1426 430,1423 369,1423 307,1420 307,1428 307,1471 369,1474 428,1474 485,1477 545,1477 602,1477 650,1477 650,1426"/>
+        <Baseline points="307,1456 369,1459 429,1459 485,1462 545,1462 602,1462 650,1462"/>
+        <TextEquiv conf="0.998">
+          <Unicode>Výzdoba tisků</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_0_page_number">
+      <Coords points="1240,1427 1487,1427 1487,1494 1240,1494"/>
+      <TextLine id="region_0_page_number-l016" index="0" custom="heights_v2:[36.0,11.5]">
+        <Coords points="1240,1486 1265,1486 1304,1486 1346,1483 1387,1483 1429,1483 1477,1483 1477,1435 1429,1435 1387,1435 1346,1435 1301,1438 1265,1438 1240,1438 1240,1486"/>
+        <Baseline points="1240,1474 1265,1474 1304,1474 1346,1471 1387,1471 1429,1471 1477,1471"/>
+        <TextEquiv conf="0.889">
+          <Unicode>149 - 150</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_14_chapter_L1">
+      <Coords points="303,1518 858,1518 858,1586 303,1586"/>
+      <TextLine id="region_14_chapter_L1-l017" index="0" custom="heights_v2:[34.7,11.7]">
+        <Coords points="858,1533 806,1533 734,1533 664,1530 590,1530 518,1530 448,1527 375,1527 303,1524 303,1570 375,1573 446,1573 518,1576 590,1576 662,1576 734,1579 806,1579 858,1579 858,1533"/>
+        <Baseline points="303,1558 375,1561 447,1561 518,1564 590,1564 662,1564 734,1567 806,1567 858,1567"/>
+        <TextEquiv conf="0.987">
+          <Unicode>Provenienční rejstřík</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_8_page_number">
+      <Coords points="1237,1528 1481,1528 1481,1595 1237,1595"/>
+      <TextLine id="region_8_page_number-l018" index="0" custom="heights_v2:[34.5,11.1]">
+        <Coords points="1237,1585 1265,1587 1307,1587 1349,1587 1387,1587 1429,1587 1477,1587 1477,1542 1429,1542 1387,1542 1349,1542 1307,1542 1265,1542 1237,1540 1237,1585"/>
+        <Baseline points="1237,1574 1265,1576 1307,1576 1349,1576 1387,1576 1429,1576 1477,1576"/>
+        <TextEquiv conf="0.864">
+          <Unicode>151 — 155</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_5_chapter_L1">
+      <Coords points="302,1618 716,1618 716,1685 302,1685"/>
+      <TextLine id="region_5_chapter_L1-l019" index="0" custom="heights_v2:[34.6,12.0]">
+        <Coords points="716,1633 694,1632 644,1632 593,1632 548,1629 494,1629 447,1629 398,1626 348,1626 302,1623 302,1670 348,1672 395,1672 447,1675 494,1675 545,1675 593,1678 644,1678 692,1678 716,1679 716,1633"/>
+        <Baseline points="302,1658 348,1660 396,1660 447,1663 494,1663 545,1663 593,1666 644,1666 692,1666 716,1667"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Názvový rejstřík</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_13_page_number">
+      <Coords points="1235,1629 1481,1629 1481,1695 1235,1695"/>
+      <TextLine id="region_13_page_number-l020" index="0" custom="heights_v2:[34.2,11.6]">
+        <Coords points="1481,1643 1452,1641 1408,1641 1367,1641 1325,1641 1283,1641 1241,1641 1235,1641 1235,1687 1241,1687 1283,1687 1325,1687 1367,1687 1408,1687 1450,1687 1481,1689 1481,1643"/>
+        <Baseline points="1235,1675 1241,1675 1283,1675 1325,1675 1367,1675 1408,1675 1450,1675 1481,1677"/>
+        <TextEquiv conf="0.985">
+          <Unicode>156 — 164</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+  </Page>
+</PcGts>

@@ -1,0 +1,227 @@
+[
+    {
+        "chapter_name": "Úvodní slovo",
+        "polygon": [
+            [
+                417,
+                261
+            ],
+            [
+                694,
+                261
+            ],
+            [
+                694,
+                313
+            ],
+            [
+                417,
+                313
+            ]
+        ],
+        "page_name": "7",
+        "chapter_number": null,
+        "start_page": 9,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Osvícenství za Marie Terezie",
+        "polygon": [
+            [
+                251,
+                435
+            ],
+            [
+                867,
+                435
+            ],
+            [
+                867,
+                495
+            ],
+            [
+                251,
+                495
+            ]
+        ],
+        "page_name": "7",
+        "chapter_number": "I",
+        "start_page": 17,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Církevní reformy Josefa II.",
+        "polygon": [
+            [
+                270,
+                606
+            ],
+            [
+                848,
+                606
+            ],
+            [
+                848,
+                665
+            ],
+            [
+                270,
+                665
+            ]
+        ],
+        "page_name": "7",
+        "chapter_number": "II",
+        "start_page": 32,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Osvícenské červánky na české půdě",
+        "polygon": [
+            [
+                183,
+                783
+            ],
+            [
+                934,
+                783
+            ],
+            [
+                934,
+                839
+            ],
+            [
+                183,
+                839
+            ]
+        ],
+        "page_name": "7",
+        "chapter_number": "III",
+        "start_page": 51,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Návrat bible do Čech",
+        "polygon": [
+            [
+                330,
+                957
+            ],
+            [
+                786,
+                957
+            ],
+            [
+                786,
+                1015
+            ],
+            [
+                330,
+                1015
+            ]
+        ],
+        "page_name": "7",
+        "chapter_number": "IV",
+        "start_page": 70,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Legenda o kněžích buditelských",
+        "polygon": [
+            [
+                220,
+                1133
+            ],
+            [
+                890,
+                1133
+            ],
+            [
+                890,
+                1192
+            ],
+            [
+                220,
+                1192
+            ]
+        ],
+        "page_name": "7",
+        "chapter_number": "V",
+        "start_page": 96,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Náboženské smýšlení v městech a na venkově",
+        "polygon": [
+            [
+                223,
+                1309
+            ],
+            [
+                884,
+                1309
+            ],
+            [
+                884,
+                1411
+            ],
+            [
+                223,
+                1411
+            ]
+        ],
+        "page_name": "7",
+        "chapter_number": "VI",
+        "start_page": 135,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Závěrečná úvaha",
+        "polygon": [
+            [
+                376,
+                1494
+            ],
+            [
+                731,
+                1494
+            ],
+            [
+                731,
+                1550
+            ],
+            [
+                376,
+                1550
+            ]
+        ],
+        "page_name": "7",
+        "chapter_number": null,
+        "start_page": 158,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Rejstřík osob",
+        "polygon": [
+            [
+                411,
+                1632
+            ],
+            [
+                700,
+                1632
+            ],
+            [
+                700,
+                1689
+            ],
+            [
+                411,
+                1689
+            ]
+        ],
+        "page_name": "7",
+        "chapter_number": null,
+        "start_page": 167,
+        "subchapters": []
+    }
+]

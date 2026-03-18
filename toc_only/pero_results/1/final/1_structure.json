@@ -1,0 +1,277 @@
+[
+    {
+        "chapter_name": "Měsíc na náměstí",
+        "polygon": [
+            [
+                578,
+                239
+            ],
+            [
+                909,
+                239
+            ],
+            [
+                909,
+                291
+            ],
+            [
+                578,
+                291
+            ]
+        ],
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 165,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Vesnice",
+        "polygon": [
+            [
+                668,
+                294
+            ],
+            [
+                820,
+                294
+            ],
+            [
+                820,
+                342
+            ],
+            [
+                668,
+                342
+            ]
+        ],
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 166,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Letní krajina",
+        "polygon": [
+            [
+                618,
+                345
+            ],
+            [
+                875,
+                345
+            ],
+            [
+                875,
+                396
+            ],
+            [
+                618,
+                396
+            ]
+        ],
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 168,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Mezi Prahou a venkovskou domovinou",
+        "polygon": [
+            [
+                382,
+                397
+            ],
+            [
+                1110,
+                397
+            ],
+            [
+                1110,
+                450
+            ],
+            [
+                382,
+                450
+            ]
+        ],
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 170,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Libošovice",
+        "polygon": [
+            [
+                639,
+                452
+            ],
+            [
+                842,
+                452
+            ],
+            [
+                842,
+                502
+            ],
+            [
+                639,
+                502
+            ]
+        ],
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 172,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Pleskoty",
+        "polygon": [
+            [
+                664,
+                503
+            ],
+            [
+                830,
+                503
+            ],
+            [
+                830,
+                554
+            ],
+            [
+                664,
+                554
+            ]
+        ],
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 173,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Večer",
+        "polygon": [
+            [
+                682,
+                556
+            ],
+            [
+                804,
+                556
+            ],
+            [
+                804,
+                605
+            ],
+            [
+                682,
+                605
+            ]
+        ],
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 174,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Finale",
+        "polygon": [
+            [
+                681,
+                608
+            ],
+            [
+                808,
+                608
+            ],
+            [
+                808,
+                659
+            ],
+            [
+                681,
+                659
+            ]
+        ],
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 175,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Větrný mlýn",
+        "polygon": [
+            [
+                618,
+                661
+            ],
+            [
+                872,
+                661
+            ],
+            [
+                872,
+                715
+            ],
+            [
+                618,
+                715
+            ]
+        ],
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 176,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Odjezdy",
+        "polygon": [
+            [
+                663,
+                715
+            ],
+            [
+                821,
+                715
+            ],
+            [
+                821,
+                766
+            ],
+            [
+                663,
+                766
+            ]
+        ],
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 177,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Vřes",
+        "polygon": [
+            [
+                695,
+                769
+            ],
+            [
+                797,
+                769
+            ],
+            [
+                797,
+                817
+            ],
+            [
+                695,
+                817
+            ]
+        ],
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 178,
+        "subchapters": []
+    }
+]

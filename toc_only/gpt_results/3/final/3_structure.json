@@ -1,0 +1,402 @@
+[
+    {
+        "chapter_name": "Hladový.",
+        "page_name": "3",
+        "chapter_number": 1,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                385
+            ],
+            [
+                403,
+                385
+            ],
+            [
+                403,
+                443
+            ],
+            [
+                134,
+                443
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Vnitřek chrámu.",
+        "page_name": "3",
+        "chapter_number": 2,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                443
+            ],
+            [
+                403,
+                443
+            ],
+            [
+                403,
+                501
+            ],
+            [
+                134,
+                501
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Představení v soumraku.",
+        "page_name": "3",
+        "chapter_number": 3,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                501
+            ],
+            [
+                403,
+                501
+            ],
+            [
+                403,
+                558
+            ],
+            [
+                134,
+                558
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Divadlo.",
+        "page_name": "3",
+        "chapter_number": 4,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                558
+            ],
+            [
+                403,
+                558
+            ],
+            [
+                403,
+                616
+            ],
+            [
+                134,
+                616
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Mlýn.",
+        "page_name": "3",
+        "chapter_number": 5,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                616
+            ],
+            [
+                403,
+                616
+            ],
+            [
+                403,
+                674
+            ],
+            [
+                134,
+                674
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Flagelanti.",
+        "page_name": "3",
+        "chapter_number": 6,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                674
+            ],
+            [
+                403,
+                674
+            ],
+            [
+                403,
+                732
+            ],
+            [
+                134,
+                732
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Poledne.",
+        "page_name": "3",
+        "chapter_number": 7,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                732
+            ],
+            [
+                403,
+                732
+            ],
+            [
+                403,
+                790
+            ],
+            [
+                134,
+                790
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Truchlivá historka.",
+        "page_name": "3",
+        "chapter_number": 8,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                790
+            ],
+            [
+                403,
+                790
+            ],
+            [
+                403,
+                847
+            ],
+            [
+                134,
+                847
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Lokální příběh.",
+        "page_name": "3",
+        "chapter_number": 9,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                847
+            ],
+            [
+                403,
+                847
+            ],
+            [
+                403,
+                905
+            ],
+            [
+                134,
+                905
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Na pranýři.",
+        "page_name": "3",
+        "chapter_number": 10,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                905
+            ],
+            [
+                403,
+                905
+            ],
+            [
+                403,
+                963
+            ],
+            [
+                134,
+                963
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Masky.",
+        "page_name": "3",
+        "chapter_number": 11,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                963
+            ],
+            [
+                403,
+                963
+            ],
+            [
+                403,
+                1021
+            ],
+            [
+                134,
+                1021
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Jilemští.",
+        "page_name": "3",
+        "chapter_number": 12,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                1021
+            ],
+            [
+                403,
+                1021
+            ],
+            [
+                403,
+                1079
+            ],
+            [
+                134,
+                1079
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Před pohřbem.",
+        "page_name": "3",
+        "chapter_number": 13,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                1079
+            ],
+            [
+                403,
+                1079
+            ],
+            [
+                403,
+                1136
+            ],
+            [
+                134,
+                1136
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Smrt myši.",
+        "page_name": "3",
+        "chapter_number": 14,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                1136
+            ],
+            [
+                403,
+                1136
+            ],
+            [
+                403,
+                1194
+            ],
+            [
+                134,
+                1194
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Snář.",
+        "page_name": "3",
+        "chapter_number": 15,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                1194
+            ],
+            [
+                403,
+                1194
+            ],
+            [
+                403,
+                1252
+            ],
+            [
+                134,
+                1252
+            ]
+        ]
+    },
+    {
+        "chapter_name": "V pozdních hodinách.",
+        "page_name": "3",
+        "chapter_number": 16,
+        "start_page": null,
+        "subchapters": [],
+        "polygon": [
+            [
+                134,
+                1252
+            ],
+            [
+                403,
+                1252
+            ],
+            [
+                403,
+                1310
+            ],
+            [
+                134,
+                1310
+            ]
+        ]
+    }
+]

@@ -1,0 +1,893 @@
+[
+    {
+        "bbox": [
+            228,
+            1750,
+            395,
+            1801
+        ],
+        "category": "chapter_number",
+        "text": "XXIII.",
+        "conf": 0.909677267074585
+    },
+    {
+        "bbox": [
+            1513,
+            1630,
+            1600,
+            1681
+        ],
+        "category": "page_number",
+        "text": "213",
+        "conf": 0.9095368385314941
+    },
+    {
+        "bbox": [
+            1515,
+            1754,
+            1602,
+            1805
+        ],
+        "category": "page_number",
+        "text": "238",
+        "conf": 0.9092180132865906
+    },
+    {
+        "bbox": [
+            1514,
+            1691,
+            1601,
+            1742
+        ],
+        "category": "page_number",
+        "text": "226",
+        "conf": 0.9092084169387817
+    },
+    {
+        "bbox": [
+            1515,
+            1446,
+            1601,
+            1497
+        ],
+        "category": "page_number",
+        "text": "178",
+        "conf": 0.9053770303726196
+    },
+    {
+        "bbox": [
+            406,
+            645,
+            665,
+            703
+        ],
+        "category": "chapter_L1",
+        "text": "Věvodkyně",
+        "conf": 0.9036207795143127
+    },
+    {
+        "bbox": [
+            1514,
+            1569,
+            1599,
+            1619
+        ],
+        "category": "page_number",
+        "text": "207",
+        "conf": 0.9029531478881836
+    },
+    {
+        "bbox": [
+            406,
+            893,
+            587,
+            947
+        ],
+        "category": "chapter_L1",
+        "text": "Hostina",
+        "conf": 0.9012846946716309
+    },
+    {
+        "bbox": [
+            1516,
+            1384,
+            1600,
+            1434
+        ],
+        "category": "page_number",
+        "text": "170",
+        "conf": 0.9004430174827576
+    },
+    {
+        "bbox": [
+            285,
+            1074,
+            393,
+            1127
+        ],
+        "category": "chapter_number",
+        "text": "XII.",
+        "conf": 0.8989970684051514
+    },
+    {
+        "bbox": [
+            272,
+            1136,
+            394,
+            1187
+        ],
+        "category": "chapter_number",
+        "text": "XIII.",
+        "conf": 0.8989896178245544
+    },
+    {
+        "bbox": [
+            1515,
+            1508,
+            1600,
+            1558
+        ],
+        "category": "page_number",
+        "text": "195",
+        "conf": 0.8985783457756042
+    },
+    {
+        "bbox": [
+            1518,
+            955,
+            1598,
+            1004
+        ],
+        "category": "page_number",
+        "text": "105",
+        "conf": 0.8962253928184509
+    },
+    {
+        "bbox": [
+            1513,
+            1815,
+            1602,
+            1867
+        ],
+        "category": "page_number",
+        "text": "249",
+        "conf": 0.8951455950737
+    },
+    {
+        "bbox": [
+            408,
+            1074,
+            608,
+            1131
+        ],
+        "category": "chapter_L1",
+        "text": "Ve škole",
+        "conf": 0.8944540619850159
+    },
+    {
+        "bbox": [
+            250,
+            1687,
+            395,
+            1740
+        ],
+        "category": "chapter_number",
+        "text": "XXII.",
+        "conf": 0.8938220143318176
+    },
+    {
+        "bbox": [
+            1536,
+            770,
+            1598,
+            820
+        ],
+        "category": "page_number",
+        "text": "81",
+        "conf": 0.893722414970398
+    },
+    {
+        "bbox": [
+            1518,
+            1076,
+            1601,
+            1128
+        ],
+        "category": "page_number",
+        "text": "132",
+        "conf": 0.8934930562973022
+    },
+    {
+        "bbox": [
+            407,
+            830,
+            585,
+            886
+        ],
+        "category": "chapter_L1",
+        "text": "Vévoda",
+        "conf": 0.8933320045471191
+    },
+    {
+        "bbox": [
+            1517,
+            1015,
+            1597,
+            1066
+        ],
+        "category": "page_number",
+        "text": "121",
+        "conf": 0.8923299908638
+    },
+    {
+        "bbox": [
+            408,
+            1015,
+            619,
+            1070
+        ],
+        "category": "chapter_L1",
+        "text": "Audience",
+        "conf": 0.8922881484031677
+    },
+    {
+        "bbox": [
+            1535,
+            893,
+            1601,
+            943
+        ],
+        "category": "page_number",
+        "text": "96",
+        "conf": 0.8910335898399353
+    },
+    {
+        "bbox": [
+            1516,
+            1322,
+            1599,
+            1372
+        ],
+        "category": "page_number",
+        "text": "162",
+        "conf": 0.8904573917388916
+    },
+    {
+        "bbox": [
+            1518,
+            1139,
+            1601,
+            1189
+        ],
+        "category": "page_number",
+        "text": "136",
+        "conf": 0.8902891278266907
+    },
+    {
+        "bbox": [
+            406,
+            954,
+            601,
+            1011
+        ],
+        "category": "chapter_L1",
+        "text": "Spojenci",
+        "conf": 0.8896000385284424
+    },
+    {
+        "bbox": [
+            1514,
+            1938,
+            1600,
+            1989
+        ],
+        "category": "page_number",
+        "text": "283",
+        "conf": 0.8881917595863342
+    },
+    {
+        "bbox": [
+            1513,
+            1877,
+            1603,
+            1927
+        ],
+        "category": "page_number",
+        "text": "270",
+        "conf": 0.8880953788757324
+    },
+    {
+        "bbox": [
+            1514,
+            2000,
+            1601,
+            2051
+        ],
+        "category": "page_number",
+        "text": "302",
+        "conf": 0.8879044651985168
+    },
+    {
+        "bbox": [
+            204,
+            1995,
+            395,
+            2050
+        ],
+        "category": "chapter_number",
+        "text": "XXVII.",
+        "conf": 0.8874231576919556
+    },
+    {
+        "bbox": [
+            1537,
+            708,
+            1600,
+            760
+        ],
+        "category": "page_number",
+        "text": "59",
+        "conf": 0.887148916721344
+    },
+    {
+        "bbox": [
+            1538,
+            463,
+            1601,
+            513
+        ],
+        "category": "page_number",
+        "text": "18",
+        "conf": 0.8870449066162109
+    },
+    {
+        "bbox": [
+            229,
+            1810,
+            392,
+            1863
+        ],
+        "category": "chapter_number",
+        "text": "XXIV.",
+        "conf": 0.8854753375053406
+    },
+    {
+        "bbox": [
+            1536,
+            830,
+            1599,
+            881
+        ],
+        "category": "page_number",
+        "text": "87",
+        "conf": 0.885387659072876
+    },
+    {
+        "bbox": [
+            1516,
+            1199,
+            1598,
+            1251
+        ],
+        "category": "page_number",
+        "text": "143",
+        "conf": 0.8847648501396179
+    },
+    {
+        "bbox": [
+            411,
+            1506,
+            544,
+            1559
+        ],
+        "category": "chapter_L1",
+        "text": "Varia",
+        "conf": 0.8844708204269409
+    },
+    {
+        "bbox": [
+            409,
+            460,
+            704,
+            519
+        ],
+        "category": "chapter_L1",
+        "text": "»U Maňasů«",
+        "conf": 0.8842290639877319
+    },
+    {
+        "bbox": [
+            225,
+            1933,
+            397,
+            1985
+        ],
+        "category": "chapter_number",
+        "text": "XXVI.",
+        "conf": 0.8837858438491821
+    },
+    {
+        "bbox": [
+            1517,
+            1261,
+            1597,
+            1313
+        ],
+        "category": "page_number",
+        "text": "155",
+        "conf": 0.8829506635665894
+    },
+    {
+        "bbox": [
+            312,
+            523,
+            395,
+            577
+        ],
+        "category": "chapter_number",
+        "text": "III.",
+        "conf": 0.8829167485237122
+    },
+    {
+        "bbox": [
+            403,
+            769,
+            589,
+            825
+        ],
+        "category": "chapter_L1",
+        "text": "EpisOda",
+        "conf": 0.8828647136688232
+    },
+    {
+        "bbox": [
+            408,
+            1812,
+            611,
+            1868
+        ],
+        "category": "chapter_L1",
+        "text": "Shledání",
+        "conf": 0.8826428055763245
+    },
+    {
+        "bbox": [
+            1537,
+            646,
+            1599,
+            697
+        ],
+        "category": "page_number",
+        "text": "43",
+        "conf": 0.8822128176689148
+    },
+    {
+        "bbox": [
+            409,
+            1628,
+            682,
+            1683
+        ],
+        "category": "chapter_L1",
+        "text": "První srážka",
+        "conf": 0.8815840482711792
+    },
+    {
+        "bbox": [
+            304,
+            1012,
+            392,
+            1066
+        ],
+        "category": "chapter_number",
+        "text": "XI.",
+        "conf": 0.8799183964729309
+    },
+    {
+        "bbox": [
+            266,
+            1626,
+            394,
+            1678
+        ],
+        "category": "chapter_number",
+        "text": "XXI.",
+        "conf": 0.879236102104187
+    },
+    {
+        "bbox": [
+            402,
+            707,
+            604,
+            764
+        ],
+        "category": "chapter_L1",
+        "text": "Zkouška",
+        "conf": 0.8777741193771362
+    },
+    {
+        "bbox": [
+            408,
+            1751,
+            573,
+            1809
+        ],
+        "category": "chapter_L1",
+        "text": "Zápasy",
+        "conf": 0.8777260780334473
+    },
+    {
+        "bbox": [
+            1537,
+            524,
+            1600,
+            577
+        ],
+        "category": "page_number",
+        "text": "23",
+        "conf": 0.8770235180854797
+    },
+    {
+        "bbox": [
+            409,
+            1688,
+            714,
+            1745
+        ],
+        "category": "chapter_L1",
+        "text": "Dvě Mařenky",
+        "conf": 0.8769240379333496
+    },
+    {
+        "bbox": [
+            409,
+            1444,
+            627,
+            1500
+        ],
+        "category": "chapter_L1",
+        "text": "Don Juan",
+        "conf": 0.8768328428268433
+    },
+    {
+        "bbox": [
+            409,
+            1198,
+            785,
+            1254
+        ],
+        "category": "chapter_L1",
+        "text": "Koniáš redivivus",
+        "conf": 0.875519335269928
+    },
+    {
+        "bbox": [
+            269,
+            1502,
+            393,
+            1555
+        ],
+        "category": "chapter_number",
+        "text": "XIX.",
+        "conf": 0.8754607439041138
+    },
+    {
+        "bbox": [
+            403,
+            1259,
+            645,
+            1316
+        ],
+        "category": "chapter_L1",
+        "text": "Zenichové",
+        "conf": 0.8754151463508606
+    },
+    {
+        "bbox": [
+            333,
+            461,
+            397,
+            514
+        ],
+        "category": "chapter_number",
+        "text": "II.",
+        "conf": 0.8748958110809326
+    },
+    {
+        "bbox": [
+            290,
+            767,
+            392,
+            820
+        ],
+        "category": "chapter_number",
+        "text": "VII.",
+        "conf": 0.8744686245918274
+    },
+    {
+        "bbox": [
+            245,
+            1380,
+            392,
+            1432
+        ],
+        "category": "chapter_number",
+        "text": "XVII.",
+        "conf": 0.8742843270301819
+    },
+    {
+        "bbox": [
+            282,
+            1564,
+            393,
+            1616
+        ],
+        "category": "chapter_number",
+        "text": "XX.",
+        "conf": 0.8740870952606201
+    },
+    {
+        "bbox": [
+            1537,
+            585,
+            1600,
+            637
+        ],
+        "category": "page_number",
+        "text": "29",
+        "conf": 0.8728694319725037
+    },
+    {
+        "bbox": [
+            408,
+            1873,
+            510,
+            1928
+        ],
+        "category": "chapter_L1",
+        "text": "Ples",
+        "conf": 0.8724524974822998
+    },
+    {
+        "bbox": [
+            407,
+            1135,
+            881,
+            1195
+        ],
+        "category": "chapter_L1",
+        "text": "V zámeckém příkopě",
+        "conf": 0.8722378611564636
+    },
+    {
+        "bbox": [
+            408,
+            586,
+            669,
+            641
+        ],
+        "category": "chapter_L1",
+        "text": "»Vlastenci«",
+        "conf": 0.8716530203819275
+    },
+    {
+        "bbox": [
+            229,
+            1441,
+            393,
+            1495
+        ],
+        "category": "chapter_number",
+        "text": "XVIII.",
+        "conf": 0.8715832829475403
+    },
+    {
+        "bbox": [
+            246,
+            1872,
+            393,
+            1923
+        ],
+        "category": "chapter_number",
+        "text": "XXV.",
+        "conf": 0.8711147904396057
+    },
+    {
+        "bbox": [
+            411,
+            1568,
+            629,
+            1622
+        ],
+        "category": "chapter_L1",
+        "text": "O samotě",
+        "conf": 0.870079755783081
+    },
+    {
+        "bbox": [
+            309,
+            891,
+            390,
+            943
+        ],
+        "category": "chapter_number",
+        "text": "IX.",
+        "conf": 0.8693791627883911
+    },
+    {
+        "bbox": [
+            270,
+            1196,
+            391,
+            1249
+        ],
+        "category": "chapter_number",
+        "text": "XIV.",
+        "conf": 0.8692051768302917
+    },
+    {
+        "bbox": [
+            407,
+            1321,
+            561,
+            1375
+        ],
+        "category": "chapter_L1",
+        "text": "Návrh",
+        "conf": 0.8673898577690125
+    },
+    {
+        "bbox": [
+            409,
+            523,
+            803,
+            584
+        ],
+        "category": "chapter_L1",
+        "text": "»Slepý mládenec«",
+        "conf": 0.8661161065101624
+    },
+    {
+        "bbox": [
+            407,
+            1381,
+            618,
+            1438
+        ],
+        "category": "chapter_L1",
+        "text": "Námluvy",
+        "conf": 0.8655529618263245
+    },
+    {
+        "bbox": [
+            275,
+            829,
+            391,
+            882
+        ],
+        "category": "chapter_number",
+        "text": "VIII.",
+        "conf": 0.8636170029640198
+    },
+    {
+        "bbox": [
+            311,
+            706,
+            392,
+            758
+        ],
+        "category": "chapter_number",
+        "text": "VI.",
+        "conf": 0.8634083867073059
+    },
+    {
+        "bbox": [
+            310,
+            585,
+            393,
+            638
+        ],
+        "category": "chapter_number",
+        "text": "IV.",
+        "conf": 0.8587548732757568
+    },
+    {
+        "bbox": [
+            264,
+            1319,
+            391,
+            1370
+        ],
+        "category": "chapter_number",
+        "text": "XVI.",
+        "conf": 0.856035590171814
+    },
+    {
+        "bbox": [
+            411,
+            1936,
+            837,
+            1992
+        ],
+        "category": "chapter_L1",
+        "text": "Dvojí dostaveníčko",
+        "conf": 0.855966329574585
+    },
+    {
+        "bbox": [
+            409,
+            1999,
+            555,
+            2053
+        ],
+        "category": "chapter_L1",
+        "text": "Finale",
+        "conf": 0.8511978983879089
+    },
+    {
+        "bbox": [
+            405,
+            395,
+            740,
+            459
+        ],
+        "category": "chapter_L1",
+        "text": "Mše tříkrálová",
+        "conf": 0.8505289554595947
+    },
+    {
+        "bbox": [
+            280,
+            1258,
+            389,
+            1310
+        ],
+        "category": "chapter_number",
+        "text": "XV.",
+        "conf": 0.8484297394752502
+    },
+    {
+        "bbox": [
+            324,
+            645,
+            393,
+            697
+        ],
+        "category": "chapter_number",
+        "text": "V.",
+        "conf": 0.8447765111923218
+    },
+    {
+        "bbox": [
+            320,
+            952,
+            392,
+            1005
+        ],
+        "category": "chapter_number",
+        "text": "X.",
+        "conf": 0.8399587273597717
+    },
+    {
+        "bbox": [
+            1556,
+            403,
+            1599,
+            452
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8185815215110779
+    },
+    {
+        "bbox": [
+            346,
+            400,
+            398,
+            453
+        ],
+        "category": "chapter_number",
+        "text": "I.",
+        "conf": 0.810955822467804
+    }
+]

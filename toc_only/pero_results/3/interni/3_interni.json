@@ -1,0 +1,354 @@
+[
+    {
+        "bbox": [
+            340,
+            780,
+            434,
+            819
+        ],
+        "category": "chapter_L1",
+        "text": "Mlýn.",
+        "conf": 0.9146881699562073
+    },
+    {
+        "bbox": [
+            339,
+            825,
+            506,
+            865
+        ],
+        "category": "chapter_L1",
+        "text": "Flagelanti.",
+        "conf": 0.8981216549873352
+    },
+    {
+        "bbox": [
+            339,
+            1047,
+            450,
+            1085
+        ],
+        "category": "chapter_L1",
+        "text": "Masky.",
+        "conf": 0.8972108364105225
+    },
+    {
+        "bbox": [
+            341,
+            912,
+            635,
+            952
+        ],
+        "category": "chapter_L1",
+        "text": "Truchlivá historka.",
+        "conf": 0.8969168663024902
+    },
+    {
+        "bbox": [
+            338,
+            957,
+            579,
+            998
+        ],
+        "category": "chapter_L1",
+        "text": "Lokální příběh.",
+        "conf": 0.8923094868659973
+    },
+    {
+        "bbox": [
+            341,
+            737,
+            472,
+            776
+        ],
+        "category": "chapter_L1",
+        "text": "Divadlo.",
+        "conf": 0.8913619518280029
+    },
+    {
+        "bbox": [
+            337,
+            1003,
+            520,
+            1042
+        ],
+        "category": "chapter_L1",
+        "text": "Na pranýři.",
+        "conf": 0.8891655206680298
+    },
+    {
+        "bbox": [
+            343,
+            648,
+            601,
+            688
+        ],
+        "category": "chapter_L1",
+        "text": "Vnitřek chrámu.",
+        "conf": 0.8887850046157837
+    },
+    {
+        "bbox": [
+            275,
+            1228,
+            324,
+            1263
+        ],
+        "category": "chapter_number",
+        "text": "15.",
+        "conf": 0.8860615491867065
+    },
+    {
+        "bbox": [
+            340,
+            1091,
+            465,
+            1129
+        ],
+        "category": "chapter_L1",
+        "text": "Jilemští.",
+        "conf": 0.88603276014328
+    },
+    {
+        "bbox": [
+            341,
+            693,
+            730,
+            732
+        ],
+        "category": "chapter_L1",
+        "text": "Představení v soumraku.",
+        "conf": 0.8803364634513855
+    },
+    {
+        "bbox": [
+            339,
+            870,
+            474,
+            908
+        ],
+        "category": "chapter_L1",
+        "text": "Poledne.",
+        "conf": 0.8773581981658936
+    },
+    {
+        "bbox": [
+            339,
+            1180,
+            514,
+            1218
+        ],
+        "category": "chapter_L1",
+        "text": "Smrt myši.",
+        "conf": 0.8683124780654907
+    },
+    {
+        "bbox": [
+            275,
+            1270,
+            322,
+            1303
+        ],
+        "category": "chapter_number",
+        "text": "16.",
+        "conf": 0.865943193435669
+    },
+    {
+        "bbox": [
+            342,
+            603,
+            481,
+            643
+        ],
+        "category": "chapter_L1",
+        "text": "Hladový.",
+        "conf": 0.8650915026664734
+    },
+    {
+        "bbox": [
+            336,
+            1224,
+            421,
+            1261
+        ],
+        "category": "chapter_L1",
+        "text": "Snář.",
+        "conf": 0.8639684915542603
+    },
+    {
+        "bbox": [
+            338,
+            1134,
+            570,
+            1175
+        ],
+        "category": "chapter_L1",
+        "text": "Před pohřbem.",
+        "conf": 0.8621119856834412
+    },
+    {
+        "bbox": [
+            336,
+            1268,
+            679,
+            1308
+        ],
+        "category": "chapter_L1",
+        "text": "V pozdních hodinách.",
+        "conf": 0.8614218831062317
+    },
+    {
+        "bbox": [
+            276,
+            1184,
+            326,
+            1218
+        ],
+        "category": "chapter_number",
+        "text": "14.",
+        "conf": 0.8595931529998779
+    },
+    {
+        "bbox": [
+            276,
+            1007,
+            325,
+            1038
+        ],
+        "category": "chapter_number",
+        "text": "10.",
+        "conf": 0.8550978899002075
+    },
+    {
+        "bbox": [
+            296,
+            698,
+            331,
+            733
+        ],
+        "category": "chapter_number",
+        "text": "3.",
+        "conf": 0.8519538044929504
+    },
+    {
+        "bbox": [
+            276,
+            1139,
+            327,
+            1174
+        ],
+        "category": "chapter_number",
+        "text": "13.",
+        "conf": 0.8463552594184875
+    },
+    {
+        "bbox": [
+            276,
+            1096,
+            325,
+            1128
+        ],
+        "category": "chapter_number",
+        "text": "12.",
+        "conf": 0.8438775539398193
+    },
+    {
+        "bbox": [
+            292,
+            914,
+            327,
+            949
+        ],
+        "category": "chapter_number",
+        "text": "8.",
+        "conf": 0.8322031497955322
+    },
+    {
+        "bbox": [
+            276,
+            1051,
+            326,
+            1083
+        ],
+        "category": "chapter_number",
+        "text": "11.",
+        "conf": 0.8292872309684753
+    },
+    {
+        "bbox": [
+            298,
+            654,
+            331,
+            685
+        ],
+        "category": "chapter_number",
+        "text": "2.",
+        "conf": 0.8283872604370117
+    },
+    {
+        "bbox": [
+            290,
+            963,
+            326,
+            997
+        ],
+        "category": "chapter_number",
+        "text": "9.",
+        "conf": 0.8179751038551331
+    },
+    {
+        "bbox": [
+            293,
+            826,
+            328,
+            860
+        ],
+        "category": "chapter_number",
+        "text": "6.",
+        "conf": 0.8030522465705872
+    },
+    {
+        "bbox": [
+            293,
+            742,
+            329,
+            776
+        ],
+        "category": "chapter_number",
+        "text": "4.",
+        "conf": 0.7669752240180969
+    },
+    {
+        "bbox": [
+            293,
+            874,
+            328,
+            909
+        ],
+        "category": "chapter_number",
+        "text": "7.",
+        "conf": 0.7507039308547974
+    },
+    {
+        "bbox": [
+            298,
+            608,
+            330,
+            640
+        ],
+        "category": "chapter_number",
+        "text": "1.",
+        "conf": 0.7306634783744812
+    },
+    {
+        "bbox": [
+            294,
+            785,
+            328,
+            819
+        ],
+        "category": "chapter_number",
+        "text": "5.",
+        "conf": 0.662000298500061
+    }
+]

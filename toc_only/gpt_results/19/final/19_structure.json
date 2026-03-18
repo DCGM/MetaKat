@@ -1,0 +1,477 @@
+[
+    {
+        "chapter_name": "Čerwŏna, Einleitungsgedicht",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 1,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                463
+            ],
+            [
+                1254,
+                463
+            ],
+            [
+                1254,
+                579
+            ],
+            [
+                66,
+                579
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Karthause",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 4,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                579
+            ],
+            [
+                1254,
+                579
+            ],
+            [
+                1254,
+                695
+            ],
+            [
+                66,
+                695
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Zebin",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 7,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                695
+            ],
+            [
+                1254,
+                695
+            ],
+            [
+                1254,
+                810
+            ],
+            [
+                66,
+                810
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Waldstein in Gitschin",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 11,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                810
+            ],
+            [
+                1254,
+                810
+            ],
+            [
+                1254,
+                926
+            ],
+            [
+                66,
+                926
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Rumburg",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 14,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                926
+            ],
+            [
+                1254,
+                926
+            ],
+            [
+                1254,
+                1042
+            ],
+            [
+                66,
+                1042
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Bradlec",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 19,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                1042
+            ],
+            [
+                1254,
+                1042
+            ],
+            [
+                1254,
+                1158
+            ],
+            [
+                66,
+                1158
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Das Riesengebirge",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 22,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                1158
+            ],
+            [
+                1254,
+                1158
+            ],
+            [
+                1254,
+                1274
+            ],
+            [
+                66,
+                1274
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Tabor",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 27,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                1274
+            ],
+            [
+                1254,
+                1274
+            ],
+            [
+                1254,
+                1390
+            ],
+            [
+                66,
+                1390
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Prachow",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 31,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                1390
+            ],
+            [
+                1254,
+                1390
+            ],
+            [
+                1254,
+                1506
+            ],
+            [
+                66,
+                1506
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Welisch",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 33,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                1506
+            ],
+            [
+                1254,
+                1506
+            ],
+            [
+                1254,
+                1621
+            ],
+            [
+                66,
+                1621
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Seemöven",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 37,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                1621
+            ],
+            [
+                1254,
+                1621
+            ],
+            [
+                1254,
+                1737
+            ],
+            [
+                66,
+                1737
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Trosky",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 41,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                1737
+            ],
+            [
+                1254,
+                1737
+            ],
+            [
+                1254,
+                1853
+            ],
+            [
+                66,
+                1853
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Gegenwart",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 43,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                1853
+            ],
+            [
+                1254,
+                1853
+            ],
+            [
+                1254,
+                1969
+            ],
+            [
+                66,
+                1969
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Naturliebe",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 47,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                1969
+            ],
+            [
+                1254,
+                1969
+            ],
+            [
+                1254,
+                2085
+            ],
+            [
+                66,
+                2085
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Abend",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 49,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                2085
+            ],
+            [
+                1254,
+                2085
+            ],
+            [
+                1254,
+                2201
+            ],
+            [
+                66,
+                2201
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Nach zehn Jahren",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 51,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                2201
+            ],
+            [
+                1254,
+                2201
+            ],
+            [
+                1254,
+                2317
+            ],
+            [
+                66,
+                2317
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Wanderlust",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 53,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                2317
+            ],
+            [
+                1254,
+                2317
+            ],
+            [
+                1254,
+                2432
+            ],
+            [
+                66,
+                2432
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Čerwŏna, Schlussgedicht",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 54,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                2432
+            ],
+            [
+                1254,
+                2432
+            ],
+            [
+                1254,
+                2548
+            ],
+            [
+                66,
+                2548
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Anmerkungen",
+        "page_name": "19",
+        "chapter_number": null,
+        "start_page": 57,
+        "subchapters": [],
+        "polygon": [
+            [
+                66,
+                2548
+            ],
+            [
+                1254,
+                2548
+            ],
+            [
+                1254,
+                2664
+            ],
+            [
+                66,
+                2664
+            ]
+        ]
+    }
+]

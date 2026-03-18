@@ -1,0 +1,63 @@
+<?xml version='1.0' encoding='utf-8'?>
+<PcGts xmlns="http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15/pagecontent.xsd">
+  <Metadata>
+    <Creator>Pero OCR</Creator>
+    <Created>2026-03-16T13:00:12.062879+00:00</Created>
+    <LastChange>2026-03-16T13:00:12.062879+00:00</LastChange>
+  </Metadata>
+  <Page imageFilename="5" imageWidth="1377" imageHeight="2243">
+    <TextRegion id="region_3_chapter_L1">
+      <Coords points="179,677 481,677 481,741 179,741"/>
+      <TextLine id="region_3_chapter_L1-l002" index="0" custom="heights_v2:[39.1,13.9]">
+        <Coords points="179,735 217,735 252,735 290,735 324,735 359,735 397,735 431,735 475,735 475,682 431,682 397,682 359,682 324,682 290,682 252,682 217,682 179,682 179,735"/>
+        <Baseline points="179,721 217,721 252,721 290,721 324,721 359,721 397,721 431,721 475,721"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Zákon srdce</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_5_page_number">
+      <Coords points="1014,678 1066,678 1066,736 1014,736"/>
+    </TextRegion>
+    <TextRegion id="region_1_chapter_L1">
+      <Coords points="181,784 387,784 387,848 181,848"/>
+      <TextLine id="region_1_chapter_L1-l003" index="0" custom="heights_v2:[36.4,13.0]">
+        <Coords points="387,792 365,792 327,792 293,792 255,792 217,792 181,792 181,841 217,841 255,841 293,841 327,841 365,841 387,841 387,792"/>
+        <Baseline points="181,828 217,828 255,828 293,828 327,828 365,828 387,828"/>
+        <TextEquiv conf="0.998">
+          <Unicode>Dvorečtí</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_4_page_number">
+      <Coords points="990,786 1062,786 1062,843 990,843"/>
+      <TextLine id="region_4_page_number-l004" index="0" custom="heights_v2:[41.8,15.7]">
+        <Coords points="990,786 990,842 1007,840 1061,840 1061,786 990,786"/>
+        <Baseline points="990,826 1007,825 1061,825"/>
+        <TextEquiv conf="1.000">
+          <Unicode>55</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_0_chapter_L1">
+      <Coords points="178,892 427,892 427,957 178,957"/>
+      <TextLine id="region_0_chapter_L1-l005" index="0" custom="heights_v2:[39.1,13.9]">
+        <Coords points="427,895 409,893 368,893 331,893 287,896 252,896 214,896 178,896 178,949 214,949 252,949 291,949 331,946 368,946 405,946 427,948 427,895"/>
+        <Baseline points="178,935 214,935 252,935 290,935 331,932 368,932 406,932 427,934"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Zaprodaná</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_2_page_number">
+      <Coords points="966,895 1062,895 1062,950 966,950"/>
+      <TextLine id="region_2_page_number-l007" index="0" custom="heights_v2:[43.2,15.1]">
+        <Coords points="966,895 966,950 1058,950 1058,895 966,895"/>
+        <Baseline points="966,935 1004,935 1058,935"/>
+        <TextEquiv conf="1.000">
+          <Unicode>153</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+  </Page>
+</PcGts>

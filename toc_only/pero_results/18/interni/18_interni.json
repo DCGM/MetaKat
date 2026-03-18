@@ -1,0 +1,464 @@
+[
+    {
+        "bbox": [
+            1531,
+            1568,
+            1591,
+            1614
+        ],
+        "category": "page_number",
+        "text": "36",
+        "conf": 0.9144424796104431
+    },
+    {
+        "bbox": [
+            1531,
+            1343,
+            1591,
+            1389
+        ],
+        "category": "page_number",
+        "text": "28",
+        "conf": 0.911466658115387
+    },
+    {
+        "bbox": [
+            1531,
+            1623,
+            1591,
+            1670
+        ],
+        "category": "page_number",
+        "text": "37",
+        "conf": 0.9087302684783936
+    },
+    {
+        "bbox": [
+            1532,
+            1398,
+            1591,
+            1444
+        ],
+        "category": "page_number",
+        "text": "29",
+        "conf": 0.9082443118095398
+    },
+    {
+        "bbox": [
+            1531,
+            1511,
+            1590,
+            1558
+        ],
+        "category": "page_number",
+        "text": "35",
+        "conf": 0.9071822166442871
+    },
+    {
+        "bbox": [
+            1531,
+            1455,
+            1589,
+            1502
+        ],
+        "category": "page_number",
+        "text": "31",
+        "conf": 0.9070603847503662
+    },
+    {
+        "bbox": [
+            1532,
+            1119,
+            1591,
+            1166
+        ],
+        "category": "page_number",
+        "text": "11",
+        "conf": 0.9066449999809265
+    },
+    {
+        "bbox": [
+            1533,
+            1230,
+            1593,
+            1277
+        ],
+        "category": "page_number",
+        "text": "18",
+        "conf": 0.906372606754303
+    },
+    {
+        "bbox": [
+            1531,
+            1680,
+            1590,
+            1727
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.9051125049591064
+    },
+    {
+        "bbox": [
+            1533,
+            1174,
+            1593,
+            1221
+        ],
+        "category": "page_number",
+        "text": "12",
+        "conf": 0.9020341038703918
+    },
+    {
+        "bbox": [
+            1534,
+            1007,
+            1594,
+            1054
+        ],
+        "category": "page_number",
+        "text": "10",
+        "conf": 0.9001239538192749
+    },
+    {
+        "bbox": [
+            1533,
+            1286,
+            1592,
+            1333
+        ],
+        "category": "page_number",
+        "text": "19",
+        "conf": 0.8987582921981812
+    },
+    {
+        "bbox": [
+            1533,
+            1063,
+            1594,
+            1109
+        ],
+        "category": "page_number",
+        "text": "10",
+        "conf": 0.8840445876121521
+    },
+    {
+        "bbox": [
+            1554,
+            782,
+            1596,
+            828
+        ],
+        "category": "page_number",
+        "text": "8",
+        "conf": 0.882297158241272
+    },
+    {
+        "bbox": [
+            225,
+            1228,
+            566,
+            1282
+        ],
+        "category": "chapter_L1",
+        "text": "Zásylka králíků",
+        "conf": 0.8778165578842163
+    },
+    {
+        "bbox": [
+            1554,
+            666,
+            1597,
+            714
+        ],
+        "category": "page_number",
+        "text": "5",
+        "conf": 0.876712441444397
+    },
+    {
+        "bbox": [
+            1553,
+            894,
+            1595,
+            939
+        ],
+        "category": "page_number",
+        "text": "8",
+        "conf": 0.8760353326797485
+    },
+    {
+        "bbox": [
+            225,
+            1620,
+            1048,
+            1676
+        ],
+        "category": "chapter_L1",
+        "text": "Výpočet pro králikáře bez pozemností",
+        "conf": 0.8704425692558289
+    },
+    {
+        "bbox": [
+            1553,
+            836,
+            1596,
+            883
+        ],
+        "category": "page_number",
+        "text": "8",
+        "conf": 0.8701180219650269
+    },
+    {
+        "bbox": [
+            1533,
+            1735,
+            1590,
+            1784
+        ],
+        "category": "page_number",
+        "text": "49",
+        "conf": 0.8698650598526001
+    },
+    {
+        "bbox": [
+            1555,
+            722,
+            1596,
+            769
+        ],
+        "category": "page_number",
+        "text": "7",
+        "conf": 0.8690264225006104
+    },
+    {
+        "bbox": [
+            224,
+            1341,
+            370,
+            1392
+        ],
+        "category": "chapter_L1",
+        "text": "Užitek",
+        "conf": 0.8667958974838257
+    },
+    {
+        "bbox": [
+            221,
+            1456,
+            340,
+            1505
+        ],
+        "category": "chapter_L1",
+        "text": "Maso",
+        "conf": 0.8667542338371277
+    },
+    {
+        "bbox": [
+            227,
+            602,
+            351,
+            658
+        ],
+        "category": "chapter_L1",
+        "text": "Úvod",
+        "conf": 0.8663762211799622
+    },
+    {
+        "bbox": [
+            223,
+            1565,
+            830,
+            1618
+        ],
+        "category": "chapter_L1",
+        "text": "Jak se vyplácí chov králíků",
+        "conf": 0.8631569147109985
+    },
+    {
+        "bbox": [
+            226,
+            1284,
+            619,
+            1336
+        ],
+        "category": "chapter_L1",
+        "text": "Ošetřování králíků",
+        "conf": 0.8630841374397278
+    },
+    {
+        "bbox": [
+            1552,
+            949,
+            1594,
+            995
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8609219193458557
+    },
+    {
+        "bbox": [
+            221,
+            1511,
+            340,
+            1560
+        ],
+        "category": "chapter_L1",
+        "text": "Mrva",
+        "conf": 0.8585910797119141
+    },
+    {
+        "bbox": [
+            221,
+            1679,
+            553,
+            1732
+        ],
+        "category": "chapter_L1",
+        "text": "Nemoci králíků",
+        "conf": 0.8522791862487793
+    },
+    {
+        "bbox": [
+            227,
+            663,
+            535,
+            717
+        ],
+        "category": "chapter_L1",
+        "text": "Králík divoký",
+        "conf": 0.8454791903495789
+    },
+    {
+        "bbox": [
+            223,
+            1397,
+            342,
+            1448
+        ],
+        "category": "chapter_L1",
+        "text": "Kůže",
+        "conf": 0.8444446325302124
+    },
+    {
+        "bbox": [
+            1555,
+            610,
+            1597,
+            657
+        ],
+        "category": "page_number",
+        "text": "3",
+        "conf": 0.82437664270401
+    },
+    {
+        "bbox": [
+            222,
+            1736,
+            407,
+            1786
+        ],
+        "category": "chapter_L1",
+        "text": "Dodatek",
+        "conf": 0.8243003487586975
+    },
+    {
+        "bbox": [
+            224,
+            1170,
+            396,
+            1225
+        ],
+        "category": "chapter_L1",
+        "text": "Chlívky",
+        "conf": 0.820818305015564
+    },
+    {
+        "bbox": [
+            299,
+            1005,
+            580,
+            1057
+        ],
+        "category": "chapter_L1",
+        "text": "obrovský",
+        "conf": 0.8173453211784363
+    },
+    {
+        "bbox": [
+            311,
+            835,
+            839,
+            889
+        ],
+        "category": "chapter_L1",
+        "text": "francouzský obyčejný",
+        "conf": 0.797252357006073
+    },
+    {
+        "bbox": [
+            297,
+            893,
+            615,
+            944
+        ],
+        "category": "chapter_L1",
+        "text": "stříbrošedý",
+        "conf": 0.7955561876296997
+    },
+    {
+        "bbox": [
+            379,
+            722,
+            537,
+            773
+        ],
+        "category": "chapter_L1",
+        "text": "domácí",
+        "conf": 0.7756308913230896
+    },
+    {
+        "bbox": [
+            300,
+            948,
+            606,
+            1001
+        ],
+        "category": "chapter_L1",
+        "text": "beranovitý",
+        "conf": 0.7714354395866394
+    },
+    {
+        "bbox": [
+            298,
+            779,
+            528,
+            830
+        ],
+        "category": "chapter_L1",
+        "text": "oborní „",
+        "conf": 0.7672391533851624
+    },
+    {
+        "bbox": [
+            304,
+            1119,
+            504,
+            1168
+        ],
+        "category": "chapter_L1",
+        "text": "zaječí",
+        "conf": 0.760715901851654
+    },
+    {
+        "bbox": [
+            303,
+            1062,
+            602,
+            1114
+        ],
+        "category": "chapter_L1",
+        "text": "angorovitý",
+        "conf": 0.7518182992935181
+    }
+]

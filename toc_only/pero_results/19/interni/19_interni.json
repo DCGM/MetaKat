@@ -1,0 +1,420 @@
+[
+    {
+        "bbox": [
+            1110,
+            1102,
+            1158,
+            1141
+        ],
+        "category": "page_number",
+        "text": "22",
+        "conf": 0.9088179469108582
+    },
+    {
+        "bbox": [
+            1109,
+            1248,
+            1157,
+            1286
+        ],
+        "category": "page_number",
+        "text": "33",
+        "conf": 0.9083743095397949
+    },
+    {
+        "bbox": [
+            1108,
+            1391,
+            1156,
+            1430
+        ],
+        "category": "page_number",
+        "text": "43",
+        "conf": 0.9033139944076538
+    },
+    {
+        "bbox": [
+            1108,
+            1343,
+            1156,
+            1382
+        ],
+        "category": "page_number",
+        "text": "41",
+        "conf": 0.9025130867958069
+    },
+    {
+        "bbox": [
+            1109,
+            1200,
+            1157,
+            1238
+        ],
+        "category": "page_number",
+        "text": "31",
+        "conf": 0.9017802476882935
+    },
+    {
+        "bbox": [
+            1106,
+            1536,
+            1154,
+            1575
+        ],
+        "category": "page_number",
+        "text": "51",
+        "conf": 0.9012369513511658
+    },
+    {
+        "bbox": [
+            1113,
+            958,
+            1159,
+            997
+        ],
+        "category": "page_number",
+        "text": "11",
+        "conf": 0.9004833102226257
+    },
+    {
+        "bbox": [
+            1105,
+            1583,
+            1154,
+            1622
+        ],
+        "category": "page_number",
+        "text": "53",
+        "conf": 0.8972405791282654
+    },
+    {
+        "bbox": [
+            1111,
+            1052,
+            1159,
+            1092
+        ],
+        "category": "page_number",
+        "text": "19",
+        "conf": 0.8966993689537048
+    },
+    {
+        "bbox": [
+            108,
+            1244,
+            227,
+            1288
+        ],
+        "category": "chapter_L1",
+        "text": "Welisch",
+        "conf": 0.8948509097099304
+    },
+    {
+        "bbox": [
+            1107,
+            1486,
+            1155,
+            1526
+        ],
+        "category": "page_number",
+        "text": "49",
+        "conf": 0.894042432308197
+    },
+    {
+        "bbox": [
+            105,
+            1579,
+            286,
+            1623
+        ],
+        "category": "chapter_L1",
+        "text": "Wanderlust",
+        "conf": 0.8917550444602966
+    },
+    {
+        "bbox": [
+            1111,
+            1006,
+            1160,
+            1044
+        ],
+        "category": "page_number",
+        "text": "14",
+        "conf": 0.8916676640510559
+    },
+    {
+        "bbox": [
+            1108,
+            1295,
+            1156,
+            1334
+        ],
+        "category": "page_number",
+        "text": "37",
+        "conf": 0.8900567889213562
+    },
+    {
+        "bbox": [
+            1109,
+            1150,
+            1157,
+            1189
+        ],
+        "category": "page_number",
+        "text": "27",
+        "conf": 0.889498233795166
+    },
+    {
+        "bbox": [
+            107,
+            1293,
+            274,
+            1336
+        ],
+        "category": "chapter_L1",
+        "text": "Seemöven",
+        "conf": 0.8894543051719666
+    },
+    {
+        "bbox": [
+            109,
+            909,
+            208,
+            953
+        ],
+        "category": "chapter_L1",
+        "text": "Zebin",
+        "conf": 0.8892504572868347
+    },
+    {
+        "bbox": [
+            108,
+            1389,
+            284,
+            1432
+        ],
+        "category": "chapter_L1",
+        "text": "Gegenwart",
+        "conf": 0.8883983492851257
+    },
+    {
+        "bbox": [
+            105,
+            1436,
+            278,
+            1479
+        ],
+        "category": "chapter_L1",
+        "text": "Naturliebe",
+        "conf": 0.8874296545982361
+    },
+    {
+        "bbox": [
+            107,
+            1625,
+            471,
+            1672
+        ],
+        "category": "chapter_L1",
+        "text": "Teřowka, Schlußgedicht",
+        "conf": 0.8853285312652588
+    },
+    {
+        "bbox": [
+            1107,
+            1439,
+            1155,
+            1478
+        ],
+        "category": "page_number",
+        "text": "47",
+        "conf": 0.8834778666496277
+    },
+    {
+        "bbox": [
+            109,
+            1149,
+            218,
+            1192
+        ],
+        "category": "chapter_L1",
+        "text": "Tabor",
+        "conf": 0.8827270269393921
+    },
+    {
+        "bbox": [
+            109,
+            1197,
+            247,
+            1240
+        ],
+        "category": "chapter_L1",
+        "text": "Prachow",
+        "conf": 0.8808772563934326
+    },
+    {
+        "bbox": [
+            112,
+            862,
+            274,
+            905
+        ],
+        "category": "chapter_L1",
+        "text": "Karthauſe",
+        "conf": 0.8808498382568359
+    },
+    {
+        "bbox": [
+            1104,
+            1679,
+            1152,
+            1719
+        ],
+        "category": "page_number",
+        "text": "57",
+        "conf": 0.8798164129257202
+    },
+    {
+        "bbox": [
+            1105,
+            1630,
+            1153,
+            1669
+        ],
+        "category": "page_number",
+        "text": "54",
+        "conf": 0.8793297410011292
+    },
+    {
+        "bbox": [
+            109,
+            1006,
+            264,
+            1048
+        ],
+        "category": "chapter_L1",
+        "text": "Kumburg",
+        "conf": 0.8768291473388672
+    },
+    {
+        "bbox": [
+            109,
+            1052,
+            243,
+            1095
+        ],
+        "category": "chapter_L1",
+        "text": "Bradlec",
+        "conf": 0.8765943050384521
+    },
+    {
+        "bbox": [
+            110,
+            955,
+            448,
+            1001
+        ],
+        "category": "chapter_L1",
+        "text": "Waldstein in Gitschin",
+        "conf": 0.8746925592422485
+    },
+    {
+        "bbox": [
+            105,
+            1530,
+            392,
+            1577
+        ],
+        "category": "chapter_L1",
+        "text": "Nach zehn Jahren",
+        "conf": 0.874140202999115
+    },
+    {
+        "bbox": [
+            107,
+            1340,
+            220,
+            1383
+        ],
+        "category": "chapter_L1",
+        "text": "Troſky",
+        "conf": 0.870539665222168
+    },
+    {
+        "bbox": [
+            1125,
+            910,
+            1161,
+            949
+        ],
+        "category": "page_number",
+        "text": "7",
+        "conf": 0.8656154274940491
+    },
+    {
+        "bbox": [
+            108,
+            1099,
+            408,
+            1145
+        ],
+        "category": "chapter_L1",
+        "text": "Das Rieſengebirge",
+        "conf": 0.8639598488807678
+    },
+    {
+        "bbox": [
+            105,
+            1675,
+            318,
+            1721
+        ],
+        "category": "chapter_L1",
+        "text": "Anmerkungen",
+        "conf": 0.8633219003677368
+    },
+    {
+        "bbox": [
+            1127,
+            861,
+            1163,
+            900
+        ],
+        "category": "page_number",
+        "text": "4",
+        "conf": 0.8601607084274292
+    },
+    {
+        "bbox": [
+            104,
+            1484,
+            209,
+            1525
+        ],
+        "category": "chapter_L1",
+        "text": "Abend",
+        "conf": 0.8548845648765564
+    },
+    {
+        "bbox": [
+            111,
+            806,
+            550,
+            859
+        ],
+        "category": "chapter_L1",
+        "text": "Čeřowka, Einleitungsgedicht",
+        "conf": 0.8445996642112732
+    },
+    {
+        "bbox": [
+            1128,
+            814,
+            1162,
+            852
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.826202929019928
+    }
+]

@@ -1,0 +1,1344 @@
+[
+    {
+        "bbox": [
+            995,
+            2414,
+            1115,
+            2480
+        ],
+        "category": "page_number",
+        "text": "114",
+        "conf": 0.9157432913780212
+    },
+    {
+        "bbox": [
+            995,
+            2342,
+            1116,
+            2409
+        ],
+        "category": "page_number",
+        "text": "112",
+        "conf": 0.9099171161651611
+    },
+    {
+        "bbox": [
+            996,
+            2555,
+            1116,
+            2622
+        ],
+        "category": "page_number",
+        "text": "122",
+        "conf": 0.9037914276123047
+    },
+    {
+        "bbox": [
+            1031,
+            717,
+            1122,
+            782
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.9015799164772034
+    },
+    {
+        "bbox": [
+            995,
+            2483,
+            1114,
+            2550
+        ],
+        "category": "page_number",
+        "text": "117",
+        "conf": 0.8995046615600586
+    },
+    {
+        "bbox": [
+            2168,
+            725,
+            2286,
+            792
+        ],
+        "category": "page_number",
+        "text": "187",
+        "conf": 0.8992142677307129
+    },
+    {
+        "bbox": [
+            142,
+            1070,
+            988,
+            1217
+        ],
+        "category": "chapter_L1",
+        "text": "Mzdy dělníků u nás a v cizině . . . . . .",
+        "conf": 0.8986889719963074
+    },
+    {
+        "bbox": [
+            999,
+            2270,
+            1116,
+            2338
+        ],
+        "category": "page_number",
+        "text": "104",
+        "conf": 0.8974742293357849
+    },
+    {
+        "bbox": [
+            138,
+            1352,
+            977,
+            1495
+        ],
+        "category": "chapter_L1",
+        "text": "Hromadění služebních po- . . žitků .",
+        "conf": 0.8944373726844788
+    },
+    {
+        "bbox": [
+            1027,
+            928,
+            1122,
+            995
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8936859965324402
+    },
+    {
+        "bbox": [
+            2160,
+            1430,
+            2279,
+            1498
+        ],
+        "category": "page_number",
+        "text": "241",
+        "conf": 0.8924151659011841
+    },
+    {
+        "bbox": [
+            2162,
+            1077,
+            2287,
+            1144
+        ],
+        "category": "page_number",
+        "text": "214",
+        "conf": 0.8921785354614258
+    },
+    {
+        "bbox": [
+            1309,
+            2206,
+            2147,
+            2342
+        ],
+        "category": "chapter_L1",
+        "text": "Podvod a klam zradí se sám . . . . . . .",
+        "conf": 0.8921219706535339
+    },
+    {
+        "bbox": [
+            2160,
+            1995,
+            2278,
+            2062
+        ],
+        "category": "page_number",
+        "text": "231",
+        "conf": 0.891092836856842
+    },
+    {
+        "bbox": [
+            1315,
+            2132,
+            1902,
+            2207
+        ],
+        "category": "chapter_L1",
+        "text": "Církevní školství",
+        "conf": 0.8903301358222961
+    },
+    {
+        "bbox": [
+            2168,
+            656,
+            2286,
+            721
+        ],
+        "category": "page_number",
+        "text": "181",
+        "conf": 0.8895524144172668
+    },
+    {
+        "bbox": [
+            1029,
+            787,
+            1120,
+            853
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8882530927658081
+    },
+    {
+        "bbox": [
+            1028,
+            858,
+            1118,
+            923
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8878729939460754
+    },
+    {
+        "bbox": [
+            143,
+            864,
+            843,
+            940
+        ],
+        "category": "chapter_L1",
+        "text": "Reakce hospodářská",
+        "conf": 0.8864541053771973
+    },
+    {
+        "bbox": [
+            1316,
+            579,
+            1680,
+            653
+        ],
+        "category": "chapter_L1",
+        "text": "Komunisté",
+        "conf": 0.8863151669502258
+    },
+    {
+        "bbox": [
+            139,
+            653,
+            545,
+            727
+        ],
+        "category": "chapter_L1",
+        "text": "Dvojí vláda",
+        "conf": 0.8862776160240173
+    },
+    {
+        "bbox": [
+            2160,
+            1284,
+            2286,
+            1355
+        ],
+        "category": "page_number",
+        "text": "218",
+        "conf": 0.8860917091369629
+    },
+    {
+        "bbox": [
+            2162,
+            1005,
+            2286,
+            1075
+        ],
+        "category": "page_number",
+        "text": "212",
+        "conf": 0.8860449194908142
+    },
+    {
+        "bbox": [
+            2157,
+            2699,
+            2282,
+            2771
+        ],
+        "category": "page_number",
+        "text": "280",
+        "conf": 0.885999321937561
+    },
+    {
+        "bbox": [
+            2161,
+            1359,
+            2280,
+            1428
+        ],
+        "category": "page_number",
+        "text": "221",
+        "conf": 0.8849179744720459
+    },
+    {
+        "bbox": [
+            1025,
+            1774,
+            1119,
+            1839
+        ],
+        "category": "page_number",
+        "text": "69",
+        "conf": 0.884060800075531
+    },
+    {
+        "bbox": [
+            2162,
+            935,
+            2283,
+            1001
+        ],
+        "category": "page_number",
+        "text": "211",
+        "conf": 0.8828963041305542
+    },
+    {
+        "bbox": [
+            1318,
+            1423,
+            1816,
+            1498
+        ],
+        "category": "chapter_L1",
+        "text": "Třídění duchů",
+        "conf": 0.8821535706520081
+    },
+    {
+        "bbox": [
+            1316,
+            1636,
+            2144,
+            1778
+        ],
+        "category": "chapter_L1",
+        "text": "Co chtějí ludáci poli- ticky? . . . . .",
+        "conf": 0.8818312287330627
+    },
+    {
+        "bbox": [
+            2160,
+            2347,
+            2282,
+            2414
+        ],
+        "category": "page_number",
+        "text": "258",
+        "conf": 0.8812143206596375
+    },
+    {
+        "bbox": [
+            145,
+            796,
+            704,
+            868
+        ],
+        "category": "chapter_L1",
+        "text": "Naše nesvoboda",
+        "conf": 0.8808563351631165
+    },
+    {
+        "bbox": [
+            1025,
+            1631,
+            1120,
+            1699
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8807223439216614
+    },
+    {
+        "bbox": [
+            138,
+            2060,
+            978,
+            2135
+        ],
+        "category": "chapter_L1",
+        "text": "Komory práce a spotřeby",
+        "conf": 0.879976749420166
+    },
+    {
+        "bbox": [
+            1028,
+            999,
+            1123,
+            1068
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8799190521240234
+    },
+    {
+        "bbox": [
+            1304,
+            929,
+            1807,
+            1006
+        ],
+        "category": "chapter_L1",
+        "text": "Práce a chléb",
+        "conf": 0.8797622919082642
+    },
+    {
+        "bbox": [
+            153,
+            2552,
+            603,
+            2630
+        ],
+        "category": "chapter_L1",
+        "text": "Inkompabilita",
+        "conf": 0.879723072052002
+    },
+    {
+        "bbox": [
+            138,
+            512,
+            405,
+            586
+        ],
+        "category": "chapter_L1",
+        "text": "Po boji",
+        "conf": 0.8795601725578308
+    },
+    {
+        "bbox": [
+            1315,
+            1216,
+            2147,
+            1354
+        ],
+        "category": "chapter_L1",
+        "text": "Bohatství, na něž se za- pomíná . . . . . .",
+        "conf": 0.8789026141166687
+    },
+    {
+        "bbox": [
+            2168,
+            512,
+            2290,
+            581
+        ],
+        "category": "page_number",
+        "text": "145",
+        "conf": 0.8786327242851257
+    },
+    {
+        "bbox": [
+            2157,
+            2488,
+            2281,
+            2558
+        ],
+        "category": "page_number",
+        "text": "263",
+        "conf": 0.8786061406135559
+    },
+    {
+        "bbox": [
+            1026,
+            1704,
+            1120,
+            1769
+        ],
+        "category": "page_number",
+        "text": "62",
+        "conf": 0.8783935308456421
+    },
+    {
+        "bbox": [
+            151,
+            2696,
+            558,
+            2773
+        ],
+        "category": "chapter_L1",
+        "text": "Péče o dítě",
+        "conf": 0.8780771493911743
+    },
+    {
+        "bbox": [
+            1021,
+            2199,
+            1115,
+            2264
+        ],
+        "category": "page_number",
+        "text": "94",
+        "conf": 0.8776934742927551
+    },
+    {
+        "bbox": [
+            996,
+            2627,
+            1115,
+            2693
+        ],
+        "category": "page_number",
+        "text": "126",
+        "conf": 0.8771580457687378
+    },
+    {
+        "bbox": [
+            2169,
+            584,
+            2290,
+            651
+        ],
+        "category": "page_number",
+        "text": "168",
+        "conf": 0.8757662773132324
+    },
+    {
+        "bbox": [
+            141,
+            935,
+            404,
+            1008
+        ],
+        "category": "chapter_L1",
+        "text": "Deflace",
+        "conf": 0.8757112622261047
+    },
+    {
+        "bbox": [
+            1030,
+            645,
+            1123,
+            712
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8746288418769836
+    },
+    {
+        "bbox": [
+            140,
+            1567,
+            895,
+            1641
+        ],
+        "category": "chapter_L1",
+        "text": "Soukromí zaměstnanci",
+        "conf": 0.874258279800415
+    },
+    {
+        "bbox": [
+            149,
+            2626,
+            927,
+            2699
+        ],
+        "category": "chapter_L1",
+        "text": "Na čem se šetřiti nemá",
+        "conf": 0.8739951252937317
+    },
+    {
+        "bbox": [
+            1306,
+            2416,
+            1925,
+            2493
+        ],
+        "category": "chapter_L1",
+        "text": "Podkarpatská Rus",
+        "conf": 0.8734564781188965
+    },
+    {
+        "bbox": [
+            2160,
+            1922,
+            2279,
+            1992
+        ],
+        "category": "page_number",
+        "text": "229",
+        "conf": 0.8733718395233154
+    },
+    {
+        "bbox": [
+            149,
+            1845,
+            636,
+            1922
+        ],
+        "category": "chapter_L1",
+        "text": "Strana gážistů",
+        "conf": 0.8732360005378723
+    },
+    {
+        "bbox": [
+            1320,
+            1071,
+            1717,
+            1147
+        ],
+        "category": "chapter_L1",
+        "text": "Více světla",
+        "conf": 0.8725202083587646
+    },
+    {
+        "bbox": [
+            2165,
+            865,
+            2286,
+            932
+        ],
+        "category": "page_number",
+        "text": "208",
+        "conf": 0.8725089430809021
+    },
+    {
+        "bbox": [
+            1027,
+            1561,
+            1120,
+            1627
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8722327947616577
+    },
+    {
+        "bbox": [
+            1028,
+            1915,
+            1119,
+            1982
+        ],
+        "category": "page_number",
+        "text": "78",
+        "conf": 0.8716924786567688
+    },
+    {
+        "bbox": [
+            138,
+            1494,
+            699,
+            1571
+        ],
+        "category": "chapter_L1",
+        "text": "Učitelská parita",
+        "conf": 0.8712907433509827
+    },
+    {
+        "bbox": [
+            1310,
+            1917,
+            1907,
+            1995
+        ],
+        "category": "chapter_L1",
+        "text": "Jak se lidé mění",
+        "conf": 0.8711315393447876
+    },
+    {
+        "bbox": [
+            139,
+            1986,
+            913,
+            2064
+        ],
+        "category": "chapter_L1",
+        "text": "Ochrana hosp. slabých",
+        "conf": 0.8710125088691711
+    },
+    {
+        "bbox": [
+            1315,
+            1989,
+            1777,
+            2066
+        ],
+        "category": "chapter_L1",
+        "text": "Dějinný omyl",
+        "conf": 0.8708288669586182
+    },
+    {
+        "bbox": [
+            145,
+            1779,
+            330,
+            1850
+        ],
+        "category": "chapter_L1",
+        "text": "Daně",
+        "conf": 0.869816243648529
+    },
+    {
+        "bbox": [
+            149,
+            2130,
+            699,
+            2204
+        ],
+        "category": "chapter_L1",
+        "text": "Školská reforma",
+        "conf": 0.8694009184837341
+    },
+    {
+        "bbox": [
+            2165,
+            1147,
+            2287,
+            1218
+        ],
+        "category": "page_number",
+        "text": "216",
+        "conf": 0.8693746328353882
+    },
+    {
+        "bbox": [
+            1023,
+            1210,
+            1118,
+            1278
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8685472011566162
+    },
+    {
+        "bbox": [
+            2157,
+            2628,
+            2280,
+            2696
+        ],
+        "category": "page_number",
+        "text": "272",
+        "conf": 0.8683091402053833
+    },
+    {
+        "bbox": [
+            1313,
+            859,
+            1665,
+            934
+        ],
+        "category": "chapter_L1",
+        "text": "Slovensko",
+        "conf": 0.868016242980957
+    },
+    {
+        "bbox": [
+            2168,
+            797,
+            2286,
+            863
+        ],
+        "category": "page_number",
+        "text": "195",
+        "conf": 0.8679763674736023
+    },
+    {
+        "bbox": [
+            1028,
+            1844,
+            1119,
+            1910
+        ],
+        "category": "page_number",
+        "text": "74",
+        "conf": 0.8678622245788574
+    },
+    {
+        "bbox": [
+            1322,
+            722,
+            1730,
+            795
+        ],
+        "category": "chapter_L1",
+        "text": "Vojna a mír",
+        "conf": 0.8674124479293823
+    },
+    {
+        "bbox": [
+            1028,
+            1491,
+            1119,
+            1556
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8670496940612793
+    },
+    {
+        "bbox": [
+            2159,
+            2273,
+            2282,
+            2344
+        ],
+        "category": "page_number",
+        "text": "257",
+        "conf": 0.8668673634529114
+    },
+    {
+        "bbox": [
+            1313,
+            1351,
+            1732,
+            1428
+        ],
+        "category": "chapter_L1",
+        "text": "Komunikace",
+        "conf": 0.8667455911636353
+    },
+    {
+        "bbox": [
+            1319,
+            1848,
+            1733,
+            1922
+        ],
+        "category": "chapter_L1",
+        "text": "Naše ústava",
+        "conf": 0.8662393093109131
+    },
+    {
+        "bbox": [
+            2162,
+            1501,
+            2284,
+            1568
+        ],
+        "category": "page_number",
+        "text": "246",
+        "conf": 0.8658798933029175
+    },
+    {
+        "bbox": [
+            2160,
+            2065,
+            2284,
+            2131
+        ],
+        "category": "page_number",
+        "text": "233",
+        "conf": 0.8654564619064331
+    },
+    {
+        "bbox": [
+            1313,
+            1774,
+            1968,
+            1854
+        ],
+        "category": "chapter_L1",
+        "text": "Pittsburská dohoda",
+        "conf": 0.8654529452323914
+    },
+    {
+        "bbox": [
+            2162,
+            1783,
+            2282,
+            1849
+        ],
+        "category": "page_number",
+        "text": "224",
+        "conf": 0.8651474118232727
+    },
+    {
+        "bbox": [
+            137,
+            422,
+            587,
+            518
+        ],
+        "category": "chapter_L1",
+        "text": "Mezi proudy",
+        "conf": 0.865081787109375
+    },
+    {
+        "bbox": [
+            2161,
+            1851,
+            2280,
+            1920
+        ],
+        "category": "page_number",
+        "text": "227",
+        "conf": 0.8648443818092346
+    },
+    {
+        "bbox": [
+            142,
+            724,
+            841,
+            801
+        ],
+        "category": "chapter_L1",
+        "text": "Koaliční praxe. Veto",
+        "conf": 0.8645707964897156
+    },
+    {
+        "bbox": [
+            2157,
+            2418,
+            2281,
+            2484
+        ],
+        "category": "page_number",
+        "text": "260",
+        "conf": 0.8640434145927429
+    },
+    {
+        "bbox": [
+            2156,
+            2561,
+            2280,
+            2626
+        ],
+        "category": "page_number",
+        "text": "266",
+        "conf": 0.8636088967323303
+    },
+    {
+        "bbox": [
+            141,
+            1215,
+            558,
+            1292
+        ],
+        "category": "chapter_L1",
+        "text": "Zaměstnanci",
+        "conf": 0.8630207180976868
+    },
+    {
+        "bbox": [
+            1314,
+            2061,
+            2087,
+            2136
+        ],
+        "category": "chapter_L1",
+        "text": "Po skutcích poznáte je",
+        "conf": 0.8628871440887451
+    },
+    {
+        "bbox": [
+            2162,
+            1571,
+            2283,
+            1644
+        ],
+        "category": "page_number",
+        "text": "253",
+        "conf": 0.8628792762756348
+    },
+    {
+        "bbox": [
+            2160,
+            2134,
+            2284,
+            2205
+        ],
+        "category": "page_number",
+        "text": "255",
+        "conf": 0.8625196218490601
+    },
+    {
+        "bbox": [
+            141,
+            1287,
+            471,
+            1362
+        ],
+        "category": "chapter_L1",
+        "text": "Restrikce",
+        "conf": 0.8618036508560181
+    },
+    {
+        "bbox": [
+            1026,
+            1417,
+            1119,
+            1486
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8613641858100891
+    },
+    {
+        "bbox": [
+            150,
+            2413,
+            379,
+            2485
+        ],
+        "category": "chapter_L1",
+        "text": "Vojsko",
+        "conf": 0.8606978058815002
+    },
+    {
+        "bbox": [
+            995,
+            2697,
+            1115,
+            2767
+        ],
+        "category": "page_number",
+        "text": "132",
+        "conf": 0.8595805764198303
+    },
+    {
+        "bbox": [
+            1024,
+            2128,
+            1115,
+            2193
+        ],
+        "category": "page_number",
+        "text": "90",
+        "conf": 0.8590787053108215
+    },
+    {
+        "bbox": [
+            145,
+            1710,
+            394,
+            1779
+        ],
+        "category": "chapter_L1",
+        "text": "Úhrada",
+        "conf": 0.8586190938949585
+    },
+    {
+        "bbox": [
+            1026,
+            1985,
+            1118,
+            2053
+        ],
+        "category": "page_number",
+        "text": "82",
+        "conf": 0.8581177592277527
+    },
+    {
+        "bbox": [
+            1312,
+            2341,
+            1778,
+            2421
+        ],
+        "category": "chapter_L1",
+        "text": "Jindy a dnes",
+        "conf": 0.8569939136505127
+    },
+    {
+        "bbox": [
+            1315,
+            1001,
+            1992,
+            1077
+        ],
+        "category": "chapter_L1",
+        "text": "Pozemková reforma",
+        "conf": 0.8568670153617859
+    },
+    {
+        "bbox": [
+            136,
+            580,
+            943,
+            657
+        ],
+        "category": "chapter_L1",
+        "text": "Proč jsme nespokojeni?.",
+        "conf": 0.8568483591079712
+    },
+    {
+        "bbox": [
+            1310,
+            646,
+            2084,
+            725
+        ],
+        "category": "chapter_L1",
+        "text": "Náš poměr k Němcům",
+        "conf": 0.8568079471588135
+    },
+    {
+        "bbox": [
+            1314,
+            1565,
+            1901,
+            1640
+        ],
+        "category": "chapter_L1",
+        "text": "Slovensko vstává",
+        "conf": 0.8526453375816345
+    },
+    {
+        "bbox": [
+            1316,
+            792,
+            1562,
+            862
+        ],
+        "category": "chapter_L1",
+        "text": "Fašisté",
+        "conf": 0.8519614934921265
+    },
+    {
+        "bbox": [
+            1308,
+            2486,
+            1587,
+            2560
+        ],
+        "category": "chapter_L1",
+        "text": "Oposice",
+        "conf": 0.8517745733261108
+    },
+    {
+        "bbox": [
+            1307,
+            1494,
+            1931,
+            1570
+        ],
+        "category": "chapter_L1",
+        "text": "Slovenská dohoda",
+        "conf": 0.8511249423027039
+    },
+    {
+        "bbox": [
+            1316,
+            1140,
+            2149,
+            1220
+        ],
+        "category": "chapter_L1",
+        "text": "Kolonisace na Slovensku",
+        "conf": 0.8503499627113342
+    },
+    {
+        "bbox": [
+            144,
+            1916,
+            821,
+            1991
+        ],
+        "category": "chapter_L1",
+        "text": "Poměr k socialismu",
+        "conf": 0.8496510982513428
+    },
+    {
+        "bbox": [
+            153,
+            2342,
+            594,
+            2416
+        ],
+        "category": "chapter_L1",
+        "text": "Representace",
+        "conf": 0.8492699861526489
+    },
+    {
+        "bbox": [
+            1024,
+            2058,
+            1115,
+            2125
+        ],
+        "category": "page_number",
+        "text": "86",
+        "conf": 0.8491284847259521
+    },
+    {
+        "bbox": [
+            1320,
+            506,
+            2008,
+            583
+        ],
+        "category": "chapter_L1",
+        "text": "Náš poměr k Rusku",
+        "conf": 0.8490545749664307
+    },
+    {
+        "bbox": [
+            147,
+            2200,
+            911,
+            2277
+        ],
+        "category": "chapter_L1",
+        "text": "Odluka státu od církví",
+        "conf": 0.8465765118598938
+    },
+    {
+        "bbox": [
+            1309,
+            2557,
+            1864,
+            2629
+        ],
+        "category": "chapter_L1",
+        "text": "Na nové cesty?",
+        "conf": 0.8449617028236389
+    },
+    {
+        "bbox": [
+            142,
+            1007,
+            276,
+            1079
+        ],
+        "category": "chapter_L1",
+        "text": "Cla-",
+        "conf": 0.8441428542137146
+    },
+    {
+        "bbox": [
+            140,
+            1637,
+            437,
+            1713
+        ],
+        "category": "chapter_L1",
+        "text": "Kongrua",
+        "conf": 0.8438888788223267
+    },
+    {
+        "bbox": [
+            1026,
+            1136,
+            1119,
+            1208
+        ],
+        "category": "page_number",
+        "text": "3",
+        "conf": 0.8432847857475281
+    },
+    {
+        "bbox": [
+            2162,
+            1710,
+            2281,
+            1781
+        ],
+        "category": "page_number",
+        "text": "224",
+        "conf": 0.8426281213760376
+    },
+    {
+        "bbox": [
+            1308,
+            2624,
+            1734,
+            2702
+        ],
+        "category": "chapter_L1",
+        "text": "NSP a ČSP",
+        "conf": 0.8371666073799133
+    },
+    {
+        "bbox": [
+            1024,
+            1281,
+            1121,
+            1352
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8360999822616577
+    },
+    {
+        "bbox": [
+            1308,
+            2700,
+            1548,
+            2775
+        ],
+        "category": "chapter_L1",
+        "text": "Doslov",
+        "conf": 0.8338354229927063
+    },
+    {
+        "bbox": [
+            1032,
+            573,
+            1123,
+            642
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.829936683177948
+    },
+    {
+        "bbox": [
+            1316,
+            426,
+            1738,
+            514
+        ],
+        "category": "chapter_L1",
+        "text": "Stálý výbor",
+        "conf": 0.8278856873512268
+    },
+    {
+        "bbox": [
+            152,
+            2482,
+            690,
+            2558
+        ],
+        "category": "chapter_L1",
+        "text": "Úsporná komise",
+        "conf": 0.8274840712547302
+    },
+    {
+        "bbox": [
+            1060,
+            503,
+            1126,
+            568
+        ],
+        "category": "page_number",
+        "text": "7",
+        "conf": 0.8212641477584839
+    },
+    {
+        "bbox": [
+            149,
+            2270,
+            343,
+            2344
+        ],
+        "category": "chapter_L1",
+        "text": "Šetřit",
+        "conf": 0.817375898361206
+    },
+    {
+        "bbox": [
+            2169,
+            439,
+            2291,
+            509
+        ],
+        "category": "page_number",
+        "text": "144",
+        "conf": 0.7806739807128906
+    },
+    {
+        "bbox": [
+            1062,
+            425,
+            1129,
+            505
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.5842469930648804
+    }
+]

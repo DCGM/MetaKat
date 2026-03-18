@@ -1,0 +1,278 @@
+[
+    {
+        "chapter_name": "Měsíc na náměstí",
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 165,
+        "subchapters": [],
+        "polygon": [
+            [
+                574,
+                239
+            ],
+            [
+                990,
+                239
+            ],
+            [
+                990,
+                287
+            ],
+            [
+                574,
+                287
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Vesnice",
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 166,
+        "subchapters": [],
+        "polygon": [
+            [
+                620,
+                306
+            ],
+            [
+                866,
+                306
+            ],
+            [
+                866,
+                354
+            ],
+            [
+                620,
+                354
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Letní krajina",
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 168,
+        "subchapters": [],
+        "polygon": [
+            [
+                577,
+                370
+            ],
+            [
+                866,
+                370
+            ],
+            [
+                866,
+                418
+            ],
+            [
+                577,
+                418
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Mezi Prahou a venkovskou domovinou",
+        "page_name": "1",
+        "chapter_number": null,
+        "start_page": 170,
+        "subchapters": [
+            {
+                "chapter_name": "Libošovice",
+                "page_name": "1",
+                "chapter_number": null,
+                "start_page": 172,
+                "subchapters": [],
+                "polygon": [
+                    [
+                        635,
+                        502
+                    ],
+                    [
+                        924,
+                        502
+                    ],
+                    [
+                        924,
+                        550
+                    ],
+                    [
+                        635,
+                        550
+                    ]
+                ]
+            },
+            {
+                "chapter_name": "Pleskoty",
+                "page_name": "1",
+                "chapter_number": null,
+                "start_page": 173,
+                "subchapters": [],
+                "polygon": [
+                    [
+                        635,
+                        567
+                    ],
+                    [
+                        895,
+                        567
+                    ],
+                    [
+                        895,
+                        615
+                    ],
+                    [
+                        635,
+                        615
+                    ]
+                ]
+            },
+            {
+                "chapter_name": "Večer",
+                "page_name": "1",
+                "chapter_number": null,
+                "start_page": 174,
+                "subchapters": [],
+                "polygon": [
+                    [
+                        635,
+                        634
+                    ],
+                    [
+                        851,
+                        634
+                    ],
+                    [
+                        851,
+                        682
+                    ],
+                    [
+                        635,
+                        682
+                    ]
+                ]
+            },
+            {
+                "chapter_name": "Finale",
+                "page_name": "1",
+                "chapter_number": null,
+                "start_page": 175,
+                "subchapters": [],
+                "polygon": [
+                    [
+                        635,
+                        698
+                    ],
+                    [
+                        851,
+                        698
+                    ],
+                    [
+                        851,
+                        746
+                    ],
+                    [
+                        635,
+                        746
+                    ]
+                ]
+            },
+            {
+                "chapter_name": "Větrný mlýn",
+                "page_name": "1",
+                "chapter_number": null,
+                "start_page": 176,
+                "subchapters": [],
+                "polygon": [
+                    [
+                        635,
+                        765
+                    ],
+                    [
+                        924,
+                        765
+                    ],
+                    [
+                        924,
+                        813
+                    ],
+                    [
+                        635,
+                        813
+                    ]
+                ]
+            },
+            {
+                "chapter_name": "Odjezdy",
+                "page_name": "1",
+                "chapter_number": null,
+                "start_page": 177,
+                "subchapters": [],
+                "polygon": [
+                    [
+                        635,
+                        830
+                    ],
+                    [
+                        866,
+                        830
+                    ],
+                    [
+                        866,
+                        878
+                    ],
+                    [
+                        635,
+                        878
+                    ]
+                ]
+            },
+            {
+                "chapter_name": "Vřes",
+                "page_name": "1",
+                "chapter_number": null,
+                "start_page": 178,
+                "subchapters": [],
+                "polygon": [
+                    [
+                        635,
+                        897
+                    ],
+                    [
+                        837,
+                        897
+                    ],
+                    [
+                        837,
+                        945
+                    ],
+                    [
+                        635,
+                        945
+                    ]
+                ]
+            }
+        ],
+        "polygon": [
+            [
+                404,
+                435
+            ],
+            [
+                1155,
+                435
+            ],
+            [
+                1155,
+                483
+            ],
+            [
+                404,
+                483
+            ]
+        ]
+    }
+]

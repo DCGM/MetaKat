@@ -1,0 +1,332 @@
+[
+    {
+        "bbox": [
+            1169,
+            690,
+            1213,
+            725
+        ],
+        "category": "page_number",
+        "text": "19",
+        "conf": 0.9072284698486328
+    },
+    {
+        "bbox": [
+            1167,
+            779,
+            1212,
+            812
+        ],
+        "category": "page_number",
+        "text": "29",
+        "conf": 0.9065572619438171
+    },
+    {
+        "bbox": [
+            140,
+            1031,
+            219,
+            1070
+        ],
+        "category": "chapter_L1",
+        "text": "Noc",
+        "conf": 0.9042773246765137
+    },
+    {
+        "bbox": [
+            1164,
+            1042,
+            1209,
+            1077
+        ],
+        "category": "page_number",
+        "text": "72",
+        "conf": 0.9037805199623108
+    },
+    {
+        "bbox": [
+            1167,
+            823,
+            1211,
+            858
+        ],
+        "category": "page_number",
+        "text": "33",
+        "conf": 0.9028511047363281
+    },
+    {
+        "bbox": [
+            1163,
+            1175,
+            1208,
+            1209
+        ],
+        "category": "page_number",
+        "text": "96",
+        "conf": 0.9024876952171326
+    },
+    {
+        "bbox": [
+            1166,
+            1085,
+            1210,
+            1122
+        ],
+        "category": "page_number",
+        "text": "79",
+        "conf": 0.9021268486976624
+    },
+    {
+        "bbox": [
+            1167,
+            910,
+            1211,
+            946
+        ],
+        "category": "page_number",
+        "text": "55",
+        "conf": 0.901542067527771
+    },
+    {
+        "bbox": [
+            1150,
+            1219,
+            1206,
+            1252
+        ],
+        "category": "page_number",
+        "text": "100",
+        "conf": 0.9002919793128967
+    },
+    {
+        "bbox": [
+            1168,
+            734,
+            1212,
+            771
+        ],
+        "category": "page_number",
+        "text": "22",
+        "conf": 0.899836003780365
+    },
+    {
+        "bbox": [
+            140,
+            588,
+            240,
+            630
+        ],
+        "category": "chapter_L1",
+        "text": "Úvod",
+        "conf": 0.8996050357818604
+    },
+    {
+        "bbox": [
+            139,
+            767,
+            297,
+            808
+        ],
+        "category": "chapter_L1",
+        "text": "Kuropění",
+        "conf": 0.8979240655899048
+    },
+    {
+        "bbox": [
+            1164,
+            1131,
+            1209,
+            1165
+        ],
+        "category": "page_number",
+        "text": "85",
+        "conf": 0.8971680402755737
+    },
+    {
+        "bbox": [
+            1170,
+            648,
+            1214,
+            682
+        ],
+        "category": "page_number",
+        "text": "10",
+        "conf": 0.8953769207000732
+    },
+    {
+        "bbox": [
+            1165,
+            1000,
+            1209,
+            1034
+        ],
+        "category": "page_number",
+        "text": "66",
+        "conf": 0.8948023915290833
+    },
+    {
+        "bbox": [
+            136,
+            898,
+            255,
+            938
+        ],
+        "category": "chapter_L1",
+        "text": "Slunce",
+        "conf": 0.8918952345848083
+    },
+    {
+        "bbox": [
+            140,
+            679,
+            380,
+            720
+        ],
+        "category": "chapter_L1",
+        "text": "Nádhera jitra",
+        "conf": 0.8912481069564819
+    },
+    {
+        "bbox": [
+            141,
+            854,
+            281,
+            894
+        ],
+        "category": "chapter_L1",
+        "text": "Poledne",
+        "conf": 0.8900274038314819
+    },
+    {
+        "bbox": [
+            1167,
+            867,
+            1211,
+            901
+        ],
+        "category": "page_number",
+        "text": "49",
+        "conf": 0.8898431062698364
+    },
+    {
+        "bbox": [
+            138,
+            1120,
+            446,
+            1161
+        ],
+        "category": "chapter_L1",
+        "text": "Noční život zvířat",
+        "conf": 0.8878524303436279
+    },
+    {
+        "bbox": [
+            137,
+            1076,
+            446,
+            1116
+        ],
+        "category": "chapter_L1",
+        "text": "Život ve vesmíru?",
+        "conf": 0.8874086141586304
+    },
+    {
+        "bbox": [
+            1165,
+            956,
+            1208,
+            991
+        ],
+        "category": "page_number",
+        "text": "61",
+        "conf": 0.8868107199668884
+    },
+    {
+        "bbox": [
+            138,
+            812,
+            547,
+            853
+        ],
+        "category": "chapter_L1",
+        "text": "Postup života na zemi",
+        "conf": 0.8835746049880981
+    },
+    {
+        "bbox": [
+            137,
+            1164,
+            410,
+            1205
+        ],
+        "category": "chapter_L1",
+        "text": "Spánek utěšitel",
+        "conf": 0.8830885291099548
+    },
+    {
+        "bbox": [
+            141,
+            724,
+            499,
+            766
+        ],
+        "category": "chapter_L1",
+        "text": "Ranní zpěv ptactva",
+        "conf": 0.8773179650306702
+    },
+    {
+        "bbox": [
+            137,
+            942,
+            247,
+            981
+        ],
+        "category": "chapter_L1",
+        "text": "Večer",
+        "conf": 0.8733093738555908
+    },
+    {
+        "bbox": [
+            138,
+            1208,
+            259,
+            1247
+        ],
+        "category": "chapter_L1",
+        "text": "Doslov",
+        "conf": 0.8730602264404297
+    },
+    {
+        "bbox": [
+            138,
+            987,
+            395,
+            1028
+        ],
+        "category": "chapter_L1",
+        "text": "Spánek rostlin",
+        "conf": 0.8700120449066162
+    },
+    {
+        "bbox": [
+            142,
+            635,
+            565,
+            677
+        ],
+        "category": "chapter_L1",
+        "text": "Jak vzniká den a noc",
+        "conf": 0.8668020963668823
+    },
+    {
+        "bbox": [
+            1183,
+            603,
+            1215,
+            639
+        ],
+        "category": "page_number",
+        "text": "5",
+        "conf": 0.8651105165481567
+    }
+]

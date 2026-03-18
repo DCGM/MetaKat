@@ -1,0 +1,202 @@
+[
+    {
+        "chapter_name": "V mlhách",
+        "page_name": "2",
+        "chapter_number": null,
+        "start_page": 5,
+        "subchapters": [],
+        "polygon": [
+            [
+                251,
+                598
+            ],
+            [
+                478,
+                598
+            ],
+            [
+                478,
+                646
+            ],
+            [
+                251,
+                646
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Štěstí",
+        "page_name": "2",
+        "chapter_number": null,
+        "start_page": 149,
+        "subchapters": [],
+        "polygon": [
+            [
+                251,
+                702
+            ],
+            [
+                408,
+                702
+            ],
+            [
+                408,
+                750
+            ],
+            [
+                251,
+                750
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Trojí zlo",
+        "page_name": "2",
+        "chapter_number": null,
+        "start_page": 179,
+        "subchapters": [],
+        "polygon": [
+            [
+                251,
+                806
+            ],
+            [
+                478,
+                806
+            ],
+            [
+                478,
+                854
+            ],
+            [
+                251,
+                854
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Černá hodinka",
+        "page_name": "2",
+        "chapter_number": null,
+        "start_page": 203,
+        "subchapters": [],
+        "polygon": [
+            [
+                251,
+                910
+            ],
+            [
+                576,
+                910
+            ],
+            [
+                576,
+                958
+            ],
+            [
+                251,
+                958
+            ]
+        ]
+    },
+    {
+        "chapter_name": "O žních",
+        "page_name": "2",
+        "chapter_number": null,
+        "start_page": 213,
+        "subchapters": [],
+        "polygon": [
+            [
+                251,
+                1014
+            ],
+            [
+                436,
+                1014
+            ],
+            [
+                436,
+                1062
+            ],
+            [
+                251,
+                1062
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Bratři",
+        "page_name": "2",
+        "chapter_number": null,
+        "start_page": 227,
+        "subchapters": [],
+        "polygon": [
+            [
+                251,
+                1119
+            ],
+            [
+                408,
+                1119
+            ],
+            [
+                408,
+                1167
+            ],
+            [
+                251,
+                1167
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Zlato",
+        "page_name": "2",
+        "chapter_number": null,
+        "start_page": 239,
+        "subchapters": [],
+        "polygon": [
+            [
+                251,
+                1223
+            ],
+            [
+                393,
+                1223
+            ],
+            [
+                393,
+                1271
+            ],
+            [
+                251,
+                1271
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Na louce",
+        "page_name": "2",
+        "chapter_number": null,
+        "start_page": 251,
+        "subchapters": [],
+        "polygon": [
+            [
+                251,
+                1327
+            ],
+            [
+                464,
+                1327
+            ],
+            [
+                464,
+                1375
+            ],
+            [
+                251,
+                1375
+            ]
+        ]
+    }
+]

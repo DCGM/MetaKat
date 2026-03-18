@@ -1,0 +1,266 @@
+[
+    {
+        "bbox": [
+            330,
+            957,
+            786,
+            1015
+        ],
+        "category": "chapter_L1",
+        "text": "Návrat bible do Čech",
+        "conf": 0.8783669471740723
+    },
+    {
+        "bbox": [
+            183,
+            783,
+            934,
+            839
+        ],
+        "category": "chapter_L1",
+        "text": "Osvícenské červánky na české půdě",
+        "conf": 0.857295572757721
+    },
+    {
+        "bbox": [
+            223,
+            1309,
+            884,
+            1411
+        ],
+        "category": "chapter_L1",
+        "text": "Náboženské smýšlení v městech a na venkově",
+        "conf": 0.856721818447113
+    },
+    {
+        "bbox": [
+            417,
+            261,
+            694,
+            313
+        ],
+        "category": "chapter_L1",
+        "text": "Úvodní slovo",
+        "conf": 0.8510783910751343
+    },
+    {
+        "bbox": [
+            514,
+            1690,
+            603,
+            1743
+        ],
+        "category": "page_number",
+        "text": "(167)",
+        "conf": 0.837160050868988
+    },
+    {
+        "bbox": [
+            270,
+            606,
+            848,
+            665
+        ],
+        "category": "chapter_L1",
+        "text": "Církevní reformy Josefa II.",
+        "conf": 0.8225979804992676
+    },
+    {
+        "bbox": [
+            376,
+            1494,
+            731,
+            1550
+        ],
+        "category": "chapter_L1",
+        "text": "Závěrečná úvaha",
+        "conf": 0.8070406317710876
+    },
+    {
+        "bbox": [
+            411,
+            1632,
+            700,
+            1689
+        ],
+        "category": "chapter_L1",
+        "text": "Rejstřík osob",
+        "conf": 0.8039779663085938
+    },
+    {
+        "bbox": [
+            526,
+            312,
+            586,
+            362
+        ],
+        "category": "page_number",
+        "text": "(9)",
+        "conf": 0.7807003259658813
+    },
+    {
+        "bbox": [
+            220,
+            1133,
+            890,
+            1192
+        ],
+        "category": "chapter_L1",
+        "text": "Legenda o kněžích buditelských",
+        "conf": 0.7748321294784546
+    },
+    {
+        "bbox": [
+            513,
+            1263,
+            582,
+            1313
+        ],
+        "category": "chapter_number",
+        "text": "VI",
+        "conf": 0.7723768949508667
+    },
+    {
+        "bbox": [
+            523,
+            1088,
+            572,
+            1140
+        ],
+        "category": "chapter_number",
+        "text": "V",
+        "conf": 0.7519161105155945
+    },
+    {
+        "bbox": [
+            523,
+            562,
+            575,
+            612
+        ],
+        "category": "chapter_number",
+        "text": "II",
+        "conf": 0.7470785975456238
+    },
+    {
+        "bbox": [
+            251,
+            435,
+            867,
+            495
+        ],
+        "category": "chapter_L1",
+        "text": "Osvícenství za Marie Terezie",
+        "conf": 0.7201164960861206
+    },
+    {
+        "bbox": [
+            525,
+            1007,
+            597,
+            1055
+        ],
+        "category": "page_number",
+        "text": "(70)",
+        "conf": 0.7114464640617371
+    },
+    {
+        "bbox": [
+            514,
+            910,
+            581,
+            962
+        ],
+        "category": "chapter_number",
+        "text": "IV",
+        "conf": 0.6999297142028809
+    },
+    {
+        "bbox": [
+            526,
+            1410,
+            602,
+            1465
+        ],
+        "category": "page_number",
+        "text": "135)",
+        "conf": 0.6893789172172546
+    },
+    {
+        "bbox": [
+            511,
+            1550,
+            606,
+            1603
+        ],
+        "category": "page_number",
+        "text": "(158)",
+        "conf": 0.6850162744522095
+    },
+    {
+        "bbox": [
+            518,
+            657,
+            586,
+            707
+        ],
+        "category": "page_number",
+        "text": "(32)",
+        "conf": 0.6633638143539429
+    },
+    {
+        "bbox": [
+            526,
+            834,
+            573,
+            882
+        ],
+        "category": "page_number",
+        "text": "51",
+        "conf": 0.6224325299263
+    },
+    {
+        "bbox": [
+            515,
+            737,
+            579,
+            786
+        ],
+        "category": "chapter_number",
+        "text": "III",
+        "conf": 0.580930769443512
+    },
+    {
+        "bbox": [
+            515,
+            484,
+            588,
+            540
+        ],
+        "category": "page_number",
+        "text": "(17)",
+        "conf": 0.5525757074356079
+    },
+    {
+        "bbox": [
+            529,
+            391,
+            567,
+            440
+        ],
+        "category": "chapter_number",
+        "text": "I",
+        "conf": 0.43285202980041504
+    },
+    {
+        "bbox": [
+            520,
+            1184,
+            588,
+            1234
+        ],
+        "category": "page_number",
+        "text": "(96)",
+        "conf": 0.37822359800338745
+    }
+]

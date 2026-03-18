@@ -1,0 +1,178 @@
+[
+    {
+        "bbox": [
+            1048,
+            1114,
+            1129,
+            1163
+        ],
+        "category": "page_number",
+        "text": "227",
+        "conf": 0.8710657358169556
+    },
+    {
+        "bbox": [
+            1047,
+            1213,
+            1132,
+            1267
+        ],
+        "category": "page_number",
+        "text": "239",
+        "conf": 0.8671457171440125
+    },
+    {
+        "bbox": [
+            1047,
+            814,
+            1130,
+            867
+        ],
+        "category": "page_number",
+        "text": "179",
+        "conf": 0.8623179793357849
+    },
+    {
+        "bbox": [
+            1049,
+            914,
+            1128,
+            963
+        ],
+        "category": "page_number",
+        "text": "203",
+        "conf": 0.8608075976371765
+    },
+    {
+        "bbox": [
+            1048,
+            1014,
+            1130,
+            1064
+        ],
+        "category": "page_number",
+        "text": "213",
+        "conf": 0.8579179644584656
+    },
+    {
+        "bbox": [
+            1046,
+            716,
+            1129,
+            766
+        ],
+        "category": "page_number",
+        "text": "149",
+        "conf": 0.8573524951934814
+    },
+    {
+        "bbox": [
+            248,
+            903,
+            539,
+            967
+        ],
+        "category": "chapter_L1",
+        "text": "Cerná hodinka",
+        "conf": 0.8553472757339478
+    },
+    {
+        "bbox": [
+            248,
+            706,
+            365,
+            764
+        ],
+        "category": "chapter_L1",
+        "text": "Štěstí",
+        "conf": 0.8530612587928772
+    },
+    {
+        "bbox": [
+            249,
+            1005,
+            418,
+            1065
+        ],
+        "category": "chapter_L1",
+        "text": "O žních",
+        "conf": 0.8506783246994019
+    },
+    {
+        "bbox": [
+            250,
+            607,
+            448,
+            666
+        ],
+        "category": "chapter_L1",
+        "text": "V mlhách",
+        "conf": 0.84297114610672
+    },
+    {
+        "bbox": [
+            1048,
+            1313,
+            1130,
+            1362
+        ],
+        "category": "page_number",
+        "text": "251",
+        "conf": 0.8429697751998901
+    },
+    {
+        "bbox": [
+            252,
+            806,
+            440,
+            867
+        ],
+        "category": "chapter_L1",
+        "text": "Trojí zlo",
+        "conf": 0.8380370140075684
+    },
+    {
+        "bbox": [
+            251,
+            1108,
+            374,
+            1163
+        ],
+        "category": "chapter_L1",
+        "text": "Bratři",
+        "conf": 0.8341566324234009
+    },
+    {
+        "bbox": [
+            1087,
+            619,
+            1127,
+            667
+        ],
+        "category": "page_number",
+        "text": "",
+        "conf": 0.8295044898986816
+    },
+    {
+        "bbox": [
+            250,
+            1309,
+            435,
+            1362
+        ],
+        "category": "chapter_L1",
+        "text": "Na louce",
+        "conf": 0.8125830888748169
+    },
+    {
+        "bbox": [
+            252,
+            1207,
+            370,
+            1263
+        ],
+        "category": "chapter_L1",
+        "text": "Zlato",
+        "conf": 0.7895890474319458
+    }
+]

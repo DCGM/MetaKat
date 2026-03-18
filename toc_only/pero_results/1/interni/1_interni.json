@@ -1,0 +1,266 @@
+[
+    {
+        "bbox": [
+            618,
+            661,
+            872,
+            715
+        ],
+        "category": "chapter_L1",
+        "text": "Větrný mlýn",
+        "conf": 0.8932994604110718
+    },
+    {
+        "bbox": [
+            682,
+            556,
+            804,
+            605
+        ],
+        "category": "chapter_L1",
+        "text": "Večer",
+        "conf": 0.8918184041976929
+    },
+    {
+        "bbox": [
+            681,
+            608,
+            808,
+            659
+        ],
+        "category": "chapter_L1",
+        "text": "Finale",
+        "conf": 0.8791256546974182
+    },
+    {
+        "bbox": [
+            832,
+            716,
+            906,
+            763
+        ],
+        "category": "page_number",
+        "text": "177",
+        "conf": 0.8480976223945618
+    },
+    {
+        "bbox": [
+            804,
+            768,
+            884,
+            816
+        ],
+        "category": "page_number",
+        "text": "178",
+        "conf": 0.8461982607841492
+    },
+    {
+        "bbox": [
+            578,
+            239,
+            909,
+            291
+        ],
+        "category": "chapter_L1",
+        "text": "Měsíc na náměstí",
+        "conf": 0.8454067707061768
+    },
+    {
+        "bbox": [
+            922,
+            241,
+            999,
+            288
+        ],
+        "category": "page_number",
+        "text": "165",
+        "conf": 0.8419243097305298
+    },
+    {
+        "bbox": [
+            618,
+            345,
+            875,
+            396
+        ],
+        "category": "chapter_L1",
+        "text": "Letní krajina",
+        "conf": 0.8334487080574036
+    },
+    {
+        "bbox": [
+            695,
+            769,
+            797,
+            817
+        ],
+        "category": "chapter_L1",
+        "text": "Vřes",
+        "conf": 0.8328152894973755
+    },
+    {
+        "bbox": [
+            816,
+            609,
+            894,
+            657
+        ],
+        "category": "page_number",
+        "text": "175",
+        "conf": 0.8263075351715088
+    },
+    {
+        "bbox": [
+            382,
+            397,
+            1110,
+            450
+        ],
+        "category": "chapter_L1",
+        "text": "Mezi Prahou a venkovskou domovinou",
+        "conf": 0.825209379196167
+    },
+    {
+        "bbox": [
+            882,
+            664,
+            959,
+            708
+        ],
+        "category": "page_number",
+        "text": "176",
+        "conf": 0.8149400353431702
+    },
+    {
+        "bbox": [
+            663,
+            715,
+            821,
+            766
+        ],
+        "category": "chapter_L1",
+        "text": "Odjezdy",
+        "conf": 0.814440131187439
+    },
+    {
+        "bbox": [
+            887,
+            348,
+            961,
+            393
+        ],
+        "category": "page_number",
+        "text": "168",
+        "conf": 0.8077795505523682
+    },
+    {
+        "bbox": [
+            832,
+            294,
+            906,
+            341
+        ],
+        "category": "page_number",
+        "text": "166",
+        "conf": 0.8061208724975586
+    },
+    {
+        "bbox": [
+            814,
+            557,
+            896,
+            605
+        ],
+        "category": "page_number",
+        "text": "174",
+        "conf": 0.8060937523841858
+    },
+    {
+        "bbox": [
+            664,
+            503,
+            830,
+            554
+        ],
+        "category": "chapter_L1",
+        "text": "Pleskoty",
+        "conf": 0.8006042242050171
+    },
+    {
+        "bbox": [
+            668,
+            294,
+            820,
+            342
+        ],
+        "category": "chapter_L1",
+        "text": "Vesnice",
+        "conf": 0.7928218245506287
+    },
+    {
+        "bbox": [
+            840,
+            505,
+            917,
+            554
+        ],
+        "category": "page_number",
+        "text": "173",
+        "conf": 0.7785985469818115
+    },
+    {
+        "bbox": [
+            1096,
+            400,
+            1172,
+            448
+        ],
+        "category": "page_number",
+        "text": "170",
+        "conf": 0.7561475038528442
+    },
+    {
+        "bbox": [
+            639,
+            452,
+            842,
+            502
+        ],
+        "category": "chapter_L1",
+        "text": "Libošovice",
+        "conf": 0.7515693306922913
+    },
+    {
+        "bbox": [
+            278,
+            1944,
+            380,
+            2012
+        ],
+        "category": "page_number",
+        "text": "182",
+        "conf": 0.7324286699295044
+    },
+    {
+        "bbox": [
+            855,
+            454,
+            933,
+            498
+        ],
+        "category": "page_number",
+        "text": "172",
+        "conf": 0.7208815813064575
+    },
+    {
+        "bbox": [
+            845,
+            2057,
+            885,
+            2090
+        ],
+        "category": "page_number",
+        "text": "6",
+        "conf": 0.6773160696029663
+    }
+]

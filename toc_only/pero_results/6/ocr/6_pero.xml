@@ -1,0 +1,70 @@
+<?xml version='1.0' encoding='utf-8'?>
+<PcGts xmlns="http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15/pagecontent.xsd">
+  <Metadata>
+    <Creator>Pero OCR</Creator>
+    <Created>2026-03-16T13:00:18.915026+00:00</Created>
+    <LastChange>2026-03-16T13:00:18.915026+00:00</LastChange>
+  </Metadata>
+  <Page imageFilename="6" imageWidth="1002" imageHeight="1622">
+    <TextRegion id="region_0_chapter_L1">
+      <Coords points="112,682 331,682 331,730 112,730"/>
+      <TextLine id="region_0_chapter_L1-l003" index="0" custom="heights_v2:[24.3,8.0]">
+        <Coords points="112,720 140,722 166,722 193,722 219,722 245,722 272,722 298,722 329,722 329,690 298,690 272,690 245,690 219,690 193,690 166,690 140,690 114,688 112,708 112,720"/>
+        <Baseline points="112,712 140,714 166,714 193,714 219,714 245,714 272,714 298,714 329,714"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Staří přátelé</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_5_page_number">
+      <Coords points="945,691 978,691 978,728 945,728"/>
+      <TextLine id="region_5_page_number-l005" index="0" custom="heights_v2:[20.1,6.7]">
+        <Coords points="978,698 945,698 945,725 978,725 978,698"/>
+        <Baseline points="945,718 978,718"/>
+        <TextEquiv conf="0.938">
+          <Unicode>3</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_3_chapter_L1">
+      <Coords points="110,759 436,759 436,808 110,808"/>
+      <TextLine id="region_3_chapter_L1-l006" index="0" custom="heights_v2:[24.8,7.9]">
+        <Coords points="436,768 407,768 360,766 308,768 262,766 210,766 162,766 110,766 110,799 162,799 210,799 260,799 309,801 359,799 407,801 436,801 436,768"/>
+        <Baseline points="110,791 162,791 210,791 261,791 309,793 359,791 407,793 436,793"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Notářovo tajemství</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_4_page_number">
+      <Coords points="930,766 977,766 977,805 930,805"/>
+      <TextLine id="region_4_page_number-l007" index="0" custom="heights_v2:[30.1,12.7]">
+        <Coords points="930,805 977,805 977,767 940,767 930,767 930,805"/>
+        <Baseline points="930,797 940,797 977,797"/>
+        <TextEquiv conf="1.000">
+          <Unicode>87</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_1_chapter_L1">
+      <Coords points="112,839 404,839 404,883 112,883"/>
+      <TextLine id="region_1_chapter_L1-l008" index="0" custom="heights_v2:[25.7,8.5]">
+        <Coords points="404,844 396,844 357,844 315,844 276,844 234,844 195,844 153,844 112,842 112,876 153,878 195,878 234,878 276,878 315,878 357,878 396,878 404,878 404,844"/>
+        <Baseline points="112,867 153,869 195,869 234,869 276,869 315,869 357,869 396,869 404,869"/>
+        <TextEquiv conf="1.000">
+          <Unicode>Dívka z venkova</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+    <TextRegion id="region_2_page_number">
+      <Coords points="916,846 975,846 975,882 916,882"/>
+      <TextLine id="region_2_page_number-l009" index="0" custom="heights_v2:[28.0,8.5]">
+        <Coords points="916,882 975,882 975,848 935,848 916,848 916,882"/>
+        <Baseline points="916,876 935,876 975,876"/>
+        <TextEquiv conf="1.000">
+          <Unicode>137</Unicode>
+        </TextEquiv>
+      </TextLine>
+    </TextRegion>
+  </Page>
+</PcGts>

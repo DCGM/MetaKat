@@ -1,0 +1,252 @@
+[
+    {
+        "chapter_name": "Vesnice jedenáctého století",
+        "page_name": "4",
+        "chapter_number": null,
+        "start_page": 9,
+        "subchapters": [],
+        "polygon": [
+            [
+                258,
+                633
+            ],
+            [
+                732,
+                633
+            ],
+            [
+                732,
+                674
+            ],
+            [
+                258,
+                674
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Ti, o kterých tu dříve nebylo slýcháno",
+        "page_name": "4",
+        "chapter_number": null,
+        "start_page": 27,
+        "subchapters": [],
+        "polygon": [
+            [
+                258,
+                723
+            ],
+            [
+                852,
+                723
+            ],
+            [
+                852,
+                809
+            ],
+            [
+                258,
+                809
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Židé",
+        "page_name": "4",
+        "chapter_number": null,
+        "start_page": 46,
+        "subchapters": [],
+        "polygon": [
+            [
+                258,
+                867
+            ],
+            [
+                352,
+                867
+            ],
+            [
+                352,
+                908
+            ],
+            [
+                258,
+                908
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Země bez jména",
+        "page_name": "4",
+        "chapter_number": null,
+        "start_page": 65,
+        "subchapters": [],
+        "polygon": [
+            [
+                258,
+                971
+            ],
+            [
+                558,
+                971
+            ],
+            [
+                558,
+                1012
+            ],
+            [
+                258,
+                1012
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Loupežníci",
+        "page_name": "4",
+        "chapter_number": null,
+        "start_page": 82,
+        "subchapters": [],
+        "polygon": [
+            [
+                258,
+                1074
+            ],
+            [
+                485,
+                1074
+            ],
+            [
+                485,
+                1115
+            ],
+            [
+                258,
+                1115
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Století osmnácté",
+        "page_name": "4",
+        "chapter_number": null,
+        "start_page": 121,
+        "subchapters": [],
+        "polygon": [
+            [
+                258,
+                1178
+            ],
+            [
+                588,
+                1178
+            ],
+            [
+                588,
+                1219
+            ],
+            [
+                258,
+                1219
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Obtížné jednání s Ančou Burkalovou",
+        "page_name": "4",
+        "chapter_number": null,
+        "start_page": 135,
+        "subchapters": [],
+        "polygon": [
+            [
+                258,
+                1282
+            ],
+            [
+                735,
+                1282
+            ],
+            [
+                735,
+                1371
+            ],
+            [
+                258,
+                1371
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Mandra",
+        "page_name": "4",
+        "chapter_number": null,
+        "start_page": 159,
+        "subchapters": [],
+        "polygon": [
+            [
+                258,
+                1433
+            ],
+            [
+                426,
+                1433
+            ],
+            [
+                426,
+                1474
+            ],
+            [
+                258,
+                1474
+            ]
+        ]
+    },
+    {
+        "chapter_name": "O zuřivosti chtění",
+        "page_name": "4",
+        "chapter_number": null,
+        "start_page": 171,
+        "subchapters": [],
+        "polygon": [
+            [
+                258,
+                1537
+            ],
+            [
+                617,
+                1537
+            ],
+            [
+                617,
+                1578
+            ],
+            [
+                258,
+                1578
+            ]
+        ]
+    },
+    {
+        "chapter_name": "Země se nacionalisuje",
+        "page_name": "4",
+        "chapter_number": null,
+        "start_page": 173,
+        "subchapters": [],
+        "polygon": [
+            [
+                258,
+                1641
+            ],
+            [
+                705,
+                1641
+            ],
+            [
+                705,
+                1682
+            ],
+            [
+                258,
+                1682
+            ]
+        ]
+    }
+]

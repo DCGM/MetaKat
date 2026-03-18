@@ -1,0 +1,77 @@
+[
+    {
+        "chapter_name": "Zákon srdce",
+        "polygon": [
+            [
+                179,
+                677
+            ],
+            [
+                481,
+                677
+            ],
+            [
+                481,
+                741
+            ],
+            [
+                179,
+                741
+            ]
+        ],
+        "page_name": "5",
+        "chapter_number": null,
+        "start_page": null,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Dvorečtí",
+        "polygon": [
+            [
+                181,
+                784
+            ],
+            [
+                387,
+                784
+            ],
+            [
+                387,
+                848
+            ],
+            [
+                181,
+                848
+            ]
+        ],
+        "page_name": "5",
+        "chapter_number": null,
+        "start_page": 55,
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Zaprodaná",
+        "polygon": [
+            [
+                178,
+                892
+            ],
+            [
+                427,
+                892
+            ],
+            [
+                427,
+                957
+            ],
+            [
+                178,
+                957
+            ]
+        ],
+        "page_name": "5",
+        "chapter_number": null,
+        "start_page": 153,
+        "subchapters": []
+    }
+]
