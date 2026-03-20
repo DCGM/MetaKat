@@ -58,10 +58,19 @@ class MetakatWorker(DocWorkerWrapper):
             
             try:
                 logger.info(f"Creating temporary batch directory: {tmp_batch_dir}")
-                
+
+                ordered_images = sorted(job.images, key=lambda img: img.order)
+                ordered_image_filenames = [img.name for img in ordered_images]
+
                 # Create symlinks for image files
                 images_path = Path(images_dir)
                 for image_file in images_path.iterdir():
+                    if image_file.name not in ordered_image_filenames:
+                        return WorkerResponse.fail(f"Image file not listed in job images: {image_file.name}")
+                    ext = image_file.suffix.lower()
+                    if ext not in config.ALLOWED_IMAGE_EXTENSIONS:
+                        return WorkerResponse.fail(f"Image file with unsupported extension found: {image_file.name}, "
+                                                   f"allowed extensions are: {', '.join(config.ALLOWED_IMAGE_EXTENSIONS)}")
                     if image_file.is_file():
                         symlink_path = Path(tmp_batch_dir) / image_file.name
                         symlink_path.symlink_to(image_file.resolve())
@@ -96,13 +105,15 @@ class MetakatWorker(DocWorkerWrapper):
                 process_batch(
                     batch_dir=tmp_batch_dir,
                     proarc_json=meta_file,
+                    ordered_image_filenames=ordered_image_filenames,
                     page_type_core_engine=page_type_core_path,
                     page_type_bind_engine=page_type_bind_path,
                     biblio_core_engine=biblio_core_path,
                     biblio_bind_engine=biblio_bind_path,
                     chapter_core_engine=chapter_core_path,
                     chapter_bind_engine=chapter_bind_path,
-                    output_metakat_json=os.path.join(result_dir, "metakat.json"))
+                    output_metakat_json=os.path.join(result_dir, "metakat.json"),
+                    allowed_image_extensions=config.ALLOWED_IMAGE_EXTENSIONS)
 
                 return WorkerResponse.ok()
             

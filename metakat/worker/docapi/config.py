@@ -21,6 +21,8 @@ class Config:
         self.API_URL = os.getenv("API_URL", "https://metakat.smart.lib.cas.cz")
         self.WORKER_KEY = os.getenv("WORKER_KEY", f"metakat.defaultworkerkid.defaultworkerkey")
 
+        self.ALLOWED_IMAGE_EXTENSIONS = set(os.getenv("ALLOWED_IMAGE_EXTENSIONS", ".jpg,.jpeg,.png,.tif,.tiff").split(","))
+
         self.BASE_DIR = os.getenv("BASE_DIR", "./metakat_worker_data")
         self.JOBS_DIR = os.getenv("JOBS_DIR", os.path.join(self.BASE_DIR, "jobs"))
         self.ENGINES_DIR = os.getenv("ENGINES_DIR", os.path.join(self.BASE_DIR, "engines"))
