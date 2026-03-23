@@ -1,33 +1,28 @@
 #!/usr/bin/env bash
-# Process all images in a directory with GPT using a given prompt and model.
+# Process all images in a directory with Ollama using a given prompt and model.
 # Each image produces a corresponding JSON response file in the output directory.
 #
 # Usage:
-#   ./process_images_with_prompt.sh <api-key-file> <model> <prompt-file> <input-image-dir> <output-json-dir>
+#   ./process_images_with_prompt.sh <host> <model> <prompt-file> <input-image-dir> <output-json-dir>
 
 set -euo pipefail
 
 if [ "$#" -ne 5 ]; then
-    echo "Usage: $0 <api-key-file> <model> <prompt-file> <input-image-dir> <output-json-dir>"
+    echo "Usage: $0 <host> <model> <prompt-file> <input-image-dir> <output-json-dir>"
     exit 1
 fi
 
-API_KEY_FILE="$1"
+HOST="$1"
 MODEL="$2"
 PROMPT_FILE="$3"
 INPUT_DIR="$4"
 OUTPUT_DIR="$5"
 
-# Resolve path to gpt_worker.py relative to this script
+# Resolve path to ollama_worker.py relative to this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GPT_WORKER="$SCRIPT_DIR/gpt_worker.py"
+OLLAMA_WORKER="$SCRIPT_DIR/ollama_worker.py"
 
 # Validate inputs
-if [ ! -f "$API_KEY_FILE" ]; then
-    echo "Error: API key file not found: $API_KEY_FILE"
-    exit 1
-fi
-
 if [ ! -f "$PROMPT_FILE" ]; then
     echo "Error: Prompt file not found: $PROMPT_FILE"
     exit 1
@@ -77,8 +72,8 @@ find "$INPUT_DIR" -maxdepth 1 -type f \( "${FIND_ARGS[@]}" \) | sort | while rea
 
     echo "[$CURRENT/$TOTAL] Processing $BASENAME ..."
 
-    python "$GPT_WORKER" \
-        --api-key-file "$API_KEY_FILE" \
+    python "$OLLAMA_WORKER" \
+        --host "$HOST" \
         --model "$MODEL" \
         --prompt-file "$PROMPT_FILE" \
         --images "$IMAGE_PATH" \
