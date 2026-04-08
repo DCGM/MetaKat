@@ -1,0 +1,3726 @@
+[
+    {
+        "chapter_name": "Předmluva",
+        "logical_page_printed": 3,
+        "physical_page_num": 7,
+        "toc_source_page": "page_153",
+        "toc_polygon": [
+            [
+                318,
+                892
+            ],
+            [
+                507,
+                892
+            ],
+            [
+                507,
+                935
+            ],
+            [
+                318,
+                935
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Všeobecný úvod do tvarosloví (morfologie) rostlin",
+        "logical_page_printed": 9,
+        "physical_page_num": 13,
+        "toc_source_page": "page_153",
+        "toc_polygon": [
+            [
+                382,
+                949
+            ],
+            [
+                1305,
+                949
+            ],
+            [
+                1305,
+                995
+            ],
+            [
+                382,
+                995
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Pojem a cíle tvarosloví rostlinného",
+                "logical_page_printed": 9,
+                "physical_page_num": 13,
+                "toc_source_page": "page_153",
+                "toc_polygon": [
+                    [
+                        436,
+                        995
+                    ],
+                    [
+                        1018,
+                        995
+                    ],
+                    [
+                        1018,
+                        1039
+                    ],
+                    [
+                        436,
+                        1039
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Hodnota údů rostlinných (pojem homologie a analogie)",
+                "logical_page_printed": 10,
+                "physical_page_num": 14,
+                "toc_source_page": "page_153",
+                "toc_polygon": [
+                    [
+                        437,
+                        1040
+                    ],
+                    [
+                        1374,
+                        1040
+                    ],
+                    [
+                        1374,
+                        1083
+                    ],
+                    [
+                        437,
+                        1083
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Základní údy těla rostlinného",
+                "logical_page_printed": 12,
+                "physical_page_num": 16,
+                "toc_source_page": "page_153",
+                "toc_polygon": [
+                    [
+                        438,
+                        1086
+                    ],
+                    [
+                        934,
+                        1086
+                    ],
+                    [
+                        934,
+                        1130
+                    ],
+                    [
+                        438,
+                        1130
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Tělo rostlin buněčných a cévnatých",
+                        "logical_page_printed": 12,
+                        "physical_page_num": 16,
+                        "toc_source_page": "page_153",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1350
+                            ],
+                            [
+                                2104,
+                                1350
+                            ],
+                            [
+                                2104,
+                                1500
+                            ],
+                            [
+                                0,
+                                1500
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Základní orgány těla rostlin cévnatých",
+                        "logical_page_printed": 15,
+                        "physical_page_num": 19,
+                        "toc_source_page": "page_153",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1500
+                            ],
+                            [
+                                2104,
+                                1500
+                            ],
+                            [
+                                2104,
+                                1650
+                            ],
+                            [
+                                0,
+                                1650
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Teorie a hypotézy o jednotné skladbě těla rostlinného",
+                        "logical_page_printed": 18,
+                        "physical_page_num": 22,
+                        "toc_source_page": "page_153",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1650
+                            ],
+                            [
+                                2104,
+                                1650
+                            ],
+                            [
+                                2104,
+                                1800
+                            ],
+                            [
+                                0,
+                                1800
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Poměry souměrnosti těla rostlinného",
+                "logical_page_printed": 22,
+                "physical_page_num": 26,
+                "toc_source_page": "page_153",
+                "toc_polygon": [
+                    [
+                        437,
+                        1262
+                    ],
+                    [
+                        1056,
+                        1262
+                    ],
+                    [
+                        1056,
+                        1309
+                    ],
+                    [
+                        437,
+                        1309
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Větvení (ramifikace) a štěpení (chorise) těla rostlinného a jeho orgánů",
+                "logical_page_printed": 23,
+                "physical_page_num": 27,
+                "toc_source_page": "page_153",
+                "toc_polygon": [
+                    [
+                        443,
+                        1309
+                    ],
+                    [
+                        1546,
+                        1309
+                    ],
+                    [
+                        1546,
+                        1398
+                    ],
+                    [
+                        443,
+                        1398
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Odchylky (abnormity) těla rostlinného a jeho orgánů",
+                "logical_page_printed": 23,
+                "physical_page_num": 29,
+                "toc_source_page": "page_153",
+                "toc_polygon": [
+                    [
+                        437,
+                        1398
+                    ],
+                    [
+                        1321,
+                        1398
+                    ],
+                    [
+                        1321,
+                        1444
+                    ],
+                    [
+                        437,
+                        1444
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Dějiny a metody srovnávací morfologie",
+                "logical_page_printed": 25,
+                "physical_page_num": 34,
+                "toc_source_page": "page_153",
+                "toc_polygon": [
+                    [
+                        0,
+                        2250
+                    ],
+                    [
+                        2104,
+                        2250
+                    ],
+                    [
+                        2104,
+                        2400
+                    ],
+                    [
+                        0,
+                        2400
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Kořen",
+        "logical_page_printed": 37,
+        "physical_page_num": 37,
+        "toc_source_page": "page_153",
+        "toc_polygon": [
+            [
+                0,
+                2400
+            ],
+            [
+                2104,
+                2400
+            ],
+            [
+                2104,
+                2550
+            ],
+            [
+                0,
+                2550
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Výměr, funkce a typy kořenu",
+                "logical_page_printed": 37,
+                "physical_page_num": 37,
+                "toc_source_page": "page_153",
+                "toc_polygon": [
+                    [
+                        0,
+                        2550
+                    ],
+                    [
+                        2104,
+                        2550
+                    ],
+                    [
+                        2104,
+                        2700
+                    ],
+                    [
+                        0,
+                        2700
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Přeměny kořenu",
+                "logical_page_printed": 37,
+                "physical_page_num": 41,
+                "toc_source_page": "page_153",
+                "toc_polygon": [
+                    [
+                        0,
+                        2700
+                    ],
+                    [
+                        2104,
+                        2700
+                    ],
+                    [
+                        2104,
+                        2850
+                    ],
+                    [
+                        0,
+                        2850
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Kořenové hlízy",
+                        "logical_page_printed": 37,
+                        "physical_page_num": 41,
+                        "toc_source_page": "page_153",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2850
+                            ],
+                            [
+                                2104,
+                                2850
+                            ],
+                            [
+                                2104,
+                                3000
+                            ],
+                            [
+                                0,
+                                3000
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Vzdušné kořeny",
+                        "logical_page_printed": 38,
+                        "physical_page_num": 42,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                0,
+                                0
+                            ],
+                            [
+                                2104,
+                                0
+                            ],
+                            [
+                                2104,
+                                150
+                            ],
+                            [
+                                0,
+                                150
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Kořeny hnízdovitých kapradin",
+                        "logical_page_printed": 38,
+                        "physical_page_num": 42,
+                        "toc_source_page": "page_153",
+                        "toc_polygon": [
+                            [
+                                476,
+                                1722
+                            ],
+                            [
+                                975,
+                                1722
+                            ],
+                            [
+                                975,
+                                1767
+                            ],
+                            [
+                                476,
+                                1767
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Tabulové kořeny",
+                        "logical_page_printed": 38,
+                        "physical_page_num": 42,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                0,
+                                300
+                            ],
+                            [
+                                2104,
+                                300
+                            ],
+                            [
+                                2104,
+                                450
+                            ],
+                            [
+                                0,
+                                450
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Korálovité kořeny",
+                        "logical_page_printed": 39,
+                        "physical_page_num": 44,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                0,
+                                450
+                            ],
+                            [
+                                2104,
+                                450
+                            ],
+                            [
+                                2104,
+                                600
+                            ],
+                            [
+                                0,
+                                600
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Dýchací kořeny (pneumatofory)",
+                        "logical_page_printed": 40,
+                        "physical_page_num": 44,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                0,
+                                600
+                            ],
+                            [
+                                2104,
+                                600
+                            ],
+                            [
+                                2104,
+                                750
+                            ],
+                            [
+                                0,
+                                750
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Asimilační kořeny",
+                        "logical_page_printed": 40,
+                        "physical_page_num": 44,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                0,
+                                750
+                            ],
+                            [
+                                2104,
+                                750
+                            ],
+                            [
+                                2104,
+                                900
+                            ],
+                            [
+                                0,
+                                900
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Vzdušné kořeny škrtící",
+                        "logical_page_printed": 40,
+                        "physical_page_num": 44,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                0,
+                                900
+                            ],
+                            [
+                                2104,
+                                900
+                            ],
+                            [
+                                2104,
+                                1050
+                            ],
+                            [
+                                0,
+                                1050
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Sloupovité vzdušné kořeny",
+                        "logical_page_printed": 41,
+                        "physical_page_num": 44,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1050
+                            ],
+                            [
+                                2104,
+                                1050
+                            ],
+                            [
+                                2104,
+                                1200
+                            ],
+                            [
+                                0,
+                                1200
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Chůdovité kořeny",
+                        "logical_page_printed": 42,
+                        "physical_page_num": 46,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1200
+                            ],
+                            [
+                                2104,
+                                1200
+                            ],
+                            [
+                                2104,
+                                1350
+                            ],
+                            [
+                                0,
+                                1350
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Kořenové úponky",
+                        "logical_page_printed": 42,
+                        "physical_page_num": 46,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1350
+                            ],
+                            [
+                                2104,
+                                1350
+                            ],
+                            [
+                                2104,
+                                1500
+                            ],
+                            [
+                                0,
+                                1500
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Kořenové trny",
+                        "logical_page_printed": 42,
+                        "physical_page_num": 46,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1500
+                            ],
+                            [
+                                2104,
+                                1500
+                            ],
+                            [
+                                2104,
+                                1650
+                            ],
+                            [
+                                0,
+                                1650
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Kořeny cizopasných Loranthaceí a jiných parasitů a hemiparasitů",
+                        "logical_page_printed": 43,
+                        "physical_page_num": 46,
+                        "toc_source_page": "page_153",
+                        "toc_polygon": [
+                            [
+                                472,
+                                2167
+                            ],
+                            [
+                                1536,
+                                2167
+                            ],
+                            [
+                                1536,
+                                2212
+                            ],
+                            [
+                                472,
+                                2212
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Přeměna kořenu v osu",
+                        "logical_page_printed": 43,
+                        "physical_page_num": 47,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1800
+                            ],
+                            [
+                                2104,
+                                1800
+                            ],
+                            [
+                                2104,
+                                1950
+                            ],
+                            [
+                                0,
+                                1950
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Rostliny bezkořenné",
+                "logical_page_printed": 44,
+                "physical_page_num": 48,
+                "toc_source_page": "page_154",
+                "toc_polygon": [
+                    [
+                        0,
+                        1950
+                    ],
+                    [
+                        2104,
+                        1950
+                    ],
+                    [
+                        2104,
+                        2100
+                    ],
+                    [
+                        0,
+                        2100
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Prokaulom",
+                "logical_page_printed": 44,
+                "physical_page_num": 48,
+                "toc_source_page": "page_154",
+                "toc_polygon": [
+                    [
+                        0,
+                        2100
+                    ],
+                    [
+                        2104,
+                        2100
+                    ],
+                    [
+                        2104,
+                        2250
+                    ],
+                    [
+                        0,
+                        2250
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Osa (kaulom)",
+        "logical_page_printed": 47,
+        "physical_page_num": 51,
+        "toc_source_page": "page_154",
+        "toc_polygon": [
+            [
+                0,
+                2250
+            ],
+            [
+                2104,
+                2250
+            ],
+            [
+                2104,
+                2400
+            ],
+            [
+                0,
+                2400
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Vlastnosti a povšechné vytváření osy",
+                "logical_page_printed": 47,
+                "physical_page_num": 51,
+                "toc_source_page": "page_154",
+                "toc_polygon": [
+                    [
+                        0,
+                        2400
+                    ],
+                    [
+                        2104,
+                        2400
+                    ],
+                    [
+                        2104,
+                        2550
+                    ],
+                    [
+                        0,
+                        2550
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Výměr a vlastnosti osy",
+                        "logical_page_printed": 47,
+                        "physical_page_num": 51,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2550
+                            ],
+                            [
+                                2104,
+                                2550
+                            ],
+                            [
+                                2104,
+                                2700
+                            ],
+                            [
+                                0,
+                                2700
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Tvar osy",
+                        "logical_page_printed": 48,
+                        "physical_page_num": 52,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2700
+                            ],
+                            [
+                                2104,
+                                2700
+                            ],
+                            [
+                                2104,
+                                2850
+                            ],
+                            [
+                                0,
+                                2850
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Označení os podle směru růstu",
+                        "logical_page_printed": 49,
+                        "physical_page_num": 53,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2850
+                            ],
+                            [
+                                2104,
+                                2850
+                            ],
+                            [
+                                2104,
+                                3000
+                            ],
+                            [
+                                0,
+                                3000
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Dřeviny",
+                        "logical_page_printed": 49,
+                        "physical_page_num": 53,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                0
+                            ],
+                            [
+                                2104,
+                                0
+                            ],
+                            [
+                                2104,
+                                150
+                            ],
+                            [
+                                0,
+                                150
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Délka a mohutnost os",
+                        "logical_page_printed": 50,
+                        "physical_page_num": 54,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                150
+                            ],
+                            [
+                                2104,
+                                150
+                            ],
+                            [
+                                2104,
+                                300
+                            ],
+                            [
+                                0,
+                                300
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Trvání rostlin a jejich růstové tvary",
+                "logical_page_printed": 50,
+                "physical_page_num": 54,
+                "toc_source_page": "page_154",
+                "toc_polygon": [
+                    [
+                        594,
+                        520
+                    ],
+                    [
+                        1200,
+                        520
+                    ],
+                    [
+                        1200,
+                        561
+                    ],
+                    [
+                        594,
+                        561
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Byliny jednoleté či zeliny",
+                        "logical_page_printed": 50,
+                        "physical_page_num": 54,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                450
+                            ],
+                            [
+                                2104,
+                                450
+                            ],
+                            [
+                                2104,
+                                600
+                            ],
+                            [
+                                0,
+                                600
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Byliny dvouleté",
+                        "logical_page_printed": 51,
+                        "physical_page_num": 56,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                600
+                            ],
+                            [
+                                2104,
+                                600
+                            ],
+                            [
+                                2104,
+                                750
+                            ],
+                            [
+                                0,
+                                750
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Víceleté monokarpické byliny",
+                        "logical_page_printed": 51,
+                        "physical_page_num": 56,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                750
+                            ],
+                            [
+                                2104,
+                                750
+                            ],
+                            [
+                                2104,
+                                900
+                            ],
+                            [
+                                0,
+                                900
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Byliny vytrvalé",
+                        "logical_page_printed": 52,
+                        "physical_page_num": 56,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                900
+                            ],
+                            [
+                                2104,
+                                900
+                            ],
+                            [
+                                2104,
+                                1050
+                            ],
+                            [
+                                0,
+                                1050
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Polokeře",
+                        "logical_page_printed": 52,
+                        "physical_page_num": 57,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1050
+                            ],
+                            [
+                                2104,
+                                1050
+                            ],
+                            [
+                                2104,
+                                1200
+                            ],
+                            [
+                                0,
+                                1200
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Keříky",
+                        "logical_page_printed": 53,
+                        "physical_page_num": 57,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1200
+                            ],
+                            [
+                                2104,
+                                1200
+                            ],
+                            [
+                                2104,
+                                1350
+                            ],
+                            [
+                                0,
+                                1350
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Keře",
+                        "logical_page_printed": 53,
+                        "physical_page_num": 57,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1350
+                            ],
+                            [
+                                2104,
+                                1350
+                            ],
+                            [
+                                2104,
+                                1500
+                            ],
+                            [
+                                0,
+                                1500
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Stromy",
+                        "logical_page_printed": 53,
+                        "physical_page_num": 57,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1500
+                            ],
+                            [
+                                2104,
+                                1500
+                            ],
+                            [
+                                2104,
+                                1650
+                            ],
+                            [
+                                0,
+                                1650
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Liany",
+                "logical_page_printed": 55,
+                "physical_page_num": 59,
+                "toc_source_page": "page_155",
+                "toc_polygon": [
+                    [
+                        0,
+                        1650
+                    ],
+                    [
+                        2104,
+                        1650
+                    ],
+                    [
+                        2104,
+                        1800
+                    ],
+                    [
+                        0,
+                        1800
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Liany opěrné a vzpěrné",
+                        "logical_page_printed": 55,
+                        "physical_page_num": 59,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                642,
+                                971
+                            ],
+                            [
+                                1039,
+                                971
+                            ],
+                            [
+                                1039,
+                                1012
+                            ],
+                            [
+                                642,
+                                1012
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Kořenové liany",
+                        "logical_page_printed": 55,
+                        "physical_page_num": 59,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1950
+                            ],
+                            [
+                                2104,
+                                1950
+                            ],
+                            [
+                                2104,
+                                2100
+                            ],
+                            [
+                                0,
+                                2100
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Liany ovíjivé",
+                        "logical_page_printed": 56,
+                        "physical_page_num": 60,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2100
+                            ],
+                            [
+                                2104,
+                                2100
+                            ],
+                            [
+                                2104,
+                                2250
+                            ],
+                            [
+                                0,
+                                2250
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Liany úponkovité",
+                        "logical_page_printed": 56,
+                        "physical_page_num": 60,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2250
+                            ],
+                            [
+                                2104,
+                                2250
+                            ],
+                            [
+                                2104,
+                                2400
+                            ],
+                            [
+                                0,
+                                2400
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Rozvětvování os",
+                "logical_page_printed": 58,
+                "physical_page_num": 62,
+                "toc_source_page": "page_155",
+                "toc_polygon": [
+                    [
+                        0,
+                        2400
+                    ],
+                    [
+                        2104,
+                        2400
+                    ],
+                    [
+                        2104,
+                        2550
+                    ],
+                    [
+                        0,
+                        2550
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Rozvětvování holoblastické",
+                        "logical_page_printed": 58,
+                        "physical_page_num": 62,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2550
+                            ],
+                            [
+                                2104,
+                                2550
+                            ],
+                            [
+                                2104,
+                                2700
+                            ],
+                            [
+                                0,
+                                2700
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Rozvětvování hemiblastické",
+                        "logical_page_printed": 60,
+                        "physical_page_num": 64,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2700
+                            ],
+                            [
+                                2104,
+                                2700
+                            ],
+                            [
+                                2104,
+                                2850
+                            ],
+                            [
+                                0,
+                                2850
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Sousedství prýtů",
+                "logical_page_printed": 61,
+                "physical_page_num": 65,
+                "toc_source_page": "page_155",
+                "toc_polygon": [
+                    [
+                        0,
+                        2850
+                    ],
+                    [
+                        2104,
+                        2850
+                    ],
+                    [
+                        2104,
+                        3000
+                    ],
+                    [
+                        0,
+                        3000
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Přeměny os, podmíněné biologickou funkcí",
+                "logical_page_printed": 62,
+                "physical_page_num": 66,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        0,
+                        0
+                    ],
+                    [
+                        2104,
+                        0
+                    ],
+                    [
+                        2104,
+                        150
+                    ],
+                    [
+                        0,
+                        150
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Oddenek",
+                        "logical_page_printed": 62,
+                        "physical_page_num": 66,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                150
+                            ],
+                            [
+                                2104,
+                                150
+                            ],
+                            [
+                                2104,
+                                300
+                            ],
+                            [
+                                0,
+                                300
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Výběžky",
+                        "logical_page_printed": 64,
+                        "physical_page_num": 68,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                300
+                            ],
+                            [
+                                2104,
+                                300
+                            ],
+                            [
+                                2104,
+                                450
+                            ],
+                            [
+                                0,
+                                450
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Hlíza",
+                        "logical_page_printed": 64,
+                        "physical_page_num": 68,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                450
+                            ],
+                            [
+                                2104,
+                                450
+                            ],
+                            [
+                                2104,
+                                600
+                            ],
+                            [
+                                0,
+                                600
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "Hlízy oddenkové",
+                                "logical_page_printed": 65,
+                                "physical_page_num": 69,
+                                "toc_source_page": "page_156",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        600
+                                    ],
+                                    [
+                                        2104,
+                                        600
+                                    ],
+                                    [
+                                        2104,
+                                        750
+                                    ],
+                                    [
+                                        0,
+                                        750
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Hlízy bazální",
+                                "logical_page_printed": 65,
+                                "physical_page_num": 69,
+                                "toc_source_page": "page_156",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        750
+                                    ],
+                                    [
+                                        2104,
+                                        750
+                                    ],
+                                    [
+                                        2104,
+                                        900
+                                    ],
+                                    [
+                                        0,
+                                        900
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Nadzemní osní hlízy",
+                                "logical_page_printed": 66,
+                                "physical_page_num": 70,
+                                "toc_source_page": "page_156",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        900
+                                    ],
+                                    [
+                                        2104,
+                                        900
+                                    ],
+                                    [
+                                        2104,
+                                        1050
+                                    ],
+                                    [
+                                        0,
+                                        1050
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Rozmnožovací nadzemní hlízy",
+                                "logical_page_printed": 66,
+                                "physical_page_num": 70,
+                                "toc_source_page": "page_156",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        1050
+                                    ],
+                                    [
+                                        2104,
+                                        1050
+                                    ],
+                                    [
+                                        2104,
+                                        1200
+                                    ],
+                                    [
+                                        0,
+                                        1200
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Hlízy hypokotylové",
+                                "logical_page_printed": 68,
+                                "physical_page_num": 72,
+                                "toc_source_page": "page_156",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        1200
+                                    ],
+                                    [
+                                        2104,
+                                        1200
+                                    ],
+                                    [
+                                        2104,
+                                        1350
+                                    ],
+                                    [
+                                        0,
+                                        1350
+                                    ]
+                                ],
+                                "subchapters": []
+                            }
+                        ]
+                    },
+                    {
+                        "chapter_name": "Cibule",
+                        "logical_page_printed": 68,
+                        "physical_page_num": 72,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1350
+                            ],
+                            [
+                                2104,
+                                1350
+                            ],
+                            [
+                                2104,
+                                1500
+                            ],
+                            [
+                                0,
+                                1500
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "Cibule plná",
+                                "logical_page_printed": 68,
+                                "physical_page_num": 72,
+                                "toc_source_page": "page_156",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        1500
+                                    ],
+                                    [
+                                        2104,
+                                        1500
+                                    ],
+                                    [
+                                        2104,
+                                        1650
+                                    ],
+                                    [
+                                        0,
+                                        1650
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Cibule šupinatá",
+                                "logical_page_printed": 70,
+                                "physical_page_num": 74,
+                                "toc_source_page": "page_156",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        1650
+                                    ],
+                                    [
+                                        2104,
+                                        1650
+                                    ],
+                                    [
+                                        2104,
+                                        1800
+                                    ],
+                                    [
+                                        0,
+                                        1800
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Cibule sukničitá",
+                                "logical_page_printed": 70,
+                                "physical_page_num": 74,
+                                "toc_source_page": "page_156",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        1800
+                                    ],
+                                    [
+                                        2104,
+                                        1800
+                                    ],
+                                    [
+                                        2104,
+                                        1950
+                                    ],
+                                    [
+                                        0,
+                                        1950
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Cibule složená",
+                                "logical_page_printed": 70,
+                                "physical_page_num": 74,
+                                "toc_source_page": "page_156",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        1950
+                                    ],
+                                    [
+                                        2104,
+                                        1950
+                                    ],
+                                    [
+                                        2104,
+                                        2100
+                                    ],
+                                    [
+                                        0,
+                                        2100
+                                    ]
+                                ],
+                                "subchapters": []
+                            }
+                        ]
+                    },
+                    {
+                        "chapter_name": "Rozmnožovací cibulky",
+                        "logical_page_printed": 71,
+                        "physical_page_num": 75,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2100
+                            ],
+                            [
+                                2104,
+                                2100
+                            ],
+                            [
+                                2104,
+                                2250
+                            ],
+                            [
+                                0,
+                                2250
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Branchyblasty",
+                        "logical_page_printed": 71,
+                        "physical_page_num": 75,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2250
+                            ],
+                            [
+                                2104,
+                                2250
+                            ],
+                            [
+                                2104,
+                                2400
+                            ],
+                            [
+                                0,
+                                2400
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Osní trny",
+                        "logical_page_printed": 72,
+                        "physical_page_num": 76,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2400
+                            ],
+                            [
+                                2104,
+                                2400
+                            ],
+                            [
+                                2104,
+                                2550
+                            ],
+                            [
+                                0,
+                                2550
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Fylokladie",
+                        "logical_page_printed": 72,
+                        "physical_page_num": 76,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2550
+                            ],
+                            [
+                                2104,
+                                2550
+                            ],
+                            [
+                                2104,
+                                2700
+                            ],
+                            [
+                                0,
+                                2700
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Osní úponky a osy ovíjivé",
+                        "logical_page_printed": 73,
+                        "physical_page_num": 77,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2700
+                            ],
+                            [
+                                2104,
+                                2700
+                            ],
+                            [
+                                2104,
+                                2850
+                            ],
+                            [
+                                0,
+                                2850
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Osy rostlin sukulentních",
+                        "logical_page_printed": 73,
+                        "physical_page_num": 77,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2850
+                            ],
+                            [
+                                2104,
+                                2850
+                            ],
+                            [
+                                2104,
+                                3000
+                            ],
+                            [
+                                0,
+                                3000
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Osy rostlin cizopasných",
+                        "logical_page_printed": 74,
+                        "physical_page_num": 78,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                0
+                            ],
+                            [
+                                2104,
+                                0
+                            ],
+                            [
+                                2104,
+                                150
+                            ],
+                            [
+                                0,
+                                150
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Redukce osy",
+                        "logical_page_printed": 74,
+                        "physical_page_num": 78,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                150
+                            ],
+                            [
+                                2104,
+                                150
+                            ],
+                            [
+                                2104,
+                                300
+                            ],
+                            [
+                                0,
+                                300
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Pupeny",
+                "logical_page_printed": 74,
+                "physical_page_num": 78,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        0,
+                        300
+                    ],
+                    [
+                        2104,
+                        300
+                    ],
+                    [
+                        2104,
+                        450
+                    ],
+                    [
+                        0,
+                        450
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Pupeny pravé",
+                        "logical_page_printed": 74,
+                        "physical_page_num": 78,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                450
+                            ],
+                            [
+                                2104,
+                                450
+                            ],
+                            [
+                                2104,
+                                600
+                            ],
+                            [
+                                0,
+                                600
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Pupeny nahodilé či adventivní",
+                        "logical_page_printed": 75,
+                        "physical_page_num": 79,
+                        "toc_source_page": "page_154",
+                        "toc_polygon": [
+                            [
+                                634,
+                                2414
+                            ],
+                            [
+                                1145,
+                                2414
+                            ],
+                            [
+                                1145,
+                                2458
+                            ],
+                            [
+                                634,
+                                2458
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Vegetativní udržování a rozmnožování rostlin",
+                "logical_page_printed": 78,
+                "physical_page_num": 82,
+                "toc_source_page": "page_154",
+                "toc_polygon": [
+                    [
+                        590,
+                        2457
+                    ],
+                    [
+                        1346,
+                        2457
+                    ],
+                    [
+                        1346,
+                        2502
+                    ],
+                    [
+                        590,
+                        2502
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Nauka o postavení listů (fylotaxie)",
+        "logical_page_printed": 80,
+        "physical_page_num": 84,
+        "toc_source_page": "page_155",
+        "toc_polygon": [
+            [
+                391,
+                347
+            ],
+            [
+                1037,
+                347
+            ],
+            [
+                1037,
+                391
+            ],
+            [
+                391,
+                391
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Všeobecný úvod",
+                "logical_page_printed": 80,
+                "physical_page_num": 84,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        0,
+                        1050
+                    ],
+                    [
+                        2104,
+                        1050
+                    ],
+                    [
+                        2104,
+                        1200
+                    ],
+                    [
+                        0,
+                        1200
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Střídavé listy",
+                "logical_page_printed": 81,
+                "physical_page_num": 85,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        0,
+                        1200
+                    ],
+                    [
+                        2104,
+                        1200
+                    ],
+                    [
+                        2104,
+                        1350
+                    ],
+                    [
+                        0,
+                        1350
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Význam listů přeslenitých a vstřícných",
+                "logical_page_printed": 86,
+                "physical_page_num": 90,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        0,
+                        1350
+                    ],
+                    [
+                        2104,
+                        1350
+                    ],
+                    [
+                        2104,
+                        1500
+                    ],
+                    [
+                        0,
+                        1500
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Příčiny zákonitého rozestavení fylomů",
+                "logical_page_printed": 86,
+                "physical_page_num": 90,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        0,
+                        1500
+                    ],
+                    [
+                        2104,
+                        1500
+                    ],
+                    [
+                        2104,
+                        1650
+                    ],
+                    [
+                        0,
+                        1650
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "List (fylom)",
+        "logical_page_printed": 88,
+        "physical_page_num": 92,
+        "toc_source_page": "page_156",
+        "toc_polygon": [
+            [
+                0,
+                1650
+            ],
+            [
+                2104,
+                1650
+            ],
+            [
+                2104,
+                1800
+            ],
+            [
+                0,
+                1800
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Všeobecný výměr",
+                "logical_page_printed": 88,
+                "physical_page_num": 92,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        0,
+                        1800
+                    ],
+                    [
+                        2104,
+                        1800
+                    ],
+                    [
+                        2104,
+                        1950
+                    ],
+                    [
+                        0,
+                        1950
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Vývoj listu se zřením na útvary palistové",
+                "logical_page_printed": 89,
+                "physical_page_num": 93,
+                "toc_source_page": "page_155",
+                "toc_polygon": [
+                    [
+                        437,
+                        671
+                    ],
+                    [
+                        1137,
+                        671
+                    ],
+                    [
+                        1137,
+                        716
+                    ],
+                    [
+                        437,
+                        716
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Tvar listů",
+                "logical_page_printed": 94,
+                "physical_page_num": 98,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        0,
+                        2100
+                    ],
+                    [
+                        2104,
+                        2100
+                    ],
+                    [
+                        2104,
+                        2250
+                    ],
+                    [
+                        0,
+                        2250
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Přisedání listu a vztahy listů k ose",
+                        "logical_page_printed": 94,
+                        "physical_page_num": 98,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                480,
+                                761
+                            ],
+                            [
+                                1083,
+                                761
+                            ],
+                            [
+                                1083,
+                                805
+                            ],
+                            [
+                                480,
+                                805
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Řapík",
+                        "logical_page_printed": 96,
+                        "physical_page_num": 100,
+                        "toc_source_page": "page_156",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2400
+                            ],
+                            [
+                                2104,
+                                2400
+                            ],
+                            [
+                                2104,
+                                2550
+                            ],
+                            [
+                                0,
+                                2550
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Rozdělení listů podle tvaru a dělení",
+                        "logical_page_printed": 96,
+                        "physical_page_num": 102,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                478,
+                                850
+                            ],
+                            [
+                                1096,
+                                850
+                            ],
+                            [
+                                1096,
+                                895
+                            ],
+                            [
+                                478,
+                                895
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "Listy jednoduché",
+                                "logical_page_printed": 98,
+                                "physical_page_num": 102,
+                                "toc_source_page": "page_156",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        2700
+                                    ],
+                                    [
+                                        2104,
+                                        2700
+                                    ],
+                                    [
+                                        2104,
+                                        2850
+                                    ],
+                                    [
+                                        0,
+                                        2850
+                                    ]
+                                ],
+                                "subchapters": [
+                                    {
+                                        "chapter_name": "Listy celé",
+                                        "logical_page_printed": 98,
+                                        "physical_page_num": 102,
+                                        "toc_source_page": "page_156",
+                                        "toc_polygon": [
+                                            [
+                                                0,
+                                                2850
+                                            ],
+                                            [
+                                                2104,
+                                                2850
+                                            ],
+                                            [
+                                                2104,
+                                                3000
+                                            ],
+                                            [
+                                                0,
+                                                3000
+                                            ]
+                                        ],
+                                        "subchapters": [
+                                            {
+                                                "chapter_name": "Podle obrysu",
+                                                "logical_page_printed": 98,
+                                                "physical_page_num": 102,
+                                                "toc_source_page": "page_157",
+                                                "toc_polygon": [
+                                                    [
+                                                        0,
+                                                        0
+                                                    ],
+                                                    [
+                                                        2104,
+                                                        0
+                                                    ],
+                                                    [
+                                                        2104,
+                                                        150
+                                                    ],
+                                                    [
+                                                        0,
+                                                        150
+                                                    ]
+                                                ],
+                                                "subchapters": []
+                                            },
+                                            {
+                                                "chapter_name": "Podle spodiny",
+                                                "logical_page_printed": 99,
+                                                "physical_page_num": 103,
+                                                "toc_source_page": "page_157",
+                                                "toc_polygon": [
+                                                    [
+                                                        0,
+                                                        150
+                                                    ],
+                                                    [
+                                                        2104,
+                                                        150
+                                                    ],
+                                                    [
+                                                        2104,
+                                                        300
+                                                    ],
+                                                    [
+                                                        0,
+                                                        300
+                                                    ]
+                                                ],
+                                                "subchapters": []
+                                            },
+                                            {
+                                                "chapter_name": "Podle špičky",
+                                                "logical_page_printed": 100,
+                                                "physical_page_num": 104,
+                                                "toc_source_page": "page_157",
+                                                "toc_polygon": [
+                                                    [
+                                                        0,
+                                                        300
+                                                    ],
+                                                    [
+                                                        2104,
+                                                        300
+                                                    ],
+                                                    [
+                                                        2104,
+                                                        450
+                                                    ],
+                                                    [
+                                                        0,
+                                                        450
+                                                    ]
+                                                ],
+                                                "subchapters": []
+                                            },
+                                            {
+                                                "chapter_name": "Kraj listu",
+                                                "logical_page_printed": 102,
+                                                "physical_page_num": 106,
+                                                "toc_source_page": "page_157",
+                                                "toc_polygon": [
+                                                    [
+                                                        0,
+                                                        450
+                                                    ],
+                                                    [
+                                                        2104,
+                                                        450
+                                                    ],
+                                                    [
+                                                        2104,
+                                                        600
+                                                    ],
+                                                    [
+                                                        0,
+                                                        600
+                                                    ]
+                                                ],
+                                                "subchapters": []
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "chapter_name": "Listy dělené",
+                                "logical_page_printed": 102,
+                                "physical_page_num": 106,
+                                "toc_source_page": "page_157",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        600
+                                    ],
+                                    [
+                                        2104,
+                                        600
+                                    ],
+                                    [
+                                        2104,
+                                        750
+                                    ],
+                                    [
+                                        0,
+                                        750
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Listy trhaně perené",
+                                "logical_page_printed": 104,
+                                "physical_page_num": 108,
+                                "toc_source_page": "page_157",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        750
+                                    ],
+                                    [
+                                        2104,
+                                        750
+                                    ],
+                                    [
+                                        2104,
+                                        900
+                                    ],
+                                    [
+                                        0,
+                                        900
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Listy složité",
+                                "logical_page_printed": 104,
+                                "physical_page_num": 108,
+                                "toc_source_page": "page_157",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        900
+                                    ],
+                                    [
+                                        2104,
+                                        900
+                                    ],
+                                    [
+                                        2104,
+                                        1050
+                                    ],
+                                    [
+                                        0,
+                                        1050
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Některé zvláštní tvary listů",
+                                "logical_page_printed": 106,
+                                "physical_page_num": 110,
+                                "toc_source_page": "page_157",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        1050
+                                    ],
+                                    [
+                                        2104,
+                                        1050
+                                    ],
+                                    [
+                                        2104,
+                                        1200
+                                    ],
+                                    [
+                                        0,
+                                        1200
+                                    ]
+                                ],
+                                "subchapters": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Žilnatina (nervatura) listů",
+                "logical_page_printed": 107,
+                "physical_page_num": 111,
+                "toc_source_page": "page_155",
+                "toc_polygon": [
+                    [
+                        438,
+                        1348
+                    ],
+                    [
+                        872,
+                        1348
+                    ],
+                    [
+                        872,
+                        1398
+                    ],
+                    [
+                        438,
+                        1398
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Listy bezžilné",
+                        "logical_page_printed": 107,
+                        "physical_page_num": 111,
+                        "toc_source_page": "page_157",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1350
+                            ],
+                            [
+                                2104,
+                                1350
+                            ],
+                            [
+                                2104,
+                                1500
+                            ],
+                            [
+                                0,
+                                1500
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Listy skrytožilné",
+                        "logical_page_printed": 108,
+                        "physical_page_num": 112,
+                        "toc_source_page": "page_157",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1500
+                            ],
+                            [
+                                2104,
+                                1500
+                            ],
+                            [
+                                2104,
+                                1650
+                            ],
+                            [
+                                0,
+                                1650
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Listy jednožilné",
+                        "logical_page_printed": 108,
+                        "physical_page_num": 112,
+                        "toc_source_page": "page_157",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1650
+                            ],
+                            [
+                                2104,
+                                1650
+                            ],
+                            [
+                                2104,
+                                1800
+                            ],
+                            [
+                                0,
+                                1800
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Listy vícežilné",
+                        "logical_page_printed": 108,
+                        "physical_page_num": 112,
+                        "toc_source_page": "page_157",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1800
+                            ],
+                            [
+                                2104,
+                                1800
+                            ],
+                            [
+                                2104,
+                                1950
+                            ],
+                            [
+                                0,
+                                1950
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "Žilnatina vidličnatá",
+                                "logical_page_printed": 108,
+                                "physical_page_num": 112,
+                                "toc_source_page": "page_157",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        1950
+                                    ],
+                                    [
+                                        2104,
+                                        1950
+                                    ],
+                                    [
+                                        2104,
+                                        2100
+                                    ],
+                                    [
+                                        0,
+                                        2100
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Žilnatina peřená",
+                                "logical_page_printed": 108,
+                                "physical_page_num": 112,
+                                "toc_source_page": "page_157",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        2100
+                                    ],
+                                    [
+                                        2104,
+                                        2100
+                                    ],
+                                    [
+                                        2104,
+                                        2250
+                                    ],
+                                    [
+                                        0,
+                                        2250
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Žilnatina dlanitá",
+                                "logical_page_printed": 109,
+                                "physical_page_num": 113,
+                                "toc_source_page": "page_157",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        2250
+                                    ],
+                                    [
+                                        2104,
+                                        2250
+                                    ],
+                                    [
+                                        2104,
+                                        2400
+                                    ],
+                                    [
+                                        0,
+                                        2400
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Žilnatina znožená",
+                                "logical_page_printed": 110,
+                                "physical_page_num": 114,
+                                "toc_source_page": "page_157",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        2400
+                                    ],
+                                    [
+                                        2104,
+                                        2400
+                                    ],
+                                    [
+                                        2104,
+                                        2550
+                                    ],
+                                    [
+                                        0,
+                                        2550
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Žilnatina souběžná",
+                                "logical_page_printed": 110,
+                                "physical_page_num": 114,
+                                "toc_source_page": "page_157",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        2550
+                                    ],
+                                    [
+                                        2104,
+                                        2550
+                                    ],
+                                    [
+                                        2104,
+                                        2700
+                                    ],
+                                    [
+                                        0,
+                                        2700
+                                    ]
+                                ],
+                                "subchapters": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Složení listů v mládí (vernace)",
+                "logical_page_printed": 111,
+                "physical_page_num": 115,
+                "toc_source_page": "page_157",
+                "toc_polygon": [
+                    [
+                        0,
+                        2700
+                    ],
+                    [
+                        2104,
+                        2700
+                    ],
+                    [
+                        2104,
+                        2850
+                    ],
+                    [
+                        0,
+                        2850
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Krytí listů v pupenu (estivace)",
+                "logical_page_printed": 112,
+                "physical_page_num": 116,
+                "toc_source_page": "page_157",
+                "toc_polygon": [
+                    [
+                        0,
+                        2850
+                    ],
+                    [
+                        2104,
+                        2850
+                    ],
+                    [
+                        2104,
+                        3000
+                    ],
+                    [
+                        0,
+                        3000
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Listy monofaciální a bifaciální",
+                "logical_page_printed": 114,
+                "physical_page_num": 118,
+                "toc_source_page": "page_155",
+                "toc_polygon": [
+                    [
+                        433,
+                        1891
+                    ],
+                    [
+                        982,
+                        1891
+                    ],
+                    [
+                        982,
+                        1940
+                    ],
+                    [
+                        433,
+                        1940
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Povrch listů, jejich podstata (konsistence), trvání a velikost",
+                "logical_page_printed": 115,
+                "physical_page_num": 119,
+                "toc_source_page": "page_158",
+                "toc_polygon": [
+                    [
+                        0,
+                        150
+                    ],
+                    [
+                        2104,
+                        150
+                    ],
+                    [
+                        2104,
+                        300
+                    ],
+                    [
+                        0,
+                        300
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Povrch listů",
+                        "logical_page_printed": 115,
+                        "physical_page_num": 119,
+                        "toc_source_page": "page_158",
+                        "toc_polygon": [
+                            [
+                                0,
+                                300
+                            ],
+                            [
+                                2104,
+                                300
+                            ],
+                            [
+                                2104,
+                                450
+                            ],
+                            [
+                                0,
+                                450
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Podstata listů",
+                        "logical_page_printed": 116,
+                        "physical_page_num": 120,
+                        "toc_source_page": "page_158",
+                        "toc_polygon": [
+                            [
+                                0,
+                                450
+                            ],
+                            [
+                                2104,
+                                450
+                            ],
+                            [
+                                2104,
+                                600
+                            ],
+                            [
+                                0,
+                                600
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Trvání listů",
+                        "logical_page_printed": 117,
+                        "physical_page_num": 121,
+                        "toc_source_page": "page_158",
+                        "toc_polygon": [
+                            [
+                                0,
+                                600
+                            ],
+                            [
+                                2104,
+                                600
+                            ],
+                            [
+                                2104,
+                                750
+                            ],
+                            [
+                                0,
+                                750
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Velikost listů",
+                        "logical_page_printed": 117,
+                        "physical_page_num": 121,
+                        "toc_source_page": "page_158",
+                        "toc_polygon": [
+                            [
+                                0,
+                                750
+                            ],
+                            [
+                                2104,
+                                750
+                            ],
+                            [
+                                2104,
+                                900
+                            ],
+                            [
+                                0,
+                                900
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Útvary (formace) listové",
+                "logical_page_printed": 118,
+                "physical_page_num": 122,
+                "toc_source_page": "page_158",
+                "toc_polygon": [
+                    [
+                        0,
+                        900
+                    ],
+                    [
+                        2104,
+                        900
+                    ],
+                    [
+                        2104,
+                        1050
+                    ],
+                    [
+                        0,
+                        1050
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Různolistěčnost (heterofylie)",
+                "logical_page_printed": 119,
+                "physical_page_num": 123,
+                "toc_source_page": "page_158",
+                "toc_polygon": [
+                    [
+                        0,
+                        1050
+                    ],
+                    [
+                        2104,
+                        1050
+                    ],
+                    [
+                        2104,
+                        1200
+                    ],
+                    [
+                        0,
+                        1200
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Přeměna či metamorfosa listu",
+                "logical_page_printed": 122,
+                "physical_page_num": 126,
+                "toc_source_page": "page_158",
+                "toc_polygon": [
+                    [
+                        0,
+                        1200
+                    ],
+                    [
+                        2104,
+                        1200
+                    ],
+                    [
+                        2104,
+                        1350
+                    ],
+                    [
+                        0,
+                        1350
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Listeny a šupiny",
+                        "logical_page_printed": 122,
+                        "physical_page_num": 126,
+                        "toc_source_page": "page_155",
+                        "toc_polygon": [
+                            [
+                                530,
+                                2299
+                            ],
+                            [
+                                807,
+                                2299
+                            ],
+                            [
+                                807,
+                                2342
+                            ],
+                            [
+                                530,
+                                2342
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Dělohy",
+                        "logical_page_printed": 123,
+                        "physical_page_num": 127,
+                        "toc_source_page": "page_158",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1500
+                            ],
+                            [
+                                2104,
+                                1500
+                            ],
+                            [
+                                2104,
+                                1650
+                            ],
+                            [
+                                0,
+                                1650
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Fylodie",
+                        "logical_page_printed": 127,
+                        "physical_page_num": 131,
+                        "toc_source_page": "page_158",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1650
+                            ],
+                            [
+                                2104,
+                                1650
+                            ],
+                            [
+                                2104,
+                                1800
+                            ],
+                            [
+                                0,
+                                1800
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Listy jako zásobní orgány",
+                        "logical_page_printed": 128,
+                        "physical_page_num": 132,
+                        "toc_source_page": "page_158",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1800
+                            ],
+                            [
+                                2104,
+                                1800
+                            ],
+                            [
+                                2104,
+                                1950
+                            ],
+                            [
+                                0,
+                                1950
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Listové trny",
+                        "logical_page_printed": 128,
+                        "physical_page_num": 132,
+                        "toc_source_page": "page_158",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1950
+                            ],
+                            [
+                                2104,
+                                1950
+                            ],
+                            [
+                                2104,
+                                2100
+                            ],
+                            [
+                                0,
+                                2100
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Listové úponky",
+                "logical_page_printed": 129,
+                "physical_page_num": 133,
+                "toc_source_page": "page_158",
+                "toc_polygon": [
+                    [
+                        0,
+                        2100
+                    ],
+                    [
+                        2104,
+                        2100
+                    ],
+                    [
+                        2104,
+                        2250
+                    ],
+                    [
+                        0,
+                        2250
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Listové kořeny",
+                "logical_page_printed": 129,
+                "physical_page_num": 133,
+                "toc_source_page": "page_158",
+                "toc_polygon": [
+                    [
+                        0,
+                        2250
+                    ],
+                    [
+                        2104,
+                        2250
+                    ],
+                    [
+                        2104,
+                        2400
+                    ],
+                    [
+                        0,
+                        2400
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Zavlažovací vakovité listy rodu Dischidia",
+                "logical_page_printed": 129,
+                "physical_page_num": 133,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        717,
+                        446
+                    ],
+                    [
+                        1402,
+                        446
+                    ],
+                    [
+                        1402,
+                        494
+                    ],
+                    [
+                        717,
+                        494
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Listy rostlin hmyzožravých",
+                "logical_page_printed": 130,
+                "physical_page_num": 134,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        710,
+                        495
+                    ],
+                    [
+                        1154,
+                        495
+                    ],
+                    [
+                        1154,
+                        538
+                    ],
+                    [
+                        710,
+                        538
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Rostliny tučnolisté",
+                "logical_page_printed": 134,
+                "physical_page_num": 137,
+                "toc_source_page": "page_158",
+                "toc_polygon": [
+                    [
+                        0,
+                        2700
+                    ],
+                    [
+                        2104,
+                        2700
+                    ],
+                    [
+                        2104,
+                        2850
+                    ],
+                    [
+                        0,
+                        2850
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Listy vodních rostlin",
+                "logical_page_printed": 134,
+                "physical_page_num": 138,
+                "toc_source_page": "page_158",
+                "toc_polygon": [
+                    [
+                        0,
+                        2850
+                    ],
+                    [
+                        2104,
+                        2850
+                    ],
+                    [
+                        2104,
+                        3000
+                    ],
+                    [
+                        0,
+                        3000
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Fylom květní",
+                "logical_page_printed": 134,
+                "physical_page_num": 138,
+                "toc_source_page": "page_159",
+                "toc_polygon": [
+                    [
+                        0,
+                        0
+                    ],
+                    [
+                        2104,
+                        0
+                    ],
+                    [
+                        2104,
+                        150
+                    ],
+                    [
+                        0,
+                        150
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Chmýr",
+                "logical_page_printed": 135,
+                "physical_page_num": 139,
+                "toc_source_page": "page_159",
+                "toc_polygon": [
+                    [
+                        0,
+                        150
+                    ],
+                    [
+                        2104,
+                        150
+                    ],
+                    [
+                        2104,
+                        300
+                    ],
+                    [
+                        0,
+                        300
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Sporofyly kapraďorostů",
+                "logical_page_printed": 135,
+                "physical_page_num": 139,
+                "toc_source_page": "page_159",
+                "toc_polygon": [
+                    [
+                        0,
+                        300
+                    ],
+                    [
+                        2104,
+                        300
+                    ],
+                    [
+                        2104,
+                        450
+                    ],
+                    [
+                        0,
+                        450
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Fylomové ostěry kapradin",
+                "logical_page_printed": 136,
+                "physical_page_num": 140,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        717,
+                        760
+                    ],
+                    [
+                        1152,
+                        760
+                    ],
+                    [
+                        1152,
+                        804
+                    ],
+                    [
+                        717,
+                        804
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Přeměna listu v osu",
+                "logical_page_printed": 136,
+                "physical_page_num": 140,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        712,
+                        806
+                    ],
+                    [
+                        1051,
+                        806
+                    ],
+                    [
+                        1051,
+                        852
+                    ],
+                    [
+                        712,
+                        852
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Redukce a potlačení listů",
+                "logical_page_printed": 136,
+                "physical_page_num": 140,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        715,
+                        850
+                    ],
+                    [
+                        1136,
+                        850
+                    ],
+                    [
+                        1136,
+                        895
+                    ],
+                    [
+                        715,
+                        895
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Chlupy (trichomy)",
+        "logical_page_printed": 138,
+        "physical_page_num": 142,
+        "toc_source_page": "page_159",
+        "toc_polygon": [
+            [
+                0,
+                900
+            ],
+            [
+                2104,
+                900
+            ],
+            [
+                2104,
+                1050
+            ],
+            [
+                0,
+                1050
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Ekologický význam chlupů",
+                "logical_page_printed": 138,
+                "physical_page_num": 142,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        597,
+                        949
+                    ],
+                    [
+                        1043,
+                        949
+                    ],
+                    [
+                        1043,
+                        993
+                    ],
+                    [
+                        597,
+                        993
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Zvláštní přeměny útvarů chlupovitých",
+                "logical_page_printed": 139,
+                "physical_page_num": 143,
+                "toc_source_page": "page_159",
+                "toc_polygon": [
+                    [
+                        0,
+                        1200
+                    ],
+                    [
+                        2104,
+                        1200
+                    ],
+                    [
+                        2104,
+                        1350
+                    ],
+                    [
+                        0,
+                        1350
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Rozestavení trichomů",
+                "logical_page_printed": 142,
+                "physical_page_num": 146,
+                "toc_source_page": "page_159",
+                "toc_polygon": [
+                    [
+                        0,
+                        1350
+                    ],
+                    [
+                        2104,
+                        1350
+                    ],
+                    [
+                        2104,
+                        1500
+                    ],
+                    [
+                        0,
+                        1500
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Hlavní druhy trichomů",
+                "logical_page_printed": 143,
+                "physical_page_num": 147,
+                "toc_source_page": "page_156",
+                "toc_polygon": [
+                    [
+                        595,
+                        1081
+                    ],
+                    [
+                        972,
+                        1081
+                    ],
+                    [
+                        972,
+                        1130
+                    ],
+                    [
+                        595,
+                        1130
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Odění rostlin",
+                "logical_page_printed": 146,
+                "physical_page_num": 150,
+                "toc_source_page": "page_159",
+                "toc_polygon": [
+                    [
+                        0,
+                        1650
+                    ],
+                    [
+                        2104,
+                        1650
+                    ],
+                    [
+                        2104,
+                        1800
+                    ],
+                    [
+                        0,
+                        1800
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    }
+]

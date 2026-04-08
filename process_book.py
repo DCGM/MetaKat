@@ -1,12 +1,63 @@
 import os
 import cv2
+from pero_ocr.document_ocr.page_parser import PageParser
+from pero_ocr.core.layout import PageLayout
+import configparser
+
 from toc_only.detector import YoloDetector
 from toc_only.extractors import PeroAltoExtractor, PeroOCRExtractor
 from toc_only.structure import HierarchyBuilder
 from toc_only.data_types import PageItem, BookData
 from toc_only.llm_extractor import LlmGPTExtractor, LlmGeminiExtractor
+from refine_llm_bboxes import refine_bboxes
 
 
+# OCR on each ToC page for LLM
+def generate_alto_for_toc(images_folder: str,
+                          book: BookData,
+                          ocr_config_path: str,
+                          output_dir: str) -> list:
+
+    # Config OCR
+    config = configparser.ConfigParser()
+    config.read(ocr_config_path)
+    parser = PageParser(config, config_path=os.path.dirname(ocr_config_path))
+
+    alto_paths = []
+
+    # Every ToC page
+    for toc_page in book.toc_pages:
+        img_path = os.path.join(images_folder, toc_page["filename"])
+        image = cv2.imread(img_path)
+        if image is None:
+            print(f"[WARNING] Cannot read ToC image: {img_path}")
+            continue
+
+        file_id = os.path.splitext(toc_page["filename"])[0]
+        xml_path = os.path.join(output_dir, f"{file_id}_alto.xml")
+
+        # skip if already generated
+        if os.path.exists(xml_path):
+            alto_paths.append(xml_path)
+            continue
+
+        layout = PageLayout(id=file_id, page_size=image.shape[:2])
+        try:
+            parser.process_page(image, layout)
+        except Exception as e:
+            print(f"[WARNING] ALTO generation failed for {file_id}: {e}")
+            continue
+
+        with open(xml_path, 'w', encoding='utf-8') as f:
+            f.write(layout.to_altoxml_string())
+
+        # Save XML
+        alto_paths.append(xml_path)
+
+    return alto_paths   # list of paths
+
+
+# ToC working + PERO working on pages
 def extract_text_from_pdf(
     images_folder: str,
     output_dir: str,
@@ -16,9 +67,7 @@ def extract_text_from_pdf(
     toc_method: str = "pero",
     api_key: str = None
 ):
-    """
-    ToC working + PERO working on pages 
-    """
+
     os.makedirs(output_dir, exist_ok=True)
 
     if toc_method == "pero":
@@ -51,12 +100,9 @@ def extract_text_from_pdf(
 
             print(f"Reading ToC: {file_id} ...")
 
-            # YOLO
-            # yolo_path = os.path.join(output_dir, f"{file_id}_yolo.jpg")
-            # items = yolo.detect(image, output_path=yolo_path)
             items = yolo.detect(image)
 
-            # PERO-ALTO
+            # PERO-ALTO (getting info from YOLO boxes)
             items_with_text = alto_extractor.extract(
                 image, items, file_id=file_id, output_dir=output_dir
             )
@@ -79,9 +125,29 @@ def extract_text_from_pdf(
             llm_images.append(image)
             llm_file_ids.append(file_id)
 
-        # Sending all by one request
         if llm_images:
+            # get chapter structure from LLM
+            print(f"[LLM] Sending {len(llm_images)} page(s) to LLM ...")
             chapters = llm_extractor.extract_multiple(llm_images, llm_file_ids)
+
+            # generate ALTO XML for ToC pages
+            print(f"\n[LLM] Generating ALTO XML for bbox ...")
+            alto_paths = generate_alto_for_toc(
+                images_folder=images_folder,
+                book=book,
+                ocr_config_path=ocr_config_path,
+                output_dir=output_dir,
+            )
+
+            # calculate bboxes using Levenshtein matching
+            if alto_paths:
+                chapters = refine_bboxes(
+                    llm_chapters=chapters,
+                    alto_xml_paths=alto_paths,
+                )
+            else:
+                print("[WARNING] No ALTO files for ToC bbox\n")
+
             book.theoretical_toc.extend(chapters)
 
     print("\n--- Chapters working ---")
@@ -91,11 +157,7 @@ def extract_text_from_pdf(
         file_id = os.path.splitext(chapter_page["filename"])[0]
         physical_page_num = chapter_page["page_num"]
 
-        print(f"Reading: {file_id} ...")
-
         yolo_items = []
-
-        # Looking for chapters in book and page numbers of their pages
 
         # Chapters
         for title_info in chapter_page.get("titles_to_crop", []):
@@ -114,9 +176,13 @@ def extract_text_from_pdf(
             ))
 
         # PERO
-        extracted_items = ocr_extractor.extract(
-            image, yolo_items, file_id=file_id, output_dir=output_dir
-        )
+        try:
+            extracted_items = ocr_extractor.extract(
+                image, yolo_items, file_id=file_id, output_dir=output_dir
+            )
+        except Exception as e:
+            print(f"[WARNING] OCR failed on {file_id}: {e}")
+            continue
 
         # Results
         extracted_titles = []
@@ -133,8 +199,8 @@ def extract_text_from_pdf(
         # Saving to the memory
         for title in extracted_titles:
             book.actual_chapters.append({
-                "physical_page": physical_page_num,
-                "extracted_text": title,
+                "physical_page":        physical_page_num,
+                "extracted_text":       title,
                 "extracted_page_number": found_page_number
             })
 

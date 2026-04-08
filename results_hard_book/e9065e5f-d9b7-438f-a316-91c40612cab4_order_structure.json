@@ -1,0 +1,1753 @@
+[
+    {
+        "chapter_name": "ACT I",
+        "logical_page_printed": 1,
+        "physical_page_num": 30,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                596,
+                629
+            ],
+            [
+                828,
+                629
+            ],
+            [
+                828,
+                684
+            ],
+            [
+                596,
+                684
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "AIR 1. Through all the Employments of Life.",
+                "logical_page_printed": 1,
+                "physical_page_num": 30,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        233,
+                        703
+                    ],
+                    [
+                        930,
+                        703
+                    ],
+                    [
+                        930,
+                        750
+                    ],
+                    [
+                        233,
+                        750
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "2. 'Tis Woman that seduces all Mankind.",
+                "logical_page_printed": 3,
+                "physical_page_num": 32,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        335,
+                        750
+                    ],
+                    [
+                        931,
+                        750
+                    ],
+                    [
+                        931,
+                        792
+                    ],
+                    [
+                        335,
+                        792
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "3. If any Wench Venus's Girdle wear.",
+                "logical_page_printed": 5,
+                "physical_page_num": 34,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        331,
+                        793
+                    ],
+                    [
+                        911,
+                        793
+                    ],
+                    [
+                        911,
+                        835
+                    ],
+                    [
+                        331,
+                        835
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "4. If Love the Virgin's Heart invade.",
+                "logical_page_printed": 6,
+                "physical_page_num": 35,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        329,
+                        835
+                    ],
+                    [
+                        893,
+                        835
+                    ],
+                    [
+                        893,
+                        877
+                    ],
+                    [
+                        329,
+                        877
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "5. A Maid is like the golden Ore.",
+                "logical_page_printed": 8,
+                "physical_page_num": 37,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        333,
+                        876
+                    ],
+                    [
+                        820,
+                        876
+                    ],
+                    [
+                        820,
+                        921
+                    ],
+                    [
+                        333,
+                        921
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "6. Virgins are like the fair Flow'r in its Lustre.",
+                "logical_page_printed": 10,
+                "physical_page_num": 39,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        331,
+                        919
+                    ],
+                    [
+                        1024,
+                        919
+                    ],
+                    [
+                        1024,
+                        963
+                    ],
+                    [
+                        331,
+                        963
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "7. Our Polly is a sad Slut nor heeds what we have taught her.",
+                "logical_page_printed": 11,
+                "physical_page_num": 40,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        333,
+                        962
+                    ],
+                    [
+                        1077,
+                        962
+                    ],
+                    [
+                        1077,
+                        1036
+                    ],
+                    [
+                        333,
+                        1036
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "8. Can Love be control'd by Advice?",
+                "logical_page_printed": 12,
+                "physical_page_num": 41,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        330,
+                        1036
+                    ],
+                    [
+                        885,
+                        1036
+                    ],
+                    [
+                        885,
+                        1078
+                    ],
+                    [
+                        330,
+                        1078
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "9. O Polly, you might have toy'd and kist.",
+                "logical_page_printed": 13,
+                "physical_page_num": 42,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        328,
+                        1078
+                    ],
+                    [
+                        947,
+                        1078
+                    ],
+                    [
+                        947,
+                        1122
+                    ],
+                    [
+                        328,
+                        1122
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "10. I, like a Ship in Storms, was tost.",
+                "logical_page_printed": 14,
+                "physical_page_num": 43,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        328,
+                        1122
+                    ],
+                    [
+                        890,
+                        1122
+                    ],
+                    [
+                        890,
+                        1165
+                    ],
+                    [
+                        328,
+                        1165
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "11. A Fox may steal your Hens, Sir.",
+                "logical_page_printed": 15,
+                "physical_page_num": 44,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        328,
+                        1165
+                    ],
+                    [
+                        869,
+                        1165
+                    ],
+                    [
+                        869,
+                        1207
+                    ],
+                    [
+                        328,
+                        1207
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "12. Oh, ponder well! be not severe.",
+                "logical_page_printed": 17,
+                "physical_page_num": 46,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        328,
+                        1206
+                    ],
+                    [
+                        851,
+                        1206
+                    ],
+                    [
+                        851,
+                        1250
+                    ],
+                    [
+                        328,
+                        1250
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "13. The Turtle thus with plaintive crying.",
+                "logical_page_printed": 18,
+                "physical_page_num": 47,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        324,
+                        1249
+                    ],
+                    [
+                        955,
+                        1249
+                    ],
+                    [
+                        955,
+                        1297
+                    ],
+                    [
+                        324,
+                        1297
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "14. Pretty Polly, say.",
+                "logical_page_printed": 20,
+                "physical_page_num": 49,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        325,
+                        1290
+                    ],
+                    [
+                        659,
+                        1290
+                    ],
+                    [
+                        659,
+                        1336
+                    ],
+                    [
+                        325,
+                        1336
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "15. My Heart was so free.",
+                "logical_page_printed": 21,
+                "physical_page_num": 50,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        325,
+                        1334
+                    ],
+                    [
+                        725,
+                        1334
+                    ],
+                    [
+                        725,
+                        1379
+                    ],
+                    [
+                        325,
+                        1379
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "16. Were I laid on Greenland's Coast.",
+                "logical_page_printed": 21,
+                "physical_page_num": 50,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        325,
+                        1376
+                    ],
+                    [
+                        885,
+                        1376
+                    ],
+                    [
+                        885,
+                        1423
+                    ],
+                    [
+                        325,
+                        1423
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "17. O what Pain it is to part!",
+                "logical_page_printed": 22,
+                "physical_page_num": 51,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        325,
+                        1421
+                    ],
+                    [
+                        769,
+                        1421
+                    ],
+                    [
+                        769,
+                        1465
+                    ],
+                    [
+                        325,
+                        1465
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "18. The Miser thus a Shilling sees.",
+                "logical_page_printed": 23,
+                "physical_page_num": 52,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        323,
+                        1464
+                    ],
+                    [
+                        831,
+                        1464
+                    ],
+                    [
+                        831,
+                        1506
+                    ],
+                    [
+                        323,
+                        1506
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "AIR 19. Fill ev'ry Glass, for Wine inspires us.",
+        "logical_page_printed": 25,
+        "physical_page_num": 54,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                220,
+                1638
+            ],
+            [
+                924,
+                1638
+            ],
+            [
+                924,
+                1683
+            ],
+            [
+                220,
+                1683
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "20. Let us take the Road.",
+        "logical_page_printed": 26,
+        "physical_page_num": 55,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                322,
+                1684
+            ],
+            [
+                699,
+                1684
+            ],
+            [
+                699,
+                1723
+            ],
+            [
+                322,
+                1723
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "21. If the Heart of a Man is deprest with Cares.",
+        "logical_page_printed": 27,
+        "physical_page_num": 56,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                324,
+                1724
+            ],
+            [
+                1056,
+                1724
+            ],
+            [
+                1056,
+                1768
+            ],
+            [
+                324,
+                1768
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "22. Youth's the Season made for Joys.",
+        "logical_page_printed": 29,
+        "physical_page_num": 58,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                323,
+                1767
+            ],
+            [
+                873,
+                1767
+            ],
+            [
+                873,
+                1813
+            ],
+            [
+                323,
+                1813
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "23. Before the Barn-door crowing.",
+        "logical_page_printed": 30,
+        "physical_page_num": 59,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                320,
+                1814
+            ],
+            [
+                828,
+                1814
+            ],
+            [
+                828,
+                1858
+            ],
+            [
+                320,
+                1858
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "24. The Gamesters and Lawyers are Jugglers alike.",
+        "logical_page_printed": 31,
+        "physical_page_num": 60,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                321,
+                1859
+            ],
+            [
+                1075,
+                1859
+            ],
+            [
+                1075,
+                1903
+            ],
+            [
+                321,
+                1903
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "25. At the Tree I shall suffer with pleasure.",
+        "logical_page_printed": 32,
+        "physical_page_num": 61,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                319,
+                1901
+            ],
+            [
+                962,
+                1901
+            ],
+            [
+                962,
+                1945
+            ],
+            [
+                319,
+                1945
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "AIR 26. Man may escape from Rope and Gun.",
+        "logical_page_printed": 34,
+        "physical_page_num": 63,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                414,
+                252
+            ],
+            [
+                1122,
+                252
+            ],
+            [
+                1122,
+                328
+            ],
+            [
+                414,
+                328
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "27. Thus when a good Huswife sees a Rat.",
+        "logical_page_printed": 35,
+        "physical_page_num": 64,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                517,
+                303
+            ],
+            [
+                1125,
+                303
+            ],
+            [
+                1125,
+                370
+            ],
+            [
+                517,
+                370
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "28. How cruel are the Traitors.",
+        "logical_page_printed": 36,
+        "physical_page_num": 65,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                513,
+                344
+            ],
+            [
+                979,
+                344
+            ],
+            [
+                979,
+                404
+            ],
+            [
+                513,
+                404
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "29. The first time at the Looking-glass.",
+        "logical_page_printed": 37,
+        "physical_page_num": 66,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                513,
+                382
+            ],
+            [
+                1073,
+                382
+            ],
+            [
+                1073,
+                453
+            ],
+            [
+                513,
+                453
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "30. When you censure the Age.",
+        "logical_page_printed": 38,
+        "physical_page_num": 67,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                513,
+                426
+            ],
+            [
+                967,
+                426
+            ],
+            [
+                967,
+                489
+            ],
+            [
+                513,
+                489
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "31. Is then his Fate decreed, Sir?",
+        "logical_page_printed": 40,
+        "physical_page_num": 69,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                511,
+                469
+            ],
+            [
+                1006,
+                469
+            ],
+            [
+                1006,
+                534
+            ],
+            [
+                511,
+                534
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "32. You'll think ere many Days ensue.",
+        "logical_page_printed": 40,
+        "physical_page_num": 69,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                511,
+                510
+            ],
+            [
+                1063,
+                510
+            ],
+            [
+                1063,
+                579
+            ],
+            [
+                511,
+                579
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "33. If you at an Office solicit your Due.",
+        "logical_page_printed": 41,
+        "physical_page_num": 70,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                508,
+                554
+            ],
+            [
+                1086,
+                554
+            ],
+            [
+                1086,
+                622
+            ],
+            [
+                508,
+                622
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "34. Thus when the Swallow, seeking Prey.",
+        "logical_page_printed": 42,
+        "physical_page_num": 71,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                503,
+                594
+            ],
+            [
+                1132,
+                594
+            ],
+            [
+                1132,
+                667
+            ],
+            [
+                503,
+                667
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "35. How happy could I be with either.",
+        "logical_page_printed": 42,
+        "physical_page_num": 71,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                505,
+                635
+            ],
+            [
+                1063,
+                635
+            ],
+            [
+                1063,
+                706
+            ],
+            [
+                505,
+                706
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "36. I'm bubbled.",
+        "logical_page_printed": 43,
+        "physical_page_num": 72,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                150,
+                609
+            ],
+            [
+                750,
+                609
+            ],
+            [
+                750,
+                654
+            ],
+            [
+                150,
+                654
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "37. Cease your Funning.",
+        "logical_page_printed": 44,
+        "physical_page_num": 73,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                500,
+                720
+            ],
+            [
+                857,
+                720
+            ],
+            [
+                857,
+                779
+            ],
+            [
+                500,
+                779
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "38. Why how now, Madam Flirt.",
+        "logical_page_printed": 45,
+        "physical_page_num": 74,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                498,
+                761
+            ],
+            [
+                997,
+                761
+            ],
+            [
+                997,
+                826
+            ],
+            [
+                498,
+                826
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "39. No Power on Earth can e'er divide.",
+        "logical_page_printed": 46,
+        "physical_page_num": 75,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                500,
+                804
+            ],
+            [
+                1083,
+                804
+            ],
+            [
+                1083,
+                873
+            ],
+            [
+                500,
+                873
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "40. I like the Fox shall grieve.",
+        "logical_page_printed": 48,
+        "physical_page_num": 77,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                500,
+                848
+            ],
+            [
+                957,
+                848
+            ],
+            [
+                957,
+                910
+            ],
+            [
+                500,
+                910
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "AIR 41. When young at the Bar you first taught me to score.",
+        "logical_page_printed": 50,
+        "physical_page_num": 79,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                390,
+                991
+            ],
+            [
+                1278,
+                991
+            ],
+            [
+                1278,
+                1078
+            ],
+            [
+                390,
+                1078
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "42. My Love is all Madness and Folly.",
+        "logical_page_printed": 51,
+        "physical_page_num": 80,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                490,
+                1042
+            ],
+            [
+                1047,
+                1042
+            ],
+            [
+                1047,
+                1110
+            ],
+            [
+                490,
+                1110
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "43. Thus Gamesters united in Friendship are found.",
+        "logical_page_printed": 52,
+        "physical_page_num": 81,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                489,
+                1082
+            ],
+            [
+                1233,
+                1082
+            ],
+            [
+                1233,
+                1160
+            ],
+            [
+                489,
+                1160
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "44. The Modes of the Court so common are grown.",
+        "logical_page_printed": 54,
+        "physical_page_num": 83,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                490,
+                1120
+            ],
+            [
+                1225,
+                1120
+            ],
+            [
+                1225,
+                1201
+            ],
+            [
+                490,
+                1201
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "45. What Gudgeons are we Men!",
+        "logical_page_printed": 56,
+        "physical_page_num": 85,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                482,
+                1169
+            ],
+            [
+                977,
+                1169
+            ],
+            [
+                977,
+                1228
+            ],
+            [
+                482,
+                1228
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "46. In the Days of my Youth I could bill like a Dove, fa, la, la, &c.",
+        "logical_page_printed": 57,
+        "physical_page_num": 86,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                485,
+                1207
+            ],
+            [
+                1224,
+                1207
+            ],
+            [
+                1224,
+                1304
+            ],
+            [
+                485,
+                1304
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "47. I'm like a Skiff on the Ocean tost.",
+        "logical_page_printed": 59,
+        "physical_page_num": 88,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                482,
+                1283
+            ],
+            [
+                1033,
+                1283
+            ],
+            [
+                1033,
+                1354
+            ],
+            [
+                482,
+                1354
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "48. When a Wife's in her Pout.",
+        "logical_page_printed": 60,
+        "physical_page_num": 89,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                480,
+                1327
+            ],
+            [
+                954,
+                1327
+            ],
+            [
+                954,
+                1390
+            ],
+            [
+                480,
+                1390
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "49. A Curse attends that Woman's Love.",
+        "logical_page_printed": 60,
+        "physical_page_num": 89,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                480,
+                1368
+            ],
+            [
+                1077,
+                1368
+            ],
+            [
+                1077,
+                1443
+            ],
+            [
+                480,
+                1443
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "50. Among the Men, Coquets we find.",
+        "logical_page_printed": 62,
+        "physical_page_num": 91,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                482,
+                1410
+            ],
+            [
+                1042,
+                1410
+            ],
+            [
+                1042,
+                1482
+            ],
+            [
+                482,
+                1482
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "51. Come, sweet Lass.",
+        "logical_page_printed": 63,
+        "physical_page_num": 92,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                477,
+                1453
+            ],
+            [
+                813,
+                1453
+            ],
+            [
+                813,
+                1512
+            ],
+            [
+                477,
+                1512
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "52. Hither, dear Husband, turn your Eyes.",
+        "logical_page_printed": 65,
+        "physical_page_num": 94,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                474,
+                1494
+            ],
+            [
+                1105,
+                1494
+            ],
+            [
+                1105,
+                1571
+            ],
+            [
+                474,
+                1571
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "53. Which way shall I turn me? How can I decide.",
+        "logical_page_printed": 65,
+        "physical_page_num": 94,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                470,
+                1544
+            ],
+            [
+                1215,
+                1544
+            ],
+            [
+                1215,
+                1616
+            ],
+            [
+                470,
+                1616
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "54. When my Hero in Court appears.",
+        "logical_page_printed": 66,
+        "physical_page_num": 95,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                470,
+                1613
+            ],
+            [
+                1009,
+                1613
+            ],
+            [
+                1009,
+                1680
+            ],
+            [
+                470,
+                1680
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "55. When he holds up his Hand arraign'd for his Life.",
+        "logical_page_printed": 67,
+        "physical_page_num": 96,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                469,
+                1658
+            ],
+            [
+                1202,
+                1658
+            ],
+            [
+                1202,
+                1732
+            ],
+            [
+                469,
+                1732
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "56. Our selves, like the Great, to secure a Retreat.",
+        "logical_page_printed": 68,
+        "physical_page_num": 97,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                467,
+                1695
+            ],
+            [
+                1200,
+                1695
+            ],
+            [
+                1200,
+                1777
+            ],
+            [
+                467,
+                1777
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "57. The Charge is prepar'd, the Lawyers are met.",
+        "logical_page_printed": 69,
+        "physical_page_num": 98,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                462,
+                1741
+            ],
+            [
+                1192,
+                1741
+            ],
+            [
+                1192,
+                1820
+            ],
+            [
+                462,
+                1820
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "58. O cruel, cruel, cruel Case.",
+        "logical_page_printed": 70,
+        "physical_page_num": 99,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                465,
+                1779
+            ],
+            [
+                922,
+                1779
+            ],
+            [
+                922,
+                1850
+            ],
+            [
+                465,
+                1850
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "59. Of all the Friends in time of Grief.",
+        "logical_page_printed": 70,
+        "physical_page_num": 99,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                465,
+                1825
+            ],
+            [
+                1045,
+                1825
+            ],
+            [
+                1045,
+                1897
+            ],
+            [
+                465,
+                1897
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "AIR 60. Since I must swing, I scorn, I scorn to wince or whine.",
+        "logical_page_printed": 79,
+        "physical_page_num": 108,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                150,
+                157
+            ],
+            [
+                750,
+                157
+            ],
+            [
+                750,
+                203
+            ],
+            [
+                150,
+                203
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "61. But now again my Spirits sink.",
+        "logical_page_printed": 79,
+        "physical_page_num": 108,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                314,
+                366
+            ],
+            [
+                833,
+                366
+            ],
+            [
+                833,
+                406
+            ],
+            [
+                314,
+                406
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "62. But Valour the stronger grows.",
+        "logical_page_printed": 71,
+        "physical_page_num": 100,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                315,
+                409
+            ],
+            [
+                828,
+                409
+            ],
+            [
+                828,
+                448
+            ],
+            [
+                315,
+                448
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "63. If thus A Man can die.",
+        "logical_page_printed": 71,
+        "physical_page_num": 100,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                315,
+                449
+            ],
+            [
+                863,
+                449
+            ],
+            [
+                863,
+                493
+            ],
+            [
+                315,
+                493
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "64. So I drink off this Bumper. And now I can stand the Test.",
+        "logical_page_printed": 71,
+        "physical_page_num": 100,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                319,
+                488
+            ],
+            [
+                1043,
+                488
+            ],
+            [
+                1043,
+                566
+            ],
+            [
+                319,
+                566
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "65. But can I leave my pretty Hussies.",
+        "logical_page_printed": 71,
+        "physical_page_num": 100,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                321,
+                567
+            ],
+            [
+                900,
+                567
+            ],
+            [
+                900,
+                612
+            ],
+            [
+                321,
+                612
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "66. Their Eyes, their Lips, their Busses.",
+        "logical_page_printed": 72,
+        "physical_page_num": 101,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                321,
+                611
+            ],
+            [
+                926,
+                611
+            ],
+            [
+                926,
+                655
+            ],
+            [
+                321,
+                655
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "67. Since Laws were made for ev'ry Degree.",
+        "logical_page_printed": 72,
+        "physical_page_num": 101,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                321,
+                653
+            ],
+            [
+                993,
+                653
+            ],
+            [
+                993,
+                699
+            ],
+            [
+                321,
+                699
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "68. Would I might be hang'd!",
+        "logical_page_printed": 73,
+        "physical_page_num": 102,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                325,
+                693
+            ],
+            [
+                784,
+                693
+            ],
+            [
+                784,
+                741
+            ],
+            [
+                325,
+                741
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "69. Thus I stand like the Turk, with his Doxies around.",
+        "logical_page_printed": 76,
+        "physical_page_num": 105,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                323,
+                735
+            ],
+            [
+                1076,
+                735
+            ],
+            [
+                1076,
+                787
+            ],
+            [
+                323,
+                787
+            ]
+        ],
+        "subchapters": []
+    }
+]

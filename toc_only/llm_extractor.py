@@ -26,16 +26,24 @@ class BaseLlmExtractor:
         You MUST return a JSON object with a single root key "chapters", containing a list of hierarchical chapter objects.
         Each chapter object MUST strictly follow this JSON schema:
         {{
-            "chapter_name": str, "Title of the chapter/section as written in the text",
+            "chapter_name": str, Title of the chapter/section as written in the text",
             "bbox_1000": [x1, y1, x2, y2], " The estimated bounding box in 0-1000 scale, or null if absent"
             "page_name": str, "page name, similar for one page"
             "chapter_number": int, "Number or string (e.g., '1', '1.1', 'IV'), or null if absent"
-            "start_page": int, "the page number the chapter points to, or null if absent"
+            "start_page": int, "the page number the chapter points to(if there is a gap, than return its beginning), or null if absent"
             "subchapters": [ ... list of nested chapter objects following this exact same schema ... ]
         }}
         
         There can be some symbols in the names of chapters that suggest that the corresponding part of the text should be taken from 
         the previous chapter name, replace these symbols with the actual text.
+        There can be some symbols in the numbers of chapters that suggest that the number should be taken from 
+        the previous chapter number, replace these symbols with the actual numbers.
+        CRITICAL INSTRUCTIONS FOR MULTI-PAGE DOCUMENTS:
+        1. THE VISUAL PAGE BREAK IS NOT A LOGICAL BREAK. If the images contain a continuous Table of Contents, you must treat them as one single, seamless document.
+        2. DO NOT artificially close the `subchapters` array just because you reached the end of an image. 
+        3. If a list of subchapters starts on image_1 and continues on image_2, simply CONTINUE adding chapter objects to the EXACT SAME `subchapters` array in your JSON.
+        4. Do NOT skip items on the new page waiting for a top-level chapter. You must extract EVERY SINGLE sub-item, maintaining the correct deep nesting level (even up to 7 levels deep) across the image boundaries.
+        5. Your output must be 100% exhaustive and 1-to-1 with the provided images. Extracting an incomplete tree is strictly forbidden.
         """
 
     @staticmethod
@@ -66,7 +74,10 @@ class LlmGPTExtractor(BaseLlmExtractor):
     def __init__(self, api_key=None, model="gpt-4o"):
         self.model = model
         try:
-            self.client = OpenAI(api_key=api_key)
+            self.client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=api_key,
+            )
             print(f"OpenAI Client initialized ({model}).")
         except Exception as e:
             self.client = None
@@ -119,7 +130,7 @@ class LlmGPTExtractor(BaseLlmExtractor):
 
 
 class LlmGeminiExtractor(BaseLlmExtractor):
-    def __init__(self, api_key=None, model="gemini-2.5-flash"):
+    def __init__(self, api_key=None, model="gemini-3.1-flash-lite-preview"):
         self.model = model
         try:
             self.client = genai.Client(api_key=api_key)

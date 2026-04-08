@@ -1,0 +1,1362 @@
+[
+    {
+        "chapter_name": "Erster Abschnitt.",
+        "logical_page_printed": 1,
+        "physical_page_num": 18,
+        "toc_source_page": "page_016",
+        "toc_polygon": [
+            [
+                507,
+                516
+            ],
+            [
+                886,
+                516
+            ],
+            [
+                886,
+                570
+            ],
+            [
+                507,
+                570
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Einleitung in die Musik.",
+                "logical_page_printed": 1,
+                "physical_page_num": 24,
+                "toc_source_page": "page_016",
+                "toc_polygon": [
+                    [
+                        222,
+                        605
+                    ],
+                    [
+                        648,
+                        605
+                    ],
+                    [
+                        648,
+                        647
+                    ],
+                    [
+                        222,
+                        647
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Erklärung.",
+                        "logical_page_printed": 1,
+                        "physical_page_num": 24,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                0,
+                                469
+                            ],
+                            [
+                                1500,
+                                469
+                            ],
+                            [
+                                1500,
+                                516
+                            ],
+                            [
+                                0,
+                                516
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Zweck.",
+                        "logical_page_printed": 2,
+                        "physical_page_num": 25,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                0,
+                                516
+                            ],
+                            [
+                                1500,
+                                516
+                            ],
+                            [
+                                1500,
+                                563
+                            ],
+                            [
+                                0,
+                                563
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Mittel.",
+                        "logical_page_printed": 3,
+                        "physical_page_num": 26,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                297,
+                                711
+                            ],
+                            [
+                                407,
+                                711
+                            ],
+                            [
+                                407,
+                                744
+                            ],
+                            [
+                                297,
+                                744
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Anwendung.",
+                        "logical_page_printed": 4,
+                        "physical_page_num": 27,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                295,
+                                742
+                            ],
+                            [
+                                480,
+                                742
+                            ],
+                            [
+                                480,
+                                778
+                            ],
+                            [
+                                295,
+                                778
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Nutzen.",
+                        "logical_page_printed": 6,
+                        "physical_page_num": 29,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                297,
+                                774
+                            ],
+                            [
+                                411,
+                                774
+                            ],
+                            [
+                                411,
+                                808
+                            ],
+                            [
+                                297,
+                                808
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Eintheilung.",
+                        "logical_page_printed": 6,
+                        "physical_page_num": 29,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                0,
+                                704
+                            ],
+                            [
+                                1500,
+                                704
+                            ],
+                            [
+                                1500,
+                                751
+                            ],
+                            [
+                                0,
+                                751
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Lehr- und Lehrart.",
+                        "logical_page_printed": 9,
+                        "physical_page_num": 32,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                0,
+                                751
+                            ],
+                            [
+                                1500,
+                                751
+                            ],
+                            [
+                                1500,
+                                798
+                            ],
+                            [
+                                0,
+                                798
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Geschichte der Musik.",
+                        "logical_page_printed": 9,
+                        "physical_page_num": 32,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                305,
+                                874
+                            ],
+                            [
+                                612,
+                                874
+                            ],
+                            [
+                                612,
+                                911
+                            ],
+                            [
+                                305,
+                                911
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "chapter_name": "Zweyter Abschnitt.",
+        "logical_page_printed": 22,
+        "physical_page_num": 45,
+        "toc_source_page": "page_016",
+        "toc_polygon": [
+            [
+                484,
+                947
+            ],
+            [
+                915,
+                947
+            ],
+            [
+                915,
+                999
+            ],
+            [
+                484,
+                999
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Begriff der allgemeinen Bezeichnung und Benennung der Musik.",
+                "logical_page_printed": 22,
+                "physical_page_num": 45,
+                "toc_source_page": "page_016",
+                "toc_polygon": [
+                    [
+                        217,
+                        1016
+                    ],
+                    [
+                        958,
+                        1016
+                    ],
+                    [
+                        958,
+                        1101
+                    ],
+                    [
+                        217,
+                        1101
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Noten.",
+                        "logical_page_printed": 22,
+                        "physical_page_num": 45,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                297,
+                                1093
+                            ],
+                            [
+                                403,
+                                1093
+                            ],
+                            [
+                                403,
+                                1131
+                            ],
+                            [
+                                297,
+                                1131
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Schlüssel.",
+                        "logical_page_printed": 24,
+                        "physical_page_num": 47,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1080
+                            ],
+                            [
+                                1500,
+                                1080
+                            ],
+                            [
+                                1500,
+                                1127
+                            ],
+                            [
+                                0,
+                                1127
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Tact.",
+                        "logical_page_printed": 28,
+                        "physical_page_num": 51,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1127
+                            ],
+                            [
+                                1500,
+                                1127
+                            ],
+                            [
+                                1500,
+                                1174
+                            ],
+                            [
+                                0,
+                                1174
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Accente.",
+                        "logical_page_printed": 29,
+                        "physical_page_num": 52,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1174
+                            ],
+                            [
+                                1500,
+                                1174
+                            ],
+                            [
+                                1500,
+                                1221
+                            ],
+                            [
+                                0,
+                                1221
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Andere gewöhnlichste Zeichen.",
+                        "logical_page_printed": 34,
+                        "physical_page_num": 57,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                297,
+                                1226
+                            ],
+                            [
+                                731,
+                                1226
+                            ],
+                            [
+                                731,
+                                1270
+                            ],
+                            [
+                                297,
+                                1270
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Musikalische Kunstwörter.",
+                        "logical_page_printed": 36,
+                        "physical_page_num": 59,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1268
+                            ],
+                            [
+                                1500,
+                                1268
+                            ],
+                            [
+                                1500,
+                                1315
+                            ],
+                            [
+                                0,
+                                1315
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "chapter_name": "Dritter Abschnitt.",
+        "logical_page_printed": 39,
+        "physical_page_num": 62,
+        "toc_source_page": "page_016",
+        "toc_polygon": [
+            [
+                481,
+                1334
+            ],
+            [
+                903,
+                1334
+            ],
+            [
+                903,
+                1392
+            ],
+            [
+                481,
+                1392
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Von der theoretischen Tonkenntniss.",
+                "logical_page_printed": 39,
+                "physical_page_num": 62,
+                "toc_source_page": "page_016",
+                "toc_polygon": [
+                    [
+                        0,
+                        1409
+                    ],
+                    [
+                        1500,
+                        1409
+                    ],
+                    [
+                        1500,
+                        1503
+                    ],
+                    [
+                        0,
+                        1503
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Von den Tönen überhaupt.",
+                        "logical_page_printed": 39,
+                        "physical_page_num": 62,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                296,
+                                1444
+                            ],
+                            [
+                                708,
+                                1444
+                            ],
+                            [
+                                708,
+                                1486
+                            ],
+                            [
+                                296,
+                                1486
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Tonleitern.",
+                        "logical_page_printed": 45,
+                        "physical_page_num": 68,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1550
+                            ],
+                            [
+                                1500,
+                                1550
+                            ],
+                            [
+                                1500,
+                                1597
+                            ],
+                            [
+                                0,
+                                1597
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Tonverbindungen.",
+                        "logical_page_printed": 47,
+                        "physical_page_num": 70,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                0,
+                                1597
+                            ],
+                            [
+                                1500,
+                                1597
+                            ],
+                            [
+                                1500,
+                                1644
+                            ],
+                            [
+                                0,
+                                1644
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Wohl- und Uebelklänge.",
+                        "logical_page_printed": 50,
+                        "physical_page_num": 73,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                303,
+                                1544
+                            ],
+                            [
+                                671,
+                                1544
+                            ],
+                            [
+                                671,
+                                1585
+                            ],
+                            [
+                                303,
+                                1585
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Tonarten.",
+                        "logical_page_printed": 52,
+                        "physical_page_num": 75,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                293,
+                                1577
+                            ],
+                            [
+                                446,
+                                1577
+                            ],
+                            [
+                                446,
+                                1614
+                            ],
+                            [
+                                293,
+                                1614
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Akkorde.",
+                        "logical_page_printed": 54,
+                        "physical_page_num": 77,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                299,
+                                1609
+                            ],
+                            [
+                                423,
+                                1609
+                            ],
+                            [
+                                423,
+                                1647
+                            ],
+                            [
+                                299,
+                                1647
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "Wohlklingende Stammakkorde.",
+                                "logical_page_printed": 59,
+                                "physical_page_num": 82,
+                                "toc_source_page": "page_016",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        1785
+                                    ],
+                                    [
+                                        1500,
+                                        1785
+                                    ],
+                                    [
+                                        1500,
+                                        1832
+                                    ],
+                                    [
+                                        0,
+                                        1832
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Deren Umwandlungen.",
+                                "logical_page_printed": 61,
+                                "physical_page_num": 84,
+                                "toc_source_page": "page_016",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        1832
+                                    ],
+                                    [
+                                        1500,
+                                        1832
+                                    ],
+                                    [
+                                        1500,
+                                        1879
+                                    ],
+                                    [
+                                        0,
+                                        1879
+                                    ]
+                                ],
+                                "subchapters": []
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "chapter_name": "Vierter Abschnitt.",
+        "logical_page_printed": 63,
+        "physical_page_num": 86,
+        "toc_source_page": "page_016",
+        "toc_polygon": [
+            [
+                0,
+                1879
+            ],
+            [
+                1500,
+                1879
+            ],
+            [
+                1500,
+                1973
+            ],
+            [
+                0,
+                1973
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Anweisung zum Flötenspielen, welche auch bey Erlernung der meisten andern Instrumente nützlich ist.",
+                "logical_page_printed": 63,
+                "physical_page_num": 86,
+                "toc_source_page": "page_016",
+                "toc_polygon": [
+                    [
+                        217,
+                        1808
+                    ],
+                    [
+                        966,
+                        1808
+                    ],
+                    [
+                        966,
+                        1933
+                    ],
+                    [
+                        217,
+                        1933
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Von der Flöte überhaupt.",
+                        "logical_page_printed": 63,
+                        "physical_page_num": 86,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                298,
+                                1923
+                            ],
+                            [
+                                686,
+                                1923
+                            ],
+                            [
+                                686,
+                                1968
+                            ],
+                            [
+                                298,
+                                1968
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Stellung und Haltung derselben.",
+                        "logical_page_printed": 65,
+                        "physical_page_num": 88,
+                        "toc_source_page": "page_016",
+                        "toc_polygon": [
+                            [
+                                299,
+                                1958
+                            ],
+                            [
+                                782,
+                                1958
+                            ],
+                            [
+                                782,
+                                2006
+                            ],
+                            [
+                                299,
+                                2006
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Anfang der Flöte.",
+                        "logical_page_printed": 66,
+                        "physical_page_num": 89,
+                        "toc_source_page": "page_017",
+                        "toc_polygon": [
+                            [
+                                0,
+                                0
+                            ],
+                            [
+                                1500,
+                                0
+                            ],
+                            [
+                                1500,
+                                46
+                            ],
+                            [
+                                0,
+                                46
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Fingerordnung.",
+                        "logical_page_printed": 68,
+                        "physical_page_num": 91,
+                        "toc_source_page": "page_017",
+                        "toc_polygon": [
+                            [
+                                0,
+                                46
+                            ],
+                            [
+                                1500,
+                                46
+                            ],
+                            [
+                                1500,
+                                93
+                            ],
+                            [
+                                0,
+                                93
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Stimmung.",
+                        "logical_page_printed": 71,
+                        "physical_page_num": 94,
+                        "toc_source_page": "page_017",
+                        "toc_polygon": [
+                            [
+                                0,
+                                93
+                            ],
+                            [
+                                1500,
+                                93
+                            ],
+                            [
+                                1500,
+                                140
+                            ],
+                            [
+                                0,
+                                140
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Wahre Sprache der Flöte.",
+                        "logical_page_printed": 73,
+                        "physical_page_num": 96,
+                        "toc_source_page": "page_017",
+                        "toc_polygon": [
+                            [
+                                0,
+                                140
+                            ],
+                            [
+                                1500,
+                                140
+                            ],
+                            [
+                                1500,
+                                187
+                            ],
+                            [
+                                0,
+                                187
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Atemholen.",
+                        "logical_page_printed": 93,
+                        "physical_page_num": 116,
+                        "toc_source_page": "page_017",
+                        "toc_polygon": [
+                            [
+                                0,
+                                187
+                            ],
+                            [
+                                1500,
+                                187
+                            ],
+                            [
+                                1500,
+                                234
+                            ],
+                            [
+                                0,
+                                234
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Verschiedene Manieren oder Auszierungen.",
+                        "logical_page_printed": 95,
+                        "physical_page_num": 118,
+                        "toc_source_page": "page_017",
+                        "toc_polygon": [
+                            [
+                                0,
+                                234
+                            ],
+                            [
+                                1500,
+                                234
+                            ],
+                            [
+                                1500,
+                                281
+                            ],
+                            [
+                                0,
+                                281
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "Bebung.",
+                                "logical_page_printed": 99,
+                                "physical_page_num": 122,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        281
+                                    ],
+                                    [
+                                        1500,
+                                        281
+                                    ],
+                                    [
+                                        1500,
+                                        328
+                                    ],
+                                    [
+                                        0,
+                                        328
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Vorschlag.",
+                                "logical_page_printed": 99,
+                                "physical_page_num": 122,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        328
+                                    ],
+                                    [
+                                        1500,
+                                        328
+                                    ],
+                                    [
+                                        1500,
+                                        375
+                                    ],
+                                    [
+                                        0,
+                                        375
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Nachschlag.",
+                                "logical_page_printed": 101,
+                                "physical_page_num": 124,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        375
+                                    ],
+                                    [
+                                        1500,
+                                        375
+                                    ],
+                                    [
+                                        1500,
+                                        422
+                                    ],
+                                    [
+                                        0,
+                                        422
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Anschlag.",
+                                "logical_page_printed": 101,
+                                "physical_page_num": 124,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        422
+                                    ],
+                                    [
+                                        1500,
+                                        422
+                                    ],
+                                    [
+                                        1500,
+                                        469
+                                    ],
+                                    [
+                                        0,
+                                        469
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Schleifer.",
+                                "logical_page_printed": 103,
+                                "physical_page_num": 126,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        469
+                                    ],
+                                    [
+                                        1500,
+                                        469
+                                    ],
+                                    [
+                                        1500,
+                                        516
+                                    ],
+                                    [
+                                        0,
+                                        516
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Doppelschlag.",
+                                "logical_page_printed": 103,
+                                "physical_page_num": 126,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        516
+                                    ],
+                                    [
+                                        1500,
+                                        516
+                                    ],
+                                    [
+                                        1500,
+                                        563
+                                    ],
+                                    [
+                                        0,
+                                        563
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Pralltriller und Schneller.",
+                                "logical_page_printed": 102,
+                                "physical_page_num": 125,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        563
+                                    ],
+                                    [
+                                        1500,
+                                        563
+                                    ],
+                                    [
+                                        1500,
+                                        610
+                                    ],
+                                    [
+                                        0,
+                                        610
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Mordant.",
+                                "logical_page_printed": 104,
+                                "physical_page_num": 127,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        610
+                                    ],
+                                    [
+                                        1500,
+                                        610
+                                    ],
+                                    [
+                                        1500,
+                                        657
+                                    ],
+                                    [
+                                        0,
+                                        657
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Battement.",
+                                "logical_page_printed": 104,
+                                "physical_page_num": 127,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        657
+                                    ],
+                                    [
+                                        1500,
+                                        657
+                                    ],
+                                    [
+                                        1500,
+                                        704
+                                    ],
+                                    [
+                                        0,
+                                        704
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Abwechselung der Stärke und Schwäche, nachsahen und Abnehmen des Tones.",
+                                "logical_page_printed": 106,
+                                "physical_page_num": 129,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        704
+                                    ],
+                                    [
+                                        1500,
+                                        704
+                                    ],
+                                    [
+                                        1500,
+                                        751
+                                    ],
+                                    [
+                                        0,
+                                        751
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Das Durchziehen.",
+                                "logical_page_printed": 106,
+                                "physical_page_num": 133,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        751
+                                    ],
+                                    [
+                                        1500,
+                                        751
+                                    ],
+                                    [
+                                        1500,
+                                        798
+                                    ],
+                                    [
+                                        0,
+                                        798
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Der Triller.",
+                                "logical_page_printed": 107,
+                                "physical_page_num": 130,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        798
+                                    ],
+                                    [
+                                        1500,
+                                        798
+                                    ],
+                                    [
+                                        1500,
+                                        845
+                                    ],
+                                    [
+                                        0,
+                                        845
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Fermaten.",
+                                "logical_page_printed": 110,
+                                "physical_page_num": 133,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        845
+                                    ],
+                                    [
+                                        1500,
+                                        845
+                                    ],
+                                    [
+                                        1500,
+                                        892
+                                    ],
+                                    [
+                                        0,
+                                        892
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Kadenzen.",
+                                "logical_page_printed": 112,
+                                "physical_page_num": 135,
+                                "toc_source_page": "page_017",
+                                "toc_polygon": [
+                                    [
+                                        0,
+                                        892
+                                    ],
+                                    [
+                                        1500,
+                                        892
+                                    ],
+                                    [
+                                        1500,
+                                        939
+                                    ],
+                                    [
+                                        0,
+                                        939
+                                    ]
+                                ],
+                                "subchapters": []
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "chapter_name": "Willkührliche Manieren oder Auszierungen.",
+        "logical_page_printed": 117,
+        "physical_page_num": 140,
+        "toc_source_page": "page_017",
+        "toc_polygon": [
+            [
+                0,
+                939
+            ],
+            [
+                1500,
+                939
+            ],
+            [
+                1500,
+                986
+            ],
+            [
+                0,
+                986
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Einige noch besondere Erinnerungen für Musikanfänger.",
+        "logical_page_printed": 118,
+        "physical_page_num": 141,
+        "toc_source_page": "page_017",
+        "toc_polygon": [
+            [
+                0,
+                986
+            ],
+            [
+                1500,
+                986
+            ],
+            [
+                1500,
+                1033
+            ],
+            [
+                0,
+                1033
+            ]
+        ],
+        "subchapters": []
+    }
+]

@@ -1,0 +1,709 @@
+[
+    {
+        "chapter_name": "Introduction",
+        "logical_page_printed": 5,
+        "physical_page_num": 9,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                161,
+                295
+            ],
+            [
+                354,
+                295
+            ],
+            [
+                354,
+                339
+            ],
+            [
+                161,
+                339
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "1. The Model",
+        "logical_page_printed": 8,
+        "physical_page_num": 12,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                162,
+                392
+            ],
+            [
+                395,
+                392
+            ],
+            [
+                395,
+                437
+            ],
+            [
+                162,
+                437
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "1.1. Assumptions",
+                "logical_page_printed": 8,
+                "physical_page_num": 12,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        82,
+                        468
+                    ],
+                    [
+                        1655,
+                        468
+                    ],
+                    [
+                        1655,
+                        585
+                    ],
+                    [
+                        82,
+                        585
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "1.2. The Core Model",
+                "logical_page_printed": 9,
+                "physical_page_num": 13,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        269,
+                        487
+                    ],
+                    [
+                        623,
+                        487
+                    ],
+                    [
+                        623,
+                        531
+                    ],
+                    [
+                        269,
+                        531
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "2. Duopoly and Constrained Monopoly",
+        "logical_page_printed": 12,
+        "physical_page_num": 16,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                164,
+                582
+            ],
+            [
+                805,
+                582
+            ],
+            [
+                805,
+                629
+            ],
+            [
+                164,
+                629
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "2.1. The Existence of Duopoly",
+                "logical_page_printed": 12,
+                "physical_page_num": 16,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        268,
+                        627
+                    ],
+                    [
+                        779,
+                        627
+                    ],
+                    [
+                        779,
+                        675
+                    ],
+                    [
+                        268,
+                        675
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "2.2. The Constrained Monopoly and Strategic Predation",
+                "logical_page_printed": 14,
+                "physical_page_num": 18,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        269,
+                        677
+                    ],
+                    [
+                        1184,
+                        677
+                    ],
+                    [
+                        1184,
+                        722
+                    ],
+                    [
+                        269,
+                        722
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "3. The Impact of Tariff",
+        "logical_page_printed": 16,
+        "physical_page_num": 20,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                164,
+                770
+            ],
+            [
+                551,
+                770
+            ],
+            [
+                551,
+                818
+            ],
+            [
+                164,
+                818
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "3.1. The Effect of Tariff in Duopoly",
+                "logical_page_printed": 17,
+                "physical_page_num": 21,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        269,
+                        817
+                    ],
+                    [
+                        859,
+                        817
+                    ],
+                    [
+                        859,
+                        867
+                    ],
+                    [
+                        269,
+                        867
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "3.1.1. The Impact on the Equilibrium Quantities, Price and Profits",
+                        "logical_page_printed": 17,
+                        "physical_page_num": 21,
+                        "toc_source_page": "page_007",
+                        "toc_polygon": [
+                            [
+                                374,
+                                867
+                            ],
+                            [
+                                1453,
+                                867
+                            ],
+                            [
+                                1453,
+                                912
+                            ],
+                            [
+                                374,
+                                912
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "3.1.2. The Incentive for R&D and Tariff",
+                        "logical_page_printed": 17,
+                        "physical_page_num": 21,
+                        "toc_source_page": "page_007",
+                        "toc_polygon": [
+                            [
+                                373,
+                                960
+                            ],
+                            [
+                                1062,
+                                960
+                            ],
+                            [
+                                1062,
+                                1008
+                            ],
+                            [
+                                373,
+                                1008
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "3.2. The Effect of Tariff in Constrained Monopoly",
+                "logical_page_printed": 20,
+                "physical_page_num": 24,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        269,
+                        1011
+                    ],
+                    [
+                        1095,
+                        1011
+                    ],
+                    [
+                        1095,
+                        1055
+                    ],
+                    [
+                        269,
+                        1055
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "4. The Optimal Tariff and the Intensity of Spillovers—Social Welfare Considerations",
+        "logical_page_printed": 23,
+        "physical_page_num": 27,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                162,
+                1104
+            ],
+            [
+                1302,
+                1104
+            ],
+            [
+                1302,
+                1151
+            ],
+            [
+                162,
+                1151
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "4.1. The First Game",
+                "logical_page_printed": 23,
+                "physical_page_num": 27,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        266,
+                        1198
+                    ],
+                    [
+                        602,
+                        1198
+                    ],
+                    [
+                        602,
+                        1243
+                    ],
+                    [
+                        266,
+                        1243
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "4.1.1. The Optimal Tariff When Spillovers Are Small (β < 1/2)",
+                        "logical_page_printed": 25,
+                        "physical_page_num": 29,
+                        "toc_source_page": "page_007",
+                        "toc_polygon": [
+                            [
+                                373,
+                                1248
+                            ],
+                            [
+                                1409,
+                                1248
+                            ],
+                            [
+                                1409,
+                                1294
+                            ],
+                            [
+                                373,
+                                1294
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "4.1.2. The Optimal Tariff When Spillovers Are Large (β > 1/2)",
+                        "logical_page_printed": 27,
+                        "physical_page_num": 31,
+                        "toc_source_page": "page_007",
+                        "toc_polygon": [
+                            [
+                                374,
+                                1342
+                            ],
+                            [
+                                1411,
+                                1342
+                            ],
+                            [
+                                1411,
+                                1388
+                            ],
+                            [
+                                374,
+                                1388
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "4.1.3. The Effect of Spillovers on the Optimal Tariff",
+                        "logical_page_printed": 29,
+                        "physical_page_num": 33,
+                        "toc_source_page": "page_007",
+                        "toc_polygon": [
+                            [
+                                372,
+                                1438
+                            ],
+                            [
+                                1236,
+                                1438
+                            ],
+                            [
+                                1236,
+                                1482
+                            ],
+                            [
+                                372,
+                                1482
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "4.2. Spillovers as a Strategic Weapon: the Second Game",
+                "logical_page_printed": 30,
+                "physical_page_num": 34,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        269,
+                        1484
+                    ],
+                    [
+                        1196,
+                        1484
+                    ],
+                    [
+                        1196,
+                        1528
+                    ],
+                    [
+                        269,
+                        1528
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "4.3. Optimal Versus Punitive Tariff",
+                "logical_page_printed": 34,
+                "physical_page_num": 38,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        353,
+                        1530
+                    ],
+                    [
+                        859,
+                        1530
+                    ],
+                    [
+                        859,
+                        1576
+                    ],
+                    [
+                        353,
+                        1576
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Conclusion",
+        "logical_page_printed": 35,
+        "physical_page_num": 39,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                165,
+                1624
+            ],
+            [
+                339,
+                1624
+            ],
+            [
+                339,
+                1673
+            ],
+            [
+                165,
+                1673
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Appendices",
+        "logical_page_printed": 38,
+        "physical_page_num": 42,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                165,
+                1722
+            ],
+            [
+                353,
+                1722
+            ],
+            [
+                353,
+                1769
+            ],
+            [
+                165,
+                1769
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Appendix 1: The Effect of Tariff on Consumer Surplus",
+                "logical_page_printed": 38,
+                "physical_page_num": 42,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        271,
+                        1769
+                    ],
+                    [
+                        1171,
+                        1769
+                    ],
+                    [
+                        1171,
+                        1816
+                    ],
+                    [
+                        271,
+                        1816
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Appendix 2: The Effect of Tariff on Predatory Profit",
+                "logical_page_printed": 39,
+                "physical_page_num": 43,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        272,
+                        1817
+                    ],
+                    [
+                        1137,
+                        1817
+                    ],
+                    [
+                        1137,
+                        1865
+                    ],
+                    [
+                        272,
+                        1865
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Appendix 3: The Region of Parameters g and β for Which Duopoly is the Welfare-Maximizing Market Structure—The Case of Small Spillovers",
+                "logical_page_printed": 40,
+                "physical_page_num": 44,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        271,
+                        1864
+                    ],
+                    [
+                        1475,
+                        1864
+                    ],
+                    [
+                        1475,
+                        2006
+                    ],
+                    [
+                        271,
+                        2006
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Appendix 4: The Welfare Impact of Tariff in Predatory Regime",
+                "logical_page_printed": 41,
+                "physical_page_num": 45,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        271,
+                        2008
+                    ],
+                    [
+                        1311,
+                        2008
+                    ],
+                    [
+                        1311,
+                        2054
+                    ],
+                    [
+                        271,
+                        2054
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Appendix 5: The Region of Parameters g and β for Which Duopoly is the Welfare-Maximizing Market Structure—The Case of Large Spillovers",
+                "logical_page_printed": 42,
+                "physical_page_num": 46,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        271,
+                        137
+                    ],
+                    [
+                        1472,
+                        137
+                    ],
+                    [
+                        1472,
+                        2102
+                    ],
+                    [
+                        271,
+                        2102
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Appendix 6: Comparison Between Monopoly and Duopoly Welfare When Spillovers Are Large—An Example",
+                "logical_page_printed": 43,
+                "physical_page_num": 47,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        256,
+                        234
+                    ],
+                    [
+                        1370,
+                        234
+                    ],
+                    [
+                        1370,
+                        328
+                    ],
+                    [
+                        256,
+                        328
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "References",
+        "logical_page_printed": 44,
+        "physical_page_num": 48,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                144,
+                376
+            ],
+            [
+                332,
+                376
+            ],
+            [
+                332,
+                418
+            ],
+            [
+                144,
+                418
+            ]
+        ],
+        "subchapters": []
+    }
+]

@@ -17,6 +17,10 @@ class PeroAltoExtractor:
                 config = configparser.ConfigParser()
                 config.read(config_path)
 
+                if 'LAYOUT_PARSER_1' in config:
+                    print("OCR setting changed")
+                    config['LAYOUT_PARSER_1']['DETECT_REGIONS'] = 'yes'
+
                 # Parser inicialization
                 self.parser = PageParser(
                     config, config_path=os.path.dirname(config_path))
@@ -58,7 +62,7 @@ class PeroAltoExtractor:
             # Saving XML
             with open(xml_path, 'w', encoding='utf-8') as f:
                 f.write(layout.to_altoxml_string())
-            print(f"ALTO image and XML saved")
+            # print(f"ALTO image and XML saved")
         except Exception as e:
             print(f"[ERROR]: Could not save ALTO results: {e}")
 
@@ -159,7 +163,7 @@ class PeroOCRExtractor:
         file_id = kwargs.get('file_id', 'temp')
         output_dir = kwargs.get('output_dir')
 
-        if not file_id or not output_dir or not self.parser:
+        if not self.parser:
             return layout_items
 
         # Creating Layout from YOLO
@@ -187,7 +191,8 @@ class PeroOCRExtractor:
         self.parser.process_page(image, layout)
 
         # Saving results
-        self.save_results(image, layout, file_id, output_dir)
+        if file_id and output_dir:
+            self.save_results(image, layout, file_id, output_dir)
 
         # Getting text
         for region in layout.regions:
@@ -213,6 +218,6 @@ class PeroOCRExtractor:
             cv2.imwrite(img_path, layout.render_to_image(image))
             # Saving XML
             layout.to_pagexml(xml_path)
-            print(f"PERO image and XML saved")
+            # print(f"PERO image and XML saved")
         except Exception as e:
             print(f"[ERROR]: Could not save PERO results: {e}")

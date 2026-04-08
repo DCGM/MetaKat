@@ -37,12 +37,13 @@ def make_pdf(book: BookData, output_pdf_path: str):
                 link_data = {
                     "kind": fitz.LINK_GOTO,
                     "from": rect,
-                    "page": source_pdf_page_id - 1
+                    "page": chapter_page - 1
                 }
                 source_pdf_page.insert_link(link_data)
 
                 # source_pdf_page.draw_rect(rect, color=(1, 0, 0), width=0.5)
 
+        # works recursively with subchapters
         for sub in chapter_node.get("subchapters", []):
             process_chapter(sub, level + 1)
 
@@ -52,6 +53,5 @@ def make_pdf(book: BookData, output_pdf_path: str):
     doc.set_toc(pdf_chapters)
     doc.save(output_pdf_path)
     doc.close()
-    print("-" * 40)
     print(
         f"[INFO] Interactive PDF - Done! Saved as: {output_pdf_path}\n")

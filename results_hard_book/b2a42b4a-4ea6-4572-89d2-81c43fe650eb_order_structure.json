@@ -1,0 +1,1187 @@
+[
+    {
+        "chapter_name": "Úvod.",
+        "logical_page_printed": 1,
+        "physical_page_num": 10,
+        "toc_source_page": "page_095",
+        "toc_polygon": [
+            [
+                871,
+                1094
+            ],
+            [
+                1032,
+                1094
+            ],
+            [
+                1032,
+                1163
+            ],
+            [
+                871,
+                1163
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Těžba lesní a upotřebení plodin lesních.",
+        "logical_page_printed": 1,
+        "physical_page_num": 10,
+        "toc_source_page": "page_095",
+        "toc_polygon": [
+            [
+                356,
+                1195
+            ],
+            [
+                1357,
+                1195
+            ],
+            [
+                1357,
+                1252
+            ],
+            [
+                356,
+                1252
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "I. O těžbě hlavní",
+                "logical_page_printed": 1,
+                "physical_page_num": 10,
+                "toc_source_page": "page_095",
+                "toc_polygon": [
+                    [
+                        291,
+                        1251
+                    ],
+                    [
+                        717,
+                        1251
+                    ],
+                    [
+                        717,
+                        1302
+                    ],
+                    [
+                        291,
+                        1302
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "1. Vlastnosti dřeva",
+                        "logical_page_printed": 1,
+                        "physical_page_num": 10,
+                        "toc_source_page": "page_095",
+                        "toc_polygon": [
+                            [
+                                354,
+                                1297
+                            ],
+                            [
+                                750,
+                                1297
+                            ],
+                            [
+                                750,
+                                1346
+                            ],
+                            [
+                                354,
+                                1346
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "A) Ústrojnost dřeva",
+                                "logical_page_printed": 2,
+                                "physical_page_num": 11,
+                                "toc_source_page": "page_095",
+                                "toc_polygon": [
+                                    [
+                                        416,
+                                        1342
+                                    ],
+                                    [
+                                        826,
+                                        1342
+                                    ],
+                                    [
+                                        826,
+                                        1390
+                                    ],
+                                    [
+                                        416,
+                                        1390
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "B) Chemické sloučení dřeva",
+                                "logical_page_printed": 6,
+                                "physical_page_num": 15,
+                                "toc_source_page": "page_095",
+                                "toc_polygon": [
+                                    [
+                                        410,
+                                        1388
+                                    ],
+                                    [
+                                        1037,
+                                        1388
+                                    ],
+                                    [
+                                        1037,
+                                        1436
+                                    ],
+                                    [
+                                        410,
+                                        1436
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "C) Technické sloučení dřeva",
+                                "logical_page_printed": 7,
+                                "physical_page_num": 16,
+                                "toc_source_page": "page_095",
+                                "toc_polygon": [
+                                    [
+                                        416,
+                                        1432
+                                    ],
+                                    [
+                                        1023,
+                                        1432
+                                    ],
+                                    [
+                                        1023,
+                                        1484
+                                    ],
+                                    [
+                                        416,
+                                        1484
+                                    ]
+                                ],
+                                "subchapters": [
+                                    {
+                                        "chapter_name": "a) Váha poměrná",
+                                        "logical_page_printed": 7,
+                                        "physical_page_num": 16,
+                                        "toc_source_page": "page_095",
+                                        "toc_polygon": [
+                                            [
+                                                481,
+                                                1483
+                                            ],
+                                            [
+                                                843,
+                                                1483
+                                            ],
+                                            [
+                                                843,
+                                                1531
+                                            ],
+                                            [
+                                                481,
+                                                1531
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "b) Tvrdost",
+                                        "logical_page_printed": 8,
+                                        "physical_page_num": 17,
+                                        "toc_source_page": "page_095",
+                                        "toc_polygon": [
+                                            [
+                                                477,
+                                                1530
+                                            ],
+                                            [
+                                                702,
+                                                1530
+                                            ],
+                                            [
+                                                702,
+                                                1579
+                                            ],
+                                            [
+                                                477,
+                                                1579
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "c) Ohebnost",
+                                        "logical_page_printed": 9,
+                                        "physical_page_num": 18,
+                                        "toc_source_page": "page_095",
+                                        "toc_polygon": [
+                                            [
+                                                483,
+                                                1577
+                                            ],
+                                            [
+                                                732,
+                                                1577
+                                            ],
+                                            [
+                                                732,
+                                                1623
+                                            ],
+                                            [
+                                                483,
+                                                1623
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "d) Pružnost",
+                                        "logical_page_printed": 9,
+                                        "physical_page_num": 18,
+                                        "toc_source_page": "page_095",
+                                        "toc_polygon": [
+                                            [
+                                                480,
+                                                1621
+                                            ],
+                                            [
+                                                727,
+                                                1621
+                                            ],
+                                            [
+                                                727,
+                                                1670
+                                            ],
+                                            [
+                                                480,
+                                                1670
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "e) Štípatelnost",
+                                        "logical_page_printed": 10,
+                                        "physical_page_num": 19,
+                                        "toc_source_page": "page_095",
+                                        "toc_polygon": [
+                                            [
+                                                484,
+                                                1670
+                                            ],
+                                            [
+                                                785,
+                                                1670
+                                            ],
+                                            [
+                                                785,
+                                                1718
+                                            ],
+                                            [
+                                                484,
+                                                1718
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "f) Pevnost",
+                                        "logical_page_printed": 10,
+                                        "physical_page_num": 19,
+                                        "toc_source_page": "page_095",
+                                        "toc_polygon": [
+                                            [
+                                                486,
+                                                1717
+                                            ],
+                                            [
+                                                705,
+                                                1717
+                                            ],
+                                            [
+                                                705,
+                                                1766
+                                            ],
+                                            [
+                                                486,
+                                                1766
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "g) Botnání a mizení",
+                                        "logical_page_printed": 10,
+                                        "physical_page_num": 19,
+                                        "toc_source_page": "page_095",
+                                        "toc_polygon": [
+                                            [
+                                                549,
+                                                1761
+                                            ],
+                                            [
+                                                945,
+                                                1761
+                                            ],
+                                            [
+                                                945,
+                                                1810
+                                            ],
+                                            [
+                                                549,
+                                                1810
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "h) Trvanlivost",
+                                        "logical_page_printed": 12,
+                                        "physical_page_num": 21,
+                                        "toc_source_page": "page_095",
+                                        "toc_polygon": [
+                                            [
+                                                481,
+                                                1810
+                                            ],
+                                            [
+                                                784,
+                                                1810
+                                            ],
+                                            [
+                                                784,
+                                                1857
+                                            ],
+                                            [
+                                                481,
+                                                1857
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "i) Výhřevnost",
+                                        "logical_page_printed": 14,
+                                        "physical_page_num": 23,
+                                        "toc_source_page": "page_095",
+                                        "toc_polygon": [
+                                            [
+                                                478,
+                                                1852
+                                            ],
+                                            [
+                                                777,
+                                                1852
+                                            ],
+                                            [
+                                                777,
+                                                1901
+                                            ],
+                                            [
+                                                478,
+                                                1901
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    }
+                                ]
+                            },
+                            {
+                                "chapter_name": "k) Chyby a nedostatky dřeva",
+                                "logical_page_printed": 16,
+                                "physical_page_num": 25,
+                                "toc_source_page": "page_095",
+                                "toc_polygon": [
+                                    [
+                                        478,
+                                        1900
+                                    ],
+                                    [
+                                        1095,
+                                        1900
+                                    ],
+                                    [
+                                        1095,
+                                        1951
+                                    ],
+                                    [
+                                        478,
+                                        1951
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "D) Upotřebení dřeva",
+                                "logical_page_printed": 18,
+                                "physical_page_num": 27,
+                                "toc_source_page": "page_095",
+                                "toc_polygon": [
+                                    [
+                                        414,
+                                        1949
+                                    ],
+                                    [
+                                        853,
+                                        1949
+                                    ],
+                                    [
+                                        853,
+                                        2000
+                                    ],
+                                    [
+                                        414,
+                                        2000
+                                    ]
+                                ],
+                                "subchapters": []
+                            }
+                        ]
+                    },
+                    {
+                        "chapter_name": "2. Kácení a zdelávání dříví",
+                        "logical_page_printed": 22,
+                        "physical_page_num": 31,
+                        "toc_source_page": "page_095",
+                        "toc_polygon": [
+                            [
+                                360,
+                                1993
+                            ],
+                            [
+                                944,
+                                1993
+                            ],
+                            [
+                                944,
+                                2042
+                            ],
+                            [
+                                360,
+                                2042
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "a) Doba kácení",
+                                "logical_page_printed": 23,
+                                "physical_page_num": 32,
+                                "toc_source_page": "page_095",
+                                "toc_polygon": [
+                                    [
+                                        486,
+                                        2040
+                                    ],
+                                    [
+                                        821,
+                                        2040
+                                    ],
+                                    [
+                                        821,
+                                        2090
+                                    ],
+                                    [
+                                        486,
+                                        2090
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "b) Poznamenávání seče",
+                                "logical_page_printed": 24,
+                                "physical_page_num": 33,
+                                "toc_source_page": "page_095",
+                                "toc_polygon": [
+                                    [
+                                        481,
+                                        2091
+                                    ],
+                                    [
+                                        973,
+                                        2091
+                                    ],
+                                    [
+                                        973,
+                                        2138
+                                    ],
+                                    [
+                                        481,
+                                        2138
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "c) Čím se stromy kácějí a dříví zdelává",
+                                "logical_page_printed": 24,
+                                "physical_page_num": 33,
+                                "toc_source_page": "page_095",
+                                "toc_polygon": [
+                                    [
+                                        490,
+                                        2129
+                                    ],
+                                    [
+                                        1334,
+                                        2129
+                                    ],
+                                    [
+                                        1334,
+                                        2183
+                                    ],
+                                    [
+                                        490,
+                                        2183
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "d) Jak se stromy kácějí",
+                                "logical_page_printed": 29,
+                                "physical_page_num": 38,
+                                "toc_source_page": "page_095",
+                                "toc_polygon": [
+                                    [
+                                        489,
+                                        2182
+                                    ],
+                                    [
+                                        998,
+                                        2182
+                                    ],
+                                    [
+                                        998,
+                                        2230
+                                    ],
+                                    [
+                                        489,
+                                        2230
+                                    ]
+                                ],
+                                "subchapters": []
+                            }
+                        ]
+                    },
+                    {
+                        "chapter_name": "3. Zdelávání a úprava dříví na-hrubo",
+                        "logical_page_printed": 33,
+                        "physical_page_num": 42,
+                        "toc_source_page": "page_095",
+                        "toc_polygon": [
+                            [
+                                363,
+                                2225
+                            ],
+                            [
+                                1157,
+                                2225
+                            ],
+                            [
+                                1157,
+                                2278
+                            ],
+                            [
+                                363,
+                                2278
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "4. Snášení dříví",
+                        "logical_page_printed": 37,
+                        "physical_page_num": 46,
+                        "toc_source_page": "page_095",
+                        "toc_polygon": [
+                            [
+                                363,
+                                2274
+                            ],
+                            [
+                                735,
+                                2274
+                            ],
+                            [
+                                735,
+                                2324
+                            ],
+                            [
+                                363,
+                                2324
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "5. Úrovnání dříví ku prodeji",
+                        "logical_page_printed": 41,
+                        "physical_page_num": 50,
+                        "toc_source_page": "page_095",
+                        "toc_polygon": [
+                            [
+                                360,
+                                2320
+                            ],
+                            [
+                                969,
+                                2320
+                            ],
+                            [
+                                969,
+                                2370
+                            ],
+                            [
+                                360,
+                                2370
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "6. Číslování a zápis dříví",
+                        "logical_page_printed": 42,
+                        "physical_page_num": 51,
+                        "toc_source_page": "page_095",
+                        "toc_polygon": [
+                            [
+                                363,
+                                2368
+                            ],
+                            [
+                                902,
+                                2368
+                            ],
+                            [
+                                902,
+                                2418
+                            ],
+                            [
+                                363,
+                                2418
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "7. O prodeji dříví",
+                        "logical_page_printed": 44,
+                        "physical_page_num": 52,
+                        "toc_source_page": "page_095",
+                        "toc_polygon": [
+                            [
+                                366,
+                                2413
+                            ],
+                            [
+                                747,
+                                2413
+                            ],
+                            [
+                                747,
+                                2465
+                            ],
+                            [
+                                366,
+                                2465
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "9. Dopravování dříví",
+                        "logical_page_printed": 50,
+                        "physical_page_num": 59,
+                        "toc_source_page": "page_095",
+                        "toc_polygon": [
+                            [
+                                363,
+                                2508
+                            ],
+                            [
+                                806,
+                                2508
+                            ],
+                            [
+                                806,
+                                2559
+                            ],
+                            [
+                                363,
+                                2559
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "A) Doprava dříví po zemi",
+                                "logical_page_printed": 50,
+                                "physical_page_num": 59,
+                                "toc_source_page": "page_095",
+                                "toc_polygon": [
+                                    [
+                                        425,
+                                        2551
+                                    ],
+                                    [
+                                        984,
+                                        2551
+                                    ],
+                                    [
+                                        984,
+                                        2606
+                                    ],
+                                    [
+                                        425,
+                                        2606
+                                    ]
+                                ],
+                                "subchapters": [
+                                    {
+                                        "chapter_name": "a) Doprava po cestách",
+                                        "logical_page_printed": 51,
+                                        "physical_page_num": 60,
+                                        "toc_source_page": "page_095",
+                                        "toc_polygon": [
+                                            [
+                                                491,
+                                                2600
+                                            ],
+                                            [
+                                                966,
+                                                2600
+                                            ],
+                                            [
+                                                966,
+                                                2654
+                                            ],
+                                            [
+                                                491,
+                                                2654
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "b) Doprava po smycích",
+                                        "logical_page_printed": 53,
+                                        "physical_page_num": 62,
+                                        "toc_source_page": "page_095",
+                                        "toc_polygon": [
+                                            [
+                                                494,
+                                                2648
+                                            ],
+                                            [
+                                                984,
+                                                2648
+                                            ],
+                                            [
+                                                984,
+                                                2695
+                                            ],
+                                            [
+                                                494,
+                                                2695
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    }
+                                ]
+                            },
+                            {
+                                "chapter_name": "B) O dopravě dříví po vodě",
+                                "logical_page_printed": 57,
+                                "physical_page_num": 66,
+                                "toc_source_page": "page_095",
+                                "toc_polygon": [
+                                    [
+                                        420,
+                                        2693
+                                    ],
+                                    [
+                                        1022,
+                                        2693
+                                    ],
+                                    [
+                                        1022,
+                                        2746
+                                    ],
+                                    [
+                                        420,
+                                        2746
+                                    ]
+                                ],
+                                "subchapters": [
+                                    {
+                                        "chapter_name": "a) Plavení dříví nesvázaného",
+                                        "logical_page_printed": 57,
+                                        "physical_page_num": 66,
+                                        "toc_source_page": "page_096",
+                                        "toc_polygon": [
+                                            [
+                                                465,
+                                                227
+                                            ],
+                                            [
+                                                1078,
+                                                227
+                                            ],
+                                            [
+                                                1078,
+                                                279
+                                            ],
+                                            [
+                                                465,
+                                                279
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "b) Plavení dříví ve vorech",
+                                        "logical_page_printed": 50,
+                                        "physical_page_num": 69,
+                                        "toc_source_page": "page_096",
+                                        "toc_polygon": [
+                                            [
+                                                463,
+                                                278
+                                            ],
+                                            [
+                                                1018,
+                                                278
+                                            ],
+                                            [
+                                                1018,
+                                                325
+                                            ],
+                                            [
+                                                463,
+                                                325
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "chapter_name": "II. Těžba vedlejších plodin",
+                "logical_page_printed": 62,
+                "physical_page_num": 71,
+                "toc_source_page": "page_096",
+                "toc_polygon": [
+                    [
+                        239,
+                        323
+                    ],
+                    [
+                        889,
+                        323
+                    ],
+                    [
+                        889,
+                        375
+                    ],
+                    [
+                        239,
+                        375
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "A) Těžení (hrabání) steliva",
+                        "logical_page_printed": 63,
+                        "physical_page_num": 72,
+                        "toc_source_page": "page_096",
+                        "toc_polygon": [
+                            [
+                                398,
+                                370
+                            ],
+                            [
+                                971,
+                                370
+                            ],
+                            [
+                                971,
+                                418
+                            ],
+                            [
+                                398,
+                                418
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "B) Těžení a zužitkování píce lesní",
+                        "logical_page_printed": 64,
+                        "physical_page_num": 73,
+                        "toc_source_page": "page_096",
+                        "toc_polygon": [
+                            [
+                                395,
+                                415
+                            ],
+                            [
+                                1133,
+                                415
+                            ],
+                            [
+                                1133,
+                                463
+                            ],
+                            [
+                                395,
+                                463
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "C) O počásném pěstování plodin polních v lese",
+                        "logical_page_printed": 65,
+                        "physical_page_num": 74,
+                        "toc_source_page": "page_096",
+                        "toc_polygon": [
+                            [
+                                393,
+                                462
+                            ],
+                            [
+                                1401,
+                                462
+                            ],
+                            [
+                                1401,
+                                517
+                            ],
+                            [
+                                393,
+                                517
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "D) Těžení pryskyřice",
+                        "logical_page_printed": 66,
+                        "physical_page_num": 75,
+                        "toc_source_page": "page_096",
+                        "toc_polygon": [
+                            [
+                                390,
+                                510
+                            ],
+                            [
+                                840,
+                                510
+                            ],
+                            [
+                                840,
+                                558
+                            ],
+                            [
+                                390,
+                                558
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "E) Těžení a upotřebení kůry",
+                        "logical_page_printed": 67,
+                        "physical_page_num": 76,
+                        "toc_source_page": "page_096",
+                        "toc_polygon": [
+                            [
+                                395,
+                                555
+                            ],
+                            [
+                                1025,
+                                555
+                            ],
+                            [
+                                1025,
+                                605
+                            ],
+                            [
+                                395,
+                                605
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "F) Zužitkování plodů a plemen lesních",
+                        "logical_page_printed": 70,
+                        "physical_page_num": 79,
+                        "toc_source_page": "page_096",
+                        "toc_polygon": [
+                            [
+                                393,
+                                601
+                            ],
+                            [
+                                1220,
+                                601
+                            ],
+                            [
+                                1220,
+                                654
+                            ],
+                            [
+                                393,
+                                654
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "G) Těžení rašeliny",
+                        "logical_page_printed": 70,
+                        "physical_page_num": 79,
+                        "toc_source_page": "page_096",
+                        "toc_polygon": [
+                            [
+                                393,
+                                645
+                            ],
+                            [
+                                781,
+                                645
+                            ],
+                            [
+                                781,
+                                704
+                            ],
+                            [
+                                393,
+                                704
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "III. Lesní průmysl",
+                "logical_page_printed": 71,
+                "physical_page_num": 80,
+                "toc_source_page": "page_096",
+                "toc_polygon": [
+                    [
+                        239,
+                        694
+                    ],
+                    [
+                        691,
+                        694
+                    ],
+                    [
+                        691,
+                        748
+                    ],
+                    [
+                        239,
+                        748
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "A) Pilařství",
+                        "logical_page_printed": 72,
+                        "physical_page_num": 81,
+                        "toc_source_page": "page_096",
+                        "toc_polygon": [
+                            [
+                                392,
+                                746
+                            ],
+                            [
+                                641,
+                                746
+                            ],
+                            [
+                                641,
+                                797
+                            ],
+                            [
+                                392,
+                                797
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "B) Uhlířství",
+                        "logical_page_printed": 73,
+                        "physical_page_num": 82,
+                        "toc_source_page": "page_096",
+                        "toc_polygon": [
+                            [
+                                395,
+                                790
+                            ],
+                            [
+                                646,
+                                790
+                            ],
+                            [
+                                646,
+                                840
+                            ],
+                            [
+                                395,
+                                840
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Lesní hospodářství, jeho zřízení a správa",
+                "logical_page_printed": 80,
+                "physical_page_num": 89,
+                "toc_source_page": "page_096",
+                "toc_polygon": [
+                    [
+                        329,
+                        830
+                    ],
+                    [
+                        1351,
+                        830
+                    ],
+                    [
+                        1351,
+                        891
+                    ],
+                    [
+                        329,
+                        891
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    }
+]

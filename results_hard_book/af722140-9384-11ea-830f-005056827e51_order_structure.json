@@ -1,0 +1,2171 @@
+[
+    {
+        "chapter_name": "Vorwort",
+        "logical_page_printed": 9,
+        "physical_page_num": 11,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                117,
+                648
+            ],
+            [
+                269,
+                648
+            ],
+            [
+                269,
+                697
+            ],
+            [
+                117,
+                697
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Abkürzungen",
+        "logical_page_printed": 11,
+        "physical_page_num": 17,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                118,
+                706
+            ],
+            [
+                350,
+                706
+            ],
+            [
+                350,
+                750
+            ],
+            [
+                118,
+                750
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Deutsche bzw. ungarische Namen einiger Orte, Flüsse u. Berge",
+        "logical_page_printed": 13,
+        "physical_page_num": 19,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                113,
+                752
+            ],
+            [
+                1285,
+                752
+            ],
+            [
+                1285,
+                807
+            ],
+            [
+                113,
+                807
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "ALLGEMEINER TEIL",
+        "logical_page_printed": 15,
+        "physical_page_num": 21,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                121,
+                886
+            ],
+            [
+                632,
+                886
+            ],
+            [
+                632,
+                938
+            ],
+            [
+                121,
+                938
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Einleitung",
+                "logical_page_printed": 15,
+                "physical_page_num": 17,
+                "toc_source_page": "page_009",
+                "toc_polygon": [
+                    [
+                        115,
+                        969
+                    ],
+                    [
+                        301,
+                        969
+                    ],
+                    [
+                        301,
+                        1015
+                    ],
+                    [
+                        115,
+                        1015
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Bedeutung der Mollusken für die Quartärgeologie",
+                "logical_page_printed": 18,
+                "physical_page_num": 24,
+                "toc_source_page": "page_009",
+                "toc_polygon": [
+                    [
+                        115,
+                        1017
+                    ],
+                    [
+                        1031,
+                        1017
+                    ],
+                    [
+                        1031,
+                        1068
+                    ],
+                    [
+                        115,
+                        1068
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Geschichte der Erforschung der Quartärmollusken in der Tschechoslowakei",
+                "logical_page_printed": 21,
+                "physical_page_num": 27,
+                "toc_source_page": "page_009",
+                "toc_polygon": [
+                    [
+                        121,
+                        1072
+                    ],
+                    [
+                        1513,
+                        1072
+                    ],
+                    [
+                        1513,
+                        1119
+                    ],
+                    [
+                        121,
+                        1119
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Topographische Übersicht der Fundstellen",
+                "logical_page_printed": 24,
+                "physical_page_num": 26,
+                "toc_source_page": "page_009",
+                "toc_polygon": [
+                    [
+                        122,
+                        1128
+                    ],
+                    [
+                        900,
+                        1128
+                    ],
+                    [
+                        900,
+                        1175
+                    ],
+                    [
+                        122,
+                        1175
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Auswertung der quartären Molluskenfaunen",
+                "logical_page_printed": 37,
+                "physical_page_num": 43,
+                "toc_source_page": "page_009",
+                "toc_polygon": [
+                    [
+                        116,
+                        1182
+                    ],
+                    [
+                        920,
+                        1182
+                    ],
+                    [
+                        920,
+                        1227
+                    ],
+                    [
+                        116,
+                        1227
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Allgemeine Grundlagen",
+                        "logical_page_printed": 37,
+                        "physical_page_num": 39,
+                        "toc_source_page": "page_009",
+                        "toc_polygon": [
+                            [
+                                163,
+                                1232
+                            ],
+                            [
+                                589,
+                                1232
+                            ],
+                            [
+                                589,
+                                1284
+                            ],
+                            [
+                                163,
+                                1284
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Grundlagen der ökologischen Würdigung",
+                        "logical_page_printed": 38,
+                        "physical_page_num": 40,
+                        "toc_source_page": "page_009",
+                        "toc_polygon": [
+                            [
+                                162,
+                                1288
+                            ],
+                            [
+                                914,
+                                1288
+                            ],
+                            [
+                                914,
+                                1333
+                            ],
+                            [
+                                162,
+                                1333
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Problem der Mischfaunen",
+                        "logical_page_printed": 42,
+                        "physical_page_num": 44,
+                        "toc_source_page": "page_009",
+                        "toc_polygon": [
+                            [
+                                159,
+                                1341
+                            ],
+                            [
+                                627,
+                                1341
+                            ],
+                            [
+                                627,
+                                1386
+                            ],
+                            [
+                                159,
+                                1386
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Methodik",
+                        "logical_page_printed": 44,
+                        "physical_page_num": 46,
+                        "toc_source_page": "page_009",
+                        "toc_polygon": [
+                            [
+                                158,
+                                1393
+                            ],
+                            [
+                                331,
+                                1393
+                            ],
+                            [
+                                331,
+                                1443
+                            ],
+                            [
+                                158,
+                                1443
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "Das Sammeln von fossilen Mollusken",
+                                "logical_page_printed": 44,
+                                "physical_page_num": 46,
+                                "toc_source_page": "page_009",
+                                "toc_polygon": [
+                                    [
+                                        206,
+                                        1446
+                                    ],
+                                    [
+                                        887,
+                                        1446
+                                    ],
+                                    [
+                                        887,
+                                        1491
+                                    ],
+                                    [
+                                        206,
+                                        1491
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Methodik der Auswertung des aufgesammelten Molluskenmaterials",
+                                "logical_page_printed": 46,
+                                "physical_page_num": 48,
+                                "toc_source_page": "page_009",
+                                "toc_polygon": [
+                                    [
+                                        200,
+                                        1498
+                                    ],
+                                    [
+                                        1440,
+                                        1498
+                                    ],
+                                    [
+                                        1440,
+                                        1547
+                                    ],
+                                    [
+                                        200,
+                                        1547
+                                    ]
+                                ],
+                                "subchapters": [
+                                    {
+                                        "chapter_name": "Artenliste",
+                                        "logical_page_printed": 47,
+                                        "physical_page_num": 49,
+                                        "toc_source_page": "page_009",
+                                        "toc_polygon": [
+                                            [
+                                                247,
+                                                1551
+                                            ],
+                                            [
+                                                420,
+                                                1551
+                                            ],
+                                            [
+                                                420,
+                                                1598
+                                            ],
+                                            [
+                                                247,
+                                                1598
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "Umrechnung der Fragmente auf ganze Individuen",
+                                        "logical_page_printed": 47,
+                                        "physical_page_num": 49,
+                                        "toc_source_page": "page_009",
+                                        "toc_polygon": [
+                                            [
+                                                249,
+                                                1602
+                                            ],
+                                            [
+                                                1169,
+                                                1602
+                                            ],
+                                            [
+                                                1169,
+                                                1651
+                                            ],
+                                            [
+                                                249,
+                                                1651
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "Grundlagen für die graphische Darstellung",
+                                        "logical_page_printed": 49,
+                                        "physical_page_num": 51,
+                                        "toc_source_page": "page_009",
+                                        "toc_polygon": [
+                                            [
+                                                249,
+                                                1656
+                                            ],
+                                            [
+                                                1031,
+                                                1656
+                                            ],
+                                            [
+                                                1031,
+                                                1705
+                                            ],
+                                            [
+                                                249,
+                                                1705
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "Das Molluskendiagramm (MD)",
+                                        "logical_page_printed": 53,
+                                        "physical_page_num": 57,
+                                        "toc_source_page": "page_009",
+                                        "toc_polygon": [
+                                            [
+                                                129,
+                                                2853
+                                            ],
+                                            [
+                                                2159,
+                                                2853
+                                            ],
+                                            [
+                                                2159,
+                                                2980
+                                            ],
+                                            [
+                                                129,
+                                                2980
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "Die Molluskenspektren",
+                                        "logical_page_printed": 54,
+                                        "physical_page_num": 58,
+                                        "toc_source_page": "page_009",
+                                        "toc_polygon": [
+                                            [
+                                                244,
+                                                1762
+                                            ],
+                                            [
+                                                660,
+                                                1762
+                                            ],
+                                            [
+                                                660,
+                                                1810
+                                            ],
+                                            [
+                                                244,
+                                                1810
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Rekonstruktion der ehemaligen faunistischen Verhältnisse",
+                "logical_page_printed": 55,
+                "physical_page_num": 61,
+                "toc_source_page": "page_009",
+                "toc_polygon": [
+                    [
+                        160,
+                        1817
+                    ],
+                    [
+                        1219,
+                        1817
+                    ],
+                    [
+                        1219,
+                        1864
+                    ],
+                    [
+                        160,
+                        1864
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Stratigraphie des tschechoslowakischen Quartärs",
+                "logical_page_printed": 57,
+                "physical_page_num": 63,
+                "toc_source_page": "page_009",
+                "toc_polygon": [
+                    [
+                        122,
+                        1871
+                    ],
+                    [
+                        1005,
+                        1871
+                    ],
+                    [
+                        1005,
+                        1918
+                    ],
+                    [
+                        122,
+                        1918
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Allgemeine Grundlagen",
+                        "logical_page_printed": 57,
+                        "physical_page_num": 61,
+                        "toc_source_page": "page_009",
+                        "toc_polygon": [
+                            [
+                                163,
+                                1922
+                            ],
+                            [
+                                590,
+                                1922
+                            ],
+                            [
+                                590,
+                                1970
+                            ],
+                            [
+                                163,
+                                1970
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Methoden und Möglichkeiten",
+                        "logical_page_printed": 58,
+                        "physical_page_num": 62,
+                        "toc_source_page": "page_009",
+                        "toc_polygon": [
+                            [
+                                161,
+                                1975
+                            ],
+                            [
+                                700,
+                                1975
+                            ],
+                            [
+                                700,
+                                2022
+                            ],
+                            [
+                                161,
+                                2022
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Stratigraphische Untergliederung des Quartärs auf Grund des klimatischen Zyklus",
+                        "logical_page_printed": 60,
+                        "physical_page_num": 64,
+                        "toc_source_page": "page_009",
+                        "toc_polygon": [
+                            [
+                                165,
+                                2029
+                            ],
+                            [
+                                1680,
+                                2029
+                            ],
+                            [
+                                1680,
+                                2078
+                            ],
+                            [
+                                165,
+                                2078
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Das stratigraphische System",
+                        "logical_page_printed": 61,
+                        "physical_page_num": 65,
+                        "toc_source_page": "page_009",
+                        "toc_polygon": [
+                            [
+                                159,
+                                2079
+                            ],
+                            [
+                                666,
+                                2079
+                            ],
+                            [
+                                666,
+                                2129
+                            ],
+                            [
+                                159,
+                                2129
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Regionale Stratigraphie des tschechoslowakischen Quartärs",
+                        "logical_page_printed": 62,
+                        "physical_page_num": 66,
+                        "toc_source_page": "page_009",
+                        "toc_polygon": [
+                            [
+                                159,
+                                2135
+                            ],
+                            [
+                                1235,
+                                2135
+                            ],
+                            [
+                                1235,
+                                2186
+                            ],
+                            [
+                                159,
+                                2186
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "Das Pleistozän",
+                                "logical_page_printed": 63,
+                                "physical_page_num": 69,
+                                "toc_source_page": "page_009",
+                                "toc_polygon": [
+                                    [
+                                        202,
+                                        2192
+                                    ],
+                                    [
+                                        461,
+                                        2192
+                                    ],
+                                    [
+                                        461,
+                                        2237
+                                    ],
+                                    [
+                                        202,
+                                        2237
+                                    ]
+                                ],
+                                "subchapters": [
+                                    {
+                                        "chapter_name": "Innerböhmen",
+                                        "logical_page_printed": 63,
+                                        "physical_page_num": 69,
+                                        "toc_source_page": "page_009",
+                                        "toc_polygon": [
+                                            [
+                                                243,
+                                                2241
+                                            ],
+                                            [
+                                                491,
+                                                2241
+                                            ],
+                                            [
+                                                491,
+                                                2290
+                                            ],
+                                            [
+                                                243,
+                                                2290
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "Das nordeuropäische Vereisungsgebiet",
+                                        "logical_page_printed": 65,
+                                        "physical_page_num": 71,
+                                        "toc_source_page": "page_009",
+                                        "toc_polygon": [
+                                            [
+                                                249,
+                                                2297
+                                            ],
+                                            [
+                                                951,
+                                                2297
+                                            ],
+                                            [
+                                                951,
+                                                2344
+                                            ],
+                                            [
+                                                249,
+                                                2344
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "Das Gebiet der mährischen Senken",
+                                        "logical_page_printed": 68,
+                                        "physical_page_num": 74,
+                                        "toc_source_page": "page_009",
+                                        "toc_polygon": [
+                                            [
+                                                246,
+                                                2348
+                                            ],
+                                            [
+                                                888,
+                                                2348
+                                            ],
+                                            [
+                                                888,
+                                                2397
+                                            ],
+                                            [
+                                                246,
+                                                2397
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    },
+                                    {
+                                        "chapter_name": "Das Gebiet des Karpateneckens",
+                                        "logical_page_printed": 73,
+                                        "physical_page_num": 79,
+                                        "toc_source_page": "page_009",
+                                        "toc_polygon": [
+                                            [
+                                                246,
+                                                2401
+                                            ],
+                                            [
+                                                850,
+                                                2401
+                                            ],
+                                            [
+                                                850,
+                                                2452
+                                            ],
+                                            [
+                                                246,
+                                                2452
+                                            ]
+                                        ],
+                                        "subchapters": []
+                                    }
+                                ]
+                            },
+                            {
+                                "chapter_name": "Das Holozän",
+                                "logical_page_printed": 77,
+                                "physical_page_num": 83,
+                                "toc_source_page": "page_009",
+                                "toc_polygon": [
+                                    [
+                                        200,
+                                        2453
+                                    ],
+                                    [
+                                        431,
+                                        2453
+                                    ],
+                                    [
+                                        431,
+                                        2501
+                                    ],
+                                    [
+                                        200,
+                                        2501
+                                    ]
+                                ],
+                                "subchapters": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Auftreten der Mollusken in den Quartärablagerungen",
+                "logical_page_printed": 82,
+                "physical_page_num": 88,
+                "toc_source_page": "page_009",
+                "toc_polygon": [
+                    [
+                        120,
+                        2508
+                    ],
+                    [
+                        1091,
+                        2508
+                    ],
+                    [
+                        1091,
+                        2556
+                    ],
+                    [
+                        120,
+                        2556
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Bedeutung der Abtragungsvorgänge und der Erhaltungsmöglichkeit der Quartärablagerungen",
+                "logical_page_printed": 83,
+                "physical_page_num": 89,
+                "toc_source_page": "page_009",
+                "toc_polygon": [
+                    [
+                        162,
+                        2560
+                    ],
+                    [
+                        1880,
+                        2560
+                    ],
+                    [
+                        1880,
+                        2611
+                    ],
+                    [
+                        162,
+                        2611
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Bedeutung der Geschwindigkeit der quartären Sedimentationsvorgänge",
+                "logical_page_printed": 84,
+                "physical_page_num": 90,
+                "toc_source_page": "page_009",
+                "toc_polygon": [
+                    [
+                        162,
+                        2614
+                    ],
+                    [
+                        1467,
+                        2614
+                    ],
+                    [
+                        1467,
+                        2666
+                    ],
+                    [
+                        162,
+                        2666
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Genetische Übersicht der Quartärsedimente",
+                "logical_page_printed": 85,
+                "physical_page_num": 91,
+                "toc_source_page": "page_009",
+                "toc_polygon": [
+                    [
+                        165,
+                        2663
+                    ],
+                    [
+                        964,
+                        2663
+                    ],
+                    [
+                        964,
+                        2722
+                    ],
+                    [
+                        165,
+                        2722
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Äolische Ablagerungen",
+                "logical_page_printed": 86,
+                "physical_page_num": 92,
+                "toc_source_page": "page_009",
+                "toc_polygon": [
+                    [
+                        164,
+                        2722
+                    ],
+                    [
+                        570,
+                        2722
+                    ],
+                    [
+                        570,
+                        2769
+                    ],
+                    [
+                        164,
+                        2769
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Lösse und verwandte Ablagerungen (Lössserien)",
+                        "logical_page_printed": 86,
+                        "physical_page_num": 92,
+                        "toc_source_page": "page_009",
+                        "toc_polygon": [
+                            [
+                                204,
+                                2774
+                            ],
+                            [
+                                1086,
+                                2774
+                            ],
+                            [
+                                1086,
+                                2827
+                            ],
+                            [
+                                204,
+                                2827
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Flugsande",
+                        "logical_page_printed": 97,
+                        "physical_page_num": 103,
+                        "toc_source_page": "page_009",
+                        "toc_polygon": [
+                            [
+                                205,
+                                2825
+                            ],
+                            [
+                                386,
+                                2825
+                            ],
+                            [
+                                386,
+                                2876
+                            ],
+                            [
+                                205,
+                                2876
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "chapter_name": "Die Hangablagerungen",
+        "logical_page_printed": 98,
+        "physical_page_num": 104,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                141,
+                118
+            ],
+            [
+                559,
+                118
+            ],
+            [
+                559,
+                167
+            ],
+            [
+                141,
+                167
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Die Höhlenausfüllungen",
+        "logical_page_printed": 103,
+        "physical_page_num": 109,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                141,
+                171
+            ],
+            [
+                584,
+                171
+            ],
+            [
+                584,
+                221
+            ],
+            [
+                141,
+                221
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Eluvien und fossile Böden",
+        "logical_page_printed": 109,
+        "physical_page_num": 115,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                146,
+                227
+            ],
+            [
+                612,
+                227
+            ],
+            [
+                612,
+                273
+            ],
+            [
+                146,
+                273
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Fluviatile Sedimente",
+        "logical_page_printed": 112,
+        "physical_page_num": 118,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                0,
+                380
+            ],
+            [
+                2159,
+                380
+            ],
+            [
+                2159,
+                507
+            ],
+            [
+                0,
+                507
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Terrassen",
+                "logical_page_printed": 113,
+                "physical_page_num": 76,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        43,
+                        507
+                    ],
+                    [
+                        2159,
+                        507
+                    ],
+                    [
+                        2159,
+                        634
+                    ],
+                    [
+                        43,
+                        634
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Auelehme",
+                "logical_page_printed": 116,
+                "physical_page_num": 122,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        190,
+                        383
+                    ],
+                    [
+                        371,
+                        383
+                    ],
+                    [
+                        371,
+                        431
+                    ],
+                    [
+                        190,
+                        431
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Proluvien und Abspülbildungen",
+                "logical_page_printed": 121,
+                "physical_page_num": 127,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        187,
+                        440
+                    ],
+                    [
+                        765,
+                        440
+                    ],
+                    [
+                        765,
+                        488
+                    ],
+                    [
+                        187,
+                        488
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Sedimente stehender Gewässer",
+        "logical_page_printed": 122,
+        "physical_page_num": 128,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                148,
+                492
+            ],
+            [
+                713,
+                492
+            ],
+            [
+                713,
+                541
+            ],
+            [
+                148,
+                541
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Seekreide",
+                "logical_page_printed": 123,
+                "physical_page_num": 129,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        43,
+                        1014
+                    ],
+                    [
+                        2159,
+                        1014
+                    ],
+                    [
+                        2159,
+                        1141
+                    ],
+                    [
+                        43,
+                        1141
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Seemergel",
+                "logical_page_printed": 126,
+                "physical_page_num": 132,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        43,
+                        1141
+                    ],
+                    [
+                        2159,
+                        1141
+                    ],
+                    [
+                        2159,
+                        1268
+                    ],
+                    [
+                        43,
+                        1268
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Gyttja",
+                "logical_page_printed": 126,
+                "physical_page_num": 132,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        193,
+                        653
+                    ],
+                    [
+                        298,
+                        653
+                    ],
+                    [
+                        298,
+                        697
+                    ],
+                    [
+                        193,
+                        697
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Die Quell- und Bachkalke",
+                "logical_page_printed": 127,
+                "physical_page_num": 133,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        144,
+                        706
+                    ],
+                    [
+                        625,
+                        706
+                    ],
+                    [
+                        625,
+                        754
+                    ],
+                    [
+                        144,
+                        754
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Organische Sedimente",
+        "logical_page_printed": 133,
+        "physical_page_num": 139,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                0,
+                1522
+            ],
+            [
+                2159,
+                1522
+            ],
+            [
+                2159,
+                1648
+            ],
+            [
+                0,
+                1648
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Flachmoore",
+                "logical_page_printed": 133,
+                "physical_page_num": 139,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        43,
+                        1648
+                    ],
+                    [
+                        2159,
+                        1648
+                    ],
+                    [
+                        2159,
+                        1775
+                    ],
+                    [
+                        43,
+                        1775
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Moorböden",
+                "logical_page_printed": 134,
+                "physical_page_num": 140,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        43,
+                        1775
+                    ],
+                    [
+                        2159,
+                        1775
+                    ],
+                    [
+                        2159,
+                        1902
+                    ],
+                    [
+                        43,
+                        1902
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Die übrigen Sedimentarten",
+        "logical_page_printed": 134,
+        "physical_page_num": 140,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                144,
+                920
+            ],
+            [
+                638,
+                920
+            ],
+            [
+                638,
+                966
+            ],
+            [
+                144,
+                966
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Entwicklung der heutigen Molluskenfauna von Mitteleuropa",
+        "logical_page_printed": 136,
+        "physical_page_num": 142,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                105,
+                972
+            ],
+            [
+                1217,
+                972
+            ],
+            [
+                1217,
+                1020
+            ],
+            [
+                105,
+                1020
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Entstehung der quartären bzw. gegenwärtigen Molluskenfauna Mitteleuropas",
+        "logical_page_printed": 136,
+        "physical_page_num": 142,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                144,
+                1025
+            ],
+            [
+                1581,
+                1025
+            ],
+            [
+                1581,
+                1074
+            ],
+            [
+                144,
+                1074
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Entwicklung der Molluskenfauna im Quartär",
+        "logical_page_printed": 137,
+        "physical_page_num": 143,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                144,
+                1078
+            ],
+            [
+                976,
+                1078
+            ],
+            [
+                976,
+                1129
+            ],
+            [
+                144,
+                1129
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Klimabedingte Molluskengesellschaften",
+                "logical_page_printed": 137,
+                "physical_page_num": 143,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        43,
+                        2409
+                    ],
+                    [
+                        2159,
+                        2409
+                    ],
+                    [
+                        2159,
+                        2536
+                    ],
+                    [
+                        43,
+                        2536
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "I. Die warmzeitliche Fauna",
+                        "logical_page_printed": 138,
+                        "physical_page_num": 144,
+                        "toc_source_page": "page_010",
+                        "toc_polygon": [
+                            [
+                                253,
+                                1188
+                            ],
+                            [
+                                756,
+                                1188
+                            ],
+                            [
+                                756,
+                                1236
+                            ],
+                            [
+                                253,
+                                1236
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "II. Die kaltzeitliche Fauna",
+                        "logical_page_printed": 139,
+                        "physical_page_num": 145,
+                        "toc_source_page": "page_010",
+                        "toc_polygon": [
+                            [
+                                235,
+                                1242
+                            ],
+                            [
+                                717,
+                                1242
+                            ],
+                            [
+                                717,
+                                1288
+                            ],
+                            [
+                                235,
+                                1288
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Zeitbedingte Entwicklungsänderungen der Molluskenfauna",
+                "logical_page_printed": 142,
+                "physical_page_num": 148,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        193,
+                        1293
+                    ],
+                    [
+                        1287,
+                        1293
+                    ],
+                    [
+                        1287,
+                        1341
+                    ],
+                    [
+                        193,
+                        1341
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Chronologische Übersicht der quartären Molluskenfaunen der Tschechoslowakei",
+                "logical_page_printed": 142,
+                "physical_page_num": 148,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        153,
+                        1346
+                    ],
+                    [
+                        1636,
+                        1346
+                    ],
+                    [
+                        1636,
+                        1395
+                    ],
+                    [
+                        153,
+                        1395
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Der plio-pleistozäne Grenzabschnitt",
+                        "logical_page_printed": 142,
+                        "physical_page_num": 148,
+                        "toc_source_page": "page_010",
+                        "toc_polygon": [
+                            [
+                                236,
+                                1401
+                            ],
+                            [
+                                897,
+                                1401
+                            ],
+                            [
+                                897,
+                                1451
+                            ],
+                            [
+                                236,
+                                1451
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Das Altpleistozän",
+                        "logical_page_printed": 142,
+                        "physical_page_num": 149,
+                        "toc_source_page": "page_010",
+                        "toc_polygon": [
+                            [
+                                238,
+                                1456
+                            ],
+                            [
+                                547,
+                                1456
+                            ],
+                            [
+                                547,
+                                1501
+                            ],
+                            [
+                                238,
+                                1501
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Das Mittelpleistozän",
+                        "logical_page_printed": 144,
+                        "physical_page_num": 150,
+                        "toc_source_page": "page_010",
+                        "toc_polygon": [
+                            [
+                                238,
+                                1507
+                            ],
+                            [
+                                604,
+                                1507
+                            ],
+                            [
+                                604,
+                                1555
+                            ],
+                            [
+                                238,
+                                1555
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Das letzte Interglazial",
+                        "logical_page_printed": 145,
+                        "physical_page_num": 151,
+                        "toc_source_page": "page_010",
+                        "toc_polygon": [
+                            [
+                                235,
+                                1559
+                            ],
+                            [
+                                641,
+                                1559
+                            ],
+                            [
+                                641,
+                                1608
+                            ],
+                            [
+                                235,
+                                1608
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Das letzte Glazial",
+                        "logical_page_printed": 145,
+                        "physical_page_num": 151,
+                        "toc_source_page": "page_010",
+                        "toc_polygon": [
+                            [
+                                235,
+                                1615
+                            ],
+                            [
+                                563,
+                                1615
+                            ],
+                            [
+                                563,
+                                1661
+                            ],
+                            [
+                                235,
+                                1661
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Das Spätglazial (Spätwürm)",
+                        "logical_page_printed": 146,
+                        "physical_page_num": 152,
+                        "toc_source_page": "page_010",
+                        "toc_polygon": [
+                            [
+                                239,
+                                1667
+                            ],
+                            [
+                                749,
+                                1667
+                            ],
+                            [
+                                749,
+                                1715
+                            ],
+                            [
+                                239,
+                                1715
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Das Holozän (Postglazial)",
+                        "logical_page_printed": 147,
+                        "physical_page_num": 153,
+                        "toc_source_page": "page_010",
+                        "toc_polygon": [
+                            [
+                                239,
+                                1724
+                            ],
+                            [
+                                711,
+                                1724
+                            ],
+                            [
+                                711,
+                                1768
+                            ],
+                            [
+                                239,
+                                1768
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "chapter_name": "SYSTEMATISCHER TEIL",
+        "logical_page_printed": 149,
+        "physical_page_num": 157,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                0,
+                3932
+            ],
+            [
+                2159,
+                3932
+            ],
+            [
+                2159,
+                4058
+            ],
+            [
+                0,
+                4058
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Einführungsabschnitt",
+                "logical_page_printed": 149,
+                "physical_page_num": 157,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        107,
+                        1933
+                    ],
+                    [
+                        506,
+                        1933
+                    ],
+                    [
+                        506,
+                        1981
+                    ],
+                    [
+                        107,
+                        1981
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Klasse Gastropoda",
+                "logical_page_printed": 151,
+                "physical_page_num": 157,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        0,
+                        4185
+                    ],
+                    [
+                        2159,
+                        4185
+                    ],
+                    [
+                        2159,
+                        4312
+                    ],
+                    [
+                        0,
+                        4312
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Unterklasse Prosobranchia",
+                        "logical_page_printed": 154,
+                        "physical_page_num": 160,
+                        "toc_source_page": "page_010",
+                        "toc_polygon": [
+                            [
+                                43,
+                                4312
+                            ],
+                            [
+                                2159,
+                                4312
+                            ],
+                            [
+                                2159,
+                                4439
+                            ],
+                            [
+                                43,
+                                4439
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "Ordnung Archaeogastropoda",
+                                "logical_page_printed": 154,
+                                "physical_page_num": 160,
+                                "toc_source_page": "page_010",
+                                "toc_polygon": [
+                                    [
+                                        86,
+                                        4439
+                                    ],
+                                    [
+                                        2159,
+                                        4439
+                                    ],
+                                    [
+                                        2159,
+                                        4566
+                                    ],
+                                    [
+                                        86,
+                                        4566
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Ordnung Caenogastropoda",
+                                "logical_page_printed": 156,
+                                "physical_page_num": 162,
+                                "toc_source_page": "page_010",
+                                "toc_polygon": [
+                                    [
+                                        86,
+                                        4566
+                                    ],
+                                    [
+                                        2159,
+                                        4566
+                                    ],
+                                    [
+                                        2159,
+                                        4693
+                                    ],
+                                    [
+                                        86,
+                                        4693
+                                    ]
+                                ],
+                                "subchapters": []
+                            }
+                        ]
+                    },
+                    {
+                        "chapter_name": "Unterklasse Euthyneura",
+                        "logical_page_printed": 170,
+                        "physical_page_num": 176,
+                        "toc_source_page": "page_010",
+                        "toc_polygon": [
+                            [
+                                157,
+                                2200
+                            ],
+                            [
+                                585,
+                                2200
+                            ],
+                            [
+                                585,
+                                2246
+                            ],
+                            [
+                                157,
+                                2246
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "Ordnung Basommatophora",
+                                "logical_page_printed": 170,
+                                "physical_page_num": 176,
+                                "toc_source_page": "page_010",
+                                "toc_polygon": [
+                                    [
+                                        201,
+                                        2252
+                                    ],
+                                    [
+                                        681,
+                                        2252
+                                    ],
+                                    [
+                                        681,
+                                        2300
+                                    ],
+                                    [
+                                        201,
+                                        2300
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Ordnung Stylommatophora",
+                                "logical_page_printed": 190,
+                                "physical_page_num": 196,
+                                "toc_source_page": "page_010",
+                                "toc_polygon": [
+                                    [
+                                        204,
+                                        2308
+                                    ],
+                                    [
+                                        688,
+                                        2308
+                                    ],
+                                    [
+                                        688,
+                                        2354
+                                    ],
+                                    [
+                                        204,
+                                        2354
+                                    ]
+                                ],
+                                "subchapters": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Klasse Bivalvia",
+                "logical_page_printed": 315,
+                "physical_page_num": 321,
+                "toc_source_page": "page_010",
+                "toc_polygon": [
+                    [
+                        113,
+                        2363
+                    ],
+                    [
+                        394,
+                        2363
+                    ],
+                    [
+                        394,
+                        2409
+                    ],
+                    [
+                        113,
+                        2409
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Ordnung Eulamellibranchiata",
+                        "logical_page_printed": 316,
+                        "physical_page_num": 322,
+                        "toc_source_page": "page_010",
+                        "toc_polygon": [
+                            [
+                                198,
+                                2416
+                            ],
+                            [
+                                723,
+                                2416
+                            ],
+                            [
+                                723,
+                                2463
+                            ],
+                            [
+                                198,
+                                2463
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "chapter_name": "Schriftenverzeichnis",
+        "logical_page_printed": 334,
+        "physical_page_num": 342,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                115,
+                2576
+            ],
+            [
+                485,
+                2576
+            ],
+            [
+                485,
+                2621
+            ],
+            [
+                115,
+                2621
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Ergänzungen und Berichtigungen während des Druckes",
+        "logical_page_printed": 360,
+        "physical_page_num": 368,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                114,
+                2629
+            ],
+            [
+                1161,
+                2629
+            ],
+            [
+                1161,
+                2674
+            ],
+            [
+                114,
+                2674
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Literaturnachtrag",
+        "logical_page_printed": 360,
+        "physical_page_num": 368,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                115,
+                2683
+            ],
+            [
+                435,
+                2683
+            ],
+            [
+                435,
+                2728
+            ],
+            [
+                115,
+                2728
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Register",
+        "logical_page_printed": 362,
+        "physical_page_num": 370,
+        "toc_source_page": "page_010",
+        "toc_polygon": [
+            [
+                115,
+                2736
+            ],
+            [
+                265,
+                2736
+            ],
+            [
+                265,
+                2781
+            ],
+            [
+                115,
+                2781
+            ]
+        ],
+        "subchapters": []
+    }
+]

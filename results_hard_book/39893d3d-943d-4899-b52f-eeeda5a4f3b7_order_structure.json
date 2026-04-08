@@ -1,0 +1,935 @@
+[
+    {
+        "chapter_name": "Erste Abtheilung. Verschiedenheiten der Landwirthschaften im Königreiche Böhmen.",
+        "logical_page_printed": 1,
+        "physical_page_num": 35,
+        "toc_source_page": "page_014",
+        "toc_polygon": [
+            [
+                170,
+                312
+            ],
+            [
+                1430,
+                312
+            ],
+            [
+                1430,
+                533
+            ],
+            [
+                170,
+                533
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "1ter Abschnitt. Ursachen wegen welchen man die emphiteutische zu der vorhabenden Bearbeitung gewählt habe",
+                "logical_page_printed": 1,
+                "physical_page_num": 18,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        0,
+                        600
+                    ],
+                    [
+                        1667,
+                        600
+                    ],
+                    [
+                        1667,
+                        750
+                    ],
+                    [
+                        0,
+                        750
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "2ter Abschnitt. Vorsichten, welche ein jeder, der eine Landwirthschaft zu besitzen wünscht, gebrauchen soll",
+                "logical_page_printed": 6,
+                "physical_page_num": 21,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        155,
+                        737
+                    ],
+                    [
+                        1315,
+                        737
+                    ],
+                    [
+                        1315,
+                        853
+                    ],
+                    [
+                        155,
+                        853
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "3ter Abschnitt. Lang hergebrachte Gewohnheiten, und alte eingewurzelte Vorurtheile, zwey mächtige Feinde der Aufklärung",
+                "logical_page_printed": 12,
+                "physical_page_num": 22,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        0,
+                        900
+                    ],
+                    [
+                        1667,
+                        900
+                    ],
+                    [
+                        1667,
+                        1050
+                    ],
+                    [
+                        0,
+                        1050
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Zweite Abtheilung. Verhältniß zwischen Acker, Wiesen, dem Kunstfutteranbau und dem Viehstande.",
+        "logical_page_printed": 14,
+        "physical_page_num": 29,
+        "toc_source_page": "page_014",
+        "toc_polygon": [
+            [
+                0,
+                1050
+            ],
+            [
+                1667,
+                1050
+            ],
+            [
+                1667,
+                1200
+            ],
+            [
+                0,
+                1200
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "1ter Abschnitt. Unverhältniß der Grundstücke vermöge der ersten Anstiftung",
+                "logical_page_printed": 25,
+                "physical_page_num": 24,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        151,
+                        1230
+                    ],
+                    [
+                        1312,
+                        1230
+                    ],
+                    [
+                        1312,
+                        1346
+                    ],
+                    [
+                        151,
+                        1346
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "2ter Abschnitt. Einstellung der Brache und Beweise ihrer Schädlichkeit",
+                "logical_page_printed": 29,
+                "physical_page_num": 27,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        149,
+                        1333
+                    ],
+                    [
+                        1301,
+                        1333
+                    ],
+                    [
+                        1301,
+                        1401
+                    ],
+                    [
+                        149,
+                        1401
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "3ter Abschnitt. Abschaffung der Hutweide",
+                "logical_page_printed": 32,
+                "physical_page_num": 28,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        0,
+                        1500
+                    ],
+                    [
+                        1667,
+                        1500
+                    ],
+                    [
+                        1667,
+                        1650
+                    ],
+                    [
+                        0,
+                        1650
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "4ter Abschnitt. Umwandlung der Grundstücke",
+                "logical_page_printed": 39,
+                "physical_page_num": 40,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        0,
+                        1650
+                    ],
+                    [
+                        1667,
+                        1650
+                    ],
+                    [
+                        1667,
+                        1800
+                    ],
+                    [
+                        0,
+                        1800
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "5ter Abschnitt. Eintheilung der Ackergründe in fünf gleiche Jahresbaufelder",
+                "logical_page_printed": 42,
+                "physical_page_num": 44,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        341,
+                        1534
+                    ],
+                    [
+                        1304,
+                        1534
+                    ],
+                    [
+                        1304,
+                        1610
+                    ],
+                    [
+                        341,
+                        1610
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "6ter Abschnitt. Fünfjährige Bauabwechslung",
+                "logical_page_printed": 45,
+                "physical_page_num": 47,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        0,
+                        1950
+                    ],
+                    [
+                        1667,
+                        1950
+                    ],
+                    [
+                        1667,
+                        2100
+                    ],
+                    [
+                        0,
+                        2100
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Dritte Abtheilung. Verschiedenheiten der Dungarten, und derselben Erzeugung.",
+        "logical_page_printed": 50,
+        "physical_page_num": 37,
+        "toc_source_page": "page_014",
+        "toc_polygon": [
+            [
+                202,
+                1715
+            ],
+            [
+                1348,
+                1715
+            ],
+            [
+                1348,
+                1928
+            ],
+            [
+                202,
+                1928
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "1ter Abschnitt. Pflege des gewöhnlichen Stalldungs und Anlegung der Dunggrube",
+                "logical_page_printed": 50,
+                "physical_page_num": 48,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        146,
+                        1923
+                    ],
+                    [
+                        1290,
+                        1923
+                    ],
+                    [
+                        1290,
+                        2044
+                    ],
+                    [
+                        146,
+                        2044
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "2ter Abschnitt. Mergelgattungen und deren Eigenschaften",
+                "logical_page_printed": 55,
+                "physical_page_num": 50,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        141,
+                        2028
+                    ],
+                    [
+                        1216,
+                        2028
+                    ],
+                    [
+                        1216,
+                        2099
+                    ],
+                    [
+                        141,
+                        2099
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "3ter Abschnitt. Andere natürliche und künstliche Dungungsmittel",
+                "logical_page_printed": 64,
+                "physical_page_num": 62,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        140,
+                        2082
+                    ],
+                    [
+                        1267,
+                        2082
+                    ],
+                    [
+                        1267,
+                        2156
+                    ],
+                    [
+                        140,
+                        2156
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Vierte Abtheilung. Bedungung der Sommer- statt der Winterfelder, Ackerspflege, Saamensüchtigkeit und Abwechslung, Aerndte, Dreschen, Körner- und Futtervorrath.",
+        "logical_page_printed": 70,
+        "physical_page_num": 39,
+        "toc_source_page": "page_014",
+        "toc_polygon": [
+            [
+                135,
+                2197
+            ],
+            [
+                1411,
+                2197
+            ],
+            [
+                1411,
+                2479
+            ],
+            [
+                135,
+                2479
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "1te Abschnitt. Wann, wie oft, und wie gedungen, geackert und gesegget wird",
+                "logical_page_printed": 71,
+                "physical_page_num": 65,
+                "toc_source_page": "page_014",
+                "toc_polygon": [
+                    [
+                        135,
+                        2479
+                    ],
+                    [
+                        1298,
+                        2479
+                    ],
+                    [
+                        1298,
+                        2595
+                    ],
+                    [
+                        135,
+                        2595
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Fünfte Abtheilung. Stand sowohl der natürlichen als künstlichen Wiesen.",
+        "logical_page_printed": 104,
+        "physical_page_num": 47,
+        "toc_source_page": "page_015",
+        "toc_polygon": [
+            [
+                267,
+                548
+            ],
+            [
+                1466,
+                548
+            ],
+            [
+                1466,
+                694
+            ],
+            [
+                267,
+                694
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "1ter Abschnitt. Pflege und Verbesserung der Wiesen",
+                "logical_page_printed": 104,
+                "physical_page_num": 70,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        0,
+                        150
+                    ],
+                    [
+                        1667,
+                        150
+                    ],
+                    [
+                        1667,
+                        300
+                    ],
+                    [
+                        0,
+                        300
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "2ter Abschnitt. Die Bewässerung der Wiesen",
+                "logical_page_printed": 115,
+                "physical_page_num": 78,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        234,
+                        792
+                    ],
+                    [
+                        1040,
+                        792
+                    ],
+                    [
+                        1040,
+                        852
+                    ],
+                    [
+                        234,
+                        852
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "3ter Abschnitt. Anlegung der lebendigen Zäune und Pflege der wälischen Pappeln",
+                "logical_page_printed": 118,
+                "physical_page_num": 80,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        0,
+                        450
+                    ],
+                    [
+                        1667,
+                        450
+                    ],
+                    [
+                        1667,
+                        600
+                    ],
+                    [
+                        0,
+                        600
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Sechste Abtheilung. Künstliche Wiesen und Kunstfutteranbau.",
+        "logical_page_printed": 123,
+        "physical_page_num": 49,
+        "toc_source_page": "page_015",
+        "toc_polygon": [
+            [
+                379,
+                973
+            ],
+            [
+                1368,
+                973
+            ],
+            [
+                1368,
+                1125
+            ],
+            [
+                379,
+                1125
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "1ter Abschnitt. Der dreiblätterige Klee",
+                "logical_page_printed": 127,
+                "physical_page_num": 82,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        236,
+                        1125
+                    ],
+                    [
+                        1120,
+                        1125
+                    ],
+                    [
+                        1120,
+                        1193
+                    ],
+                    [
+                        236,
+                        1193
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "2ter Abschnitt. Der Esparzet",
+                "logical_page_printed": 131,
+                "physical_page_num": 86,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        0,
+                        900
+                    ],
+                    [
+                        1667,
+                        900
+                    ],
+                    [
+                        1667,
+                        1050
+                    ],
+                    [
+                        0,
+                        1050
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "3ter Abschnitt. Das Raigras",
+                "logical_page_printed": 138,
+                "physical_page_num": 86,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        0,
+                        1050
+                    ],
+                    [
+                        1667,
+                        1050
+                    ],
+                    [
+                        1667,
+                        1200
+                    ],
+                    [
+                        0,
+                        1200
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "4ter Abschnitt. Die Pimpinel",
+                "logical_page_printed": 143,
+                "physical_page_num": 88,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        0,
+                        1200
+                    ],
+                    [
+                        1667,
+                        1200
+                    ],
+                    [
+                        1667,
+                        1350
+                    ],
+                    [
+                        0,
+                        1350
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "5ter Abschnitt. Die Burgunder oder Dickrübe",
+                "logical_page_printed": 145,
+                "physical_page_num": 90,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        0,
+                        1350
+                    ],
+                    [
+                        1667,
+                        1350
+                    ],
+                    [
+                        1667,
+                        1500
+                    ],
+                    [
+                        0,
+                        1500
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Siebente Abtheilung. Die Viehzucht.",
+        "logical_page_printed": 148,
+        "physical_page_num": 53,
+        "toc_source_page": "page_015",
+        "toc_polygon": [
+            [
+                588,
+                1468
+            ],
+            [
+                1149,
+                1468
+            ],
+            [
+                1149,
+                1625
+            ],
+            [
+                588,
+                1625
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "1ter Abschnitt. Stand des Zuges: Rind-, Schweins- und Geflügelviehes",
+                "logical_page_printed": 148,
+                "physical_page_num": 96,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        0,
+                        1650
+                    ],
+                    [
+                        1667,
+                        1650
+                    ],
+                    [
+                        1667,
+                        1800
+                    ],
+                    [
+                        0,
+                        1800
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "2ter Abschnitt. Futteraufstellung",
+                "logical_page_printed": 154,
+                "physical_page_num": 98,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        0,
+                        1800
+                    ],
+                    [
+                        1667,
+                        1800
+                    ],
+                    [
+                        1667,
+                        1950
+                    ],
+                    [
+                        0,
+                        1950
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "3ter Abschnitt. Nachzucht, Pflege, Fütterung und Säuberungsordnung",
+                "logical_page_printed": 159,
+                "physical_page_num": 104,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        0,
+                        1950
+                    ],
+                    [
+                        1667,
+                        1950
+                    ],
+                    [
+                        1667,
+                        2100
+                    ],
+                    [
+                        0,
+                        2100
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "4ter Abschnitt. Mastungsordnung",
+                "logical_page_printed": 184,
+                "physical_page_num": 106,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        235,
+                        1884
+                    ],
+                    [
+                        809,
+                        1884
+                    ],
+                    [
+                        809,
+                        1943
+                    ],
+                    [
+                        235,
+                        1943
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "5ter Abschnitt. Kühe, Schweine und Geflügelspachtung",
+                "logical_page_printed": 193,
+                "physical_page_num": 111,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        0,
+                        2250
+                    ],
+                    [
+                        1667,
+                        2250
+                    ],
+                    [
+                        1667,
+                        2400
+                    ],
+                    [
+                        0,
+                        2400
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Achte Abtheilung. Personaldienststand.",
+        "logical_page_printed": 195,
+        "physical_page_num": 61,
+        "toc_source_page": "page_015",
+        "toc_polygon": [
+            [
+                637,
+                2018
+            ],
+            [
+                1111,
+                2018
+            ],
+            [
+                1111,
+                2100
+            ],
+            [
+                637,
+                2100
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "1ter Abschnitt. Geld- und Naturalgehalt",
+                "logical_page_printed": 195,
+                "physical_page_num": 114,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        237,
+                        2167
+                    ],
+                    [
+                        1155,
+                        2167
+                    ],
+                    [
+                        1155,
+                        2250
+                    ],
+                    [
+                        237,
+                        2250
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "2ter Abschnitt. Vorzügliche Schuldigkeiten",
+                "logical_page_printed": 196,
+                "physical_page_num": 114,
+                "toc_source_page": "page_015",
+                "toc_polygon": [
+                    [
+                        0,
+                        2700
+                    ],
+                    [
+                        1667,
+                        2700
+                    ],
+                    [
+                        1667,
+                        2850
+                    ],
+                    [
+                        0,
+                        2850
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Neunte Abtheilung. Erträgnis und Aufwand bei der gepflogenen Wirthschaft.",
+        "logical_page_printed": 200,
+        "physical_page_num": 65,
+        "toc_source_page": "page_015",
+        "toc_polygon": [
+            [
+                272,
+                2303
+            ],
+            [
+                1481,
+                2303
+            ],
+            [
+                1481,
+                2465
+            ],
+            [
+                272,
+                2465
+            ]
+        ],
+        "subchapters": []
+    }
+]

@@ -1,31 +1,27 @@
 from collections import Counter
 from toc_only.data_types import BookData
+from helpers import normalize_text, flatten_tree
 
 
-def normalize_text(text):
-    if not text:
-        return ""
-    return text.lower().strip()
-
-
+# Looking for a physical pages in book
 def calculate_final_structure(book: BookData):
-    """
-    Looking for a physical pages in book
-    """
 
     toc_data = book.theoretical_toc
     actual_data = book.actual_chapters
 
     if not toc_data or not actual_data:
-        print("Error: No data!")
+        print("[ERROR]: No data!")
         return
+
+    # flatten all chapters and subchapters for offset voting
+    toc_items_for_offset = flatten_tree(toc_data)
 
     # Offset
     offset_votes = []
     used_for_offset = set()  # dont calculate the same chapters
 
     # Taking all chapters in ToC and trying to find it beetween "real" chapters in the book
-    for toc_item in toc_data:
+    for toc_item in toc_items_for_offset:
         logical_page = toc_item.get('start_page')
         if not logical_page:
             continue
@@ -40,7 +36,7 @@ def calculate_final_structure(book: BookData):
                 actual_item.get('extracted_text', ''))
             physical_page = actual_item.get('physical_page')
 
-            if len(actual_title) > 3 and actual_title in toc_title:
+            if len(actual_title) > 3 and (actual_title in toc_title or toc_title in actual_title):
                 current_offset = physical_page - logical_page
                 offset_votes.append(current_offset)
                 used_for_offset.add(idx)
@@ -92,24 +88,28 @@ def calculate_final_structure(book: BookData):
         # Working with subchapters
         processed_subchapters = []
         for sub in node.get("subchapters", []):
-            processed_sub = process_node(sub)
-            if processed_sub:
-                processed_subchapters.append(processed_sub)
+            processed_subs = process_node(sub)
+            if processed_subs:
+                processed_subchapters.extend(processed_subs)
 
         # Returning node
-        return {
-            "chapter_name": node.get("chapter_name"),
-            "logical_page_printed": logical_page,
-            "physical_page_num": physical_page,
-            "toc_source_page": node.get("page_name"),
-            "toc_polygon": node.get("polygon"),
-            "subchapters": processed_subchapters
-        }
+        if physical_page is not None:
+            return [{
+                "chapter_name": node.get("chapter_name"),
+                "logical_page_printed": logical_page,
+                "physical_page_num": physical_page,
+                "toc_source_page": node.get("page_name"),
+                "toc_polygon": node.get("polygon"),
+                "subchapters": processed_subchapters
+            }]
+        else:
+            return processed_subchapters
 
     # For all chapters
     for toc_item in toc_data:
-        processed_item = process_node(toc_item)
-        if processed_item:
-            book.final_structure.append(processed_item)
+        processed_items = process_node(toc_item)
+        if processed_items:
+            book.final_structure.extend(processed_items)
+
     print("-" * 40)
     print("[INFO] Final structure - Done!")

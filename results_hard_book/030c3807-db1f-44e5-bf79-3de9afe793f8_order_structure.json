@@ -1,0 +1,1065 @@
+[
+    {
+        "chapter_name": "O veličinách protivných",
+        "logical_page_printed": 1,
+        "physical_page_num": 5,
+        "toc_source_page": "page_003",
+        "toc_polygon": [
+            [
+                485,
+                775
+            ],
+            [
+                906,
+                775
+            ],
+            [
+                906,
+                823
+            ],
+            [
+                485,
+                823
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "I. Slučování počtů protivných",
+                "logical_page_printed": 1,
+                "physical_page_num": 5,
+                "toc_source_page": "page_003",
+                "toc_polygon": [
+                    [
+                        169,
+                        847
+                    ],
+                    [
+                        664,
+                        847
+                    ],
+                    [
+                        664,
+                        892
+                    ],
+                    [
+                        169,
+                        892
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "II. Čtvero početních způsobů s veličinami protivnými",
+                "logical_page_printed": 4,
+                "physical_page_num": 8,
+                "toc_source_page": "page_003",
+                "toc_polygon": [
+                    [
+                        156,
+                        889
+                    ],
+                    [
+                        1062,
+                        889
+                    ],
+                    [
+                        1062,
+                        936
+                    ],
+                    [
+                        156,
+                        936
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "1. Sčítání",
+                        "logical_page_printed": 6,
+                        "physical_page_num": 10,
+                        "toc_source_page": "page_003",
+                        "toc_polygon": [
+                            [
+                                287,
+                                936
+                            ],
+                            [
+                                449,
+                                936
+                            ],
+                            [
+                                449,
+                                977
+                            ],
+                            [
+                                287,
+                                977
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "2. Odnímání",
+                        "logical_page_printed": 8,
+                        "physical_page_num": 21,
+                        "toc_source_page": "page_003",
+                        "toc_polygon": [
+                            [
+                                288,
+                                974
+                            ],
+                            [
+                                484,
+                                974
+                            ],
+                            [
+                                484,
+                                1020
+                            ],
+                            [
+                                288,
+                                1020
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "3. Násobení",
+                        "logical_page_printed": 11,
+                        "physical_page_num": 22,
+                        "toc_source_page": "page_003",
+                        "toc_polygon": [
+                            [
+                                287,
+                                1017
+                            ],
+                            [
+                                483,
+                                1017
+                            ],
+                            [
+                                483,
+                                1064
+                            ],
+                            [
+                                287,
+                                1064
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "chapter_name": "O veličinách algebraických",
+        "logical_page_printed": 12,
+        "physical_page_num": 16,
+        "toc_source_page": "page_003",
+        "toc_polygon": [
+            [
+                417,
+                1212
+            ],
+            [
+                894,
+                1212
+            ],
+            [
+                894,
+                1262
+            ],
+            [
+                417,
+                1262
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "I. Čtvero početních způsobů s jednoduchými algebr. výrazy",
+                "logical_page_printed": 16,
+                "physical_page_num": 20,
+                "toc_source_page": "page_003",
+                "toc_polygon": [
+                    [
+                        158,
+                        1282
+                    ],
+                    [
+                        1156,
+                        1282
+                    ],
+                    [
+                        1156,
+                        1335
+                    ],
+                    [
+                        158,
+                        1335
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "1. Sčítání",
+                        "logical_page_printed": 17,
+                        "physical_page_num": 21,
+                        "toc_source_page": "page_003",
+                        "toc_polygon": [
+                            [
+                                295,
+                                1327
+                            ],
+                            [
+                                454,
+                                1327
+                            ],
+                            [
+                                454,
+                                1370
+                            ],
+                            [
+                                295,
+                                1370
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "2. Odnímání",
+                        "logical_page_printed": 18,
+                        "physical_page_num": 47,
+                        "toc_source_page": "page_003",
+                        "toc_polygon": [
+                            [
+                                290,
+                                1368
+                            ],
+                            [
+                                491,
+                                1368
+                            ],
+                            [
+                                491,
+                                1415
+                            ],
+                            [
+                                290,
+                                1415
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "3. Násobení",
+                        "logical_page_printed": 19,
+                        "physical_page_num": 23,
+                        "toc_source_page": "page_003",
+                        "toc_polygon": [
+                            [
+                                291,
+                                1407
+                            ],
+                            [
+                                485,
+                                1407
+                            ],
+                            [
+                                485,
+                                1456
+                            ],
+                            [
+                                291,
+                                1456
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "II. Čtvero početních způsobů se složenými výrazy algebraickými, aneb rozvírání závorek",
+                "logical_page_printed": 20,
+                "physical_page_num": 24,
+                "toc_source_page": "page_003",
+                "toc_polygon": [
+                    [
+                        160,
+                        1498
+                    ],
+                    [
+                        1157,
+                        1498
+                    ],
+                    [
+                        1157,
+                        1591
+                    ],
+                    [
+                        160,
+                        1591
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "1. Sčítání",
+                        "logical_page_printed": 21,
+                        "physical_page_num": 25,
+                        "toc_source_page": "page_003",
+                        "toc_polygon": [
+                            [
+                                295,
+                                1584
+                            ],
+                            [
+                                451,
+                                1584
+                            ],
+                            [
+                                451,
+                                1628
+                            ],
+                            [
+                                295,
+                                1628
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "2. Odnímání",
+                        "logical_page_printed": 23,
+                        "physical_page_num": 27,
+                        "toc_source_page": "page_003",
+                        "toc_polygon": [
+                            [
+                                290,
+                                1625
+                            ],
+                            [
+                                495,
+                                1625
+                            ],
+                            [
+                                495,
+                                1674
+                            ],
+                            [
+                                290,
+                                1674
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "3. Násobení",
+                        "logical_page_printed": 25,
+                        "physical_page_num": 29,
+                        "toc_source_page": "page_003",
+                        "toc_polygon": [
+                            [
+                                291,
+                                1669
+                            ],
+                            [
+                                486,
+                                1669
+                            ],
+                            [
+                                486,
+                                1718
+                            ],
+                            [
+                                291,
+                                1718
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "III. Počítání s lámanými výrazy algebraickými",
+                "logical_page_printed": 29,
+                "physical_page_num": 33,
+                "toc_source_page": "page_003",
+                "toc_polygon": [
+                    [
+                        161,
+                        1755
+                    ],
+                    [
+                        928,
+                        1755
+                    ],
+                    [
+                        928,
+                        1811
+                    ],
+                    [
+                        161,
+                        1811
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "O mocnostech a kořenech",
+        "logical_page_printed": 35,
+        "physical_page_num": 39,
+        "toc_source_page": "page_003",
+        "toc_polygon": [
+            [
+                469,
+                1911
+            ],
+            [
+                939,
+                1911
+            ],
+            [
+                939,
+                1963
+            ],
+            [
+                469,
+                1963
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "I. Znamení mocností",
+                "logical_page_printed": 35,
+                "physical_page_num": 41,
+                "toc_source_page": "page_003",
+                "toc_polygon": [
+                    [
+                        161,
+                        1978
+                    ],
+                    [
+                        500,
+                        1978
+                    ],
+                    [
+                        500,
+                        2028
+                    ],
+                    [
+                        161,
+                        2028
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "II. Čtvero početních způsobů s mocnostmi",
+                "logical_page_printed": 37,
+                "physical_page_num": 41,
+                "toc_source_page": "page_003",
+                "toc_polygon": [
+                    [
+                        164,
+                        2018
+                    ],
+                    [
+                        879,
+                        2018
+                    ],
+                    [
+                        879,
+                        2072
+                    ],
+                    [
+                        164,
+                        2072
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "1. Sčítání a odnímání",
+                        "logical_page_printed": 37,
+                        "physical_page_num": 41,
+                        "toc_source_page": "page_004",
+                        "toc_polygon": [
+                            [
+                                350,
+                                263
+                            ],
+                            [
+                                708,
+                                263
+                            ],
+                            [
+                                708,
+                                306
+                            ],
+                            [
+                                350,
+                                306
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "2. Násobení",
+                        "logical_page_printed": 38,
+                        "physical_page_num": 42,
+                        "toc_source_page": "page_004",
+                        "toc_polygon": [
+                            [
+                                348,
+                                307
+                            ],
+                            [
+                                549,
+                                307
+                            ],
+                            [
+                                549,
+                                349
+                            ],
+                            [
+                                348,
+                                349
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "3. Dělení",
+                        "logical_page_printed": 39,
+                        "physical_page_num": 43,
+                        "toc_source_page": "page_004",
+                        "toc_polygon": [
+                            [
+                                347,
+                                351
+                            ],
+                            [
+                                499,
+                                351
+                            ],
+                            [
+                                499,
+                                391
+                            ],
+                            [
+                                347,
+                                391
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "4. Počítání s algebraickými výrazy pořádnými",
+                        "logical_page_printed": 42,
+                        "physical_page_num": 46,
+                        "toc_source_page": "page_004",
+                        "toc_polygon": [
+                            [
+                                345,
+                                390
+                            ],
+                            [
+                                1133,
+                                390
+                            ],
+                            [
+                                1133,
+                                438
+                            ],
+                            [
+                                345,
+                                438
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "III. Zmocňování hledíc k rozličným kořenům",
+                "logical_page_printed": 45,
+                "physical_page_num": 49,
+                "toc_source_page": "page_004",
+                "toc_polygon": [
+                    [
+                        214,
+                        436
+                    ],
+                    [
+                        944,
+                        436
+                    ],
+                    [
+                        944,
+                        482
+                    ],
+                    [
+                        214,
+                        482
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "IV. Zvýšování na čtverec a dobývání čtvercového kořene čísel zvláštních",
+                "logical_page_printed": 48,
+                "physical_page_num": 52,
+                "toc_source_page": "page_004",
+                "toc_polygon": [
+                    [
+                        214,
+                        480
+                    ],
+                    [
+                        1205,
+                        480
+                    ],
+                    [
+                        1205,
+                        564
+                    ],
+                    [
+                        214,
+                        564
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "V. Povysování na třetí mocnost a dobývání třetího kořene zvláštních čísel",
+                "logical_page_printed": 57,
+                "physical_page_num": 61,
+                "toc_source_page": "page_004",
+                "toc_polygon": [
+                    [
+                        215,
+                        564
+                    ],
+                    [
+                        1206,
+                        564
+                    ],
+                    [
+                        1206,
+                        652
+                    ],
+                    [
+                        215,
+                        652
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "O sestavách",
+        "logical_page_printed": 66,
+        "physical_page_num": 70,
+        "toc_source_page": "page_004",
+        "toc_polygon": [
+            [
+                646,
+                757
+            ],
+            [
+                853,
+                757
+            ],
+            [
+                853,
+                806
+            ],
+            [
+                646,
+                806
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "I. Přestavy",
+                "logical_page_printed": 66,
+                "physical_page_num": 70,
+                "toc_source_page": "page_004",
+                "toc_polygon": [
+                    [
+                        213,
+                        827
+                    ],
+                    [
+                        388,
+                        827
+                    ],
+                    [
+                        388,
+                        870
+                    ],
+                    [
+                        213,
+                        870
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "II. Sestavy",
+                "logical_page_printed": 67,
+                "physical_page_num": 71,
+                "toc_source_page": "page_004",
+                "toc_polygon": [
+                    [
+                        207,
+                        871
+                    ],
+                    [
+                        384,
+                        871
+                    ],
+                    [
+                        384,
+                        913
+                    ],
+                    [
+                        207,
+                        913
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Počítání v poměrech složených",
+        "logical_page_printed": 77,
+        "physical_page_num": 81,
+        "toc_source_page": "page_004",
+        "toc_polygon": [
+            [
+                447,
+                1019
+            ],
+            [
+                1004,
+                1019
+            ],
+            [
+                1004,
+                1065
+            ],
+            [
+                447,
+                1065
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "I. O složených poměrech a srovnalostech",
+                "logical_page_printed": 77,
+                "physical_page_num": 81,
+                "toc_source_page": "page_004",
+                "toc_polygon": [
+                    [
+                        207,
+                        1088
+                    ],
+                    [
+                        901,
+                        1088
+                    ],
+                    [
+                        901,
+                        1131
+                    ],
+                    [
+                        207,
+                        1131
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "II. Složený počet trojčlenný",
+                "logical_page_printed": 79,
+                "physical_page_num": 83,
+                "toc_source_page": "page_004",
+                "toc_polygon": [
+                    [
+                        208,
+                        1132
+                    ],
+                    [
+                        670,
+                        1132
+                    ],
+                    [
+                        670,
+                        1174
+                    ],
+                    [
+                        208,
+                        1174
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Jednotný počet úroků",
+                        "logical_page_printed": 85,
+                        "physical_page_num": 89,
+                        "toc_source_page": "page_004",
+                        "toc_polygon": [
+                            [
+                                339,
+                                1178
+                            ],
+                            [
+                                694,
+                                1178
+                            ],
+                            [
+                                694,
+                                1218
+                            ],
+                            [
+                                339,
+                                1218
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Počítání na lhůty",
+                        "logical_page_printed": 95,
+                        "physical_page_num": 99,
+                        "toc_source_page": "page_004",
+                        "toc_polygon": [
+                            [
+                                338,
+                                1219
+                            ],
+                            [
+                                619,
+                                1219
+                            ],
+                            [
+                                619,
+                                1265
+                            ],
+                            [
+                                338,
+                                1265
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "III. Počet společný",
+                "logical_page_printed": 98,
+                "physical_page_num": 102,
+                "toc_source_page": "page_004",
+                "toc_polygon": [
+                    [
+                        208,
+                        1262
+                    ],
+                    [
+                        522,
+                        1262
+                    ],
+                    [
+                        522,
+                        1305
+                    ],
+                    [
+                        208,
+                        1305
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "IV. Počet o smíšení",
+                "logical_page_printed": 103,
+                "physical_page_num": 107,
+                "toc_source_page": "page_004",
+                "toc_polygon": [
+                    [
+                        205,
+                        1306
+                    ],
+                    [
+                        545,
+                        1306
+                    ],
+                    [
+                        545,
+                        1351
+                    ],
+                    [
+                        205,
+                        1351
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "V. Počet řetězový",
+                "logical_page_printed": 110,
+                "physical_page_num": 114,
+                "toc_source_page": "page_004",
+                "toc_polygon": [
+                    [
+                        210,
+                        1348
+                    ],
+                    [
+                        512,
+                        1348
+                    ],
+                    [
+                        512,
+                        1392
+                    ],
+                    [
+                        210,
+                        1392
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Úroční počty z úroků",
+                        "logical_page_printed": 117,
+                        "physical_page_num": 121,
+                        "toc_source_page": "page_004",
+                        "toc_polygon": [
+                            [
+                                338,
+                                1394
+                            ],
+                            [
+                                726,
+                                1394
+                            ],
+                            [
+                                726,
+                                1437
+                            ],
+                            [
+                                338,
+                                1437
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "chapter_name": "Rovnice prvního stupně o jediné neznámé",
+        "logical_page_printed": 126,
+        "physical_page_num": 130,
+        "toc_source_page": "page_004",
+        "toc_polygon": [
+            [
+                356,
+                1543
+            ],
+            [
+                1124,
+                1543
+            ],
+            [
+                1124,
+                1587
+            ],
+            [
+                356,
+                1587
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "I. Rozlušťování rovnic prvního stupně o jedné neznámé",
+                "logical_page_printed": 127,
+                "physical_page_num": 131,
+                "toc_source_page": "page_004",
+                "toc_polygon": [
+                    [
+                        203,
+                        1614
+                    ],
+                    [
+                        1136,
+                        1614
+                    ],
+                    [
+                        1136,
+                        1656
+                    ],
+                    [
+                        203,
+                        1656
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "II. Užívání rovnic k rozlušťování úkolů",
+                "logical_page_printed": 131,
+                "physical_page_num": 135,
+                "toc_source_page": "page_004",
+                "toc_polygon": [
+                    [
+                        207,
+                        1657
+                    ],
+                    [
+                        853,
+                        1657
+                    ],
+                    [
+                        853,
+                        1700
+                    ],
+                    [
+                        207,
+                        1700
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "2. Úkoly k samocviku v postavování rovnic",
+                        "logical_page_printed": 138,
+                        "physical_page_num": 142,
+                        "toc_source_page": "page_004",
+                        "toc_polygon": [
+                            [
+                                338,
+                                1744
+                            ],
+                            [
+                                1075,
+                                1744
+                            ],
+                            [
+                                1075,
+                                1788
+                            ],
+                            [
+                                338,
+                                1788
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            }
+        ]
+    }
+]

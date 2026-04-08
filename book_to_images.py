@@ -2,7 +2,7 @@ import os
 from pdf2image import convert_from_path, pdfinfo_from_path
 from toc_only.data_types import BookData
 
-DPI = 450
+DPI = 450   # for high quality of image and good OCR vision
 FORMAT = "jpg"
 
 
@@ -21,6 +21,7 @@ def convert_pdf_to_images(book: BookData, output_folder: str) -> str:
 
     try:
         print(f"Reading PDF: {input_pdf_path} ...")
+        # getting info without taking pdf to memory
         info = pdfinfo_from_path(input_pdf_path)
         total_pages = info["Pages"]
         book.total_pages = total_pages
@@ -32,6 +33,7 @@ def convert_pdf_to_images(book: BookData, output_folder: str) -> str:
             save_path = os.path.join(output_folder, filename)
 
             if not os.path.exists(save_path):
+                # taking by 1 page, not collapse RAM
                 pages = convert_from_path(
                     input_pdf_path, dpi=DPI, fmt=FORMAT,
                     grayscale=True, first_page=page_num, last_page=page_num

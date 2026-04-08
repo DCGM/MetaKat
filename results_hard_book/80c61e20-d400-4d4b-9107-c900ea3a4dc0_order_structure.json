@@ -1,0 +1,679 @@
+[
+    {
+        "chapter_name": "Introduction",
+        "logical_page_printed": 1,
+        "physical_page_num": 12,
+        "toc_source_page": "page_259",
+        "toc_polygon": [
+            [
+                349,
+                853
+            ],
+            [
+                811,
+                853
+            ],
+            [
+                811,
+                939
+            ],
+            [
+                349,
+                939
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Chapitre Premier. Plan des Pseaumes expliqués.",
+        "logical_page_printed": 7,
+        "physical_page_num": 18,
+        "toc_source_page": "page_259",
+        "toc_polygon": [
+            [
+                353,
+                928
+            ],
+            [
+                1274,
+                928
+            ],
+            [
+                1274,
+                1080
+            ],
+            [
+                353,
+                1080
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Chap. II. Sujets des Pseaumes.",
+        "logical_page_printed": 35,
+        "physical_page_num": 52,
+        "toc_source_page": "page_259",
+        "toc_polygon": [
+            [
+                353,
+                1078
+            ],
+            [
+                1188,
+                1078
+            ],
+            [
+                1188,
+                1161
+            ],
+            [
+                353,
+                1161
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Chap. III. Poësie des Hébreux.",
+        "logical_page_printed": 79,
+        "physical_page_num": 90,
+        "toc_source_page": "page_259",
+        "toc_polygon": [
+            [
+                355,
+                1162
+            ],
+            [
+                1283,
+                1162
+            ],
+            [
+                1283,
+                1245
+            ],
+            [
+                355,
+                1245
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "§ I. Son antiquité.",
+                "logical_page_printed": 49,
+                "physical_page_num": 60,
+                "toc_source_page": "page_259",
+                "toc_polygon": [
+                    [
+                        431,
+                        1303
+                    ],
+                    [
+                        935,
+                        1303
+                    ],
+                    [
+                        935,
+                        1388
+                    ],
+                    [
+                        431,
+                        1388
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ III. Fausses idées des Anciens, & de plusieurs Modernes sur le Metre Hébreu.",
+                "logical_page_printed": 56,
+                "physical_page_num": 67,
+                "toc_source_page": "page_259",
+                "toc_polygon": [
+                    [
+                        418,
+                        1519
+                    ],
+                    [
+                        1294,
+                        1519
+                    ],
+                    [
+                        1294,
+                        1750
+                    ],
+                    [
+                        418,
+                        1750
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ IV. Différence du Metre des Hébreux avec celui des Grecs & des Latins.",
+                "logical_page_printed": 66,
+                "physical_page_num": 90,
+                "toc_source_page": "page_259",
+                "toc_polygon": [
+                    [
+                        432,
+                        1740
+                    ],
+                    [
+                        1280,
+                        1740
+                    ],
+                    [
+                        1280,
+                        1961
+                    ],
+                    [
+                        432,
+                        1961
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ V. Différence du Metre des Hébreux avec celui des François & des autres Peuples modernes.",
+                "logical_page_printed": 68,
+                "physical_page_num": 124,
+                "toc_source_page": "page_259",
+                "toc_polygon": [
+                    [
+                        396,
+                        393
+                    ],
+                    [
+                        1285,
+                        393
+                    ],
+                    [
+                        1285,
+                        2107
+                    ],
+                    [
+                        396,
+                        2107
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ VI. Poësie moderne des Juifs.",
+                "logical_page_printed": 72,
+                "physical_page_num": 93,
+                "toc_source_page": "page_260",
+                "toc_polygon": [
+                    [
+                        326,
+                        531
+                    ],
+                    [
+                        1168,
+                        531
+                    ],
+                    [
+                        1168,
+                        620
+                    ],
+                    [
+                        326,
+                        620
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ VII. Nature de l'ancien Metre Hébreu.",
+                "logical_page_printed": 75,
+                "physical_page_num": 86,
+                "toc_source_page": "page_260",
+                "toc_polygon": [
+                    [
+                        326,
+                        673
+                    ],
+                    [
+                        1169,
+                        673
+                    ],
+                    [
+                        1169,
+                        762
+                    ],
+                    [
+                        326,
+                        762
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ VIII. Diverses espèces de Parallélismes dans la Poësie des Hébreux.",
+                "logical_page_printed": 77,
+                "physical_page_num": 101,
+                "toc_source_page": "page_260",
+                "toc_polygon": [
+                    [
+                        180,
+                        2186
+                    ],
+                    [
+                        630,
+                        2186
+                    ],
+                    [
+                        630,
+                        2313
+                    ],
+                    [
+                        180,
+                        2313
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ IX. Le Parallélisme poétique des Hébreux doit être le flambeau d'un Interprete.",
+                "logical_page_printed": 78,
+                "physical_page_num": 220,
+                "toc_source_page": "page_260",
+                "toc_polygon": [
+                    [
+                        326,
+                        1027
+                    ],
+                    [
+                        1169,
+                        1027
+                    ],
+                    [
+                        1169,
+                        1242
+                    ],
+                    [
+                        326,
+                        1242
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ X. Images employées par les Poëtes Hébreux.",
+                "logical_page_printed": 97,
+                "physical_page_num": 240,
+                "toc_source_page": "page_260",
+                "toc_polygon": [
+                    [
+                        257,
+                        1238
+                    ],
+                    [
+                        1160,
+                        1238
+                    ],
+                    [
+                        1160,
+                        1380
+                    ],
+                    [
+                        257,
+                        1380
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ XI. Style des Poëtes Hébreux.",
+                "logical_page_printed": 102,
+                "physical_page_num": 113,
+                "toc_source_page": "page_260",
+                "toc_polygon": [
+                    [
+                        332,
+                        1378
+                    ],
+                    [
+                        1170,
+                        1378
+                    ],
+                    [
+                        1170,
+                        1457
+                    ],
+                    [
+                        332,
+                        1457
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ XII. Beauté inimitable des Poëtes Hébraïques.",
+                "logical_page_printed": 105,
+                "physical_page_num": 116,
+                "toc_source_page": "page_260",
+                "toc_polygon": [
+                    [
+                        337,
+                        1521
+                    ],
+                    [
+                        1161,
+                        1521
+                    ],
+                    [
+                        1161,
+                        1595
+                    ],
+                    [
+                        337,
+                        1595
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ XIII. Si les Hébreux ont eu des Orateurs parfaits.",
+                "logical_page_printed": 107,
+                "physical_page_num": 120,
+                "toc_source_page": "page_260",
+                "toc_polygon": [
+                    [
+                        328,
+                        1659
+                    ],
+                    [
+                        1153,
+                        1659
+                    ],
+                    [
+                        1153,
+                        1806
+                    ],
+                    [
+                        328,
+                        1806
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Chap. IV. Musique des Hébreux.",
+        "logical_page_printed": 109,
+        "physical_page_num": 221,
+        "toc_source_page": "page_260",
+        "toc_polygon": [
+            [
+                254,
+                1804
+            ],
+            [
+                1172,
+                1804
+            ],
+            [
+                1172,
+                1887
+            ],
+            [
+                254,
+                1887
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "§ I. Son antiquité.",
+                "logical_page_printed": 117,
+                "physical_page_num": 128,
+                "toc_source_page": "page_260",
+                "toc_polygon": [
+                    [
+                        325,
+                        1960
+                    ],
+                    [
+                        831,
+                        1960
+                    ],
+                    [
+                        831,
+                        2041
+                    ],
+                    [
+                        325,
+                        2041
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ III. Vrais noms des instrumens de la Musique Hébraïque.",
+                "logical_page_printed": 119,
+                "physical_page_num": 133,
+                "toc_source_page": "page_261",
+                "toc_polygon": [
+                    [
+                        428,
+                        531
+                    ],
+                    [
+                        1286,
+                        531
+                    ],
+                    [
+                        1286,
+                        693
+                    ],
+                    [
+                        428,
+                        693
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ IV. Perfection de la Musique des Hébreux.",
+                "logical_page_printed": 122,
+                "physical_page_num": 134,
+                "toc_source_page": "page_261",
+                "toc_polygon": [
+                    [
+                        423,
+                        755
+                    ],
+                    [
+                        1279,
+                        755
+                    ],
+                    [
+                        1279,
+                        905
+                    ],
+                    [
+                        423,
+                        905
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ V. Effets de la Musique chez les Hébreux.",
+                "logical_page_printed": 123,
+                "physical_page_num": 135,
+                "toc_source_page": "page_261",
+                "toc_polygon": [
+                    [
+                        428,
+                        897
+                    ],
+                    [
+                        1284,
+                        897
+                    ],
+                    [
+                        1284,
+                        1045
+                    ],
+                    [
+                        428,
+                        1045
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ VI. Etat de la Musique chez les Hébreux.",
+                "logical_page_printed": 124,
+                "physical_page_num": 135,
+                "toc_source_page": "page_261",
+                "toc_polygon": [
+                    [
+                        426,
+                        1041
+                    ],
+                    [
+                        1288,
+                        1041
+                    ],
+                    [
+                        1288,
+                        1185
+                    ],
+                    [
+                        426,
+                        1185
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ VII. Erreurs des Modernes, touchant l'intonation des intervalles musicaux.",
+                "logical_page_printed": 128,
+                "physical_page_num": 139,
+                "toc_source_page": "page_261",
+                "toc_polygon": [
+                    [
+                        432,
+                        1182
+                    ],
+                    [
+                        1294,
+                        1182
+                    ],
+                    [
+                        1294,
+                        1329
+                    ],
+                    [
+                        432,
+                        1329
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ VIII. Principes fondamentaux d'intonation.",
+                "logical_page_printed": 132,
+                "physical_page_num": 159,
+                "toc_source_page": "page_261",
+                "toc_polygon": [
+                    [
+                        433,
+                        1396
+                    ],
+                    [
+                        1281,
+                        1396
+                    ],
+                    [
+                        1281,
+                        1540
+                    ],
+                    [
+                        433,
+                        1540
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ IX. Progression triple de sept termes, d'où se tirent les sept sons du système diatonique.",
+                "logical_page_printed": 148,
+                "physical_page_num": 159,
+                "toc_source_page": "page_261",
+                "toc_polygon": [
+                    [
+                        433,
+                        1536
+                    ],
+                    [
+                        1298,
+                        1536
+                    ],
+                    [
+                        1298,
+                        1761
+                    ],
+                    [
+                        433,
+                        1761
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ X. Semaine planétaire des Egyptiens, fournissant divers systèmes diatoniques.",
+                "logical_page_printed": 168,
+                "physical_page_num": 179,
+                "toc_source_page": "page_261",
+                "toc_polygon": [
+                    [
+                        438,
+                        1761
+                    ],
+                    [
+                        1295,
+                        1761
+                    ],
+                    [
+                        1295,
+                        1986
+                    ],
+                    [
+                        438,
+                        1986
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "§ XI. Conséquence que l'on peut tirer des principes des Anciens",
+                "logical_page_printed": 190,
+                "physical_page_num": 201,
+                "toc_source_page": "page_261",
+                "toc_polygon": [
+                    [
+                        433,
+                        1978
+                    ],
+                    [
+                        1307,
+                        1978
+                    ],
+                    [
+                        1307,
+                        2131
+                    ],
+                    [
+                        433,
+                        2131
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    }
+]

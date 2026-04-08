@@ -1,0 +1,984 @@
+[
+    {
+        "chapter_name": "PŘEDMLUVA",
+        "logical_page_printed": 5,
+        "physical_page_num": 9,
+        "toc_source_page": "page_201",
+        "toc_polygon": [
+            [
+                141,
+                221
+            ],
+            [
+                381,
+                221
+            ],
+            [
+                381,
+                266
+            ],
+            [
+                141,
+                266
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "PŘEDMLUVA KE ČTVRTÉMU VYDÁNÍ",
+        "logical_page_printed": 7,
+        "physical_page_num": 11,
+        "toc_source_page": "page_201",
+        "toc_polygon": [
+            [
+                141,
+                275
+            ],
+            [
+                877,
+                275
+            ],
+            [
+                877,
+                319
+            ],
+            [
+                141,
+                319
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "ÚVOD",
+        "logical_page_printed": 9,
+        "physical_page_num": 13,
+        "toc_source_page": "page_201",
+        "toc_polygon": [
+            [
+                140,
+                323
+            ],
+            [
+                247,
+                323
+            ],
+            [
+                247,
+                369
+            ],
+            [
+                140,
+                369
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "SUBJEKT BRANNÉ POLITIKY V DEMOKRATICKÉM STÁTĚ",
+        "logical_page_printed": 17,
+        "physical_page_num": 21,
+        "toc_source_page": "page_201",
+        "toc_polygon": [
+            [
+                139,
+                372
+            ],
+            [
+                1180,
+                372
+            ],
+            [
+                1180,
+                420
+            ],
+            [
+                139,
+                420
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Všeobecný rozbor",
+                "logical_page_printed": 19,
+                "physical_page_num": 23,
+                "toc_source_page": "page_201",
+                "toc_polygon": [
+                    [
+                        75,
+                        646
+                    ],
+                    [
+                        1500,
+                        646
+                    ],
+                    [
+                        1500,
+                        754
+                    ],
+                    [
+                        75,
+                        754
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Demokracie poskytuje možnosti k uplatnění velkých osobností jak státníků, tak i vojáků",
+                "logical_page_printed": 20,
+                "physical_page_num": 24,
+                "toc_source_page": "page_201",
+                "toc_polygon": [
+                    [
+                        284,
+                        483
+                    ],
+                    [
+                        1197,
+                        483
+                    ],
+                    [
+                        1197,
+                        579
+                    ],
+                    [
+                        284,
+                        579
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Demokratická organisace se dobře osvědčila za takové války, jakou byla světová. Její přizpůsobitelnost potřebám válečného rozhodování",
+                "logical_page_printed": 31,
+                "physical_page_num": 35,
+                "toc_source_page": "page_201",
+                "toc_polygon": [
+                    [
+                        284,
+                        586
+                    ],
+                    [
+                        1194,
+                        586
+                    ],
+                    [
+                        1194,
+                        731
+                    ],
+                    [
+                        284,
+                        731
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Hlavní hybná síla demokracie, umožňující úspěšné probojování obranné války",
+                "logical_page_printed": 37,
+                "physical_page_num": 41,
+                "toc_source_page": "page_201",
+                "toc_polygon": [
+                    [
+                        284,
+                        739
+                    ],
+                    [
+                        1195,
+                        739
+                    ],
+                    [
+                        1195,
+                        832
+                    ],
+                    [
+                        284,
+                        832
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "PŘEDMĚT BRANNÉ POLITIKY VE SVĚTLE HISTORICKÝCH ZKUŠENOSTÍ. Faktor mírové přípravy zárukou úspěchů bojištních",
+        "logical_page_printed": 45,
+        "physical_page_num": 133,
+        "toc_source_page": "page_201",
+        "toc_polygon": [
+            [
+                137,
+                844
+            ],
+            [
+                1196,
+                844
+            ],
+            [
+                1196,
+                986
+            ],
+            [
+                137,
+                986
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Branná politika v míru",
+                "logical_page_printed": 45,
+                "physical_page_num": 51,
+                "toc_source_page": "page_201",
+                "toc_polygon": [
+                    [
+                        239,
+                        1004
+                    ],
+                    [
+                        595,
+                        1004
+                    ],
+                    [
+                        595,
+                        1046
+                    ],
+                    [
+                        239,
+                        1046
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Předválečná branná politika hlavních evropských států v povšechných rysech",
+                "logical_page_printed": 49,
+                "physical_page_num": 53,
+                "toc_source_page": "page_201",
+                "toc_polygon": [
+                    [
+                        242,
+                        1063
+                    ],
+                    [
+                        1195,
+                        1063
+                    ],
+                    [
+                        1195,
+                        1105
+                    ],
+                    [
+                        242,
+                        1105
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Branná politika Francie před světovou válkou",
+                        "logical_page_printed": 49,
+                        "physical_page_num": 53,
+                        "toc_source_page": "page_201",
+                        "toc_polygon": [
+                            [
+                                288,
+                                1163
+                            ],
+                            [
+                                1180,
+                                1163
+                            ],
+                            [
+                                1180,
+                                1207
+                            ],
+                            [
+                                288,
+                                1207
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Německá branná politika před světovou válkou",
+                        "logical_page_printed": 54,
+                        "physical_page_num": 58,
+                        "toc_source_page": "page_201",
+                        "toc_polygon": [
+                            [
+                                288,
+                                1214
+                            ],
+                            [
+                                1177,
+                                1214
+                            ],
+                            [
+                                1177,
+                                1256
+                            ],
+                            [
+                                288,
+                                1256
+                            ]
+                        ],
+                        "subchapters": [
+                            {
+                                "chapter_name": "Všeobecný rámec politiky námořní a pozemní",
+                                "logical_page_printed": 54,
+                                "physical_page_num": 58,
+                                "toc_source_page": "page_201",
+                                "toc_polygon": [
+                                    [
+                                        289,
+                                        1264
+                                    ],
+                                    [
+                                        1031,
+                                        1264
+                                    ],
+                                    [
+                                        1031,
+                                        1307
+                                    ],
+                                    [
+                                        289,
+                                        1307
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Branná politika, pokud jde o pozemní armádu",
+                                "logical_page_printed": 59,
+                                "physical_page_num": 63,
+                                "toc_source_page": "page_201",
+                                "toc_polygon": [
+                                    [
+                                        288,
+                                        1316
+                                    ],
+                                    [
+                                        1023,
+                                        1316
+                                    ],
+                                    [
+                                        1023,
+                                        1358
+                                    ],
+                                    [
+                                        288,
+                                        1358
+                                    ]
+                                ],
+                                "subchapters": []
+                            },
+                            {
+                                "chapter_name": "Všeobecný rozbor německé branné politiky před válkou",
+                                "logical_page_printed": 61,
+                                "physical_page_num": 65,
+                                "toc_source_page": "page_201",
+                                "toc_polygon": [
+                                    [
+                                        289,
+                                        1367
+                                    ],
+                                    [
+                                        1174,
+                                        1367
+                                    ],
+                                    [
+                                        1174,
+                                        1412
+                                    ],
+                                    [
+                                        289,
+                                        1412
+                                    ]
+                                ],
+                                "subchapters": []
+                            }
+                        ]
+                    },
+                    {
+                        "chapter_name": "Nástin anglické branné politiky před světovou válkou",
+                        "logical_page_printed": 63,
+                        "physical_page_num": 67,
+                        "toc_source_page": "page_201",
+                        "toc_polygon": [
+                            [
+                                287,
+                                1420
+                            ],
+                            [
+                                1184,
+                                1420
+                            ],
+                            [
+                                1184,
+                                1463
+                            ],
+                            [
+                                287,
+                                1463
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Srovnání branné politiky některých států",
+                        "logical_page_printed": 70,
+                        "physical_page_num": 74,
+                        "toc_source_page": "page_201",
+                        "toc_polygon": [
+                            [
+                                291,
+                                1520
+                            ],
+                            [
+                                1082,
+                                1520
+                            ],
+                            [
+                                1082,
+                                1566
+                            ],
+                            [
+                                291,
+                                1566
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Zdroje státních sil za světové války a jejich využití. Souvislost s mírovou přípravou",
+                "logical_page_printed": 73,
+                "physical_page_num": 77,
+                "toc_source_page": "page_201",
+                "toc_polygon": [
+                    [
+                        235,
+                        1577
+                    ],
+                    [
+                        1190,
+                        1577
+                    ],
+                    [
+                        1190,
+                        1669
+                    ],
+                    [
+                        235,
+                        1669
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Morální příprava rozličných států a charakter její působnosti ve státě demokratickém",
+                "logical_page_printed": 87,
+                "physical_page_num": 91,
+                "toc_source_page": "page_201",
+                "toc_polygon": [
+                    [
+                        238,
+                        1681
+                    ],
+                    [
+                        1192,
+                        1681
+                    ],
+                    [
+                        1192,
+                        1775
+                    ],
+                    [
+                        238,
+                        1775
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Ráz morální přípravy v rozličných státech",
+                        "logical_page_printed": 87,
+                        "physical_page_num": 91,
+                        "toc_source_page": "page_201",
+                        "toc_polygon": [
+                            [
+                                288,
+                                1786
+                            ],
+                            [
+                                1095,
+                                1786
+                            ],
+                            [
+                                1095,
+                                1830
+                            ],
+                            [
+                                288,
+                                1830
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Jak se projevovala a osvědčila morální stránka národů za války a jaký vliv na ni měla mírová morální příprava",
+                        "logical_page_printed": 94,
+                        "physical_page_num": 98,
+                        "toc_source_page": "page_202",
+                        "toc_polygon": [
+                            [
+                                381,
+                                197
+                            ],
+                            [
+                                1282,
+                                197
+                            ],
+                            [
+                                1282,
+                                345
+                            ],
+                            [
+                                381,
+                                345
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Parlamenty a výbory parlamentu a jejich úkol v branné politice",
+                "logical_page_printed": 97,
+                "physical_page_num": 101,
+                "toc_source_page": "page_202",
+                "toc_polygon": [
+                    [
+                        337,
+                        358
+                    ],
+                    [
+                        1284,
+                        358
+                    ],
+                    [
+                        1284,
+                        399
+                    ],
+                    [
+                        337,
+                        399
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Působení parlamentního prvku ve Francii",
+                        "logical_page_printed": 97,
+                        "physical_page_num": 101,
+                        "toc_source_page": "page_202",
+                        "toc_polygon": [
+                            [
+                                150,
+                                538
+                            ],
+                            [
+                                1500,
+                                538
+                            ],
+                            [
+                                1500,
+                                646
+                            ],
+                            [
+                                150,
+                                646
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Uplatnění parlamentu a veřejného mínění za války v Anglii. Vynikající činnost státníků a politiků ve věcech obrany",
+                        "logical_page_printed": 106,
+                        "physical_page_num": 110,
+                        "toc_source_page": "page_202",
+                        "toc_polygon": [
+                            [
+                                385,
+                                475
+                            ],
+                            [
+                                1285,
+                                475
+                            ],
+                            [
+                                1285,
+                                619
+                            ],
+                            [
+                                385,
+                                619
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Úloha německého Reichstagu za války a neblahý vliv německého veřejného mínění",
+                        "logical_page_printed": 109,
+                        "physical_page_num": 113,
+                        "toc_source_page": "page_202",
+                        "toc_polygon": [
+                            [
+                                383,
+                                629
+                            ],
+                            [
+                                1282,
+                                629
+                            ],
+                            [
+                                1282,
+                                722
+                            ],
+                            [
+                                383,
+                                722
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Souhrnná úvaha o úloze demokratického ústavního zřízení v obraně státu podle zkušeností války a o podmínkách příznivého jeho působení",
+                        "logical_page_printed": 113,
+                        "physical_page_num": 117,
+                        "toc_source_page": "page_202",
+                        "toc_polygon": [
+                            [
+                                383,
+                                731
+                            ],
+                            [
+                                1293,
+                                731
+                            ],
+                            [
+                                1293,
+                                875
+                            ],
+                            [
+                                383,
+                                875
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Demokracie a vlastní vedení války",
+                "logical_page_printed": 118,
+                "physical_page_num": 122,
+                "toc_source_page": "page_202",
+                "toc_polygon": [
+                    [
+                        336,
+                        898
+                    ],
+                    [
+                        858,
+                        898
+                    ],
+                    [
+                        858,
+                        942
+                    ],
+                    [
+                        336,
+                        942
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Závěry a úvahy z historických zkušeností",
+                "logical_page_printed": 129,
+                "physical_page_num": 133,
+                "toc_source_page": "page_202",
+                "toc_polygon": [
+                    [
+                        338,
+                        963
+                    ],
+                    [
+                        950,
+                        963
+                    ],
+                    [
+                        950,
+                        1006
+                    ],
+                    [
+                        338,
+                        1006
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "ZÁSADY POVÁLEČNÉ BRANNÉ POLITIKY ČESKOSLOVENSKÉ",
+        "logical_page_printed": 141,
+        "physical_page_num": 145,
+        "toc_source_page": "page_202",
+        "toc_polygon": [
+            [
+                236,
+                1019
+            ],
+            [
+                1277,
+                1019
+            ],
+            [
+                1277,
+                1064
+            ],
+            [
+                236,
+                1064
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Vládci ideje naší branné politiky. Pokus o jejich vyjádření",
+                "logical_page_printed": 141,
+                "physical_page_num": 147,
+                "toc_source_page": "page_202",
+                "toc_polygon": [
+                    [
+                        337,
+                        1082
+                    ],
+                    [
+                        1200,
+                        1082
+                    ],
+                    [
+                        1200,
+                        1126
+                    ],
+                    [
+                        337,
+                        1126
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Branná politika po válce pod vlivem politických sil mezinárodních",
+                "logical_page_printed": 147,
+                "physical_page_num": 151,
+                "toc_source_page": "page_202",
+                "toc_polygon": [
+                    [
+                        336,
+                        1140
+                    ],
+                    [
+                        1281,
+                        1140
+                    ],
+                    [
+                        1281,
+                        1181
+                    ],
+                    [
+                        336,
+                        1181
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Subjektivní činitelé, kteří v branné politice rozhodují a mají na ni vliv",
+                "logical_page_printed": 151,
+                "physical_page_num": 163,
+                "toc_source_page": "page_202",
+                "toc_polygon": [
+                    [
+                        333,
+                        1204
+                    ],
+                    [
+                        1281,
+                        1204
+                    ],
+                    [
+                        1281,
+                        1294
+                    ],
+                    [
+                        333,
+                        1294
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Podmíněné působení branných sil demokracie. Zákon čísel a hodnot výzbrojných a výcvikových a význam vojenské tradice není jimi porušen",
+                "logical_page_printed": 159,
+                "physical_page_num": 167,
+                "toc_source_page": "page_202",
+                "toc_polygon": [
+                    [
+                        336,
+                        1309
+                    ],
+                    [
+                        1289,
+                        1309
+                    ],
+                    [
+                        1289,
+                        1402
+                    ],
+                    [
+                        336,
+                        1402
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Ideologie demokracie a shromažďování branných hodnot v národě",
+                "logical_page_printed": 163,
+                "physical_page_num": 167,
+                "toc_source_page": "page_202",
+                "toc_polygon": [
+                    [
+                        337,
+                        1475
+                    ],
+                    [
+                        1286,
+                        1475
+                    ],
+                    [
+                        1286,
+                        1519
+                    ],
+                    [
+                        337,
+                        1519
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Branná koncepce demokratického státu, založená na vojenských zásadách, platných v jiných armádách, avšak rozdílnost ideového pojetí proti státu autokratickému",
+                "logical_page_printed": 167,
+                "physical_page_num": 176,
+                "toc_source_page": "page_202",
+                "toc_polygon": [
+                    [
+                        333,
+                        1531
+                    ],
+                    [
+                        1283,
+                        1531
+                    ],
+                    [
+                        1283,
+                        1678
+                    ],
+                    [
+                        333,
+                        1678
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Pacifismus nesmí ničit vůli k obraně a obětovnost pro národ",
+                "logical_page_printed": 181,
+                "physical_page_num": 185,
+                "toc_source_page": "page_202",
+                "toc_polygon": [
+                    [
+                        339,
+                        1706
+                    ],
+                    [
+                        1211,
+                        1706
+                    ],
+                    [
+                        1211,
+                        1747
+                    ],
+                    [
+                        339,
+                        1747
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "ZÁVĚR STUDIE",
+        "logical_page_printed": 185,
+        "physical_page_num": 191,
+        "toc_source_page": "page_202",
+        "toc_polygon": [
+            [
+                238,
+                1767
+            ],
+            [
+                521,
+                1767
+            ],
+            [
+                521,
+                1812
+            ],
+            [
+                238,
+                1812
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "POUŽITÁ LITERATURA",
+        "logical_page_printed": 192,
+        "physical_page_num": 196,
+        "toc_source_page": "page_202",
+        "toc_polygon": [
+            [
+                0,
+                2155
+            ],
+            [
+                1500,
+                2155
+            ],
+            [
+                1500,
+                2262
+            ],
+            [
+                0,
+                2262
+            ]
+        ],
+        "subchapters": []
+    }
+]

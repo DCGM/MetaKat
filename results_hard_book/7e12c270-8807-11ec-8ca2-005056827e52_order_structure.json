@@ -1,0 +1,2182 @@
+[
+    {
+        "chapter_name": "Úvod",
+        "logical_page_printed": 7,
+        "physical_page_num": 11,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                97,
+                440
+            ],
+            [
+                181,
+                440
+            ],
+            [
+                181,
+                481
+            ],
+            [
+                97,
+                481
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Galie a její obyvatelé (I, 1)",
+        "logical_page_printed": 22,
+        "physical_page_num": 25,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                152,
+                482
+            ],
+            [
+                592,
+                482
+            ],
+            [
+                592,
+                524
+            ],
+            [
+                152,
+                524
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Válka s Helvety (I, 2–29)",
+        "logical_page_printed": 22,
+        "physical_page_num": 25,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                148,
+                518
+            ],
+            [
+                586,
+                518
+            ],
+            [
+                586,
+                564
+            ],
+            [
+                148,
+                564
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Strach v římském táboře před Germány (I, 39–41)",
+        "logical_page_printed": 35,
+        "physical_page_num": 39,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                148,
+                559
+            ],
+            [
+                985,
+                559
+            ],
+            [
+                985,
+                603
+            ],
+            [
+                148,
+                603
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Válka s Venelly. Sabinova lest (III, 17–19)",
+        "logical_page_printed": 39,
+        "physical_page_num": 63,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                145,
+                599
+            ],
+            [
+                876,
+                599
+            ],
+            [
+                876,
+                644
+            ],
+            [
+                145,
+                644
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "První výprava do Germanie. Suebové (IV, 1–9)",
+        "logical_page_printed": 41,
+        "physical_page_num": 45,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                146,
+                641
+            ],
+            [
+                956,
+                641
+            ],
+            [
+                956,
+                683
+            ],
+            [
+                146,
+                683
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "První boje (IV, 12₃–15)",
+        "logical_page_printed": 44,
+        "physical_page_num": 60,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                149,
+                680
+            ],
+            [
+                554,
+                680
+            ],
+            [
+                554,
+                725
+            ],
+            [
+                149,
+                725
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Přechod přes Rýn. Zpustošení Germanie (IV, 16–19₂)",
+        "logical_page_printed": 46,
+        "physical_page_num": 50,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                148,
+                720
+            ],
+            [
+                1049,
+                720
+            ],
+            [
+                1049,
+                764
+            ],
+            [
+                148,
+                764
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "První výprava do Britanie (IV, 20–36)",
+        "logical_page_printed": 47,
+        "physical_page_num": 51,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                148,
+                761
+            ],
+            [
+                800,
+                761
+            ],
+            [
+                800,
+                804
+            ],
+            [
+                148,
+                804
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Zrada a smrt Dumnorigova (V, 6–7)",
+        "logical_page_printed": 54,
+        "physical_page_num": 58,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                154,
+                801
+            ],
+            [
+                771,
+                801
+            ],
+            [
+                771,
+                845
+            ],
+            [
+                154,
+                845
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Druhá výprava do Britanie (V, 8–9; 12–14)",
+        "logical_page_printed": 56,
+        "physical_page_num": 54,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                148,
+                840
+            ],
+            [
+                906,
+                840
+            ],
+            [
+                906,
+                885
+            ],
+            [
+                148,
+                885
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Zničení 15 kohort (V, 26–37)",
+        "logical_page_printed": 58,
+        "physical_page_num": 62,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                150,
+                882
+            ],
+            [
+                646,
+                882
+            ],
+            [
+                646,
+                928
+            ],
+            [
+                150,
+                928
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Statečný legát Cicero. Pullo a Vorenus (V, 43₃–44, 48₂–49₁, 52, 54₃–5)",
+        "logical_page_printed": 63,
+        "physical_page_num": 67,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                148,
+                922
+            ],
+            [
+                1176,
+                922
+            ],
+            [
+                1176,
+                1007
+            ],
+            [
+                148,
+                1007
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Přípravy proti odboji Galů (VI, 1; 3₄–5₁)",
+        "logical_page_printed": 66,
+        "physical_page_num": 70,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                146,
+                1001
+            ],
+            [
+                844,
+                1001
+            ],
+            [
+                844,
+                1046
+            ],
+            [
+                146,
+                1046
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Galové (VI, 11₁, 13–20)",
+        "logical_page_printed": 67,
+        "physical_page_num": 71,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                151,
+                1042
+            ],
+            [
+                561,
+                1042
+            ],
+            [
+                561,
+                1085
+            ],
+            [
+                151,
+                1085
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Germáni (VI, 21–28)",
+        "logical_page_printed": 70,
+        "physical_page_num": 74,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                152,
+                1082
+            ],
+            [
+                526,
+                1082
+            ],
+            [
+                526,
+                1125
+            ],
+            [
+                152,
+                1125
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Všeobecná vzpoura Galů. Vercingetorix. Cenabum. Noviodunum. Avaricum (VII, 1–21)",
+        "logical_page_printed": 73,
+        "physical_page_num": 77,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                148,
+                1121
+            ],
+            [
+                1172,
+                1121
+            ],
+            [
+                1172,
+                1206
+            ],
+            [
+                148,
+                1206
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Dobývání Avarika. Vercingetorigova opatření (VII, 24–31₄)",
+        "logical_page_printed": 83,
+        "physical_page_num": 87,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                146,
+                1203
+            ],
+            [
+                1171,
+                1203
+            ],
+            [
+                1171,
+                1246
+            ],
+            [
+                146,
+                1246
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Nešťastný pokus o dobytí Gergovie (VII, 47₇–51₁)",
+        "logical_page_printed": 86,
+        "physical_page_num": 90,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                147,
+                1243
+            ],
+            [
+                981,
+                1243
+            ],
+            [
+                981,
+                1287
+            ],
+            [
+                147,
+                1287
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Potlačená nesvornost. Porážka Galů. Obležení Alesie (VII, 63–71)",
+        "logical_page_printed": 89,
+        "physical_page_num": 93,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                146,
+                1284
+            ],
+            [
+                1172,
+                1284
+            ],
+            [
+                1172,
+                1366
+            ],
+            [
+                146,
+                1366
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Jednotnost všech Galů. Nouze obležených (VII, 75; 76₂–79)",
+        "logical_page_printed": 94,
+        "physical_page_num": 98,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                148,
+                1362
+            ],
+            [
+                1172,
+                1362
+            ],
+            [
+                1172,
+                1407
+            ],
+            [
+                148,
+                1407
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Kapitulace (VII, 83–89)",
+        "logical_page_printed": 96,
+        "physical_page_num": 100,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                148,
+                1402
+            ],
+            [
+                565,
+                1402
+            ],
+            [
+                565,
+                1448
+            ],
+            [
+                148,
+                1448
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "C. Sallustius Crispus.",
+        "logical_page_printed": 101,
+        "physical_page_num": 105,
+        "toc_source_page": "page_007",
+        "toc_polygon": [
+            [
+                427,
+                1485
+            ],
+            [
+                916,
+                1485
+            ],
+            [
+                916,
+                1534
+            ],
+            [
+                427,
+                1534
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Úvod",
+                "logical_page_printed": 101,
+                "physical_page_num": 105,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        100,
+                        1550
+                    ],
+                    [
+                        180,
+                        1550
+                    ],
+                    [
+                        180,
+                        1590
+                    ],
+                    [
+                        100,
+                        1590
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "I. Catilina.",
+                "logical_page_printed": 103,
+                "physical_page_num": 107,
+                "toc_source_page": "page_007",
+                "toc_polygon": [
+                    [
+                        558,
+                        1595
+                    ],
+                    [
+                        757,
+                        1595
+                    ],
+                    [
+                        757,
+                        1639
+                    ],
+                    [
+                        558,
+                        1639
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Sallustius o sobě. Osobnost Katilinova (3₃–5₉)",
+                        "logical_page_printed": 104,
+                        "physical_page_num": 108,
+                        "toc_source_page": "page_007",
+                        "toc_polygon": [
+                            [
+                                149,
+                                1646
+                            ],
+                            [
+                                913,
+                                1646
+                            ],
+                            [
+                                913,
+                                1689
+                            ],
+                            [
+                                149,
+                                1689
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Vývoj poměrů v římské republice (5₉, 6₇, 7₈, 8₉, 9₃, 10–11₃, 12)",
+                        "logical_page_printed": 105,
+                        "physical_page_num": 55,
+                        "toc_source_page": "page_007",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2011
+                            ],
+                            [
+                                1500,
+                                2011
+                            ],
+                            [
+                                1500,
+                                2076
+                            ],
+                            [
+                                0,
+                                2076
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Účastníci spiknutí. První schůze (14–17, 20–22)",
+                        "logical_page_printed": 107,
+                        "physical_page_num": 111,
+                        "toc_source_page": "page_007",
+                        "toc_polygon": [
+                            [
+                                151,
+                                1723
+                            ],
+                            [
+                                984,
+                                1723
+                            ],
+                            [
+                                984,
+                                1769
+                            ],
+                            [
+                                151,
+                                1769
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Cicero konsulem. Kuria s Fulvia. Sempronia. Disposice Katilinovy. Výjimečná opatření (23–29)",
+                        "logical_page_printed": 111,
+                        "physical_page_num": 56,
+                        "toc_source_page": "page_007",
+                        "toc_polygon": [
+                            [
+                                0,
+                                2141
+                            ],
+                            [
+                                1500,
+                                2141
+                            ],
+                            [
+                                1500,
+                                2206
+                            ],
+                            [
+                                0,
+                                2206
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Zmatek v Římě. Odchod Katilinův. Vnitřní politické poměry (31–37)",
+                        "logical_page_printed": 113,
+                        "physical_page_num": 117,
+                        "toc_source_page": "page_007",
+                        "toc_polygon": [
+                            [
+                                151,
+                                1844
+                            ],
+                            [
+                                1170,
+                                1844
+                            ],
+                            [
+                                1170,
+                                1926
+                            ],
+                            [
+                                151,
+                                1926
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Vyslanci Allobrogů. Spiknutí usvědčeno. Uvěznění spiklenců (39–41, 43–50)",
+                        "logical_page_printed": 117,
+                        "physical_page_num": 121,
+                        "toc_source_page": "page_007",
+                        "toc_polygon": [
+                            [
+                                146,
+                                1923
+                            ],
+                            [
+                                1167,
+                                1923
+                            ],
+                            [
+                                1167,
+                                2009
+                            ],
+                            [
+                                146,
+                                2009
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Řeč Caesarova (51)",
+                        "logical_page_printed": 122,
+                        "physical_page_num": 126,
+                        "toc_source_page": "page_007",
+                        "toc_polygon": [
+                            [
+                                150,
+                                2005
+                            ],
+                            [
+                                472,
+                                2005
+                            ],
+                            [
+                                472,
+                                2048
+                            ],
+                            [
+                                150,
+                                2048
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "chapter_name": "Předmluva díla (2–4)",
+        "logical_page_printed": 130,
+        "physical_page_num": 134,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                310,
+                341
+            ],
+            [
+                682,
+                341
+            ],
+            [
+                682,
+                383
+            ],
+            [
+                310,
+                383
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Obsah díla. Jugurthovo mládí (5–11)",
+        "logical_page_printed": 132,
+        "physical_page_num": 136,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                314,
+                380
+            ],
+            [
+                932,
+                380
+            ],
+            [
+                932,
+                424
+            ],
+            [
+                314,
+                424
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Podplácením nabývá Jugurtha říše. Řeč Memmiova (13₃–9, 16, 27–31₁–5, 12–17, 25–26)",
+        "logical_page_printed": 135,
+        "physical_page_num": 134,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                309,
+                422
+            ],
+            [
+                1334,
+                422
+            ],
+            [
+                1334,
+                504
+            ],
+            [
+                309,
+                504
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Kassius přivedl Jugurthu do Říma. Massiva (32–35)",
+        "logical_page_printed": 139,
+        "physical_page_num": 143,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                308,
+                501
+            ],
+            [
+                1180,
+                501
+            ],
+            [
+                1180,
+                543
+            ],
+            [
+                308,
+                543
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Rozvrat obce pro zápasy stavů (41–42)",
+        "logical_page_printed": 141,
+        "physical_page_num": 145,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                309,
+                542
+            ],
+            [
+                962,
+                542
+            ],
+            [
+                962,
+                583
+            ],
+            [
+                309,
+                583
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Metellus obnovil pořádek a kázeň ve vojsku (45)",
+        "logical_page_printed": 143,
+        "physical_page_num": 147,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                311,
+                582
+            ],
+            [
+                1100,
+                582
+            ],
+            [
+                1100,
+                624
+            ],
+            [
+                311,
+                624
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Marius a konsulát (63–64)",
+        "logical_page_printed": 145,
+        "physical_page_num": 147,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                309,
+                622
+            ],
+            [
+                759,
+                622
+            ],
+            [
+                759,
+                664
+            ],
+            [
+                309,
+                664
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Marius konsulem a vůdcem proti Jugurthovi (72₂–73)",
+        "logical_page_printed": 145,
+        "physical_page_num": 149,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                312,
+                662
+            ],
+            [
+                1204,
+                662
+            ],
+            [
+                1204,
+                704
+            ],
+            [
+                312,
+                704
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Bratři Filainové (79)",
+        "logical_page_printed": 146,
+        "physical_page_num": 150,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                309,
+                703
+            ],
+            [
+                646,
+                703
+            ],
+            [
+                646,
+                744
+            ],
+            [
+                309,
+                744
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Uražený Metellus. Řeč Mariova (82₂–3, 84–85₁–9, 28–50)",
+        "logical_page_printed": 147,
+        "physical_page_num": 151,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                311,
+                744
+            ],
+            [
+                1290,
+                744
+            ],
+            [
+                1290,
+                787
+            ],
+            [
+                311,
+                787
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Marius v Africe (86–89₃, 100)",
+        "logical_page_printed": 150,
+        "physical_page_num": 154,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                309,
+                784
+            ],
+            [
+                811,
+                784
+            ],
+            [
+                811,
+                826
+            ],
+            [
+                309,
+                826
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Bokchus jedná o mír. Jugurtha zajat (102–113)",
+        "logical_page_printed": 152,
+        "physical_page_num": 156,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                307,
+                822
+            ],
+            [
+                1100,
+                822
+            ],
+            [
+                1100,
+                865
+            ],
+            [
+                307,
+                865
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "P. Ovidius Naso.",
+        "logical_page_printed": 159,
+        "physical_page_num": 163,
+        "toc_source_page": "page_008",
+        "toc_polygon": [
+            [
+                636,
+                902
+            ],
+            [
+                1020,
+                902
+            ],
+            [
+                1020,
+                948
+            ],
+            [
+                636,
+                948
+            ]
+        ],
+        "subchapters": [
+            {
+                "chapter_name": "Úvod",
+                "logical_page_printed": 159,
+                "physical_page_num": 163,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        244,
+                        959
+                    ],
+                    [
+                        329,
+                        959
+                    ],
+                    [
+                        329,
+                        999
+                    ],
+                    [
+                        244,
+                        999
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "I. Tristia.",
+                "logical_page_printed": 163,
+                "physical_page_num": 167,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        739,
+                        1041
+                    ],
+                    [
+                        916,
+                        1041
+                    ],
+                    [
+                        916,
+                        1079
+                    ],
+                    [
+                        739,
+                        1079
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Životopis básníkův (IV, 10)",
+                        "logical_page_printed": 163,
+                        "physical_page_num": 167,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                312,
+                                1086
+                            ],
+                            [
+                                764,
+                                1086
+                            ],
+                            [
+                                764,
+                                1128
+                            ],
+                            [
+                                312,
+                                1128
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "II. Metamorphoses.",
+                "logical_page_printed": 25,
+                "physical_page_num": 171,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        648,
+                        1169
+                    ],
+                    [
+                        1005,
+                        1169
+                    ],
+                    [
+                        1005,
+                        1206
+                    ],
+                    [
+                        648,
+                        1206
+                    ]
+                ],
+                "subchapters": [
+                    {
+                        "chapter_name": "Úvod (I, 1–4)",
+                        "logical_page_printed": 167,
+                        "physical_page_num": 171,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                313,
+                                1214
+                            ],
+                            [
+                                559,
+                                1214
+                            ],
+                            [
+                                559,
+                                1255
+                            ],
+                            [
+                                313,
+                                1255
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Čtvero lidských věků (I, 89–150)",
+                        "logical_page_printed": 167,
+                        "physical_page_num": 171,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                313,
+                                1255
+                            ],
+                            [
+                                864,
+                                1255
+                            ],
+                            [
+                                864,
+                                1295
+                            ],
+                            [
+                                313,
+                                1295
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Deukalion a Pyrrha (I, 313–415)",
+                        "logical_page_printed": 169,
+                        "physical_page_num": 173,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                306,
+                                1294
+                            ],
+                            [
+                                864,
+                                1294
+                            ],
+                            [
+                                864,
+                                1336
+                            ],
+                            [
+                                306,
+                                1336
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Faethon (II, 1–332)",
+                        "logical_page_printed": 172,
+                        "physical_page_num": 176,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                309,
+                                1334
+                            ],
+                            [
+                                651,
+                                1334
+                            ],
+                            [
+                                651,
+                                1376
+                            ],
+                            [
+                                309,
+                                1376
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Pyramus a Thisbe (IV, 55–167)",
+                        "logical_page_printed": 181,
+                        "physical_page_num": 185,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                310,
+                                1373
+                            ],
+                            [
+                                851,
+                                1373
+                            ],
+                            [
+                                851,
+                                1416
+                            ],
+                            [
+                                310,
+                                1416
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Únos Proserpiny (V, 341–571)",
+                        "logical_page_printed": 184,
+                        "physical_page_num": 188,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                312,
+                                1414
+                            ],
+                            [
+                                825,
+                                1414
+                            ],
+                            [
+                                825,
+                                1455
+                            ],
+                            [
+                                312,
+                                1455
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Niobe (VI, 146–312)",
+                        "logical_page_printed": 191,
+                        "physical_page_num": 195,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                310,
+                                1453
+                            ],
+                            [
+                                668,
+                                1453
+                            ],
+                            [
+                                668,
+                                1497
+                            ],
+                            [
+                                310,
+                                1497
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Daedalus a Ikarus (VIII, 183–235)",
+                        "logical_page_printed": 196,
+                        "physical_page_num": 200,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                309,
+                                1493
+                            ],
+                            [
+                                903,
+                                1493
+                            ],
+                            [
+                                903,
+                                1536
+                            ],
+                            [
+                                309,
+                                1536
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Filemon a Baucis (VIII, 611–724)",
+                        "logical_page_printed": 199,
+                        "physical_page_num": 203,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                311,
+                                1535
+                            ],
+                            [
+                                886,
+                                1535
+                            ],
+                            [
+                                886,
+                                1577
+                            ],
+                            [
+                                311,
+                                1577
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Orfeus v podsvětí (X, 1–77)",
+                        "logical_page_printed": 202,
+                        "physical_page_num": 206,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                312,
+                                1574
+                            ],
+                            [
+                                785,
+                                1574
+                            ],
+                            [
+                                785,
+                                1618
+                            ],
+                            [
+                                312,
+                                1618
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Midovo přání (XI, 85–145)",
+                        "logical_page_printed": 205,
+                        "physical_page_num": 209,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                311,
+                                1613
+                            ],
+                            [
+                                804,
+                                1613
+                            ],
+                            [
+                                804,
+                                1658
+                            ],
+                            [
+                                311,
+                                1658
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Ceyx a Alcyone (XI, 410–748)",
+                        "logical_page_printed": 207,
+                        "physical_page_num": 211,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                313,
+                                1654
+                            ],
+                            [
+                                831,
+                                1654
+                            ],
+                            [
+                                831,
+                                1698
+                            ],
+                            [
+                                313,
+                                1698
+                            ]
+                        ],
+                        "subchapters": []
+                    },
+                    {
+                        "chapter_name": "Doslov (XV, 871–879)",
+                        "logical_page_printed": 217,
+                        "physical_page_num": 221,
+                        "toc_source_page": "page_008",
+                        "toc_polygon": [
+                            [
+                                310,
+                                1696
+                            ],
+                            [
+                                695,
+                                1696
+                            ],
+                            [
+                                695,
+                                1736
+                            ],
+                            [
+                                310,
+                                1736
+                            ]
+                        ],
+                        "subchapters": []
+                    }
+                ]
+            },
+            {
+                "chapter_name": "Slavnost novoroční (I, 71–88)",
+                "logical_page_printed": 217,
+                "physical_page_num": 221,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        315,
+                        1814
+                    ],
+                    [
+                        818,
+                        1814
+                    ],
+                    [
+                        818,
+                        1857
+                    ],
+                    [
+                        315,
+                        1857
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Novoroční dárky (I, 183–226)",
+                "logical_page_printed": 218,
+                "physical_page_num": 222,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        308,
+                        1855
+                    ],
+                    [
+                        818,
+                        1855
+                    ],
+                    [
+                        818,
+                        1896
+                    ],
+                    [
+                        308,
+                        1896
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Slavnost míru (I, 709–724)",
+                "logical_page_printed": 220,
+                "physical_page_num": 224,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        311,
+                        1896
+                    ],
+                    [
+                        769,
+                        1896
+                    ],
+                    [
+                        769,
+                        1938
+                    ],
+                    [
+                        311,
+                        1938
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Arion (II, 83–118)",
+                "logical_page_printed": 220,
+                "physical_page_num": 224,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        312,
+                        1935
+                    ],
+                    [
+                        634,
+                        1935
+                    ],
+                    [
+                        634,
+                        1977
+                    ],
+                    [
+                        312,
+                        1977
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Oslava Augusta, otce vlasti (II, 119–144)",
+                "logical_page_printed": 221,
+                "physical_page_num": 225,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        313,
+                        1976
+                    ],
+                    [
+                        1001,
+                        1976
+                    ],
+                    [
+                        1001,
+                        2020
+                    ],
+                    [
+                        313,
+                        2020
+                    ]
+                ],
+                "subchapters": []
+            },
+            {
+                "chapter_name": "Feralia (II, 533–570)",
+                "logical_page_printed": 222,
+                "physical_page_num": 226,
+                "toc_source_page": "page_008",
+                "toc_polygon": [
+                    [
+                        310,
+                        2017
+                    ],
+                    [
+                        674,
+                        2017
+                    ],
+                    [
+                        674,
+                        2060
+                    ],
+                    [
+                        310,
+                        2060
+                    ]
+                ],
+                "subchapters": []
+            }
+        ]
+    },
+    {
+        "chapter_name": "Caristia (II, 617–638)",
+        "logical_page_printed": 224,
+        "physical_page_num": 228,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                155,
+                150
+            ],
+            [
+                528,
+                150
+            ],
+            [
+                528,
+                192
+            ],
+            [
+                155,
+                192
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Anna Perenna (III, 523–542; 655–674)",
+        "logical_page_printed": 224,
+        "physical_page_num": 228,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                152,
+                187
+            ],
+            [
+                830,
+                187
+            ],
+            [
+                830,
+                233
+            ],
+            [
+                152,
+                233
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Quinquatrus (III, 809–834)",
+        "logical_page_printed": 226,
+        "physical_page_num": 230,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                0,
+                129
+            ],
+            [
+                1500,
+                129
+            ],
+            [
+                1500,
+                194
+            ],
+            [
+                0,
+                194
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Mercurius a obchodníci (V, 663–692)",
+        "logical_page_printed": 227,
+        "physical_page_num": 231,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                151,
+                270
+            ],
+            [
+                786,
+                270
+            ],
+            [
+                786,
+                312
+            ],
+            [
+                151,
+                312
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "O časoměrném hexametru a pentametru",
+        "logical_page_printed": 228,
+        "physical_page_num": 232,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                87,
+                362
+            ],
+            [
+                843,
+                362
+            ],
+            [
+                843,
+                399
+            ],
+            [
+                87,
+                399
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Seznam vlastních jmen",
+        "logical_page_printed": 231,
+        "physical_page_num": 235,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                84,
+                426
+            ],
+            [
+                509,
+                426
+            ],
+            [
+                509,
+                461
+            ],
+            [
+                84,
+                461
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "C. Iulius Caesar",
+        "logical_page_printed": 6,
+        "physical_page_num": 10,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                152,
+                553
+            ],
+            [
+                413,
+                553
+            ],
+            [
+                413,
+                592
+            ],
+            [
+                152,
+                592
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Mapa Galie",
+        "logical_page_printed": 20,
+        "physical_page_num": 24,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                0,
+                519
+            ],
+            [
+                1500,
+                519
+            ],
+            [
+                1500,
+                584
+            ],
+            [
+                0,
+                584
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Bitva s Helvety (u Bibrakte)",
+        "logical_page_printed": 33,
+        "physical_page_num": 37,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                150,
+                630
+            ],
+            [
+                614,
+                630
+            ],
+            [
+                614,
+                672
+            ],
+            [
+                150,
+                672
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Vercingetorix",
+        "logical_page_printed": 75,
+        "physical_page_num": 79,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                0,
+                648
+            ],
+            [
+                1500,
+                648
+            ],
+            [
+                1500,
+                713
+            ],
+            [
+                0,
+                713
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Alesia",
+        "logical_page_printed": 92,
+        "physical_page_num": 96,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                0,
+                713
+            ],
+            [
+                1500,
+                713
+            ],
+            [
+                1500,
+                778
+            ],
+            [
+                0,
+                778
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Boj Vercingetorigův s Caesarem",
+        "logical_page_printed": 98,
+        "physical_page_num": 102,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                147,
+                749
+            ],
+            [
+                656,
+                749
+            ],
+            [
+                656,
+                793
+            ],
+            [
+                147,
+                793
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Rodin, Kovový věk",
+        "logical_page_printed": 171,
+        "physical_page_num": 175,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                148,
+                790
+            ],
+            [
+                465,
+                790
+            ],
+            [
+                465,
+                833
+            ],
+            [
+                148,
+                833
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Reni, Aurora",
+        "logical_page_printed": 176,
+        "physical_page_num": 180,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                0,
+                908
+            ],
+            [
+                1500,
+                908
+            ],
+            [
+                1500,
+                973
+            ],
+            [
+                0,
+                973
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Solimena, Faethon",
+        "logical_page_printed": 178,
+        "physical_page_num": 182,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                0,
+                973
+            ],
+            [
+                1500,
+                973
+            ],
+            [
+                1500,
+                1038
+            ],
+            [
+                0,
+                1038
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Bernini, Únos Proserpiny",
+        "logical_page_printed": 186,
+        "physical_page_num": 190,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                148,
+                910
+            ],
+            [
+                563,
+                910
+            ],
+            [
+                563,
+                955
+            ],
+            [
+                148,
+                955
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Niobe",
+        "logical_page_printed": 191,
+        "physical_page_num": 199,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                0,
+                1103
+            ],
+            [
+                1500,
+                1103
+            ],
+            [
+                1500,
+                1168
+            ],
+            [
+                0,
+                1168
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Preisler, Ikaros",
+        "logical_page_printed": 198,
+        "physical_page_num": 202,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                0,
+                1168
+            ],
+            [
+                1500,
+                1168
+            ],
+            [
+                1500,
+                1232
+            ],
+            [
+                0,
+                1232
+            ]
+        ],
+        "subchapters": []
+    },
+    {
+        "chapter_name": "Rodin, Orfeus a Eurydika",
+        "logical_page_printed": 204,
+        "physical_page_num": 208,
+        "toc_source_page": "page_009",
+        "toc_polygon": [
+            [
+                150,
+                1029
+            ],
+            [
+                574,
+                1029
+            ],
+            [
+                574,
+                1073
+            ],
+            [
+                150,
+                1073
+            ]
+        ],
+        "subchapters": []
+    }
+]

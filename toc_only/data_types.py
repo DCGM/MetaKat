@@ -35,6 +35,9 @@ class BookData:
     def __init__(self, pdf_path: str):
         self.pdf_path = pdf_path
 
+        # Input format
+        self.data_type: str = "pdf" if pdf_path else "images"
+
         # All book YOLO
         self.toc_pages: List[dict] = []
         self.chapter_pages: List[dict] = []
