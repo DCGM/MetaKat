@@ -8,23 +8,21 @@ from functools import partial
 
 import numpy as np
 import torch
-from safe_gpu.safe_gpu import GPUOwner
 
 from metakat.page_type.datasets.page_type_collator import PageTypeCollator
 from metakat.page_type.datasets.page_type_dataset import PageTypeDataset
+from metakat.page_type.datasets.page_type_csv_dataset import PageTypeCsvDataset
 from metakat.page_type.nets.page_type_evaluator import PageTypeEvaluator
 from metakat.page_type.datasets.page_type_renderer import PageTypeRenderer
 from metakat.page_type.nets.page_type_trainer import PageTypeTrainer
 from metakat.page_type.nets.page_type_training_arguments import PageTypeTrainingArguments
 
-gpu_owner = GPUOwner(1)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 from clearml import Task
 
-from transformers import set_seed, TrainingArguments, ViTForImageClassification, ViTImageProcessor, \
-    TrainerCallback, TrainerState, PreTrainedModel, ResNetForImageClassification, AutoImageProcessor, \
-    BeitImageProcessor, BeitForImageClassification
+from transformers import set_seed, TrainingArguments, TrainerCallback, TrainerState, PreTrainedModel, \
+    AutoImageProcessor, AutoModelForImageClassification
 
 import argparse
 import logging
@@ -40,22 +38,40 @@ def parse_args():
     parser.add_argument('--task-name')
 
     parser.add_argument('--n-gpu', type=int, default=1)
+    parser.add_argument('--use-safe-gpu', action='store_true',
+                        help='Reserve GPUs with safe_gpu before starting training. Requires the safe-gpu package.')
 
     # Datasets
-    parser.add_argument('--images-dir', required=True, type=str)
-    parser.add_argument('--train-pages', required=True, type=str)
-    parser.add_argument('--eval-pages', required=True, type=str)
+    parser.add_argument('--images-dir', type=str)
+    parser.add_argument('--images-root', type=str,
+                        help='Replacement root for CSV image paths; their last two path components are retained.')
+    train_pages = parser.add_mutually_exclusive_group(required=True)
+    train_pages.add_argument('--train-pages', type=str)
+    train_pages.add_argument('--train-pages-csv', type=str)
+    eval_pages = parser.add_mutually_exclusive_group(required=True)
+    eval_pages.add_argument('--eval-pages', type=str)
+    eval_pages.add_argument('--eval-pages-csv', type=str)
     parser.add_argument('--neighbour-page-mapping', type=str)
     parser.add_argument('--position-patch-size', type=int, default=16)
+    parser.add_argument('--sampling-power-alpha', type=float,
+                        help='Enable power-law epoch resampling with this alpha (target = count ** alpha; '
+                             '0 = one page per class, 1 = natural). The largest class is limited to twice '
+                             'the second-largest sampled class.')
     parser.add_argument('--dataloader-num-workers', type=int, default=4)
     parser.add_argument('--eval-dataloader-num-workers', type=int, default=0)
 
     # Model
-    parser.add_argument('--model-name', type=str, default='google/vit-base-patch16-224',
+    parser.add_argument('--model-name', type=str, default='facebook/dinov2-base',
                         help='Model name or path to checkpoint')
+    parser.add_argument('--model-revision', type=str, default='main',
+                        help='Hugging Face model revision to load; ignored for local checkpoint paths.')
+    parser.add_argument('--image-size', type=int, default=504,
+                        help='Square canvas size. 504 is divisible by DINOv2-base\'s 14-pixel patch size.')
     parser.add_argument('--start-step', type=int)
     parser.add_argument('--resume-trainer', action='store_true')
     parser.add_argument('--fp16', action='store_true')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Initialize and validate the training setup, then exit before training starts.')
 
     # Training
     parser.add_argument('--learning-rate', default=0.00005, type=float)
@@ -91,6 +107,11 @@ def parse_args():
 
     args = parser.parse_args()
 
+    if (args.train_pages_csv or args.eval_pages_csv) and not args.images_root:
+        parser.error('--images-root is required when using --train-pages-csv or --eval-pages-csv')
+    if (args.train_pages or args.eval_pages) and not args.images_dir:
+        parser.error('--images-dir is required when using --train-pages or --eval-pages')
+
     return args
 
 
@@ -107,6 +128,20 @@ def main():
     logger.setLevel(args.logging_level)
 
     logger.info(' '.join(sys.argv))
+
+    # Keep the owner alive for the full training run.  Importing here makes
+    # safe_gpu an optional runtime dependency for ordinary training runs.
+    gpu_owner = None
+    if args.use_safe_gpu:
+        try:
+            from safe_gpu.safe_gpu import GPUOwner
+        except ImportError as exc:
+            raise RuntimeError(
+                '--use-safe-gpu requires the optional safe-gpu package. '
+                'Install it or run without --use-safe-gpu.'
+            ) from exc
+        gpu_owner = GPUOwner(args.n_gpu)
+        logger.info('Reserved %d GPU(s) with safe_gpu.', args.n_gpu)
 
     logger.info('')
     try:
@@ -130,14 +165,20 @@ def main():
 
     rnd = np.random.default_rng(seed=42)
     rnd_seed_gen = partial(rnd.integers, 0, 10000)
-    set_seed(rnd_seed_gen())
+    # NumPy integer scalars are rejected by Python 3.12's random.seed.
+    set_seed(int(rnd_seed_gen()))
 
-    processor = init_processor(args.model_name)
+    processor = init_processor(args.model_name, args.model_revision)
 
     train_dataset, eval_datasets, eval_dataset_for_hg = init_datasets(images_dir=args.images_dir,
                                                                       train_pages=args.train_pages,
                                                                       eval_pages=args.eval_pages,
+                                                                      train_pages_csv=args.train_pages_csv,
+                                                                      eval_pages_csv=args.eval_pages_csv,
+                                                                      images_root=args.images_root,
                                                                       processor=processor,
+                                                                      image_size=args.image_size,
+                                                                      sampling_power_alpha=args.sampling_power_alpha,
                                                                       neighbour_page_mapping=args.neighbour_page_mapping,
                                                                       position_patch_size=args.position_patch_size,
                                                                       eval_train_dataset=args.eval_train_dataset,
@@ -147,7 +188,23 @@ def main():
         if args.start_step is not None:
             model_checkpoint = os.path.join(args.checkpoint_dir, f"checkpoint-{args.start_step}")
 
-    model = init_model(model_checkpoint, train_dataset)
+    model = init_model(model_checkpoint, train_dataset, args.model_revision)
+    if model.config.model_type == 'dinov2' and args.image_size % model.config.patch_size:
+        raise ValueError(
+            f'--image-size ({args.image_size}) must be divisible by DINOv2 patch size '
+            f'({model.config.patch_size}). Use 504 for a maximum size of 512.'
+        )
+    # These custom config fields are saved in every Trainer checkpoint, so an
+    # inference client can reproduce the page-specific resize/pad policy.
+    model.config.page_type_image_size = args.image_size
+    model.config.page_type_resize_longest_edge = True
+
+    # Keep preprocessing metadata with the trained model.  The dataset performs
+    # the aspect-preserving resize and square padding itself.
+    os.makedirs(args.checkpoint_dir, exist_ok=True)
+    processor.save_pretrained(args.checkpoint_dir)
+    with open(os.path.join(args.checkpoint_dir, 'page_type_preprocessing.json'), 'w', encoding='utf-8') as handle:
+        json.dump({'image_size': args.image_size, 'resize_longest_edge': True, 'pad_color': 'black'}, handle)
 
     logger.info(model)
 
@@ -194,6 +251,7 @@ def main():
                     for eval_dataset in eval_datasets],
         random_seed=42,
         clearml_logger=clearml_logger))
+    trainer.add_callback(PageSamplingTrainerCallback(train_dataset))
 
     if args.render_dir is not None:
         trainer.add_callback(PageTypeRendererTrainerCallback(
@@ -211,57 +269,51 @@ def main():
         if args.start_step is not None:
             model_checkpoint = os.path.join(args.checkpoint_dir, f"checkpoint-{args.start_step}")
         logger.info(f'Resuming from checkpoint: {model_checkpoint}')
+
+    if args.dry_run:
+        logger.info('Dry run complete; exiting before training.')
+        if clearml_task is not None:
+            clearml_task.close()
+        return
     trainer.train(resume_from_checkpoint=model_checkpoint)
 
     if clearml_task is not None:
         clearml_task.close()
 
 
-def init_processor(model_checkpoint):
-    if 'vit' in model_checkpoint:
-        processor = ViTImageProcessor.from_pretrained(model_checkpoint)
-    elif 'resnet' in model_checkpoint:
-        processor = AutoImageProcessor.from_pretrained(model_checkpoint)
-    elif 'beit' in model_checkpoint:
-        processor = BeitImageProcessor.from_pretrained(model_checkpoint)
-    else:
-        raise ValueError(f'Unknown model: {model_checkpoint}')
-    return processor
+def init_processor(model_checkpoint, revision='main'):
+    return AutoImageProcessor.from_pretrained(model_checkpoint, revision=revision)
 
 
-def init_model(model_checkpoint, dataset):
+def init_model(model_checkpoint, dataset, revision='main'):
     logger.info(f'Loading model: {model_checkpoint}')
-    if 'vit' in model_checkpoint:
-        model = ViTForImageClassification.from_pretrained(model_checkpoint,
-                                                          num_labels=len(dataset.id2label),
-                                                          id2label=dataset.id2label,
-                                                          label2id=dataset.label2id,
-                                                          ignore_mismatched_sizes=True)
-    elif 'resnet' in model_checkpoint:
-        model = ResNetForImageClassification.from_pretrained(model_checkpoint,
-                                                             num_labels=len(dataset.id2label),
-                                                             id2label=dataset.id2label,
-                                                             label2id=dataset.label2id,
-                                                             ignore_mismatched_sizes=True)
-    elif 'beit' in model_checkpoint:
-        model = BeitForImageClassification.from_pretrained(model_checkpoint,
-                                                           num_labels=len(dataset.id2label),
-                                                           id2label=dataset.id2label,
-                                                           label2id=dataset.label2id,
-                                                           ignore_mismatched_sizes=True)
-    else:
-        raise ValueError(f'Unknown model: {model_checkpoint}')
-
-    return model
+    return AutoModelForImageClassification.from_pretrained(
+        model_checkpoint,
+        num_labels=len(dataset.id2label),
+        id2label=dataset.id2label,
+        label2id=dataset.label2id,
+        ignore_mismatched_sizes=True,
+        revision=revision,
+    )
 
 
-def init_datasets(images_dir, train_pages, eval_pages, processor, neighbour_page_mapping=None,
-                  position_patch_size=16,
+def init_datasets(images_dir, train_pages, eval_pages, processor, train_pages_csv=None, eval_pages_csv=None,
+                  images_root=None, neighbour_page_mapping=None,
+                  position_patch_size=16, image_size=None, sampling_power_alpha=None,
                   eval_train_dataset=False, eval_train_max_pages=500):
-    train_dataset = PageTypeDataset(images_dir=images_dir, pages=train_pages, processor=processor,
-                                    neighbour_page_mapping=neighbour_page_mapping,
-                                    position_patch_size=position_patch_size,
-                                    augment=True)
+    dataset_kwargs = dict(neighbour_page_mapping=neighbour_page_mapping,
+                          position_patch_size=position_patch_size,
+                          image_size=image_size,
+                          sampling_power_alpha=sampling_power_alpha)
+    eval_dataset_kwargs = dict(neighbour_page_mapping=neighbour_page_mapping,
+                               position_patch_size=position_patch_size,
+                               image_size=image_size)
+    if train_pages_csv:
+        train_dataset = PageTypeCsvDataset(csv_path=train_pages_csv, images_root=images_root, processor=processor,
+                                           augment=True, **dataset_kwargs)
+    else:
+        train_dataset = PageTypeDataset(images_dir=images_dir, pages=train_pages, processor=processor,
+                                        augment=True, **dataset_kwargs)
     eval_datasets = []
     if eval_train_dataset:
         eval_aug_train_dataset = copy.copy(train_dataset)
@@ -273,13 +325,25 @@ def init_datasets(images_dir, train_pages, eval_pages, processor, neighbour_page
         eval_train_dataset.augment = False
         eval_train_dataset.max_pages = eval_train_max_pages
         eval_datasets.append(eval_train_dataset)
-    eval_datasets.append(PageTypeDataset(images_dir=images_dir, pages=eval_pages, processor=processor,
-                                         neighbour_page_mapping=neighbour_page_mapping,
-                                         position_patch_size=position_patch_size,
-                                         eval_dataset=True))
+    if eval_pages_csv:
+        eval_datasets.append(PageTypeCsvDataset(csv_path=eval_pages_csv, images_root=images_root, processor=processor,
+                                                eval_dataset=True, **eval_dataset_kwargs))
+    else:
+        eval_datasets.append(PageTypeDataset(images_dir=images_dir, pages=eval_pages, processor=processor,
+                                             eval_dataset=True, **eval_dataset_kwargs))
     eval_dataset_for_hg = copy.copy(eval_datasets[-1])
-    eval_dataset_for_hg.max_pages = 10
     return train_dataset, eval_datasets, eval_dataset_for_hg
+
+
+class PageSamplingTrainerCallback(TrainerCallback):
+    """Refresh the train set when Trainer starts an epoch."""
+
+    def __init__(self, dataset):
+        self.dataset = dataset
+
+    def on_epoch_begin(self, args, state, control, **kwargs):
+        logger.info("Sampling training pages for epoch %s", int(state.epoch or 0) + 1)
+        self.dataset.sample()
 
 
 class PageTypeEvaluatorTrainerCallback(TrainerCallback):
@@ -337,4 +401,3 @@ class PageTypeRendererTrainerCallback(TrainerCallback):
 
 if __name__ == '__main__':
     main()
-
