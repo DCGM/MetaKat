@@ -9,8 +9,8 @@ from ..utils import _format_json_path
 logger = logging.getLogger(__name__)
 
 
-class JSONValueExtractor:
-    """Find scalar values with a representable parallel geometry location."""
+class JSONTextExtractor:
+    """Find JSON text values with a representable output-geometry location."""
 
     def __init__(
         self,

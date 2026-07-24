@@ -1,3 +1,5 @@
+"""Reading-order text alignment candidate generation."""
+
 from __future__ import annotations
 
 from collections import Counter, defaultdict

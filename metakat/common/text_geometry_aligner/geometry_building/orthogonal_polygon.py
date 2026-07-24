@@ -1,39 +1,13 @@
+"""Build a tight orthogonal polygon from matched ALTO words."""
+
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Sequence
 
-from .models import (
-    BoundingBox,
-    OCRWord,
-    OutputGeometry,
-    OutputGeometryFormat,
-    Point,
-    Polygon,
-)
-
-
-class GeometryBuilder(ABC):
-    """Interface for converting matched OCR words into output geometry."""
-
-    @abstractmethod
-    def build(self, words: Sequence[OCRWord]) -> OutputGeometry:
-        raise NotImplementedError
-
-
-class UnionBoundingBoxGeometryBuilder(GeometryBuilder):
-    """Return one rectangle covering all matched ALTO word boxes."""
-
-    def build(self, words: Sequence[OCRWord]) -> BoundingBox:
-        if not words:
-            raise ValueError("Cannot construct geometry from an empty word sequence")
-
-        x_min = min(word.bbox.x for word in words)
-        y_min = min(word.bbox.y for word in words)
-        x_max = max(word.bbox.x_max for word in words)
-        y_max = max(word.bbox.y_max for word in words)
-        return BoundingBox(x=x_min, y=y_min, width=x_max - x_min, height=y_max - y_min)
+from ..models import BoundingBox, OCRWord, Point, Polygon
+from .base import GeometryBuilder
+from .union_bounding_box import UnionBoundingBoxGeometryBuilder
 
 
 class OrthogonalPolygonGeometryBuilder(GeometryBuilder):
@@ -66,16 +40,6 @@ class OrthogonalPolygonGeometryBuilder(GeometryBuilder):
         ):
             return _union_bounding_polygon(words)
         return polygon
-
-
-def create_geometry_builder(
-    output_format: OutputGeometryFormat,
-) -> GeometryBuilder:
-    if output_format is OutputGeometryFormat.BBOX:
-        return UnionBoundingBoxGeometryBuilder()
-    if output_format is OutputGeometryFormat.POLYGON:
-        return OrthogonalPolygonGeometryBuilder()
-    raise ValueError(f"Unsupported output geometry format: {output_format}")
 
 
 def _bounding_box_corners(box: BoundingBox) -> tuple[Point, ...]:

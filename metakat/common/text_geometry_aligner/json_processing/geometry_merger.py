@@ -10,8 +10,8 @@ from ..utils import _format_json_path, _resolve_json_path
 logger = logging.getLogger(__name__)
 
 
-class JSONAlignmentMerger:
-    """Reconstruct aligned JSON output using paths retained during extraction."""
+class JSONGeometryMerger:
+    """Merge aligned geometry into paths retained during text extraction."""
 
     def __init__(
         self,

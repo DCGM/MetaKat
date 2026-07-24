@@ -1,3 +1,5 @@
+"""CP-SAT text candidate selection."""
+
 from __future__ import annotations
 
 import logging

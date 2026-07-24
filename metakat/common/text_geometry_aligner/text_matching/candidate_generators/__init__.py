@@ -1,4 +1,4 @@
-"""Candidate-generation interfaces and implementations."""
+"""Text candidate-generation interfaces and implementations."""
 
 from .anchored_fuzzy import (
     AnchoredFuzzyTextCandidateGenerator,

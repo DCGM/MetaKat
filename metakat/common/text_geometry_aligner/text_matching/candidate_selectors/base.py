@@ -1,19 +1,20 @@
+"""Base interface for text candidate selectors."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Sequence
 
-from ...alto_processing import ALTOTextIndex
 from ...models import AlignmentCandidate, JSONScalarValue
 
 
-class CandidateGenerator(ABC):
-    """Generate deterministic alignment candidates with unique IDs."""
+class CandidateSelector(ABC):
+    """Select a globally compatible subset of alignment candidates."""
 
     @abstractmethod
-    def generate(
+    def select(
         self,
+        candidates: Sequence[AlignmentCandidate],
         values: Sequence[JSONScalarValue],
-        alto_index: ALTOTextIndex,
     ) -> tuple[AlignmentCandidate, ...]:
         raise NotImplementedError

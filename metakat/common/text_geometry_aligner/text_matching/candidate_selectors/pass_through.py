@@ -1,18 +1,19 @@
+"""Pass-through text candidate selection."""
+
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from typing import Sequence
 
 from ...models import AlignmentCandidate, JSONScalarValue
+from .base import CandidateSelector
 
 
-class CandidateSelector(ABC):
-    """Select a globally compatible subset of alignment candidates."""
+class PassThroughCandidateSelector(CandidateSelector):
+    """Return generated candidates unchanged."""
 
-    @abstractmethod
     def select(
         self,
         candidates: Sequence[AlignmentCandidate],
         values: Sequence[JSONScalarValue],
     ) -> tuple[AlignmentCandidate, ...]:
-        raise NotImplementedError
+        return tuple(candidates)

@@ -1,3 +1,5 @@
+"""Exact text candidate generation."""
+
 from __future__ import annotations
 
 from collections import defaultdict

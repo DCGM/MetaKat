@@ -1,3 +1,5 @@
+"""Shared helpers for text candidate generators."""
+
 from __future__ import annotations
 
 from typing import Any

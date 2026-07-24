@@ -9,10 +9,11 @@ from typing import Any, Optional, Sequence
 from .models import (
     ALTOPage,
     BoundingBox,
+    GeometryAlignmentResult,
     OutputGeometry,
-    PageAlignmentResult,
     Polygon,
-    SelectedAlignment,
+    RenderAlignment,
+    TextAlignmentResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class AlignmentRenderer(ABC):
         image_path: str | os.PathLike[str],
         output_path: str | os.PathLike[str],
         alto_page: ALTOPage,
-        result: PageAlignmentResult,
+        result: TextAlignmentResult | GeometryAlignmentResult,
     ) -> None:
         raise NotImplementedError
 
@@ -68,7 +69,6 @@ class PillowAlignmentRenderer(AlignmentRenderer):
         line_width: int = 3,
         font_size: int = 36,
         label_padding: int = 3,
-        similarity_scale: int = 1_000_000,
         font_path: Optional[str | os.PathLike[str]] = None,
     ):
         if line_width <= 0:
@@ -77,13 +77,9 @@ class PillowAlignmentRenderer(AlignmentRenderer):
             raise ValueError("font_size must be positive")
         if label_padding < 0:
             raise ValueError("label_padding must not be negative")
-        if similarity_scale <= 0:
-            raise ValueError("similarity_scale must be positive")
-
         self.line_width = line_width
         self.font_size = font_size
         self.label_padding = label_padding
-        self.similarity_scale = similarity_scale
         self.font_path = Path(font_path) if font_path is not None else None
 
     def render(
@@ -91,7 +87,7 @@ class PillowAlignmentRenderer(AlignmentRenderer):
         image_path: str | os.PathLike[str],
         output_path: str | os.PathLike[str],
         alto_page: ALTOPage,
-        result: PageAlignmentResult,
+        result: TextAlignmentResult | GeometryAlignmentResult,
     ) -> None:
         try:
             from PIL import Image, ImageDraw
@@ -119,11 +115,11 @@ class PillowAlignmentRenderer(AlignmentRenderer):
         )
 
         ordered_alignments = sorted(
-            result.selected_alignments,
+            result.render_alignments,
             key=lambda alignment: (
                 alignment.geometry.bounds.y,
                 alignment.geometry.bounds.x,
-                alignment.candidate.value_id,
+                alignment.alignment_id,
             ),
         )
 
@@ -147,7 +143,7 @@ class PillowAlignmentRenderer(AlignmentRenderer):
                 image_height=image_height,
             )
 
-            label = self._build_label(result, alignment)
+            label = self._build_label(alignment)
             label_lines = self._wrap_label(
                 draw=draw,
                 text=label,
@@ -407,8 +403,6 @@ class PillowAlignmentRenderer(AlignmentRenderer):
 
     def _build_label(
         self,
-        result: PageAlignmentResult,
-        alignment: SelectedAlignment,
+        alignment: RenderAlignment,
     ) -> str:
-        similarity = alignment.candidate.similarity_int / self.similarity_scale
-        return f"{result.text_for_alignment(alignment)} [{similarity:.2f}]"
+        return f"{alignment.text} [{alignment.score:.2f}]"

@@ -1,28 +1,32 @@
 #!/usr/bin/env python3
-"""Top-level text-to-geometry alignment orchestration and command-line entry point."""
+"""Text-to-geometry alignment orchestration and command-line entry point."""
 
 from __future__ import annotations
 
 import argparse
 import logging
-import os
-from pathlib import Path
 from typing import Any, Optional
 
 from metakat.common.text_geometry_aligner.alto_io import ALTOReader
-from metakat.common.text_geometry_aligner.geometry import (
+from metakat.common.text_geometry_aligner.base_aligner import (
+    BaseAligner,
+    add_common_cli_arguments,
+    validate_common_cli_arguments,
+)
+from metakat.common.text_geometry_aligner.geometry_building import (
     GeometryBuilder,
-    create_geometry_builder,
+    OrthogonalPolygonGeometryBuilder,
+    UnionBoundingBoxGeometryBuilder,
 )
 from metakat.common.text_geometry_aligner.json_io import (
     JSONReader,
     JSONWriter,
 )
 from metakat.common.text_geometry_aligner.json_processing import (
-    JSONAlignmentMerger,
-    JSONValueExtractor,
+    JSONGeometryMerger,
+    JSONTextExtractor,
 )
-from metakat.common.text_geometry_aligner.matching.candidate_generators import (
+from metakat.common.text_geometry_aligner.text_matching.candidate_generators import (
     AnchoredFuzzyTextCandidateGenerator,
     CandidateGenerator,
     CompositeCandidateGenerator,
@@ -31,11 +35,11 @@ from metakat.common.text_geometry_aligner.matching.candidate_generators import (
     OrderedAlignmentCandidateConfig,
     OrderedAlignmentCandidateGenerator,
 )
-from metakat.common.text_geometry_aligner.matching.diagnostics import (
+from metakat.common.text_geometry_aligner.text_matching.diagnostics import (
     _find_ambiguous_value_ids,
     _find_conflicted_value_ids,
 )
-from metakat.common.text_geometry_aligner.matching.candidate_selectors import (
+from metakat.common.text_geometry_aligner.text_matching.candidate_selectors import (
     CPSATCandidateSelector,
     CandidateSelector,
     PassThroughCandidateSelector,
@@ -43,13 +47,12 @@ from metakat.common.text_geometry_aligner.matching.candidate_selectors import (
 from metakat.common.text_geometry_aligner.models import (
     ALTOPage,
     CER_SCALE,
-    AlignmentDirection,
     BoundingBox,
     OutputGeometryFormat,
     OutputTextSource,
-    PageAlignmentResult,
     Polygon,
     SelectedAlignment,
+    TextAlignmentResult,
 )
 from metakat.common.text_geometry_aligner.normalization import (
     TextNormalizationPipeline,
@@ -60,7 +63,6 @@ from metakat.common.text_geometry_aligner.preprocessing import (
 )
 from metakat.common.text_geometry_aligner.rendering import (
     AlignmentRenderer,
-    PillowAlignmentRenderer,
 )
 from metakat.common.text_geometry_aligner.utils import (
     _format_json_path,
@@ -69,13 +71,19 @@ from metakat.common.text_geometry_aligner.utils import (
 
 logger = logging.getLogger(__name__)
 
-IMAGE_EXTENSIONS = {
-    ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp",
-}
+
+def _build_geometry_builder(
+    output_format: OutputGeometryFormat,
+) -> GeometryBuilder:
+    if output_format is OutputGeometryFormat.BBOX:
+        return UnionBoundingBoxGeometryBuilder()
+    if output_format is OutputGeometryFormat.POLYGON:
+        return OrthogonalPolygonGeometryBuilder()
+    raise ValueError(f"Unsupported output geometry format: {output_format}")
 
 
-class TextGeometryAligner:
-    """Importable and CLI-ready text/geometry aligner."""
+class TextAligner(BaseAligner[TextAlignmentResult]):
+    """Importable and CLI-ready text-to-geometry aligner."""
 
     def __init__(
         self,
@@ -86,7 +94,6 @@ class TextGeometryAligner:
         output_geometry_format: OutputGeometryFormat | str = (
             OutputGeometryFormat.BBOX
         ),
-        direction: AlignmentDirection = AlignmentDirection.TEXT_TO_GEOMETRY,
         normalizer: Optional[TextNormalizer] = None,
         alto_reader: Optional[ALTOReader] = None,
         json_reader: Optional[JSONReader] = None,
@@ -96,48 +103,49 @@ class TextGeometryAligner:
         preserve_existing_geometry: bool = False,
         output_text_source: OutputTextSource | str = OutputTextSource.JSON,
     ):
-        if direction is not AlignmentDirection.TEXT_TO_GEOMETRY:
-            raise NotImplementedError(
-                "Only text-to-geometry alignment is implemented at present"
-            )
         if geometry_suffix == "":
             raise ValueError("geometry_suffix must not be empty")
 
+        super().__init__(
+            alto_reader=alto_reader,
+            json_reader=json_reader,
+            json_writer=json_writer,
+            renderer=renderer,
+        )
         self.output_geometry_format = OutputGeometryFormat(
             output_geometry_format
         )
         self.geometry_suffix = geometry_suffix or (
             f"_{self.output_geometry_format.value}"
         )
-        self.direction = direction
         self.normalizer = normalizer or TextNormalizationPipeline.from_optional_names()
         self.input_normalizer = AlignmentInputNormalizer(self.normalizer)
-        self.alto_reader = alto_reader or ALTOReader()
-        self.json_reader = json_reader or JSONReader()
-        self.json_writer = json_writer or JSONWriter()
         self.candidate_generator = candidate_generator
         self.candidate_selector = candidate_selector
-        self.geometry_builder = geometry_builder or create_geometry_builder(
+        self.geometry_builder = geometry_builder or _build_geometry_builder(
             self.output_geometry_format
         )
-        self.renderer = renderer or PillowAlignmentRenderer()
         self.preserve_existing_geometry = preserve_existing_geometry
         self.output_text_source = OutputTextSource(output_text_source)
-        self.value_extractor = JSONValueExtractor(
+        self.text_extractor = JSONTextExtractor(
             geometry_suffix=self.geometry_suffix,
             preserve_existing_geometry=self.preserve_existing_geometry,
         )
-        self.alignment_merger = JSONAlignmentMerger(
+        self.geometry_merger = JSONGeometryMerger(
             geometry_suffix=self.geometry_suffix,
             preserve_existing_geometry=self.preserve_existing_geometry,
         )
 
-    def align_data(self, alto_page: ALTOPage, input_data: Any) -> PageAlignmentResult:
+    def align_data(
+        self,
+        alto_page: ALTOPage,
+        input_data: Any,
+    ) -> TextAlignmentResult:
         """Align one already-parsed ALTO page with one loaded JSON value."""
 
-        raw_values = self.value_extractor.extract(input_data)
+        raw_values = self.text_extractor.extract(input_data)
         values = self.input_normalizer.normalize_values(raw_values)
-        output_data = self.alignment_merger.create_output(input_data, values)
+        output_data = self.geometry_merger.create_output(input_data, values)
         alto_index = self.input_normalizer.build_alto_index(alto_page)
         candidates = self.candidate_generator.generate(values, alto_index)
         ambiguous_value_ids = _find_ambiguous_value_ids(candidates)
@@ -174,7 +182,7 @@ class TextGeometryAligner:
                     SelectedAlignment(candidate=candidate, geometry=geometry)
                 )
                 if self.output_text_source is OutputTextSource.ALTO:
-                    self.alignment_merger.set_aligned_text(
+                    self.geometry_merger.set_aligned_text(
                         output_data,
                         value,
                         candidate.matched_text,
@@ -192,7 +200,7 @@ class TextGeometryAligner:
                     candidate.cer_int / CER_SCALE,
                 )
 
-            self.alignment_merger.set_geometry(
+            self.geometry_merger.set_geometry(
                 output_data,
                 value,
                 geometry_json,
@@ -209,7 +217,7 @@ class TextGeometryAligner:
             len(conflicted_value_ids),
         )
 
-        return PageAlignmentResult(
+        return TextAlignmentResult(
             output_data=output_data,
             values=values,
             candidates=candidates,
@@ -237,143 +245,6 @@ class TextGeometryAligner:
                 f"requires {expected_type.__name__}"
             )
 
-    def align_files(
-        self,
-        alto_file: str | os.PathLike[str],
-        json_input_file: str | os.PathLike[str],
-        json_output_file: str | os.PathLike[str],
-        image_file: Optional[str | os.PathLike[str]] = None,
-        render_output_file: Optional[str | os.PathLike[str]] = None,
-    ) -> PageAlignmentResult:
-        """Align one ALTO/JSON pair and write the resulting JSON file."""
-
-        if (image_file is None) != (render_output_file is None):
-            raise ValueError(
-                "image_file and render_output_file must be provided together"
-            )
-
-        alto_path = Path(alto_file)
-        input_path = Path(json_input_file)
-        output_path = Path(json_output_file)
-
-        alto_page = self.alto_reader.read(alto_path)
-        input_data = self.json_reader.read(input_path)
-
-        result = self.align_data(alto_page, input_data)
-        self.json_writer.write(result.output_data, output_path)
-
-        if image_file is not None and render_output_file is not None:
-            self.renderer.render(
-                image_path=image_file,
-                output_path=render_output_file,
-                alto_page=alto_page,
-                result=result,
-            )
-        return result
-
-    def process_directories(
-        self,
-        alto_input_dir: str | os.PathLike[str],
-        json_input_dir: str | os.PathLike[str],
-        json_output_dir: str | os.PathLike[str],
-        images_input_dir: Optional[str | os.PathLike[str]] = None,
-        render_output_dir: Optional[str | os.PathLike[str]] = None,
-        fail_on_missing_alto: bool = False,
-    ) -> list[PageAlignmentResult]:
-        """Process top-level JSON files paired with ALTO XML by filename stem."""
-
-        if (images_input_dir is None) != (render_output_dir is None):
-            raise ValueError(
-                "images_input_dir and render_output_dir must be provided together"
-            )
-
-        alto_dir = Path(alto_input_dir)
-        input_dir = Path(json_input_dir)
-        output_dir = Path(json_output_dir)
-        images_dir = Path(images_input_dir) if images_input_dir is not None else None
-        render_dir = Path(render_output_dir) if render_output_dir is not None else None
-
-        if not alto_dir.is_dir():
-            raise NotADirectoryError(f"ALTO input directory not found: {alto_dir}")
-        if not input_dir.is_dir():
-            raise NotADirectoryError(f"JSON input directory not found: {input_dir}")
-        if images_dir is not None and not images_dir.is_dir():
-            raise NotADirectoryError(f"Images input directory not found: {images_dir}")
-        output_dir.mkdir(parents=True, exist_ok=True)
-        if render_dir is not None:
-            render_dir.mkdir(parents=True, exist_ok=True)
-
-        alto_by_stem: dict[str, Path] = {}
-        for alto_path in sorted(alto_dir.iterdir()):
-            if alto_path.is_file() and alto_path.suffix.lower() == ".xml":
-                if alto_path.stem in alto_by_stem:
-                    raise ValueError(
-                        f"Multiple ALTO files have the same stem {alto_path.stem!r}: "
-                        f"{alto_by_stem[alto_path.stem]} and {alto_path}"
-                    )
-                alto_by_stem[alto_path.stem] = alto_path
-
-        images_by_stem: dict[str, Path] = {}
-        if images_dir is not None:
-            for image_path in sorted(images_dir.iterdir()):
-                if image_path.is_file() and image_path.suffix.lower() in IMAGE_EXTENSIONS:
-                    if image_path.stem in images_by_stem:
-                        raise ValueError(
-                            f"Multiple image files have the same stem {image_path.stem!r}: "
-                            f"{images_by_stem[image_path.stem]} and {image_path}"
-                        )
-                    images_by_stem[image_path.stem] = image_path
-
-        results: list[PageAlignmentResult] = []
-        json_paths = sorted(
-            path
-            for path in input_dir.iterdir()
-            if path.is_file() and path.suffix.lower() == ".json"
-        )
-
-        for index, json_path in enumerate(json_paths, start=1):
-            alto_path = alto_by_stem.get(json_path.stem)
-            if alto_path is None:
-                message = f"No ALTO XML found for JSON file {json_path.name}"
-                if fail_on_missing_alto:
-                    raise FileNotFoundError(message)
-                logger.warning(message)
-                continue
-
-            output_path = output_dir / json_path.name
-            image_path: Optional[Path] = None
-            render_path: Optional[Path] = None
-            if images_dir is not None and render_dir is not None:
-                image_path = images_by_stem.get(json_path.stem)
-                if image_path is None:
-                    logger.warning(
-                        "No source image found for JSON file %s; JSON will be aligned "
-                        "without a rendered visualization",
-                        json_path.name,
-                    )
-                else:
-                    render_path = render_dir / image_path.name
-
-            logger.info(
-                "Processing %d/%d: %s with %s",
-                index,
-                len(json_paths),
-                json_path.name,
-                alto_path.name,
-            )
-            results.append(
-                self.align_files(
-                    alto_path,
-                    json_path,
-                    output_path,
-                    image_file=image_path,
-                    render_output_file=render_path,
-                )
-            )
-
-        logger.info("Processed %d/%d JSON files", len(results), len(json_paths))
-        return results
-
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -381,25 +252,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
             "to ALTO words and add parallel geometry keys."
         )
     )
-    parser.add_argument("--alto-dir", required=True, help="Directory containing ALTO XML files")
-    parser.add_argument("--json-input-dir", required=True, help="Directory containing input JSON files")
-    parser.add_argument("--json-output-dir", required=True, help="Directory for aligned output JSON files")
-    parser.add_argument(
-        "--images-dir",
-        default=None,
-        help=(
-            "Optional directory containing source images. Must be supplied together "
-            "with --render-dir. Images are paired by filename stem."
-        ),
-    )
-    parser.add_argument(
-        "--render-dir",
-        default=None,
-        help=(
-            "Optional directory for rendered alignment visualizations. Must be "
-            "supplied together with --images-dir."
-        ),
-    )
+    add_common_cli_arguments(parser)
     parser.add_argument(
         "--output-geometry-format",
         choices=tuple(output_format.value for output_format in OutputGeometryFormat),
@@ -504,11 +357,6 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Do not realign fields that already have a sibling geometry key",
     )
     parser.add_argument(
-        "--fail-on-missing-alto",
-        action="store_true",
-        help="Fail instead of skipping a JSON file whose matching ALTO XML is missing",
-    )
-    parser.add_argument(
         "--logging-level",
         type=_parse_logging_level,
         default=logging.INFO,
@@ -568,8 +416,7 @@ def _build_candidate_selector(
 def main() -> None:
     parser = build_argument_parser()
     args = parser.parse_args()
-    if (args.images_dir is None) != (args.render_dir is None):
-        parser.error("--images-dir and --render-dir must be provided together")
+    validate_common_cli_arguments(parser, args)
 
     logging.basicConfig(
         level=args.logging_level,
@@ -585,7 +432,7 @@ def main() -> None:
     except ValueError as exc:
         parser.error(str(exc))
 
-    aligner = TextGeometryAligner(
+    aligner = TextAligner(
         candidate_generator=candidate_generator,
         candidate_selector=candidate_selector,
         geometry_suffix=args.geometry_suffix,

@@ -1,4 +1,4 @@
-"""Candidate-selection interfaces and implementations."""
+"""Text candidate-selection interfaces and implementations."""
 
 from .base import CandidateSelector
 from .cp_sat import CPSATCandidateSelector

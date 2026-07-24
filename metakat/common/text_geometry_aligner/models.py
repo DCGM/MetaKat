@@ -12,13 +12,6 @@ SIMILARITY_SCALE = 1_000_000
 CER_SCALE = 1_000_000
 
 
-class AlignmentDirection(str, Enum):
-    """Supported high-level alignment directions."""
-
-    TEXT_TO_GEOMETRY = "text-to-geometry"
-    GEOMETRY_TO_TEXT = "geometry-to-text"  # Reserved for a future extension.
-
-
 class OutputTextSource(str, Enum):
     """Source text written to matched JSON values and rendered labels."""
 
@@ -193,9 +186,19 @@ class SelectedAlignment:
     geometry: OutputGeometry
 
 
+@dataclass(frozen=True)
+class RenderAlignment:
+    """Direction-neutral data required to render one alignment."""
+
+    alignment_id: int
+    geometry: OutputGeometry
+    text: str
+    score: float
+
+
 @dataclass
-class PageAlignmentResult:
-    """Result and diagnostics for one JSON/ALTO pair."""
+class TextAlignmentResult:
+    """Text-to-geometry result and diagnostics for one JSON/ALTO pair."""
 
     output_data: Any
     values: tuple[JSONScalarValue, ...]
@@ -219,6 +222,107 @@ class PageAlignmentResult:
         if self.output_text_source is OutputTextSource.ALTO:
             return alignment.candidate.matched_text
         return alignment.candidate.query_text
+
+    @property
+    def render_alignments(self) -> tuple[RenderAlignment, ...]:
+        return tuple(
+            RenderAlignment(
+                alignment_id=alignment.candidate.value_id,
+                geometry=alignment.geometry,
+                text=self.text_for_alignment(alignment),
+                score=alignment.candidate.similarity_int / SIMILARITY_SCALE,
+            )
+            for alignment in self.selected_alignments
+        )
+
+
+@dataclass(frozen=True)
+class JSONGeometryRegion:
+    """One JSON geometry and the suffix-derived text destination it owns."""
+
+    region_id: int
+    geometry_path: JSONPath
+    text_path: JSONPath
+    geometry: OutputGeometry
+
+
+@dataclass(frozen=True)
+class GeometryWordAlignment:
+    """ALTO words assigned to one input JSON geometry."""
+
+    region: JSONGeometryRegion
+    word_indexes: tuple[int, ...]
+    word_coverages: tuple[float, ...]
+    extracted_text: Optional[str]
+
+    def __post_init__(self) -> None:
+        if len(self.word_indexes) != len(self.word_coverages):
+            raise ValueError(
+                "word_indexes and word_coverages must have the same length"
+            )
+        if tuple(sorted(set(self.word_indexes))) != self.word_indexes:
+            raise ValueError(
+                "word_indexes must be unique and in ALTO document order"
+            )
+        if any(
+            not 0.0 <= coverage <= 1.0
+            for coverage in self.word_coverages
+        ):
+            raise ValueError("word_coverages must be within [0, 1]")
+        if bool(self.word_indexes) != (self.extracted_text is not None):
+            raise ValueError(
+                "extracted_text must be present exactly when words are assigned"
+            )
+
+    @property
+    def average_coverage(self) -> float:
+        if not self.word_coverages:
+            return 0.0
+        return sum(self.word_coverages) / len(self.word_coverages)
+
+
+@dataclass
+class GeometryAlignmentResult:
+    """Geometry-to-text result for one JSON/ALTO pair."""
+
+    output_data: Any
+    regions: tuple[JSONGeometryRegion, ...]
+    alignments: tuple[GeometryWordAlignment, ...]
+
+    @property
+    def matched_count(self) -> int:
+        return sum(
+            alignment.extracted_text is not None
+            for alignment in self.alignments
+        )
+
+    @property
+    def unmatched_count(self) -> int:
+        return len(self.alignments) - self.matched_count
+
+    @property
+    def unmatched_region_ids(self) -> tuple[int, ...]:
+        return tuple(
+            alignment.region.region_id
+            for alignment in self.alignments
+            if alignment.extracted_text is None
+        )
+
+    @property
+    def render_alignments(self) -> tuple[RenderAlignment, ...]:
+        return tuple(
+            RenderAlignment(
+                alignment_id=alignment.region.region_id,
+                geometry=alignment.region.geometry,
+                text=(
+                    alignment.extracted_text
+                    if alignment.extracted_text is not None
+                    else "null"
+                ),
+                score=alignment.average_coverage,
+            )
+            for alignment in self.alignments
+        )
 
 
 def _clean_number(value: float) -> int | float:

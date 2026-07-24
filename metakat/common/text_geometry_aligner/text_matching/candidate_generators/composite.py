@@ -1,3 +1,5 @@
+"""Composition of multiple text candidate generators."""
+
 from __future__ import annotations
 
 from typing import Sequence

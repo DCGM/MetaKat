@@ -1,4 +1,4 @@
-"""Candidate generation, global selection, and matching diagnostics."""
+"""Text candidate generation, global selection, and diagnostics."""
 
 from .candidate_generators import (
     AnchoredFuzzyTextCandidateGenerator,
