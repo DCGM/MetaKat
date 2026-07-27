@@ -10,3 +10,6 @@
 [submodule "libs/detector-wrapper"]
 	path = libs/detector-wrapper
 	url = git@github.com:DCGM/detector-wrapper.git
+[submodule "libs/text-geometry-aligner"]
+	path = libs/text-geometry-aligner
+	url = git@github.com:DCGM/text-geometry-aligner.git
