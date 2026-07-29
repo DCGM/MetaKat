@@ -183,6 +183,11 @@ def main():
                                                                       position_patch_size=args.position_patch_size,
                                                                       eval_train_dataset=args.eval_train_dataset,
                                                                       eval_train_max_pages=args.eval_train_max_pages)
+
+    # The Trainer must see the real sampled epoch length before it computes
+    # its schedule and creates the train dataloader.
+    train_dataset.sample()
+
     model_checkpoint = args.model_name
     if not args.resume_trainer:
         if args.start_step is not None:
@@ -216,7 +221,7 @@ def main():
         metric_for_best_model='eval_loss',
 
         dataloader_num_workers=args.dataloader_num_workers,
-        dataloader_persistent_workers=True,
+        dataloader_persistent_workers=False,
         prediction_loss_only=True,
 
         learning_rate=args.learning_rate,
@@ -235,6 +240,16 @@ def main():
 
         logging_steps=args.logging_steps
     )
+
+    logger.info("Requested max_steps: %d", args.max_steps)
+    logger.info("Effective max_steps: %d", training_args.max_steps)
+    logger.info("Sampled pages per epoch: %d", len(train_dataset))
+    logger.info("Batches per epoch: %d",
+         (
+          len(train_dataset)
+          + training_args.per_device_train_batch_size
+          - 1
+         ) // training_args.per_device_train_batch_size)
 
     trainer = PageTypeTrainer(
         model=model,
@@ -263,6 +278,8 @@ def main():
                                         output_dir=args.render_dir) for eval_dataset in eval_datasets],
             random_seed=42))
 
+    trainer.add_callback(TrainingProgressCallback())
+
     model_checkpoint = None
     if args.resume_trainer:
         model_checkpoint = args.model_name
@@ -275,7 +292,14 @@ def main():
         if clearml_task is not None:
             clearml_task.close()
         return
-    trainer.train(resume_from_checkpoint=model_checkpoint)
+
+    train_result = trainer.train(resume_from_checkpoint=model_checkpoint)
+
+    logger.info(
+        "Training returned at global_step=%d; requested max_steps=%d",
+        train_result.global_step,
+        args.max_steps,
+    )
 
     if clearml_task is not None:
         clearml_task.close()
@@ -336,14 +360,29 @@ def init_datasets(images_dir, train_pages, eval_pages, processor, train_pages_cs
 
 
 class PageSamplingTrainerCallback(TrainerCallback):
-    """Refresh the train set when Trainer starts an epoch."""
+    """Refresh the training sample after the initially sampled epoch."""
 
     def __init__(self, dataset):
         self.dataset = dataset
 
     def on_epoch_begin(self, args, state, control, **kwargs):
-        logger.info("Sampling training pages for epoch %s", int(state.epoch or 0) + 1)
+        epoch = int(state.epoch or 0)
+
+        # Epoch 0 was sampled before Trainer initialization.
+        if epoch == 0:
+            logger.info(
+                "Using initial training sample for epoch 1: %d pages",
+                len(self.dataset),
+            )
+            return
+
+        logger.info("Sampling training pages for epoch %d", epoch + 1)
         self.dataset.sample()
+        logger.info(
+            "Training dataset for epoch %d contains %d pages",
+            epoch + 1,
+            len(self.dataset),
+        )
 
 
 class PageTypeEvaluatorTrainerCallback(TrainerCallback):
@@ -398,6 +437,32 @@ class PageTypeRendererTrainerCallback(TrainerCallback):
 
         self.last_show_iter = state.global_step
 
+
+class TrainingProgressCallback(TrainerCallback):
+    def on_train_begin(self, args, state, control, **kwargs):
+        logger.info(
+            "TRAIN START: global_step=%d, state.max_steps=%d, args.max_steps=%d",
+            state.global_step,
+            state.max_steps,
+            args.max_steps,
+        )
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        logger.info(
+            "TRAIN PROGRESS: global_step=%d/%d, epoch=%s",
+            state.global_step,
+            state.max_steps,
+            state.epoch,
+        )
+
+    def on_epoch_end(self, args, state, control, **kwargs):
+        logger.info(
+            "EPOCH END: global_step=%d/%d, epoch=%s, training_stop=%s",
+            state.global_step,
+            state.max_steps,
+            state.epoch,
+            control.should_training_stop,
+        )
 
 if __name__ == '__main__':
     main()
