@@ -6,20 +6,21 @@ import tempfile
 from typing import List
 
 from natsort import natsorted
-from ultralytics import YOLO
 
-from detector_wrapper.yolo.detect import process as yolo_process
 from detector_wrapper.parsers.detector_parser import DetectorParser
 from detector_wrapper.parsers.pero_ocr import ALTOMatch
+from metakat.common.engines.engine_yolo import EngineYOLO
 
 logger = logging.getLogger(__name__)
+
 
 class EngineYOLOALTO:
     def __init__(self, engine_dir,
                  yolo_batch_size=32,
                  yolo_confidence_threshold=0.25,
                  yolo_image_size=640,
-                 min_alto_word_area_in_detection_to_match=0.65):
+                 min_alto_word_area_in_detection_to_match=0.65,
+                 yolo_device=0):
         self.engine_dir = engine_dir
         config_path = os.path.join(engine_dir, "metakat_engine_config.json")
         if not os.path.exists(config_path):
@@ -36,6 +37,9 @@ class EngineYOLOALTO:
         self.yolo_image_size = yolo_image_size
         if 'yolo_image_size' in self.config:
             self.yolo_image_size = self.config['yolo_image_size']
+        self.yolo_device = yolo_device
+        if 'yolo_device' in self.config:
+            self.yolo_device = self.config['yolo_device']
         self.min_alto_word_area_in_detection_to_match = min_alto_word_area_in_detection_to_match
         if 'min_alto_word_area_in_detection_to_match' in self.config:
             self.min_alto_word_area_in_detection_to_match = self.config['min_alto_word_area_in_detection_to_match']
@@ -47,33 +51,41 @@ class EngineYOLOALTO:
                 break
         if pt_path is None:
             raise FileNotFoundError(f"No .pt model file found in {engine_dir}")
-        self.model = YOLO(pt_path)
-        logger.info(f"Loaded YOLO model from {pt_path}")
-
+        self.yolo_engine = EngineYOLO(
+            model_path=pt_path,
+            batch_size=self.yolo_batch_size,
+            confidence_threshold=self.yolo_confidence_threshold,
+            image_size=self.yolo_image_size,
+            device=self.yolo_device,
+        )
 
     def process(self, images: List[str], alto_files: List[str]) -> ALTOMatch:
-        with (tempfile.TemporaryDirectory() as tmp_yolo_output_dir):
-            logger.info(tmp_yolo_output_dir)
-            yolo_process(
-                model=self.model,
+        with tempfile.TemporaryDirectory() as tmp_yolo_output_dir:
+            logger.debug(
+                "Using temporary YOLO label directory: %s",
+                tmp_yolo_output_dir,
+            )
+            self.yolo_engine.process(
                 images=images,
-                out_labels=tmp_yolo_output_dir,
-                batch_size=self.yolo_batch_size,
-                confidence=self.yolo_confidence_threshold,
-                image_size=self.yolo_image_size,
-                export_with_class_id=True
+                output_dir=tmp_yolo_output_dir,
             )
 
             detector_parser = DetectorParser()
-            detector_parser.parse_yolo(yolo_dir=tmp_yolo_output_dir, image_filenames=[os.path.basename(img) for img in images])
+            detector_parser.parse_yolo(
+                yolo_dir=tmp_yolo_output_dir,
+                image_filenames=[os.path.basename(img) for img in images],
+            )
 
-        alto_match = ALTOMatch(detector_parser=detector_parser,
-                               alto_export_files=alto_files,
-                               min_alto_word_area_in_detection_to_match=self.min_alto_word_area_in_detection_to_match)
+        alto_match = ALTOMatch(
+            detector_parser=detector_parser,
+            alto_export_files=alto_files,
+            min_alto_word_area_in_detection_to_match=(
+                self.min_alto_word_area_in_detection_to_match
+            ),
+        )
         alto_match.match()
 
         return alto_match
-
 
 
 def parse_args():
@@ -93,7 +105,7 @@ def main():
     logging.basicConfig(level=args.logging_level,
                         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-    engine = EngineYOLOALTO(args.engine_dir)
+    engine = EngineYOLOALTO(args.engine)
 
     images = natsorted([os.path.join(args.image_dir, img) for img in os.listdir(args.image_dir) if os.path.splitext(img)[-1].lower() in {'.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff'}])
     alto_files = natsorted([os.path.join(args.alto_dir, alto) for alto in os.listdir(args.alto_dir) if alto.lower().endswith('.xml')])
