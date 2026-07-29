@@ -2,9 +2,9 @@ import os
 import tempfile
 import shutil
 from pathlib import Path
-import logging, logging.config
+import logging.config
 
-from metakat.worker.config import config
+from metakat.worker.docapi.config import config
 config.create_dirs()
 logging.config.dictConfig(config.LOGGING_CONFIG)
 
@@ -46,8 +46,10 @@ class MetakatWorker(DocWorkerWrapper):
         Returns:
             WorkerResponse indicating success or failure
         """
+        root_logger = logging.getLogger()
+
         try:
-            logger.addHandler(job_log_file_handler)
+            root_logger.addHandler(job_log_file_handler)
 
             if alto_dir is None:
                 logger.error("ALTO files are required")
@@ -128,7 +130,8 @@ class MetakatWorker(DocWorkerWrapper):
             return WorkerResponse.fail("MetakatWorker processing failed", exception=e)
 
         finally:
-            logger.removeHandler(job_log_file_handler)
+            root_logger.removeHandler(job_log_file_handler)
+            job_log_file_handler.close()
 
 
     def _get_engine_path(self, engine_dir: str, engine_key: str, engine_definition: dict) -> str:
