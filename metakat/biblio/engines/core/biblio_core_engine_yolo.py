@@ -2,7 +2,8 @@ import logging
 
 from typing import List
 
-from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
+from text_geometry_aligner import AlignmentPage
+
 from metakat.biblio.engines.core.biblio_core_engine import BiblioCoreEngine
 
 
@@ -15,22 +16,25 @@ class BiblioCoreEngineYOLO(BiblioCoreEngine):
                  yolo_batch_size=32,
                  yolo_confidence_threshold=0.25,
                  yolo_image_size=640,
-                 min_alto_word_area_in_detection_to_match=0.65):
+                 minimum_overlap_coverage=0.65):
         super().__init__(core_engine_dir=core_engine_dir)
         self.engine_yolo_alto = EngineYOLOALTO(
             engine_dir=core_engine_dir,
             yolo_batch_size=yolo_batch_size,
             yolo_confidence_threshold=yolo_confidence_threshold,
             yolo_image_size=yolo_image_size,
-            min_alto_word_area_in_detection_to_match=min_alto_word_area_in_detection_to_match
+            minimum_overlap_coverage=minimum_overlap_coverage,
         )
 
-    def process(self, images: List[str], alto_files: List[str]) -> List[ALTOMatchedPage]:
+    def process(
+        self,
+        images: List[str],
+        alto_files: List[str],
+    ) -> List[AlignmentPage]:
         return self.engine_yolo_alto.process(
             images=images,
             alto_files=alto_files
-        ).matched_pages
-
+        ).pages
 
 
 

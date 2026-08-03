@@ -6,9 +6,14 @@ import tempfile
 from typing import List
 
 from natsort import natsorted
+from text_geometry_aligner import (
+    AlignmentDocument,
+    GeometryAligner,
+    GeometryOverlapStrategy,
+    InputFormat,
+    WordAssignmentStrategy,
+)
 
-from detector_wrapper.parsers.detector_parser import DetectorParser
-from detector_wrapper.parsers.pero_ocr import ALTOMatch
 from metakat.common.engines.engine_yolo import EngineYOLO
 
 logger = logging.getLogger(__name__)
@@ -19,7 +24,7 @@ class EngineYOLOALTO:
                  yolo_batch_size=32,
                  yolo_confidence_threshold=0.25,
                  yolo_image_size=640,
-                 min_alto_word_area_in_detection_to_match=0.65,
+                 minimum_overlap_coverage=0.65,
                  yolo_device=0):
         self.engine_dir = engine_dir
         config_path = os.path.join(engine_dir, "metakat_engine_config.json")
@@ -40,9 +45,10 @@ class EngineYOLOALTO:
         self.yolo_device = yolo_device
         if 'yolo_device' in self.config:
             self.yolo_device = self.config['yolo_device']
-        self.min_alto_word_area_in_detection_to_match = min_alto_word_area_in_detection_to_match
-        if 'min_alto_word_area_in_detection_to_match' in self.config:
-            self.min_alto_word_area_in_detection_to_match = self.config['min_alto_word_area_in_detection_to_match']
+        self.minimum_overlap_coverage = self.config.get(
+            'minimum_overlap_coverage',
+            minimum_overlap_coverage,
+        )
 
         pt_path = None
         for file_name in os.listdir(engine_dir):
@@ -58,34 +64,37 @@ class EngineYOLOALTO:
             image_size=self.yolo_image_size,
             device=self.yolo_device,
         )
+        self.geometry_aligner = GeometryAligner(
+            minimum_overlap_coverage=self.minimum_overlap_coverage,
+            overlap_strategy=(
+                GeometryOverlapStrategy.BIDIRECTIONAL_CONTAINMENT
+            ),
+            word_assignment_strategy=(
+                WordAssignmentStrategy.GREATEST_COVERAGE
+            ),
+        )
 
-    def process(self, images: List[str], alto_files: List[str]) -> ALTOMatch:
+    def process(
+        self,
+        images: List[str],
+        alto_files: List[str],
+    ) -> AlignmentDocument:
         with tempfile.TemporaryDirectory() as tmp_yolo_output_dir:
             logger.debug(
                 "Using temporary YOLO label directory: %s",
                 tmp_yolo_output_dir,
             )
-            self.yolo_engine.process(
+            yolo_summary = self.yolo_engine.process(
                 images=images,
                 output_dir=tmp_yolo_output_dir,
             )
-
-            detector_parser = DetectorParser()
-            detector_parser.parse_yolo(
-                yolo_dir=tmp_yolo_output_dir,
-                image_filenames=[os.path.basename(img) for img in images],
+            document = self.geometry_aligner.process_files(
+                alto_files=alto_files,
+                input_files=yolo_summary.label_files,
+                input_format=InputFormat.YOLO,
             )
 
-        alto_match = ALTOMatch(
-            detector_parser=detector_parser,
-            alto_export_files=alto_files,
-            min_alto_word_area_in_detection_to_match=(
-                self.min_alto_word_area_in_detection_to_match
-            ),
-        )
-        alto_match.match()
-
-        return alto_match
+        return document
 
 
 def parse_args():

@@ -1,14 +1,15 @@
 import copy
 import logging
 import os
+from pathlib import Path
 
 from typing import List, Tuple, Optional, Union
 from uuid import uuid4
 
 from natsort import natsorted
+from text_geometry_aligner import AlignmentPage
 
 from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
-from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
 
 from metakat.schemas.base_objects import MetakatIO, ProarcIO, DocumentType, MetakatPage, PageType, BiblioType, \
     MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle, HierarchyType
@@ -36,20 +37,25 @@ class BiblioBindEngineBase(BiblioBindEngine):
         alto_files = natsorted(alto_files)
 
         logger.info(f"Processing {len(images)} images with biblio core engine")
-        matched_pages = self.core_engine.process(images, alto_files)
-        matched_pages = natsorted(matched_pages, key=lambda x: x.detector_parser_page.image_filename)
+        alignment_pages = self.core_engine.process(images, alto_files)
+        alignment_pages = natsorted(
+            alignment_pages,
+            key=lambda page: page.page_key,
+        )
         logger.info(f"Biblio core engine returned "
-                    f"{sum([len(p.matched_detections) for p in matched_pages if p.matched_detections is not None])} "
+                    f"{sum(page.matched_count for page in alignment_pages)} "
                     f"detections")
 
         metakat_page_id_to_metakat_page = {page.id: page for page in metakat_io.elements if
                                            page.type == DocumentType.PAGE.value}
-        matched_page_file_name_to_metakat_page = {v: metakat_page_id_to_metakat_page[k] for k, v in
-                                                  metakat_io.page_to_image_mapping.items()}
+        alignment_page_key_to_metakat_page = {
+            Path(image_filename).stem: metakat_page_id_to_metakat_page[page_id]
+            for page_id, image_filename in metakat_io.page_to_image_mapping.items()
+        }
 
         logger.info(f"Creating MetaKatVolume and MetaKatIssue elements from detections")
-        metakat_elements, detection_id_to_detection_bbox, detection_id_to_page_id = self.get_volume_issue_from_detections(
-            matched_pages, matched_page_file_name_to_metakat_page)
+        metakat_elements, detection_id_to_detection_bbox, detection_id_to_page_id = self.get_volume_issue_from_alignment(
+            alignment_pages, alignment_page_key_to_metakat_page)
         logger.info(f"Created {len(metakat_elements)} MetaKatVolume and MetaKatIssue elements from detections")
         logger.info(f"Creating MetaKatTitle element, and filtering MetaKatVolume elements")
         page_id_to_batch_index = {p.id: p.batch_index for p in metakat_io.elements if p.type == DocumentType.PAGE.value}
@@ -211,43 +217,74 @@ class BiblioBindEngineBase(BiblioBindEngine):
 
         return elements
 
-    def get_volume_issue_from_detections(self,
-                                         matched_pages: List[ALTOMatchedPage],
-                                         matched_page_file_name_to_metakat_page: dict
-                                         ) -> Tuple[List[MetakatElement], dict, dict]:
+    def get_volume_issue_from_alignment(
+        self,
+        alignment_pages: List[AlignmentPage],
+        alignment_page_key_to_metakat_page: dict,
+    ) -> Tuple[List[MetakatElement], dict, dict]:
         elements = []
         detection_id_to_detection_bbox = {}
         detection_id_to_page_id = {}
-        for matched_page in matched_pages:
-            metakat_page = matched_page_file_name_to_metakat_page[matched_page.detector_parser_page.image_filename]
-            page_elements, page_id_to_detection_bbox = self.get_volume_issue_from_page(matched_page, metakat_page)
+        for alignment_page in alignment_pages:
+            metakat_page = alignment_page_key_to_metakat_page[
+                alignment_page.page_key
+            ]
+            page_elements, page_id_to_detection_bbox = self.get_volume_issue_from_page(
+                alignment_page,
+                metakat_page,
+            )
             elements.extend(page_elements)
             detection_id_to_detection_bbox.update(page_id_to_detection_bbox)
             for detection_id, bbox in page_id_to_detection_bbox.items():
                 detection_id_to_page_id[detection_id] = metakat_page.id
         return elements, detection_id_to_detection_bbox, detection_id_to_page_id
 
-    def get_volume_issue_from_page(self, matched_page: ALTOMatchedPage, metakat_page: MetakatPage) -> Tuple[List[MetakatElement], dict]:
+    def get_volume_issue_from_page(
+        self,
+        alignment_page: AlignmentPage,
+        metakat_page: MetakatPage,
+    ) -> Tuple[List[MetakatElement], dict]:
         elements = []
         detection_id_to_detection_bbox = {}
         metakat_volume = MetakatVolume(id=uuid4(), page_id=metakat_page.id, hierarchy=HierarchyType.MONOGRAPH)
         metakat_issue = MetakatIssue(id=uuid4(), page_id=metakat_page.id)
-        for matched_detection in matched_page.matched_detections:
-            class_id = matched_detection.get_class_id()
+        for region in alignment_page.regions:
+            if not region.matched:
+                continue
+            if (
+                region.category_id is None
+                or region.input_geometry is None
+                or region.input_geometry_confidence is None
+                or region.alto_text is None
+            ):
+                logger.warning(
+                    "Matched region %s on page %s is missing YOLO metadata; "
+                    "skipping detection",
+                    region.region_id,
+                    alignment_page.page_key,
+                )
+                continue
+
+            class_id = str(region.category_id)
             if class_id not in self.core_engine.id2label:
                 logger.warning(
-                    f"Id {class_id} ({matched_detection.get_class()}) not found in id2label mapping (read from metakat_engine_config.json), skipping detection")
+                    f"Id {class_id} ({region.label}) not found in id2label mapping (read from metakat_engine_config.json), skipping detection")
                 continue
             biblio_type = BiblioType(self.core_engine.id2label[class_id])
 
-            detection_bbox = (matched_detection.detector_parser_annotated_bounding_box.x,
-                              matched_detection.detector_parser_annotated_bounding_box.y,
-                              matched_detection.detector_parser_annotated_bounding_box.width,
-                              matched_detection.detector_parser_annotated_bounding_box.height)
+            bbox = region.input_geometry.bounds
+            detection_bbox = (
+                bbox.x,
+                bbox.y,
+                bbox.width,
+                bbox.height,
+            )
             detection_id = uuid4()
-            detection = (matched_detection.get_text(),
-                         matched_detection.get_confidence(),
-                         detection_id)
+            detection = (
+                region.alto_text,
+                region.input_geometry_confidence,
+                detection_id,
+            )
 
             if biblio_type == BiblioType.PERIODICAL_VOLUME_PART_NUMBER:
                 metakat_volume.hierarchy = HierarchyType.PERIODICAL
@@ -486,7 +523,6 @@ class PeriodicalMetakatVolumeBag:
         self.root_volume = volume
         if page_id_to_batch_index[volume.page_id] < page_id_to_batch_index[self.root_volume.page_id]:
             self.root_page_id = volume.page_id
-
 
 
 

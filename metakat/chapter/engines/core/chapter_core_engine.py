@@ -4,7 +4,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import List
 
-from detector_wrapper.parsers.pero_ocr import ALTOMatchedPage
+from text_geometry_aligner import AlignmentPage
+
 from metakat.schemas.base_objects import ChapterType
 
 logger = logging.getLogger(__name__)
@@ -40,5 +41,9 @@ class ChapterCoreEngine(ABC):
         logger.info(f"{len(self.id2label)}")
 
     @abstractmethod
-    def process(self, images: List[str], alto_files: List[str]) -> List[ALTOMatchedPage]:
+    def process(
+        self,
+        images: List[str],
+        alto_files: List[str],
+    ) -> List[AlignmentPage]:
         pass
