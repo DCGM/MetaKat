@@ -215,7 +215,7 @@ def main():
     training_args = PageTypeTrainingArguments(
         remove_unused_columns=False,
 
-        evaluation_strategy='steps',
+        eval_strategy='steps',
         eval_steps=args.eval_steps,
         metric_for_best_model='eval_loss',
 
