@@ -1,15 +1,14 @@
 import argparse
 import logging
 import os
-from typing import Dict, List, Tuple
-from collections import OrderedDict
+from typing import Dict, List
 from PIL import Image
 
 import torch
 import torch.nn.functional as F
 from transformers import ViTImageProcessor, ViTForImageClassification
 
-from page_type.engines.core.page_type_core_engine import PageTypeCoreEngine
+from metakat.page_type.engines.core.page_type_core_engine import PageTypeCoreEngine
 
 logger = logging.getLogger(__name__)
 

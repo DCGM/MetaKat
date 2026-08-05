@@ -5,8 +5,8 @@ from collections import OrderedDict
 
 from natsort import natsorted
 
-from page_type.engines.bind.page_type_bind_engine import PageTypeBindEngine
-from schemas.base_objects import MetakatIO, ProarcIO, PageType, DocumentType
+from metakat.page_type.engines.bind.page_type_bind_engine import PageTypeBindEngine
+from metakat.schemas.base_objects import MetakatIO, ProarcIO, PageType, DocumentType
 
 logger = logging.getLogger(__name__)
 

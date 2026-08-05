@@ -1,8 +1,8 @@
 import json
 import os
 
-from page_type.engines.core.page_type_core_engine import PageTypeCoreEngine
-from page_type.engines.core.page_type_core_engine_vit import PageTypeCoreEngineViT
+from metakat.page_type.engines.core.page_type_core_engine import PageTypeCoreEngine
+from metakat.page_type.engines.core.page_type_core_engine_vit import PageTypeCoreEngineViT
 
 page_type_core_engines = {
     'page_type_core_engine_vit': PageTypeCoreEngineViT,

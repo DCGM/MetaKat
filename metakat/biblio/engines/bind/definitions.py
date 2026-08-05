@@ -1,8 +1,8 @@
 import os
 import json
 
-from biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
-from biblio.engines.bind.biblio_bind_engine_base import BiblioBindEngineBase
+from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
+from metakat.biblio.engines.bind.biblio_bind_engine_base import BiblioBindEngineBase
 
 biblio_bind_engines = {
     'biblio_bind_engine_base': BiblioBindEngineBase,

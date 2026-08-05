@@ -1,3 +1,9 @@
 [submodule "pero-ocr"]
 	path = pero-ocr
 	url = https://github.com/DCGM/pero-ocr.git
+[submodule "libs/DocAPI"]
+	path = libs/DocAPI
+	url = git@github.com:DCGM/DocAPI.git
+[submodule "libs/text-geometry-aligner"]
+	path = libs/text-geometry-aligner
+	url = git@github.com:DCGM/text-geometry-aligner.git

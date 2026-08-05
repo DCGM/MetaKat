@@ -41,5 +41,5 @@ class PageTypeCoreEngine(ABC):
         logger.info(f"{len(self.id2label)}")
 
     @abstractmethod
-    def process(self, images: List[str]) -> Tuple[Dict[str, List[float]], Dict[int, str]]:
+    def process(self, images: List[str]) -> Dict[str, List[float]]:
         pass

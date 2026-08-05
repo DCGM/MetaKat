@@ -1,8 +1,8 @@
 import os
 import json
 
-from biblio.engines.core.biblio_core_engine import BiblioCoreEngine
-from biblio.engines.core.biblio_core_engine_yolo import BiblioCoreEngineYOLO
+from metakat.biblio.engines.core.biblio_core_engine import BiblioCoreEngine
+from metakat.biblio.engines.core.biblio_core_engine_yolo import BiblioCoreEngineYOLO
 
 biblio_core_engines = {
     'biblio_core_engine_yolo': BiblioCoreEngineYOLO

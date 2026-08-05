@@ -1,8 +1,8 @@
 import os
 import json
 
-from page_type.engines.bind.page_type_bind_engine import PageTypeBindEngine
-from page_type.engines.bind.page_type_bind_engine_base import PageTypeBindEngineBase
+from metakat.page_type.engines.bind.page_type_bind_engine import PageTypeBindEngine
+from metakat.page_type.engines.bind.page_type_bind_engine_base import PageTypeBindEngineBase
 
 page_type_bind_engines = {
     'page_type_bind_engine_base': PageTypeBindEngineBase,

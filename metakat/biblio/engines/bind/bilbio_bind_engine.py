@@ -1,9 +1,8 @@
 import json
 import os
 from abc import ABC, abstractmethod
-from typing import Tuple
-from biblio.engines.core.definitions import load_biblio_core_engine
 
+from metakat.biblio.engines.core.definitions import load_biblio_core_engine
 from metakat.schemas.base_objects import MetakatIO, ProarcIO
 
 import logging
