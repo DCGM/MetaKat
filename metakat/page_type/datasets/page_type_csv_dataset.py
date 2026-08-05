@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 class PageTypeCsvDataset(PageTypeDataset):
     """Load page types and image locations from the periodicals CSV export.
 
-    Images are addressed relative to ``images_root`` by retaining the last three
-    components of each CSV ``image_path`` (the ``*.images`` directory and file).
+    Without ``images_root``, each CSV ``image_path`` is used unchanged. When a
+    replacement root is provided, images are addressed relative to it by
+    retaining the last three components of each CSV path.
     """
 
     REQUIRED_COLUMNS = {"page_type", "image_path"}
@@ -24,7 +25,7 @@ class PageTypeCsvDataset(PageTypeDataset):
 
     def __init__(self, csv_path, images_root, processor, **kwargs):
         csv_path = Path(csv_path)
-        images_root = Path(images_root)
+        images_root = Path(images_root) if images_root is not None else None
         pages = []
         ignored_page_types = Counter()
 
@@ -45,12 +46,15 @@ class PageTypeCsvDataset(PageTypeDataset):
                     ignored_page_types[page_type] += 1
                 else:
                     page_type = normalized_page_type
-                    image_path = Path(row["image_path"])
-                    if len(image_path.parts) < 3:
-                        raise ValueError(
-                            f"Invalid image_path {str(image_path)!r} in {csv_path}:{row_number}"
-                        )
-                    pages.append((os.path.join(*image_path.parts[-3:]), page_type))
+                    image_path = row["image_path"]
+                    if images_root is not None:
+                        image_path_parts = Path(image_path).parts
+                        if len(image_path_parts) < 3:
+                            raise ValueError(
+                                f"Invalid image_path {image_path!r} in {csv_path}:{row_number}"
+                            )
+                        image_path = os.path.join(*image_path_parts[-3:])
+                    pages.append((image_path, page_type))
 
                 if row_number % self.LOG_PROGRESS_EVERY == 0:
                     logger.info(
@@ -65,7 +69,7 @@ class PageTypeCsvDataset(PageTypeDataset):
                 logger.info("  %r: %d", page_type, count)
 
         super().__init__(
-            images_dir=str(images_root), pages=pages,
+            images_dir=str(images_root) if images_root is not None else "", pages=pages,
             processor=processor, **kwargs
         )
         self.name = csv_path.name

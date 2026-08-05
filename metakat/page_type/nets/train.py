@@ -44,7 +44,8 @@ def parse_args():
     # Datasets
     parser.add_argument('--images-dir', type=str)
     parser.add_argument('--images-root', type=str,
-                        help='Replacement root for CSV image paths; their last two path components are retained.')
+                        help='Optional replacement root for CSV image paths; when provided, their last three '
+                             'path components are retained. Otherwise CSV paths are used unchanged.')
     train_pages = parser.add_mutually_exclusive_group(required=True)
     train_pages.add_argument('--train-pages', type=str)
     train_pages.add_argument('--train-pages-csv', type=str)
@@ -107,8 +108,6 @@ def parse_args():
 
     args = parser.parse_args()
 
-    if (args.train_pages_csv or args.eval_pages_csv) and not args.images_root:
-        parser.error('--images-root is required when using --train-pages-csv or --eval-pages-csv')
     if (args.train_pages or args.eval_pages) and not args.images_dir:
         parser.error('--images-dir is required when using --train-pages or --eval-pages')
 

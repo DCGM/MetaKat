@@ -1,5 +1,5 @@
 [submodule "pero-ocr"]
-	path = pero-ocr
+	path = libs/pero-ocr
 	url = https://github.com/DCGM/pero-ocr.git
 [submodule "libs/DocAPI"]
 	path = libs/DocAPI
