@@ -268,7 +268,13 @@ class BiblioBindEngineBase(BiblioBindEngine):
             class_id = str(region.category_id)
             if class_id not in self.core_engine.id2label:
                 logger.warning(
-                    f"Id {class_id} ({region.label}) not found in id2label mapping (read from metakat_engine_config.json), skipping detection")
+                    "Id %s (label=%r, label_export=%r) not found in "
+                    "id2label mapping (read from "
+                    "metakat_engine_config.json), skipping detection",
+                    class_id,
+                    region.label,
+                    region.label_export,
+                )
                 continue
             biblio_type = BiblioType(self.core_engine.id2label[class_id])
 
@@ -523,7 +529,6 @@ class PeriodicalMetakatVolumeBag:
         self.root_volume = volume
         if page_id_to_batch_index[volume.page_id] < page_id_to_batch_index[self.root_volume.page_id]:
             self.root_page_id = volume.page_id
-
 
 
 

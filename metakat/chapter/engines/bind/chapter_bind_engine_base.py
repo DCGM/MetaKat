@@ -108,11 +108,18 @@ class ChapterBindEngineBase(ChapterBindEngine):
             detection_confidence = region.input_geometry_confidence
 
             if class_id not in self.core_engine.id2label:
-                logger.warning(f"CLASS_ID {class_id} ({region.label}) not in id2label, skipping - "
-                               f"val: {detection_text}, "
-                               f"conf: {detection_confidence}, "
-                               f"bbox: {detection_bbox}, "
-                               f"page_key: {alignment_page.page_key}")
+                logger.warning(
+                    "CLASS_ID %s (label=%r, label_export=%r) not in "
+                    "id2label, skipping - val: %s, conf: %s, bbox: %s, "
+                    "page_key: %s",
+                    class_id,
+                    region.label,
+                    region.label_export,
+                    detection_text,
+                    detection_confidence,
+                    detection_bbox,
+                    alignment_page.page_key,
+                )
                 continue
             chapter_type = ChapterType(self.core_engine.id2label[class_id])
 
@@ -134,7 +141,6 @@ class ChapterBindEngineBase(ChapterBindEngine):
 
 
         return elements, detection_id_to_detection_bbox
-
 
 
 
