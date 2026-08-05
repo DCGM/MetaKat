@@ -255,7 +255,8 @@ def main():
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset_for_hg,
-        data_collator=PageTypeCollator()
+        data_collator=PageTypeCollator(),
+        processing_class=processor,
     )
 
     trainer.add_callback(PageTypeEvaluatorTrainerCallback(
