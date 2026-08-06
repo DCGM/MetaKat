@@ -80,6 +80,7 @@ class BiblioType(str, enum.Enum):
     MANUFACTURE_PLACE_TERM = "ManufacturePlaceTerm"
     AUTHOR = "Author"
     ILLUSTRATOR = "Illustrator"
+    PHOTOGRAPHER = "Photographer"
     TRANSLATOR = "Translator"
     EDITOR = "Editor"
     REDAKTOR = "Redaktor"
@@ -91,6 +92,9 @@ class BiblioType(str, enum.Enum):
 class ChapterType(str, enum.Enum):
     PAGE_NUMBER = "PageNumber"
     CHAPTER = "Chapter"
+
+class PageNumberType(str, enum.Enum):
+    PAGE_NUMBER = "PageNumber"
 
 
 class MetakatBaseModel(BaseModel):
@@ -134,6 +138,7 @@ class MetakatVolume(MetakatBaseModel):
     manufacturePlaceTerm: Optional[List[Tuple[str, float, UUID]]] = None
     author: Optional[List[Tuple[str, float, UUID]]] = None
     illustrator: Optional[List[Tuple[str, float, UUID]]] = None
+    photographer: Optional[List[Tuple[str, float, UUID]]] = None
     translator: Optional[List[Tuple[str, float, UUID]]] = None
     editor: Optional[List[Tuple[str, float, UUID]]] = None
     seriesName: Optional[List[Tuple[str, float, UUID]]] = None
@@ -181,11 +186,14 @@ class MetakatChapter(MetakatBaseModel):
     type: Literal["chapter"] = "chapter"
     id: UUID
     parent_id: UUID
+    pageIndexToc: Optional[int] = None
     pageIndexStart: Optional[int] = None
     pageIndexEnd: Optional[int] = None
     title: Optional[Tuple[str, float, UUID]] = None
+    title_destination_page: Optional[Tuple[str, float, UUID]] = None
     subTitle: Optional[Tuple[str, float, UUID]] = None
     partNumber: Optional[Tuple[str, float, UUID]] = None
+    pageNumber: Optional[Tuple[str, float, UUID]] = None
 
 class MetakatArticle(MetakatBaseModel):
     type: Literal["article"] = "article"

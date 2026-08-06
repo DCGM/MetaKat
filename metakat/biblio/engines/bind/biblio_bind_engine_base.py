@@ -408,6 +408,12 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 else:
                     metakat_volume.illustrator.append(detection)
 
+            elif biblio_type == BiblioType.PHOTOGRAPHER:
+                if metakat_volume.photographer is None:
+                    metakat_volume.photographer = [detection]
+                else:
+                    metakat_volume.photographer.append(detection)
+
             elif biblio_type == BiblioType.TRANSLATOR:
                 if metakat_volume.translator is None:
                     metakat_volume.translator = [detection]
@@ -529,7 +535,6 @@ class PeriodicalMetakatVolumeBag:
         self.root_volume = volume
         if page_id_to_batch_index[volume.page_id] < page_id_to_batch_index[self.root_volume.page_id]:
             self.root_page_id = volume.page_id
-
 
 
 

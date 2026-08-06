@@ -85,6 +85,14 @@ class MetakatWorker(DocWorkerWrapper):
                         symlink_path.symlink_to(alto_file.resolve())
 
                 # Construct engine paths
+                (
+                    page_number_core_path,
+                    page_number_bind_path,
+                ) = self._get_optional_engine_pair_paths(
+                    engine_dir,
+                    "page_number",
+                    job.engine_definition,
+                )
                 page_type_core_path = self._get_engine_path(
                     engine_dir, 'page_type_core_engine', job.engine_definition
                 )
@@ -97,17 +105,21 @@ class MetakatWorker(DocWorkerWrapper):
                 biblio_bind_path = self._get_engine_path(
                     engine_dir, 'biblio_bind_engine', job.engine_definition
                 )
-                chapter_core_path = self._get_engine_path(
-                    engine_dir, 'chapter_core_engine', job.engine_definition
-                )
-                chapter_bind_path = self._get_engine_path(
-                    engine_dir, 'chapter_bind_engine', job.engine_definition
+                (
+                    chapter_core_path,
+                    chapter_bind_path,
+                ) = self._get_optional_engine_pair_paths(
+                    engine_dir,
+                    "chapter",
+                    job.engine_definition,
                 )
 
                 process_batch(
                     batch_dir=tmp_batch_dir,
                     proarc_json=meta_file,
                     ordered_image_filenames=ordered_image_filenames,
+                    page_number_core_engine=page_number_core_path,
+                    page_number_bind_engine=page_number_bind_path,
                     page_type_core_engine=page_type_core_path,
                     page_type_bind_engine=page_type_bind_path,
                     biblio_core_engine=biblio_core_path,
@@ -133,36 +145,45 @@ class MetakatWorker(DocWorkerWrapper):
             root_logger.removeHandler(job_log_file_handler)
             job_log_file_handler.close()
 
+    def _get_optional_engine_pair_paths(
+        self,
+        engine_dir: str,
+        category: str,
+        engine_definition: dict,
+    ) -> tuple[Optional[str], Optional[str]]:
+        core_key = f"{category}_core_engine"
+        bind_key = f"{category}_bind_engine"
+        core_name = engine_definition.get(core_key)
+        bind_name = engine_definition.get(bind_key)
+        if core_name is None and bind_name is None:
+            return None, None
+        if (
+            not isinstance(core_name, str)
+            or not core_name.strip()
+            or not isinstance(bind_name, str)
+            or not bind_name.strip()
+        ):
+            raise ValueError(
+                f"Engine definition must provide both {core_key!r} and "
+                f"{bind_key!r} as non-empty strings"
+            )
+        return (
+            self._get_engine_path(engine_dir, core_key, engine_definition),
+            self._get_engine_path(engine_dir, bind_key, engine_definition),
+        )
 
-    def _get_engine_path(self, engine_dir: str, engine_key: str, engine_definition: dict) -> str:
-            """
-            Construct the full path to an engine based on the engine definition key.
-            
-            The key format is expected to be: {category}_{engine_type}_engine
-            For example: 'page_type_core_engine', 'biblio_bind_engine', 'chapter_core_engine'
-            
-            Args:
-                engine_dir: Base engine directory
-                engine_key: Key from engine_definition (e.g., 'page_type_core_engine')
-                engine_definition: Dictionary containing engine definitions
-                
-            Returns:
-                Full path to the engine directory
-            """
-            # Parse the key to extract category and engine_type
-            # Remove '_engine' suffix and split
-            key_parts = engine_key.replace('_engine', '').split('_')
-            
-            # Last part is the engine type (core/bind)
-            engine_type = key_parts[-1]
-            
-            # Everything before that is the category
-            category = '_'.join(key_parts[:-1])
-            
-            # Get the engine name from the definition
-            engine_name = engine_definition[engine_key]
-            
-            return os.path.join(engine_dir, category, engine_type, engine_name)
+    def _get_engine_path(
+        self,
+        engine_dir: str,
+        engine_key: str,
+        engine_definition: dict,
+    ) -> str:
+        """Resolve ``category/core-or-bind/name`` from an engine key."""
+        key_parts = engine_key.removesuffix("_engine").split("_")
+        engine_type = key_parts[-1]
+        category = "_".join(key_parts[:-1])
+        engine_name = engine_definition[engine_key]
+        return os.path.join(engine_dir, category, engine_type, engine_name)
 
 
 def main():

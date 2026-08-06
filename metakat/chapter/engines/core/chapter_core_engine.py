@@ -1,49 +1,50 @@
 import json
-import os
 import logging
 from abc import ABC, abstractmethod
-from typing import List
+from pathlib import Path
+from typing import Any, Sequence
 
-from text_geometry_aligner import AlignmentPage
-
-from metakat.schemas.base_objects import ChapterType
+from metakat.chapter.engines.core.toc_alignment.models import ChapterCoreResult
 
 logger = logging.getLogger(__name__)
 
 
 class ChapterCoreEngine(ABC):
-    def __init__(self, core_engine_dir: str):
-        logger.info(f"Loading chapter core engine from: {core_engine_dir}")
-        self.engine_dir = core_engine_dir
-        config_path = os.path.join(core_engine_dir, "metakat_engine_config.json")
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Chapter core engine config not found at {config_path}")
-        with open(config_path, "r", encoding="utf-8") as f:
-            self.config = json.load(f)
+    def __init__(self, core_engine_dir: str | Path):
+        self.engine_dir = Path(core_engine_dir)
+        logger.info("Loading chapter core engine from: %s", self.engine_dir)
+        config_path = self.engine_dir / "metakat_engine_config.json"
+        if not config_path.is_file():
+            raise FileNotFoundError(
+                f"Chapter core engine config not found at {config_path}"
+            )
+        with config_path.open("r", encoding="utf-8") as source:
+            config: Any = json.load(source)
+        if not isinstance(config, dict):
+            raise ValueError(
+                "Chapter core engine config must be a JSON object: "
+                f"{config_path}"
+            )
+        name = config.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(
+                "Chapter core engine config must contain a non-empty "
+                f"string 'name': {config_path}"
+            )
 
-        logger.info(f"Chapter core engine config: \n{json.dumps(self.config, indent=4)}")
-
-        self.name = self.config['name']
-        self.id2label = self.config['id2label']
-
-        if not isinstance(self.id2label, dict):
-            raise ValueError(f"Invalid id2label format in config: {self.id2label}")
-        if not self.id2label:
-            raise ValueError("id2label cannot be empty in config")
-
-        for my_id, label in self.id2label.items():
-            try:
-                ChapterType(label)
-            except ValueError:
-                raise ValueError(f"Invalid ChapterType label in config: '{my_id}: {label}'")
-
-        logger.info(f"Loaded chapter core engine: {self.name}")
-        logger.info(f"{len(self.id2label)}")
+        self.config: dict[str, Any] = config
+        self.name = name
+        logger.info(
+            "Chapter core engine config: \n%s",
+            json.dumps(self.config, indent=4),
+        )
+        logger.info("Loaded chapter core engine: %s", self.name)
 
     @abstractmethod
     def process(
         self,
-        images: List[str],
-        alto_files: List[str],
-    ) -> List[AlignmentPage]:
+        images: Sequence[str],
+        alto_files: Sequence[str],
+        page_numbers: Sequence[str | None] | None = None,
+    ) -> ChapterCoreResult:
         pass

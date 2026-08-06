@@ -11,6 +11,9 @@ import xml.etree.ElementTree as ET
 from natsort import natsorted
 
 from metakat.chapter.engines.bind.definitions import load_chapter_bind_engine
+from metakat.page_number.engines.bind.definitions import (
+    load_page_number_bind_engine,
+)
 from metakat.page_type.engines.bind.definitions import load_page_type_bind_engine
 from metakat.biblio.engines.bind.definitions import load_biblio_bind_engine
 
@@ -28,6 +31,8 @@ def parse_args():
 
     parser.add_argument('--allowed-image-extensions', type=str, nargs='*', default=['.jpg', '.jpeg', '.png', '.tif', '.tiff'])
 
+    parser.add_argument('--page-number-core-engine', type=str, help='Path to directory containing page number core engine')
+    parser.add_argument('--page-number-bind-engine', type=str, help='Path to directory containing page number bind engine')
     parser.add_argument('--page-type-core-engine', type=str, help='Path to directory containing page type core engine')
     parser.add_argument('--page-type-bind-engine', type=str, help='Path to directory containing page type bind engine')
     parser.add_argument('--biblio-core-engine', type=str, help='Path to directory containing biblio core engine')
@@ -60,6 +65,8 @@ def main():
         batch_dir=args.batch_dir,
         metakat_json=args.metakat_json,
         proarc_json=args.proarc_json,
+        page_number_core_engine=args.page_number_core_engine,
+        page_number_bind_engine=args.page_number_bind_engine,
         page_type_core_engine=args.page_type_core_engine,
         page_type_bind_engine=args.page_type_bind_engine,
         biblio_core_engine=args.biblio_core_engine,
@@ -76,6 +83,8 @@ def process_batch(
     metakat_json: Optional[str] = None,
     proarc_json: Optional[str] = None,
     ordered_image_filenames: Optional[List] = None,
+    page_number_core_engine: Optional[str] = None,
+    page_number_bind_engine: Optional[str] = None,
     page_type_core_engine: Optional[str] = None,
     page_type_bind_engine: Optional[str] = None,
     biblio_core_engine: Optional[str] = None,
@@ -93,6 +102,8 @@ def process_batch(
         metakat_json: Path to input Metakat JSON file
         proarc_json: Path to input ProARC JSON file
         ordered_image_filenames: List of ordered image filenames in batch_dir (defaults to natsorted image files)
+        page_number_core_engine: Path to page number core engine directory
+        page_number_bind_engine: Path to page number bind engine directory
         page_type_core_engine: Path to page type core engine directory
         page_type_bind_engine: Path to page type bind engine directory
         biblio_core_engine: Path to biblio core engine directory
@@ -116,6 +127,20 @@ def process_batch(
         ordered_image_filenames=ordered_image_filenames,
         allowed_image_extensions=allowed_image_extensions
     )
+
+    if (
+        page_number_bind_engine is not None
+        and page_number_core_engine is not None
+    ):
+        page_number_bind_engine_obj = load_page_number_bind_engine(
+            page_number_bind_engine,
+            page_number_core_engine,
+        )
+        metakat_io = page_number_bind_engine_obj.process(
+            batch_dir=batch_dir,
+            metakat_io=metakat_io,
+            proarc_io=proarc_io,
+        )
 
     if page_type_bind_engine is not None and page_type_core_engine is not None:
         page_type_bind_engine_obj = load_page_type_bind_engine(
