@@ -1,11 +1,23 @@
+import argparse
 import copy
 import json
+import logging
 import os
 import platform
-import time
 import sys
+import time
 import typing
 from functools import partial
+
+from metakat.page_type.nets.gpu_bootstrap import add_gpu_arguments, bootstrap_single_gpu
+
+
+# CUDA_VISIBLE_DEVICES must be finalized before importing PyTorch, Accelerate,
+# Transformers, or project modules that import them.  Imports used by tests do
+# not reserve or mask GPUs; the executable entrypoint does.
+if __name__ == '__main__':
+    bootstrap_single_gpu(sys.argv[1:])
+
 
 import accelerate
 import numpy as np
@@ -20,29 +32,22 @@ from metakat.page_type.datasets.page_type_renderer import PageTypeRenderer
 from metakat.page_type.nets.page_type_trainer import PageTypeTrainer
 from metakat.page_type.nets.page_type_training_arguments import PageTypeTrainingArguments
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 from clearml import Task
 
 from transformers import set_seed, TrainingArguments, TrainerCallback, TrainerState, PreTrainedModel, \
     AutoConfig, AutoImageProcessor, AutoModelForImageClassification
 
-import argparse
-import logging
-
 
 logger = logging.getLogger(__name__)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(allow_abbrev=False)
     #ClearML
     parser.add_argument('--project-name')
     parser.add_argument('--task-name')
 
-    parser.add_argument('--n-gpu', type=int, default=1)
-    parser.add_argument('--use-safe-gpu', action='store_true',
-                        help='Reserve GPUs with safe_gpu before starting training. Requires the safe-gpu package.')
+    add_gpu_arguments(parser)
 
     # Datasets
     parser.add_argument('--images-dir', type=str)
@@ -109,7 +114,7 @@ def parse_args():
     parser.add_argument('--logging-steps', default=20, type=int)
     parser.add_argument('--logging-level', default=logging.INFO)
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if (args.train_pages or args.eval_pages) and not args.images_dir:
         parser.error('--images-dir is required when using --train-pages or --eval-pages')
@@ -131,27 +136,12 @@ def main():
 
     logger.info(' '.join(sys.argv))
 
-    # Keep the owner alive for the full training run.  Importing here makes
-    # safe_gpu an optional runtime dependency for ordinary training runs.
-    gpu_owner = None
-    if args.use_safe_gpu:
-        try:
-            from safe_gpu.safe_gpu import GPUOwner
-        except ImportError as exc:
-            raise RuntimeError(
-                '--use-safe-gpu requires the optional safe-gpu package. '
-                'Install it or run without --use-safe-gpu.'
-            ) from exc
-        gpu_owner = GPUOwner(args.n_gpu)
-        logger.info('Reserved %d GPU(s) with safe_gpu.', args.n_gpu)
-
     logger.info('')
-    try:
-        for i in range(torch.cuda.device_count()):
-            logger.info(f"DEVICE: {torch.cuda.get_device_name(i)}")
-    except Exception as e:
-        logger.error("NO GPU")
-        raise e
+    validate_single_gpu_visibility()
+    logger.info('GPU bootstrap mode: %s', 'safe-gpu' if args.use_safe_gpu else 'first-visible')
+    logger.info('CUDA_VISIBLE_DEVICES: %r', os.environ.get('CUDA_VISIBLE_DEVICES'))
+    for i in range(torch.cuda.device_count()):
+        logger.info('DEVICE %d: %s', i, torch.cuda.get_device_name(i))
 
     clearml_task = None
     clearml_logger = None
@@ -368,6 +358,7 @@ def validate_model_label_space(model, dataset):
 
 
 def log_runtime_environment(training_args):
+    validate_single_gpu_runtime(training_args)
     logger.info(
         "Runtime versions: Python=%s, PyTorch=%s, CUDA=%s, Transformers=%s, Accelerate=%s",
         platform.python_version(), torch.__version__, torch.version.cuda or "unavailable",
@@ -379,6 +370,23 @@ def log_runtime_environment(training_args):
         training_args.device, torch.cuda.is_available(), torch.cuda.device_count(),
         training_args.n_gpu, training_args.parallel_mode, training_args.fp16,
     )
+
+
+def validate_single_gpu_runtime(training_args):
+    validate_single_gpu_visibility()
+    if training_args.n_gpu > 1:
+        raise RuntimeError(
+            f'Transformers configured {training_args.n_gpu} GPUs; multi-GPU training is not currently supported.'
+        )
+
+
+def validate_single_gpu_visibility():
+    visible_device_count = torch.cuda.device_count()
+    if torch.cuda.is_available() and visible_device_count != 1:
+        raise RuntimeError(
+            'Page type training supports exactly one visible CUDA GPU, but PyTorch sees '
+            f'{visible_device_count}. GPU visibility must be configured before CUDA initialization.'
+        )
 
 
 def init_datasets(images_dir, train_pages, eval_pages, processor, train_pages_csv=None, eval_pages_csv=None,
