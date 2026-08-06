@@ -1,13 +1,16 @@
 import copy
 import json
 import os
+import platform
 import time
 import sys
 import typing
 from functools import partial
 
+import accelerate
 import numpy as np
 import torch
+import transformers
 
 from metakat.page_type.datasets.page_type_collator import PageTypeCollator
 from metakat.page_type.datasets.page_type_dataset import PageTypeDataset
@@ -244,6 +247,7 @@ def main():
         logging_steps=args.logging_steps
     )
 
+    log_runtime_environment(training_args)
     logger.info("Requested max_steps: %d", args.max_steps)
     logger.info("Effective max_steps: %d", training_args.max_steps)
     logger.info("Sampled pages per epoch: %d", len(train_dataset))
@@ -261,6 +265,10 @@ def main():
         eval_dataset=eval_dataset_for_hg,
         data_collator=collator,
         processing_class=processor,
+    )
+    logger.info(
+        "Trainer loss path: %s.compute_loss (model_accepts_loss_kwargs=%s)",
+        trainer.__class__.__name__, trainer.model_accepts_loss_kwargs,
     )
 
     trainer.add_callback(PageTypeEvaluatorTrainerCallback(
@@ -357,6 +365,20 @@ def validate_model_label_space(model, dataset):
         )
 
     return expected_num_labels
+
+
+def log_runtime_environment(training_args):
+    logger.info(
+        "Runtime versions: Python=%s, PyTorch=%s, CUDA=%s, Transformers=%s, Accelerate=%s",
+        platform.python_version(), torch.__version__, torch.version.cuda or "unavailable",
+        transformers.__version__, accelerate.__version__,
+    )
+    logger.info(
+        "Training runtime: device=%s, cuda_available=%s, visible_cuda_devices=%d, "
+        "trainer_n_gpu=%d, parallel_mode=%s, fp16=%s",
+        training_args.device, torch.cuda.is_available(), torch.cuda.device_count(),
+        training_args.n_gpu, training_args.parallel_mode, training_args.fp16,
+    )
 
 
 def init_datasets(images_dir, train_pages, eval_pages, processor, train_pages_csv=None, eval_pages_csv=None,
