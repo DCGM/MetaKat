@@ -22,7 +22,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 from clearml import Task
 
 from transformers import set_seed, TrainingArguments, TrainerCallback, TrainerState, PreTrainedModel, \
-    AutoImageProcessor, AutoModelForImageClassification
+    AutoConfig, AutoImageProcessor, AutoModelForImageClassification
 
 import argparse
 import logging
@@ -193,6 +193,7 @@ def main():
             model_checkpoint = os.path.join(args.checkpoint_dir, f"checkpoint-{args.start_step}")
 
     model = init_model(model_checkpoint, train_dataset, args.model_revision)
+    num_labels = validate_model_label_space(model, train_dataset)
     if model.config.model_type == 'dinov2' and args.image_size % model.config.patch_size:
         raise ValueError(
             f'--image-size ({args.image_size}) must be divisible by DINOv2 patch size '
@@ -211,6 +212,9 @@ def main():
         json.dump({'image_size': args.image_size, 'resize_longest_edge': True, 'pad_color': 'black'}, handle)
 
     logger.info(model)
+    logger.info("Validated label space: %d classes (valid IDs: 0-%d)", num_labels, num_labels - 1)
+
+    collator = PageTypeCollator(num_labels=num_labels)
 
     training_args = PageTypeTrainingArguments(
         remove_unused_columns=False,
@@ -255,12 +259,12 @@ def main():
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset_for_hg,
-        data_collator=PageTypeCollator(),
+        data_collator=collator,
         processing_class=processor,
     )
 
     trainer.add_callback(PageTypeEvaluatorTrainerCallback(
-        evaluators=[PageTypeEvaluator(dataset=eval_dataset, collator=PageTypeCollator(),
+        evaluators=[PageTypeEvaluator(dataset=eval_dataset, collator=collator,
                                       dataloader_num_workers=args.eval_dataloader_num_workers,
                                       shuffle_dataset=True)
                     for eval_dataset in eval_datasets],
@@ -271,7 +275,7 @@ def main():
     if args.render_dir is not None:
         trainer.add_callback(PageTypeRendererTrainerCallback(
             renderers=[PageTypeRenderer(dataset=eval_dataset,
-                                        collator=PageTypeCollator(),
+                                        collator=collator,
                                         max_batches=5 if eval_dataset.eval_dataset else 5,
                                         shuffle_dataset=True,
                                         dataloader_num_workers=args.eval_dataloader_num_workers,
@@ -311,14 +315,48 @@ def init_processor(model_checkpoint, revision='main'):
 
 def init_model(model_checkpoint, dataset, revision='main'):
     logger.info(f'Loading model: {model_checkpoint}')
+    config = AutoConfig.from_pretrained(model_checkpoint, revision=revision)
+    config.id2label = dict(dataset.id2label)
+    config.label2id = dict(dataset.label2id)
+    config.problem_type = 'single_label_classification'
     return AutoModelForImageClassification.from_pretrained(
         model_checkpoint,
-        num_labels=len(dataset.id2label),
-        id2label=dataset.id2label,
-        label2id=dataset.label2id,
+        config=config,
         ignore_mismatched_sizes=True,
         revision=revision,
     )
+
+
+def validate_model_label_space(model, dataset):
+    expected_num_labels = len(dataset.id2label)
+    expected_ids = set(range(expected_num_labels))
+    id2label_ids = set(dataset.id2label)
+    label2id_ids = set(dataset.label2id.values())
+
+    if not expected_num_labels:
+        raise ValueError('The page type dataset does not define any labels.')
+    if id2label_ids != expected_ids or label2id_ids != expected_ids:
+        raise ValueError(
+            'Dataset label IDs must be dense and zero-based: '
+            f'expected={sorted(expected_ids)}, id2label={sorted(id2label_ids)}, '
+            f'label2id={sorted(label2id_ids)}'
+        )
+
+    config_num_labels = model.config.num_labels
+    if config_num_labels != expected_num_labels:
+        raise ValueError(
+            'Model classifier label count does not match the dataset: '
+            f'model.config.num_labels={config_num_labels}, dataset={expected_num_labels}'
+        )
+
+    model_num_labels = getattr(model, 'num_labels', None)
+    if model_num_labels is not None and model_num_labels != expected_num_labels:
+        raise ValueError(
+            'Model classifier head does not match the dataset: '
+            f'model.num_labels={model_num_labels}, dataset={expected_num_labels}'
+        )
+
+    return expected_num_labels
 
 
 def init_datasets(images_dir, train_pages, eval_pages, processor, train_pages_csv=None, eval_pages_csv=None,
