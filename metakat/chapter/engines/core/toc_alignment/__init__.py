@@ -3,8 +3,10 @@ from .models import ChapterCoreResult, ResolvedChapter, TocAlignmentEngine
 from .toc_page_number_parser import (
     ParsedPhysicalPageNumber,
     ParsedTocPageNumber,
+    ParsedTocPageNumberItem,
     PhysicalPageNumberParser,
     TocNumeralSystem,
+    TocPageNumberKind,
     TocPageNumberParser,
 )
 
@@ -13,9 +15,11 @@ __all__ = [
     "ParsedPhysicalPageNumber",
     "ResolvedChapter",
     "ParsedTocPageNumber",
+    "ParsedTocPageNumberItem",
     "PhysicalPageNumberParser",
     "TocAlignmentEngine",
     "TocAlignmentEngineFuzzy",
     "TocNumeralSystem",
+    "TocPageNumberKind",
     "TocPageNumberParser",
 ]

@@ -57,6 +57,13 @@ detected during TOC page analysis; when omitted, internal detection remains
 available to the alignment stage. Physical page numbers are internal alignment
 inputs and are not returned in `ChapterCoreResult`.
 
+TOC page references are normalized before they are written to chapter
+`pageNumber`: single numbers contain no decoration, ranges use `-`, and lists
+use `,`. Roman numerals remain Roman and are uppercased. The first value drives
+anchor matching, while only a range may resolve an explicit chapter end. If a
+TOC reference cannot be parsed safely, it is excluded from number-based
+alignment but its original OCR evidence is retained in the result.
+
 ## Experimental source
 
 The experimental `xshele02` pipeline is contained in

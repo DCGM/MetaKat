@@ -11,11 +11,46 @@ class TocNumeralSystem(str, enum.Enum):
     ROMAN = "roman"
 
 
+class TocPageNumberKind(str, enum.Enum):
+    SINGLE = "single"
+    RANGE = "range"
+    LIST = "list"
+
+
+@dataclass(frozen=True)
+class ParsedTocPageNumberItem:
+    value: int
+    numeral_system: TocNumeralSystem
+    text: str
+
+
 @dataclass(frozen=True)
 class ParsedTocPageNumber:
-    start: int
-    end: int | None
-    numeral_system: TocNumeralSystem
+    kind: TocPageNumberKind
+    items: tuple[ParsedTocPageNumberItem, ...]
+
+    @property
+    def start(self) -> int:
+        return self.items[0].value
+
+    @property
+    def end(self) -> int | None:
+        if self.kind != TocPageNumberKind.RANGE:
+            return None
+        return self.items[1].value
+
+    @property
+    def numeral_system(self) -> TocNumeralSystem:
+        return self.items[0].numeral_system
+
+    @property
+    def normalized_text(self) -> str:
+        separator = {
+            TocPageNumberKind.SINGLE: "",
+            TocPageNumberKind.RANGE: "-",
+            TocPageNumberKind.LIST: ",",
+        }[self.kind]
+        return separator.join(item.text for item in self.items)
 
 
 @dataclass(frozen=True)
@@ -32,6 +67,8 @@ class TocPageNumberParser:
         re.IGNORECASE,
     )
     _RANGE_SEPARATOR = re.compile(r"\s*[-\u2013\u2014\u2212]\s*")
+    _LIST_SEPARATOR = re.compile(r"\s*,\s*")
+    _LEADING_SIGN = re.compile(r"[-+\u2013\u2014\u2212]\s*$")
     _ROMAN_NUMBER = re.compile(
         r"M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})"
         r"(IX|IV|V?I{0,3})"
@@ -52,31 +89,67 @@ class TocPageNumberParser:
             return None
 
         normalized = unicodedata.normalize("NFKC", value).strip()
-        candidates = []
+        candidates: list[tuple[re.Match, ParsedTocPageNumberItem]] = []
         for match in cls._TOKEN.finditer(normalized):
             parsed = cls._parse_token(match.group())
-            if parsed is not None:
-                candidates.append((match, *parsed))
+            if parsed is None or parsed[0] == 0:
+                return None
+            number, numeral_system = parsed
+            candidates.append(
+                (
+                    match,
+                    ParsedTocPageNumberItem(
+                        value=number,
+                        numeral_system=numeral_system,
+                        text=(
+                            str(number)
+                            if numeral_system == TocNumeralSystem.ARABIC
+                            else match.group().upper()
+                        ),
+                    ),
+                )
+            )
         if not candidates:
             return None
 
-        first_match, start, numeral_system = candidates[0]
-        end = None
-        if len(candidates) > 1:
-            second_match, second_value, second_system = candidates[1]
-            separator = normalized[
-                first_match.end():second_match.start()
-            ]
-            if cls._RANGE_SEPARATOR.fullmatch(separator):
-                if second_system != numeral_system or second_value < start:
-                    return None
-                end = second_value
+        first_match, first_item = candidates[0]
+        if cls._LEADING_SIGN.search(normalized[:first_match.start()]):
+            return None
 
-        return ParsedTocPageNumber(
-            start=start,
-            end=end,
-            numeral_system=numeral_system,
+        if len(candidates) == 1:
+            return ParsedTocPageNumber(
+                kind=TocPageNumberKind.SINGLE,
+                items=(first_item,),
+            )
+
+        separators = tuple(
+            normalized[first_match.end():second_match.start()]
+            for (first_match, _), (second_match, _) in zip(
+                candidates,
+                candidates[1:],
+            )
         )
+        items = tuple(item for _, item in candidates)
+        if len(items) == 2 and cls._RANGE_SEPARATOR.fullmatch(separators[0]):
+            if items[1].numeral_system != items[0].numeral_system:
+                return None
+            if items[1].value < items[0].value:
+                return ParsedTocPageNumber(
+                    kind=TocPageNumberKind.SINGLE,
+                    items=(items[0],),
+                )
+            return ParsedTocPageNumber(
+                kind=TocPageNumberKind.RANGE,
+                items=items,
+            )
+
+        if all(cls._LIST_SEPARATOR.fullmatch(value) for value in separators):
+            return ParsedTocPageNumber(
+                kind=TocPageNumberKind.LIST,
+                items=items,
+            )
+
+        return None
 
     @classmethod
     def _parse_token(

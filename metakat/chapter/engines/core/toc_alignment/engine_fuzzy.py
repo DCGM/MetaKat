@@ -94,12 +94,31 @@ class TocAlignmentEngineFuzzy:
                 destination.title.page_key
             ].append(index)
 
-        parsed_by_entry = {
-            index: TocPageNumberParser.parse(
-                None if entry.page_number is None else entry.page_number.text
-            )
-            for index, entry in enumerate(flat_entries)
-        }
+        parsed_by_entry: dict[int, ParsedTocPageNumber | None] = {}
+        for index, entry in enumerate(flat_entries):
+            source_number = _entry_page_number(entry)
+            parsed = TocPageNumberParser.parse(source_number)
+            parsed_by_entry[index] = parsed
+            if source_number is not None and parsed is None:
+                logger.warning(
+                    "TOC page number was rejected for alignment but its "
+                    "original evidence will be preserved: entry=%d, "
+                    "toc_page=%r, title=%r, source_number=%r",
+                    index,
+                    entry.toc_page_key,
+                    _entry_title(entry),
+                    source_number,
+                )
+            elif parsed is not None and parsed.normalized_text != source_number:
+                logger.debug(
+                    "Normalized TOC page number: entry=%d, toc_page=%r, "
+                    "source_number=%r, normalized_number=%r, kind=%s",
+                    index,
+                    entry.toc_page_key,
+                    source_number,
+                    parsed.normalized_text,
+                    parsed.kind.value,
+                )
         logger.info(
             "Starting TOC alignment: pages=%d, toc_entries=%d, "
             "destination_headings=%d, physical_page_numbers=%d, "
@@ -235,7 +254,10 @@ class TocAlignmentEngineFuzzy:
                 toc_page_key=entry.toc_page_key,
                 title=entry.title,
                 part_number=entry.part_number,
-                page_number=entry.page_number,
+                page_number=_normalized_page_number_evidence(
+                    entry.page_number,
+                    parsed_by_entry[entry_index],
+                ),
                 title_destination_page=(
                     None if destination is None else destination.title
                 ),
@@ -1019,6 +1041,17 @@ def _entry_title(entry: ReferenceTocEntry) -> str | None:
 
 def _entry_page_number(entry: ReferenceTocEntry) -> str | None:
     return None if entry.page_number is None else entry.page_number.text
+
+
+def _normalized_page_number_evidence(
+    evidence: DetectionEvidence | None,
+    parsed: ParsedTocPageNumber | None,
+) -> DetectionEvidence | None:
+    if evidence is None or parsed is None:
+        return evidence
+    if evidence.text == parsed.normalized_text:
+        return evidence
+    return replace(evidence, text=parsed.normalized_text)
 
 
 def _surrounding_anchors(
