@@ -92,6 +92,9 @@ class BiblioType(str, enum.Enum):
 class ChapterType(str, enum.Enum):
     PAGE_NUMBER = "PageNumber"
     CHAPTER = "Chapter"
+    SUBCHAPTER = "Subchapter"
+    PART_NUMBER = "PartNumber"
+    DESTINATION_CHAPTER = "DestinationChapter"
 
 class PageNumberType(str, enum.Enum):
     PAGE_NUMBER = "PageNumber"

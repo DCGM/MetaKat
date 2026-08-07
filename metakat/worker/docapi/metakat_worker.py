@@ -127,6 +127,11 @@ class MetakatWorker(DocWorkerWrapper):
                     chapter_core_engine=chapter_core_path,
                     chapter_bind_engine=chapter_bind_path,
                     output_metakat_json=os.path.join(result_dir, "metakat.json"),
+                    output_metakat_pdf=(
+                        os.path.join(Path(result_dir).parent, "result.pdf")
+                        if config.STORE_METAKAT_PDF
+                        else None
+                    ),
                     allowed_image_extensions=config.ALLOWED_IMAGE_EXTENSIONS)
 
                 return WorkerResponse.ok()
@@ -231,6 +236,12 @@ def main():
         action="store_true",
         help="Remove old engine versions when downloading new ones"
     )
+    parser.add_argument(
+        "--store-metakat-pdf",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Store an interactive result.pdf beside result.zip"
+    )
 
     
     # Logging configuration
@@ -251,7 +262,15 @@ def main():
     config.POLLING_INTERVAL = args.polling_interval or config.POLLING_INTERVAL
     config.CLEANUP_JOB_DIR = args.cleanup_job_dir or config.CLEANUP_JOB_DIR
     config.CLEANUP_OLD_ENGINES = args.cleanup_old_engines or config.CLEANUP_OLD_ENGINES
+    if args.store_metakat_pdf is not None:
+        config.STORE_METAKAT_PDF = args.store_metakat_pdf
     config.LOGGING_CONSOLE_LEVEL = args.log_level or config.LOGGING_CONSOLE_LEVEL
+
+    if config.STORE_METAKAT_PDF and config.CLEANUP_JOB_DIR:
+        logger.warning(
+            "STORE_METAKAT_PDF and CLEANUP_JOB_DIR are both enabled; "
+            "the locally stored result.pdf will be removed after upload"
+        )
         
     # Validate directory arguments
     if not config.BASE_DIR and (not config.JOBS_DIR or not config.ENGINES_DIR):
@@ -276,6 +295,7 @@ def main():
     logger.info(f"Base directory: {config.BASE_DIR}")
     logger.info(f"Jobs directory: {config.JOBS_DIR}")
     logger.info(f"Engines directory: {config.ENGINES_DIR}")
+    logger.info(f"Store MetaKat PDF: {config.STORE_METAKAT_PDF}")
     
     worker.start()
 

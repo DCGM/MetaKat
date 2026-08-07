@@ -5,9 +5,13 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, List, Tuple
+from typing import List, Tuple
 from uuid import UUID, uuid4
 
+from metakat.common.aux.document_groups import (
+    LowestDocumentGroup,
+    lowest_document_groups,
+)
 from metakat.chapter.engines.bind.chapter_bind_engine import ChapterBindEngine
 from metakat.chapter.engines.core.toc_alignment.models import (
     ChapterCoreResult,
@@ -18,13 +22,10 @@ from metakat.chapter.engines.core.toc_page_analysis.models import (
 )
 from metakat.schemas.base_objects import (
     DocumentType,
-    HierarchyType,
     MetakatChapter,
     MetakatElement,
     MetakatIO,
-    MetakatIssue,
     MetakatPage,
-    MetakatVolume,
     ProarcIO,
 )
 
@@ -36,12 +37,6 @@ class _BoundChapter:
     chapter: MetakatChapter
     depth: int
     container_id: UUID
-
-
-@dataclass
-class _DocumentGroup:
-    container: MetakatIssue | MetakatVolume
-    pages: list[MetakatPage]
 
 
 class ChapterBindEngineBase(ChapterBindEngine):
@@ -63,7 +58,12 @@ class ChapterBindEngineBase(ChapterBindEngine):
             metakat_io.detection_to_page_mapping = {}
 
         insertion_index = 0
-        for group in self._document_groups(metakat_io):
+        groups = self._document_groups(metakat_io)
+        logger.info(
+            "Starting chapter binding for %d lowest-level document(s)",
+            len(groups),
+        )
+        for group in groups:
             processable_pages = [
                 page
                 for page in group.pages
@@ -96,10 +96,29 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 for page in processable_pages
             ]
             logger.info(
-                "Processing %d page(s) from %s %s with chapter core engine",
+                "Processing %d page(s) from %s %s with chapter core engine: "
+                "batch_index_range=%s..%s, page_index_range=%s..%s",
                 len(processable_pages),
                 group.container.type,
                 group.container.id,
+                processable_pages[0].batch_index,
+                processable_pages[-1].batch_index,
+                next(
+                    (
+                        page.pageIndex
+                        for page in processable_pages
+                        if page.pageIndex is not None
+                    ),
+                    None,
+                ),
+                next(
+                    (
+                        page.pageIndex
+                        for page in reversed(processable_pages)
+                        if page.pageIndex is not None
+                    ),
+                    None,
+                ),
             )
             page_by_key = self._page_by_image_key(
                 processable_pages,
@@ -108,6 +127,13 @@ class ChapterBindEngineBase(ChapterBindEngine):
             existing_page_numbers = tuple(
                 None if page.pageNumber is None else page.pageNumber[0]
                 for page in processable_pages
+            )
+            logger.info(
+                "Chapter core input for %s %s contains %d externally "
+                "supplied page number(s)",
+                group.container.type,
+                group.container.id,
+                sum(number is not None for number in existing_page_numbers),
             )
             core_result = self.core_engine.process(
                 images,
@@ -120,6 +146,18 @@ class ChapterBindEngineBase(ChapterBindEngine):
                     )
                     else None
                 ),
+            )
+            flat_result = _flatten_resolved_chapters(core_result.chapters)
+            logger.info(
+                "Chapter core result for %s %s: roots=%d, chapters=%d, "
+                "resolved_starts=%d, unresolved_starts=%d, explicit_ends=%d",
+                group.container.type,
+                group.container.id,
+                len(core_result.chapters),
+                len(flat_result),
+                sum(chapter.page_start_key is not None for chapter in flat_result),
+                sum(chapter.page_start_key is None for chapter in flat_result),
+                sum(chapter.page_end_key is not None for chapter in flat_result),
             )
             new_elements, bbox_by_id, page_by_detection = (
                 self.extract_metakat_elements_from_pipeline(
@@ -144,130 +182,24 @@ class ChapterBindEngineBase(ChapterBindEngine):
             metakat_io.detection_to_page_mapping.update(page_by_detection)
         return metakat_io
 
-    @classmethod
-    def _document_groups(cls, metakat_io: MetakatIO) -> list[_DocumentGroup]:
-        pages = sorted(
-            (
-                element
-                for element in metakat_io.elements
-                if element.type == DocumentType.PAGE.value
-            ),
-            key=lambda page: page.batch_index,
-        )
-        if not pages:
-            return []
-
-        element_by_id = {element.id: element for element in metakat_io.elements}
-        issues = [
-            element
-            for element in metakat_io.elements
-            if element.type == DocumentType.ISSUE.value
-        ]
-        volumes = [
-            element
-            for element in metakat_io.elements
-            if element.type == DocumentType.VOLUME.value
-        ]
-        volumes_with_issues: set[UUID] = set()
-        for issue in issues:
-            for ancestor in cls._ancestors(
-                issue.parent_id,
-                element_by_id,
-                context=f"issue {issue.id}",
-            ):
-                if ancestor.type == DocumentType.VOLUME.value:
-                    volumes_with_issues.add(ancestor.id)
-
-        eligible = {
-            container.id: container
-            for container in (
-                *issues,
-                *(
-                    volume
-                    for volume in volumes
-                    if volume.id not in volumes_with_issues
-                ),
-            )
-        }
-        pages_by_container: dict[UUID, list[MetakatPage]] = {
-            container_id: [] for container_id in eligible
-        }
-        orphans: list[MetakatPage] = []
-        for page in pages:
-            container = next(
-                (
-                    ancestor
-                    for ancestor in cls._ancestors(
-                        page.parent_id,
-                        element_by_id,
-                        context=f"page {page.id}",
-                    )
-                    if ancestor.id in eligible
-                ),
-                None,
-            )
-            if container is None:
-                orphans.append(page)
-            else:
-                pages_by_container[container.id].append(page)
-
-        groups = [
-            _DocumentGroup(
-                container=eligible[container_id],
-                pages=container_pages,
-            )
-            for container_id, container_pages in pages_by_container.items()
-            if container_pages
-        ]
-        if orphans:
-            dummy = MetakatVolume(
-                id=uuid4(),
-                hierarchy=HierarchyType.MONOGRAPH,
-            )
-            metakat_io.elements.append(dummy)
-            for page in orphans:
-                page.parent_id = dummy.id
-            groups.append(_DocumentGroup(container=dummy, pages=orphans))
+    @staticmethod
+    def _document_groups(
+        metakat_io: MetakatIO,
+    ) -> list[LowestDocumentGroup]:
+        groups = lowest_document_groups(metakat_io, log=logger)
+        for group in groups:
+            if not group.synthetic:
+                continue
+            metakat_io.elements.append(group.container)
+            for page in group.pages:
+                page.parent_id = group.container.id
             logger.warning(
                 "Assigned %d page(s) without an issue or leaf-volume "
                 "ancestor to dummy monograph %s",
-                len(orphans),
-                dummy.id,
+                len(group.pages),
+                group.container.id,
             )
-
-        return sorted(
-            groups,
-            key=lambda group: group.pages[0].batch_index,
-        )
-
-    @staticmethod
-    def _ancestors(
-        parent_id: UUID | None,
-        element_by_id: dict[UUID, MetakatElement],
-        *,
-        context: str,
-    ) -> Iterator[MetakatElement]:
-        visited: set[UUID] = set()
-        current_id = parent_id
-        while current_id is not None:
-            if current_id in visited:
-                logger.warning(
-                    "Parent cycle detected while resolving %s at %s",
-                    context,
-                    current_id,
-                )
-                return
-            visited.add(current_id)
-            current = element_by_id.get(current_id)
-            if current is None:
-                logger.warning(
-                    "Unknown parent %s while resolving %s",
-                    current_id,
-                    context,
-                )
-                return
-            yield current
-            current_id = getattr(current, "parent_id", None)
+        return groups
 
     @staticmethod
     def _page_by_image_key(
@@ -389,6 +321,19 @@ class ChapterBindEngineBase(ChapterBindEngine):
                     resolved.title_destination_page
                 ),
             )
+            logger.debug(
+                "Binding chapter depth=%d, label=%r, toc_page=%r, "
+                "start_page=%r, end_page=%r, pageIndexToc=%s, "
+                "pageIndexStart=%s, pageIndexEnd=%s",
+                depth,
+                chapter_label,
+                resolved.toc_page_key,
+                resolved.page_start_key,
+                resolved.page_end_key,
+                chapter.pageIndexToc,
+                chapter.pageIndexStart,
+                chapter.pageIndexEnd,
+            )
             elements.append(chapter)
             records.append(
                 _BoundChapter(
@@ -451,9 +396,35 @@ class ChapterBindEngineBase(ChapterBindEngine):
                     chapter.pageIndexStart,
                     next_start - 1,
                 )
+                logger.debug(
+                    "Inferred chapter %s end pageIndex=%s from following "
+                    "chapter start=%s",
+                    chapter.id,
+                    chapter.pageIndexEnd,
+                    next_start,
+                )
                 continue
             if all_page_indices:
                 chapter.pageIndexEnd = max(
                     chapter.pageIndexStart,
                     max(all_page_indices),
                 )
+                logger.debug(
+                    "Inferred final chapter %s end pageIndex=%s from "
+                    "document end",
+                    chapter.id,
+                    chapter.pageIndexEnd,
+                )
+
+
+def _flatten_resolved_chapters(
+    chapters: Tuple[ResolvedChapter, ...],
+) -> tuple[ResolvedChapter, ...]:
+    return tuple(
+        chapter
+        for root in chapters
+        for chapter in (
+            root,
+            *_flatten_resolved_chapters(root.children),
+        )
+    )

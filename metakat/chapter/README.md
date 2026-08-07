@@ -26,6 +26,21 @@ The initial implementations use these respective `name` values in their own
 
 The first two stage directories contain their corresponding YOLO `.pt`
 models and may override their `labels` and normal `EngineYOLOALTO` settings.
+Label mappings use `ChapterType` values as their keys. The shared keys have
+the same meaning in both stages. For example:
+
+```json
+{
+  "labels": {
+    "Chapter": "kapitola",
+    "Subchapter": "jiny nadpis",
+    "PageNumber": "cislo strany"
+  }
+}
+```
+
+Page analysis additionally accepts `DestinationChapter`; TOC extraction
+additionally accepts `PartNumber`.
 The fuzzy stage accepts `title_match_threshold` (default `0.7`) and
 `offset_tolerance` (default `2`). It first builds a monotonic chain of physical
 page-number anchors, then resolves remaining titles using a consistent anchor

@@ -15,11 +15,13 @@ from metakat.chapter.engines.core.toc_page_analysis.models import (
     DetectionEvidence,
 )
 from metakat.chapter.engines.core.pipeline_utils import (
+    load_chapter_label_mapping,
     load_engine_config,
     region_label,
     region_to_evidence,
 )
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
+from metakat.schemas.base_objects import ChapterType
 
 logger = logging.getLogger(__name__)
 
@@ -48,16 +50,19 @@ class _MutableEntry:
 class TocExtractionEngineYOLOALTO:
     """Extract one cross-page TOC hierarchy from YOLO-aligned ALTO text."""
 
-    DEFAULT_LABELS = {
-        "title_level_1": "kapitola",
-        "title_level_2": "jiny nadpis",
-        "page_number": "cislo strany",
-        "part_number": "jine cislo",
+    DEFAULT_LABELS: dict[ChapterType, str] = {
+        ChapterType.CHAPTER: "kapitola",
+        ChapterType.SUBCHAPTER: "jiny nadpis",
+        ChapterType.PAGE_NUMBER: "cislo strany",
+        ChapterType.PART_NUMBER: "jine cislo",
     }
 
     def __init__(self, engine_dir, *, alignment_engine=None):
         self.engine_dir, self.config = load_engine_config(engine_dir)
-        self.labels = {**self.DEFAULT_LABELS, **self.config.get("labels", {})}
+        self.labels = load_chapter_label_mapping(
+            self.config,
+            self.DEFAULT_LABELS,
+        )
         self.row_tolerance = float(self.config.get("row_tolerance", 20))
         self.overlap_threshold = float(
             self.config.get("overlap_threshold", 0.5)
@@ -78,7 +83,17 @@ class TocExtractionEngineYOLOALTO:
             sorted(toc_pages, key=lambda page: page.position)
         )
         if not ordered_pages:
+            logger.info("TOC extraction received no selected TOC pages")
             return ReferenceToc(())
+
+        logger.info(
+            "Extracting TOC hierarchy from %d page(s): pages=%s, "
+            "row_tolerance=%.2f, overlap_threshold=%.3f",
+            len(ordered_pages),
+            [page.page_key for page in ordered_pages],
+            self.row_tolerance,
+            self.overlap_threshold,
+        )
 
         document = self.alignment_engine.process(
             images=[str(page.image_path) for page in ordered_pages],
@@ -99,12 +114,33 @@ class TocExtractionEngineYOLOALTO:
         units: list[_Unit] = []
         for source_page in ordered_pages:
             alignment = alignments[source_page.page_key]
-            rows = self._rows(
-                self._filter_overlaps(alignment.regions)
+            filtered_regions = self._filter_overlaps(alignment.regions)
+            rows = self._rows(filtered_regions)
+            page_units = self._group_units(rows, source_page.page_key)
+            units.extend(page_units)
+            logger.info(
+                "TOC extraction page=%r: detected_regions=%d, "
+                "regions_after_overlap_filter=%d, rows=%d, entries=%d",
+                source_page.page_key,
+                len(alignment.regions),
+                len(filtered_regions),
+                len(rows),
+                len(page_units),
             )
-            units.extend(self._group_units(rows, source_page.page_key))
 
         self._infer_anchor_levels(units)
+        for unit_index, unit in enumerate(units):
+            logger.debug(
+                "Extracted TOC entry %d: page=%r, level=%s, title=%r, "
+                "part_number=%r, page_number=%r, anchor_only=%s",
+                unit_index,
+                unit.toc_page_key,
+                unit.level,
+                None if unit.title is None else unit.title.text,
+                None if unit.part_number is None else unit.part_number.text,
+                None if unit.page_number is None else unit.page_number.text,
+                unit.anchor_only,
+            )
         roots: list[_MutableEntry] = []
         active_parents: dict[int, _MutableEntry] = {}
         for unit in units:
@@ -136,8 +172,12 @@ class TocExtractionEngineYOLOALTO:
 
         result = ReferenceToc(tuple(self._freeze(root) for root in roots))
         logger.info(
-            "TOC extraction produced %d root entry/entries",
+            "TOC extraction produced %d total entry/entries, %d root(s), "
+            "%d titleless anchor(s), maximum_level=%d",
+            len(units),
             len(result.roots),
+            sum(unit.anchor_only for unit in units),
+            max((unit.level or 1 for unit in units), default=0),
         )
         return result
 
@@ -154,21 +194,21 @@ class TocExtractionEngineYOLOALTO:
                 if evidence is None:
                     continue
                 label = region_label(region)
-                if label == self.labels["part_number"]:
+                if label == self.labels[ChapterType.PART_NUMBER]:
                     if unit.part_number is None:
                         unit.part_number = evidence
                 elif label in {
-                    self.labels["title_level_1"],
-                    self.labels["title_level_2"],
+                    self.labels[ChapterType.CHAPTER],
+                    self.labels[ChapterType.SUBCHAPTER],
                 }:
                     if unit.title is None:
                         unit.title = evidence
                         unit.level = (
                             2
-                            if label == self.labels["title_level_2"]
+                            if label == self.labels[ChapterType.SUBCHAPTER]
                             else 1
                         )
-                elif label == self.labels["page_number"]:
+                elif label == self.labels[ChapterType.PAGE_NUMBER]:
                     if unit.page_number is None:
                         unit.page_number = evidence
             if unit.title is None and unit.page_number is None:

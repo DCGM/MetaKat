@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import replace
 from pathlib import Path
 from typing import Sequence
@@ -60,9 +61,43 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
         page_numbers: Sequence[str | None] | None = None,
     ) -> ChapterCoreResult:
         pages = self._pair_pages(images, alto_files, page_numbers)
+        external_page_number_count = sum(
+            page.page_number is not None for page in pages
+        )
+        logger.info(
+            "Starting chapter pipeline: pages=%d, range=%r..%r, "
+            "page_number_source=%s, available_page_numbers=%d",
+            len(pages),
+            None if not pages else pages[0].page_key,
+            None if not pages else pages[-1].page_key,
+            "external" if page_numbers is not None else "page analysis",
+            external_page_number_count,
+        )
+
+        stage_started = time.perf_counter()
+        logger.info("Starting TOC page analysis stage")
         analysis = self.page_analysis_engine.process(pages)
+        logger.info(
+            "Completed TOC page analysis stage in %.3f s: "
+            "toc_pages=%d, destination_headings=%d, detected_page_numbers=%d",
+            time.perf_counter() - stage_started,
+            len(analysis.toc_pages),
+            len(analysis.destination_chapters),
+            len(analysis.page_numbers),
+        )
+
+        stage_started = time.perf_counter()
+        logger.info(
+            "Starting TOC extraction stage for pages=%s",
+            [page.page_key for page in analysis.toc_pages],
+        )
         reference_toc = self.toc_extraction_engine.process(
             analysis.toc_pages
+        )
+        logger.info(
+            "Completed TOC extraction stage in %.3f s: roots=%d",
+            time.perf_counter() - stage_started,
+            len(reference_toc.roots),
         )
         if page_numbers is None:
             pages = tuple(
@@ -81,11 +116,27 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
                 )
                 for page in pages
             )
-        return self.toc_alignment_engine.process(
+            logger.info(
+                "Using %d physical page number(s) detected during page "
+                "analysis for TOC alignment",
+                sum(page.page_number is not None for page in pages),
+            )
+
+        stage_started = time.perf_counter()
+        logger.info("Starting TOC alignment stage")
+        result = self.toc_alignment_engine.process(
             pages=pages,
             reference_toc=reference_toc,
             destination_chapters=analysis.destination_chapters,
         )
+        logger.info(
+            "Completed TOC alignment stage in %.3f s: root_chapters=%d, "
+            "total_chapters=%d",
+            time.perf_counter() - stage_started,
+            len(result.chapters),
+            _count_resolved_chapters(result.chapters),
+        )
+        return result
 
     def _load_stage(self, stage_name: str, stage_paths: dict):
         configured_path = stage_paths.get(
@@ -198,3 +249,10 @@ def _unique_by_stem(
             )
         result[path.stem] = path
     return result
+
+
+def _count_resolved_chapters(chapters) -> int:
+    return sum(
+        1 + _count_resolved_chapters(chapter.children)
+        for chapter in chapters
+    )

@@ -14,12 +14,14 @@ from metakat.chapter.engines.core.toc_page_analysis.models import (
     TocPageAnalysisResult,
 )
 from metakat.chapter.engines.core.pipeline_utils import (
+    load_chapter_label_mapping,
     load_engine_config,
     normalize_text,
     region_label,
     region_to_evidence,
 )
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
+from metakat.schemas.base_objects import ChapterType
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +36,11 @@ class _TocCandidate:
 class TocPageAnalysisEngineYOLOALTO:
     """Select TOC pages and collect heading evidence from body pages."""
 
-    DEFAULT_LABELS = {
-        "toc_title": "kapitola",
-        "toc_secondary_title": "jiny nadpis",
-        "page_number": "cislo strany",
-        "destination_title": "nadpis v textu",
+    DEFAULT_LABELS: dict[ChapterType, str] = {
+        ChapterType.CHAPTER: "kapitola",
+        ChapterType.SUBCHAPTER: "jiny nadpis",
+        ChapterType.PAGE_NUMBER: "cislo strany",
+        ChapterType.DESTINATION_CHAPTER: "nadpis v textu",
     }
     DEFAULT_TOC_KEYWORDS = (
         "obsah",
@@ -53,7 +55,10 @@ class TocPageAnalysisEngineYOLOALTO:
 
     def __init__(self, engine_dir, *, alignment_engine=None):
         self.engine_dir, self.config = load_engine_config(engine_dir)
-        self.labels = {**self.DEFAULT_LABELS, **self.config.get("labels", {})}
+        self.labels = load_chapter_label_mapping(
+            self.config,
+            self.DEFAULT_LABELS,
+        )
         self.toc_keywords = tuple(
             normalize_text(keyword)
             for keyword in self.config.get(
@@ -82,7 +87,16 @@ class TocPageAnalysisEngineYOLOALTO:
     ) -> TocPageAnalysisResult:
         ordered_pages = tuple(sorted(pages, key=lambda page: page.position))
         if not ordered_pages:
+            logger.info("TOC page analysis received no pages")
             return TocPageAnalysisResult((), ())
+
+        logger.info(
+            "Analyzing %d page(s) for TOC candidates: search_fraction=%.3f, "
+            "keyword_top_fraction=%.3f",
+            len(ordered_pages),
+            self.toc_search_fraction,
+            self.keyword_top_fraction,
+        )
 
         document = self.alignment_engine.process(
             images=[str(page.image_path) for page in ordered_pages],
@@ -101,17 +115,15 @@ class TocPageAnalysisEngineYOLOALTO:
             )
 
         candidates: list[_TocCandidate] = []
-        destination_chapters: list[DestinationChapterEvidence] = []
         page_numbers = {}
-        toc_candidate_keys: set[str] = set()
         total_pages = len(ordered_pages)
 
         for ordinal, page in enumerate(ordered_pages, start=1):
             alignment = alignments[page.page_key]
             counts = Counter(region_label(region) for region in alignment.regions)
-            primary_count = counts[self.labels["toc_title"]]
-            secondary_count = counts[self.labels["toc_secondary_title"]]
-            page_number_count = counts[self.labels["page_number"]]
+            primary_count = counts[self.labels[ChapterType.CHAPTER]]
+            secondary_count = counts[self.labels[ChapterType.SUBCHAPTER]]
+            page_number_count = counts[self.labels[ChapterType.PAGE_NUMBER]]
             toc_candidate = (
                 primary_count >= 3 and page_number_count >= 3
             ) or (
@@ -127,8 +139,24 @@ class TocPageAnalysisEngineYOLOALTO:
             if page_number is not None:
                 page_numbers[page.page_key] = page_number
 
+            logger.debug(
+                "TOC page candidate check: page=%r, position=%d, "
+                "primary_headings=%d, secondary_headings=%d, "
+                "page_numbers=%d, visual_candidate=%s, "
+                "in_search_area=%s, accepted_candidate=%s, "
+                "physical_page_number=%r",
+                page.page_key,
+                page.position,
+                primary_count,
+                secondary_count,
+                page_number_count,
+                toc_candidate,
+                in_toc_search_area,
+                is_toc,
+                None if page_number is None else page_number.text,
+            )
+
             if is_toc:
-                toc_candidate_keys.add(page.page_key)
                 candidates.append(
                     _TocCandidate(
                         page=page,
@@ -140,18 +168,38 @@ class TocPageAnalysisEngineYOLOALTO:
                         contains_keyword=self._contains_toc_keyword(page),
                     )
                 )
-                continue
 
-            destination_chapters.extend(
-                self._destination_evidence(alignment)
+        selected_group = self._best_group(candidates)
+        toc_pages = tuple(candidate.page for candidate in selected_group)
+        toc_page_keys = {page.page_key for page in toc_pages}
+        destination_chapters = tuple(
+            evidence
+            for page in ordered_pages
+            if page.page_key not in toc_page_keys
+            for evidence in self._destination_evidence(
+                alignments[page.page_key]
             )
-
-        toc_pages = tuple(candidate.page for candidate in self._best_group(candidates))
+        )
         page_numbers = {
             page_key: evidence
             for page_key, evidence in page_numbers.items()
-            if page_key not in toc_candidate_keys
+            if page_key not in toc_page_keys
         }
+        if selected_group:
+            logger.info(
+                "Selected consecutive TOC block: pages=%s, positions=%s, "
+                "contains_keyword=%s, visual_score=%d, candidates=%d",
+                [candidate.page.page_key for candidate in selected_group],
+                [candidate.page.position for candidate in selected_group],
+                any(candidate.contains_keyword for candidate in selected_group),
+                sum(candidate.visual_score for candidate in selected_group),
+                len(candidates),
+            )
+        else:
+            logger.warning(
+                "No TOC page block selected from %d analyzed page(s)",
+                len(ordered_pages),
+            )
         logger.info(
             "Page analysis selected %d TOC page(s), %d destination "
             "heading(s), and %d physical page number(s)",
@@ -161,7 +209,7 @@ class TocPageAnalysisEngineYOLOALTO:
         )
         return TocPageAnalysisResult(
             toc_pages=toc_pages,
-            destination_chapters=tuple(destination_chapters),
+            destination_chapters=destination_chapters,
             page_numbers=page_numbers,
         )
 
@@ -172,7 +220,7 @@ class TocPageAnalysisEngineYOLOALTO:
         page_numbers = [
             evidence
             for region in page.regions
-            if region_label(region) == self.labels["page_number"]
+            if region_label(region) == self.labels[ChapterType.PAGE_NUMBER]
             if (evidence := region_to_evidence(region, page.page_key)) is not None
         ]
         page_number = max(
@@ -189,7 +237,8 @@ class TocPageAnalysisEngineYOLOALTO:
         return [
             DestinationChapterEvidence(title=title)
             for region in page.regions
-            if region_label(region) == self.labels["destination_title"]
+            if region_label(region)
+            == self.labels[ChapterType.DESTINATION_CHAPTER]
             if (title := region_to_evidence(region, page.page_key)) is not None
         ]
 
@@ -221,7 +270,7 @@ class TocPageAnalysisEngineYOLOALTO:
                 groups.append([candidate])
 
         trimmed_groups: list[list[_TocCandidate]] = []
-        for group in groups:
+        for group_index, group in enumerate(groups):
             keyword_index = next(
                 (
                     index
@@ -230,8 +279,17 @@ class TocPageAnalysisEngineYOLOALTO:
                 ),
                 None,
             )
-            trimmed_groups.append(
-                group if keyword_index is None else group[keyword_index:]
+            trimmed = group if keyword_index is None else group[keyword_index:]
+            trimmed_groups.append(trimmed)
+            logger.debug(
+                "TOC candidate block %d: original_pages=%s, selected_suffix=%s, "
+                "keyword_index=%s, contains_keyword=%s, visual_score=%d",
+                group_index,
+                [candidate.page.page_key for candidate in group],
+                [candidate.page.page_key for candidate in trimmed],
+                keyword_index,
+                any(candidate.contains_keyword for candidate in trimmed),
+                sum(candidate.visual_score for candidate in trimmed),
             )
 
         best = max(

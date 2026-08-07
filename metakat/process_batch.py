@@ -18,6 +18,7 @@ from metakat.page_type.engines.bind.definitions import load_page_type_bind_engin
 from metakat.biblio.engines.bind.definitions import load_biblio_bind_engine
 
 from metakat.schemas.base_objects import MetakatIO, ProarcIO, MetakatPage
+from metakat.tools.create_interactive_pdf import create_interactive_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ def parse_args():
     parser.add_argument('--chapter-bind-engine', type=str, help='Path to directory containing chapter bind engine')
 
     parser.add_argument('--output-metakat-json', type=str, help='Path to output Metakat JSON file')
+    parser.add_argument('--output-metakat-pdf', type=str, help='Path to output interactive MetaKat PDF file')
 
     parser.add_argument('--logging-level', default=logging.INFO)
 
@@ -74,6 +76,7 @@ def main():
         chapter_core_engine=args.chapter_core_engine,
         chapter_bind_engine=args.chapter_bind_engine,
         output_metakat_json=args.output_metakat_json,
+        output_metakat_pdf=args.output_metakat_pdf,
         allowed_image_extensions=set(args.allowed_image_extensions)
     )
     
@@ -92,6 +95,7 @@ def process_batch(
     chapter_core_engine: Optional[str] = None,
     chapter_bind_engine: Optional[str] = None,
     output_metakat_json: Optional[str] = None,
+    output_metakat_pdf: Optional[str] = None,
     allowed_image_extensions: Optional[Set] = None,
 ) -> MetakatIO:
     """
@@ -111,6 +115,7 @@ def process_batch(
         chapter_core_engine: Path to chapter core engine directory
         chapter_bind_engine: Path to chapter bind engine directory
         output_metakat_json: Path to output Metakat JSON file
+        output_metakat_pdf: Path to output interactive MetaKat PDF file
         allowed_image_extensions: Set of allowed image file extensions
 
     Returns:
@@ -175,6 +180,13 @@ def process_batch(
     logger.info("")
     MetakatIO.model_validate_json(json.dumps(metakat_io.model_dump(mode="json")))
     logger.info("MetakatIO has been successfully validated")
+
+    if output_metakat_pdf is not None:
+        create_interactive_pdf(
+            batch_dir,
+            metakat_io,
+            output_metakat_pdf,
+        )
 
     if output_metakat_json is not None:
         with open(output_metakat_json, 'w') as f:
