@@ -149,7 +149,13 @@ class PageTypeDataset(Dataset):
 
             self.pages = [page for reservoir in reservoirs.values() for page in reservoir]
             random.shuffle(self.pages)
-            after = {label: len(reservoir) for label, reservoir in reservoirs.items()}
+            # Keep the same complete label space as ``page_type_counter``.
+            # Classes absent from this dataset have no reservoir, but still
+            # need to be represented by a zero in statistics (and callers).
+            after = {
+                label: len(reservoirs.get(label, ()))
+                for label in self.page_type_counter
+            }
 
         logger.info("%s sampling statistics (before -> after):", self.name)
         for page_type in self.page_type_counter:
