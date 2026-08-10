@@ -14,6 +14,25 @@ from metakat.tools.mods_helper import page_type_classes
 logger = logging.getLogger(__name__)
 
 
+class SafeGaussianBlur(torch.nn.Module):
+    """Apply Gaussian blur only when torchvision's reflection pad is valid."""
+
+    def __init__(self, kernel_size, sigma=(0.1, 2.0)):
+        super().__init__()
+        self.blur = v2.GaussianBlur(kernel_size=kernel_size, sigma=sigma)
+
+    def forward(self, image):
+        # torchvision pads width from kernel_size[0] and height from
+        # kernel_size[1]. Reflection padding must be smaller than the
+        # corresponding input dimension.
+        horizontal_padding = self.blur.kernel_size[0] // 2
+        vertical_padding = self.blur.kernel_size[1] // 2
+        height, width = image.shape[-2:]
+        if width <= horizontal_padding or height <= vertical_padding:
+            return image
+        return self.blur(image)
+
+
 class PageTypeDataset(Dataset):
     def __init__(self,
                  images_dir,
@@ -106,7 +125,7 @@ class PageTypeDataset(Dataset):
             #v2.RandomApply(transforms=[v2.RandomRotation(degrees=(0, 5))], p=0.5),
             v2.RandomApply(transforms=[v2.ColorJitter(brightness=.3, hue=.1)], p=0.3),
             v2.RandomApply(transforms=[v2.GaussianNoise()], p=0.3),
-            v2.RandomApply(transforms=[v2.GaussianBlur(kernel_size=(5, 9))], p=0.1),
+            v2.RandomApply(transforms=[SafeGaussianBlur(kernel_size=(5, 9))], p=0.1),
             v2.RandomApply(transforms=[v2.RandomAutocontrast()], p=0.1),
             v2.RandomApply(transforms=[v2.RandomEqualize()], p=0.1),
             v2.ToImage(),
