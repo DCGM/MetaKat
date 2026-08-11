@@ -103,6 +103,12 @@ class PageNumberType(str, enum.Enum):
 class MetakatBaseModel(BaseModel):
     model_config = ConfigDict(use_enum_values=True)
 
+
+class MetakatPageDimensions(MetakatBaseModel):
+    width: Annotated[float, Field(gt=0, allow_inf_nan=False)]
+    height: Annotated[float, Field(gt=0, allow_inf_nan=False)]
+
+
 class MetakatTitle(MetakatBaseModel):
     type: Literal["title"] = "title"
     hierarchy: Optional[HierarchyType] = None
@@ -172,6 +178,8 @@ class MetakatPage(MetakatBaseModel):
     pageNumber: Optional[Tuple[str, float, UUID]] = None
     pageType: Optional[Tuple[PageType, float]] = None
     side: Optional[Tuple[PageSideType, float]] = None
+    imageDim: Optional[MetakatPageDimensions] = None
+    altoDim: Optional[MetakatPageDimensions] = None
 
 class MetakatSupplement(MetakatBaseModel):
     type: Literal["supplement"] = "supplement"

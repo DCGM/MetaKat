@@ -1,9 +1,13 @@
 from .engine_yolo_alto import TocExtractionEngineYOLOALTO
-from .models import ReferenceToc, ReferenceTocEntry, TocExtractionEngine
+from .models import TocExtractionEngine
+from .toc_page_number_parser import (
+    ArabicRomanTocPageNumberParser,
+    TocPageNumberParser,
+)
 
 __all__ = [
-    "ReferenceToc",
-    "ReferenceTocEntry",
+    "ArabicRomanTocPageNumberParser",
     "TocExtractionEngine",
     "TocExtractionEngineYOLOALTO",
+    "TocPageNumberParser",
 ]

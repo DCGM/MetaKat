@@ -1,32 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Protocol, Sequence
 
-from metakat.chapter.engines.core.toc_extraction.models import ReferenceToc
-from metakat.chapter.engines.core.toc_page_analysis.models import (
+from metakat.chapter.engines.core.models import (
     ChapterPageInput,
-    DestinationChapterEvidence,
-    DetectionEvidence,
+    TocBase,
+    TocResult,
 )
-
-
-@dataclass(frozen=True)
-class ResolvedChapter:
-    toc_page_key: str
-    title: DetectionEvidence | None
-    part_number: DetectionEvidence | None = None
-    page_number: DetectionEvidence | None = None
-    title_destination_page: DetectionEvidence | None = None
-    page_start_key: str | None = None
-    page_end_key: str | None = None
-    anchor_only: bool = False
-    children: tuple[ResolvedChapter, ...] = ()
-
-
-@dataclass(frozen=True)
-class ChapterCoreResult:
-    chapters: tuple[ResolvedChapter, ...]
+from metakat.chapter.engines.core.toc_page_analysis.models import (
+    DestinationChapterEvidence,
+)
+from metakat.page_number.engines.core.models import (
+    PhysicalPageNumberEvidence,
+)
 
 
 class TocAlignmentEngine(Protocol):
@@ -34,7 +20,11 @@ class TocAlignmentEngine(Protocol):
         self,
         *,
         pages: Sequence[ChapterPageInput],
-        reference_toc: ReferenceToc,
-        destination_chapters: Sequence[DestinationChapterEvidence],
-    ) -> ChapterCoreResult:
+        toc_pages: Sequence[ChapterPageInput],
+        reference_toc: TocBase,
+        destination_chapters: Sequence[DestinationChapterEvidence] | None,
+        destination_page_numbers: (
+            Sequence[PhysicalPageNumberEvidence] | None
+        ),
+    ) -> TocResult:
         ...

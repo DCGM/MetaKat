@@ -26,7 +26,7 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
             minimum_overlap_coverage=minimum_overlap_coverage,
         )
 
-    def process(
+    def _align(
         self,
         images: List[str],
         alto_files: List[str],

@@ -5,34 +5,32 @@ from collections import Counter, defaultdict
 from dataclasses import replace
 from typing import Iterable, Sequence, TypedDict
 
-from metakat.chapter.engines.core.toc_alignment.models import (
-    ChapterCoreResult,
-    ResolvedChapter,
-)
-from metakat.chapter.engines.core.toc_alignment.toc_page_number_parser import (
-    ParsedPhysicalPageNumber,
-    ParsedTocPageNumber,
-    PhysicalPageNumberParser,
-    TocNumeralSystem,
-    TocPageNumberParser,
-)
-from metakat.chapter.engines.core.toc_extraction.models import (
-    ReferenceToc,
-    ReferenceTocEntry,
+from metakat.chapter.engines.core.models import (
+    ChapterPageInput,
+    ChapterBase,
+    ChapterResult,
+    NormalizedTocPageNumberItem,
+    TocBase,
+    TocPageNumber,
+    TocPageNumberKind,
+    TocResult,
 )
 from metakat.chapter.engines.core.toc_page_analysis.models import (
-    ChapterPageInput,
     DestinationChapterEvidence,
 )
 from metakat.chapter.engines.core.pipeline_utils import (
     load_engine_config,
     normalize_text,
 )
+from metakat.page_number.engines.core.models import (
+    PageNumberNumeralSystem,
+    PhysicalPageNumberEvidence,
+)
 
 
 logger = logging.getLogger(__name__)
 
-NumberKey = tuple[TocNumeralSystem, int]
+NumberKey = tuple[PageNumberNumeralSystem, int]
 
 
 class _AnchorOption(TypedDict):
@@ -43,7 +41,7 @@ class _AnchorOption(TypedDict):
     title_supported: bool
     title_score: float
     confidence: float
-    parsed: ParsedTocPageNumber
+    toc_number: TocPageNumber
     requires_title: bool
 
 
@@ -67,17 +65,49 @@ class TocAlignmentEngineFuzzy:
         self,
         *,
         pages: Sequence[ChapterPageInput],
-        reference_toc: ReferenceToc,
-        destination_chapters: Sequence[DestinationChapterEvidence],
-    ) -> ChapterCoreResult:
-        ordered_pages = tuple(sorted(pages, key=lambda page: page.position))
-        flat_entries = flatten_reference_toc(reference_toc)
+        toc_pages: Sequence[ChapterPageInput] = (),
+        reference_toc: TocBase,
+        destination_chapters: Sequence[DestinationChapterEvidence] | None,
+        destination_page_numbers: (
+            Sequence[PhysicalPageNumberEvidence] | None
+        ),
+    ) -> TocResult:
+        all_ordered_pages = tuple(
+            sorted(pages, key=lambda page: page.position)
+        )
+        toc_page_keys = {page.page_key for page in toc_pages}
+        ordered_pages = tuple(
+            page
+            for page in all_ordered_pages
+            if page.page_key not in toc_page_keys
+        )
+        flat_entries = flatten_toc(reference_toc)
+        toc_number_by_entry = {
+            index: entry.page_number
+            for index, entry in enumerate(flat_entries)
+        }
+
+        title_capability = _evidence_capability_status(
+            destination_chapters
+        )
+        page_number_capability = _evidence_capability_status(
+            destination_page_numbers
+        )
+        logger.info(
+            "TOC alignment destination evidence capabilities: titles=%s, "
+            "page_numbers=%s",
+            title_capability,
+            page_number_capability,
+        )
+        destination_chapters = tuple(destination_chapters or ())
+        destination_page_numbers = tuple(destination_page_numbers or ())
         position_by_key = {
             page.page_key: page.position for page in ordered_pages
         }
         page_by_position = {page.position: page for page in ordered_pages}
         physical_index, physical_by_page = self._index_physical_numbers(
-            ordered_pages
+            ordered_pages,
+            destination_page_numbers,
         )
         destinations = tuple(
             sorted(
@@ -94,47 +124,28 @@ class TocAlignmentEngineFuzzy:
                 destination.title.page_key
             ].append(index)
 
-        parsed_by_entry: dict[int, ParsedTocPageNumber | None] = {}
-        for index, entry in enumerate(flat_entries):
-            source_number = _entry_page_number(entry)
-            parsed = TocPageNumberParser.parse(source_number)
-            parsed_by_entry[index] = parsed
-            if source_number is not None and parsed is None:
-                logger.warning(
-                    "TOC page number was rejected for alignment but its "
-                    "original evidence will be preserved: entry=%d, "
-                    "toc_page=%r, title=%r, source_number=%r",
-                    index,
-                    entry.toc_page_key,
-                    _entry_title(entry),
-                    source_number,
-                )
-            elif parsed is not None and parsed.normalized_text != source_number:
-                logger.debug(
-                    "Normalized TOC page number: entry=%d, toc_page=%r, "
-                    "source_number=%r, normalized_number=%r, kind=%s",
-                    index,
-                    entry.toc_page_key,
-                    source_number,
-                    parsed.normalized_text,
-                    parsed.kind.value,
-                )
         logger.info(
-            "Starting TOC alignment: pages=%d, toc_entries=%d, "
-            "destination_headings=%d, physical_page_numbers=%d, "
+            "Starting TOC alignment: pages=%d, destination_pages=%d, "
+            "toc_pages=%d, toc_entries=%d, "
+            "destination_titles=%d, destination_page_numbers=%d, "
             "parsed_toc_numbers=%d, title_threshold=%.3f, "
             "offset_tolerance=%d",
+            len(all_ordered_pages),
             len(ordered_pages),
+            len(toc_page_keys),
             len(flat_entries),
             len(destinations),
             len(physical_by_page),
-            sum(parsed is not None for parsed in parsed_by_entry.values()),
+            sum(
+                _toc_start_item(number) is not None
+                for number in toc_number_by_entry.values()
+            ),
             self.title_match_threshold,
             self.offset_tolerance,
         )
         options = self._build_anchor_options(
             flat_entries,
-            parsed_by_entry,
+            toc_number_by_entry,
             physical_index,
             destinations,
             destination_indices_by_page,
@@ -194,7 +205,8 @@ class TocAlignmentEngineFuzzy:
                 anchor["title_supported"],
                 anchor["title_score"],
                 anchor["requires_title"],
-                anchor["page_position"] - anchor["parsed"].start,
+                anchor["page_position"]
+                - _toc_start_value(anchor["toc_number"]),
             )
 
         resolutions: dict[int, tuple[str | None, int | None]] = {}
@@ -215,7 +227,7 @@ class TocAlignmentEngineFuzzy:
             resolution = self._resolve_title_match(
                 entry_index,
                 entry,
-                parsed_by_entry[entry_index],
+                toc_number_by_entry[entry_index],
                 anchors,
                 destinations,
                 used_destinations,
@@ -226,8 +238,8 @@ class TocAlignmentEngineFuzzy:
             if resolution[1] is not None:
                 used_destinations.add(resolution[1])
 
-        resolved_by_identity: dict[int, ResolvedChapter] = {}
-        promoted_anchors = 0
+        resolved_by_identity: dict[int, ChapterResult] = {}
+        titleless_entries_with_destination_titles = 0
         for entry_index, entry in enumerate(flat_entries):
             page_start_key, destination_index = resolutions.get(
                 entry_index,
@@ -239,7 +251,7 @@ class TocAlignmentEngineFuzzy:
                 else destinations[destination_index]
             )
             page_end_key = self._resolve_range_end(
-                parsed_by_entry[entry_index],
+                toc_number_by_entry[entry_index],
                 page_start_key,
                 entry_index,
                 anchors,
@@ -248,57 +260,33 @@ class TocAlignmentEngineFuzzy:
                 position_by_key,
                 page_by_position,
             )
-            if entry.anchor_only and destination is not None:
-                promoted_anchors += 1
-            resolved_by_identity[id(entry)] = ResolvedChapter(
+            if entry.title is None and destination is not None:
+                titleless_entries_with_destination_titles += 1
+            resolved_by_identity[id(entry)] = ChapterResult(
                 toc_page_key=entry.toc_page_key,
                 title=entry.title,
                 part_number=entry.part_number,
-                page_number=_normalized_page_number_evidence(
-                    entry.page_number,
-                    parsed_by_entry[entry_index],
-                ),
+                page_number=entry.page_number,
                 title_destination_page=(
                     None if destination is None else destination.title
                 ),
                 page_start_key=page_start_key,
                 page_end_key=page_end_key,
-                anchor_only=entry.anchor_only,
             )
 
-        discarded_anchors = 0
-
-        def rebuild(entry: ReferenceTocEntry) -> tuple[ResolvedChapter, ...]:
-            nonlocal discarded_anchors
-            children = tuple(
-                resolved_child
-                for child in entry.children
-                for resolved_child in rebuild(child)
-            )
-            resolved = resolved_by_identity[id(entry)]
-            if resolved.anchor_only and resolved.title_destination_page is None:
-                discarded_anchors += 1
-                return children
-            return (
-                replace(
-                    resolved,
-                    anchor_only=False,
-                    children=children,
-                ),
+        def rebuild(entry: ChapterBase) -> ChapterResult:
+            return replace(
+                resolved_by_identity[id(entry)],
+                children=tuple(rebuild(child) for child in entry.children),
             )
 
-        chapters = tuple(
-            chapter
-            for root in reference_toc.roots
-            for chapter in rebuild(root)
-        )
+        chapters = tuple(rebuild(root) for root in reference_toc.chapters)
         logger.info(
-            "TOC alignment retained %d anchor(s), promoted %d titleless "
-            "anchor(s), discarded %d unresolved anchor(s), and returned "
-            "%d root chapter(s); resolved_starts=%d, unresolved_starts=%d",
+            "TOC alignment retained %d anchor(s), assigned destination "
+            "titles to %d titleless entry/entries, and returned %d root "
+            "chapter(s); resolved_starts=%d, unresolved_starts=%d",
             len(anchors),
-            promoted_anchors,
-            discarded_anchors,
+            titleless_entries_with_destination_titles,
             len(chapters),
             sum(
                 chapter.page_start_key is not None
@@ -309,68 +297,91 @@ class TocAlignmentEngineFuzzy:
                 for chapter in resolved_by_identity.values()
             ),
         )
-        return ChapterCoreResult(chapters=chapters)
+        return TocResult(chapters=chapters)
 
     @staticmethod
     def _index_physical_numbers(
         pages: Sequence[ChapterPageInput],
+        destination_page_numbers: Sequence[
+            PhysicalPageNumberEvidence
+        ],
     ) -> tuple[
         dict[NumberKey, list[ChapterPageInput]],
-        dict[str, ParsedPhysicalPageNumber],
+        dict[str, PhysicalPageNumberEvidence],
     ]:
         index: dict[NumberKey, list[ChapterPageInput]] = defaultdict(list)
-        by_page: dict[str, ParsedPhysicalPageNumber] = {}
-        for page in pages:
-            parsed = PhysicalPageNumberParser.parse(page.page_number)
-            if parsed is None:
+        by_page: dict[str, PhysicalPageNumberEvidence] = {}
+        page_by_key = {page.page_key: page for page in pages}
+        seen_page_keys: set[str] = set()
+        for evidence in destination_page_numbers:
+            if evidence.page_key in seen_page_keys:
+                raise ValueError(
+                    "Destination page-number evidence contains duplicate "
+                    f"page_key: {evidence.page_key!r}"
+                )
+            seen_page_keys.add(evidence.page_key)
+            page = page_by_key.get(evidence.page_key)
+            if page is None:
+                raise ValueError(
+                    "Destination page-number evidence refers to a page "
+                    f"that is not available for alignment: "
+                    f"{evidence.page_key!r}"
+                )
+            if (
+                evidence.value is None
+                or evidence.numeral_system is None
+            ):
                 logger.debug(
                     "Physical page number unavailable: page=%r, position=%d, "
                     "source_text=%r",
                     page.page_key,
                     page.position,
-                    page.page_number,
+                    evidence.text,
                 )
                 continue
-            key = (parsed.numeral_system, parsed.value)
+            key = (evidence.numeral_system, evidence.value)
             index[key].append(page)
-            by_page[page.page_key] = parsed
+            by_page[page.page_key] = evidence
             logger.debug(
                 "Indexed physical page number: page=%r, position=%d, "
                 "source_text=%r, system=%s, value=%d",
                 page.page_key,
                 page.position,
-                page.page_number,
-                parsed.numeral_system.value,
-                parsed.value,
+                evidence.text,
+                evidence.numeral_system.value,
+                evidence.value,
             )
         return dict(index), by_page
 
     def _build_anchor_options(
         self,
-        entries: Sequence[ReferenceTocEntry],
-        parsed_by_entry: dict[int, ParsedTocPageNumber | None],
+        entries: Sequence[ChapterBase],
+        toc_number_by_entry: dict[int, TocPageNumber | None],
         physical_index: dict[NumberKey, list[ChapterPageInput]],
         destinations: Sequence[DestinationChapterEvidence],
         destination_indices_by_page: dict[str, list[int]],
     ) -> list[_AnchorOption]:
         toc_number_counts = Counter(
-            (parsed.numeral_system, parsed.start)
-            for parsed in parsed_by_entry.values()
-            if parsed is not None
+            (_toc_start_system(number), _toc_start_value(number))
+            for number in toc_number_by_entry.values()
+            if _toc_start_item(number) is not None
         )
         options: list[_AnchorOption] = []
         for entry_index, entry in enumerate(entries):
-            parsed = parsed_by_entry[entry_index]
-            if parsed is None:
+            toc_number = toc_number_by_entry[entry_index]
+            if _toc_start_item(toc_number) is None:
                 logger.debug(
-                    "Skipping anchor option for entry=%d, title=%r: TOC "
-                    "page number %r could not be parsed",
+                    "Skipping anchor option for entry=%d, title=%r: no "
+                    "parsed TOC page-number value was supplied for %r",
                     entry_index,
                     _entry_title(entry),
                     _entry_page_number(entry),
                 )
                 continue
-            key = (parsed.numeral_system, parsed.start)
+            key = (
+                _toc_start_system(toc_number),
+                _toc_start_value(toc_number),
+            )
             matching_pages = physical_index.get(key, ())
             if not matching_pages:
                 logger.debug(
@@ -408,7 +419,7 @@ class TocAlignmentEngineFuzzy:
                                 score,
                                 entry,
                                 destinations,
-                                parsed,
+                                toc_number,
                                 requires_title=True,
                             )
                         )
@@ -448,7 +459,7 @@ class TocAlignmentEngineFuzzy:
                     title_score,
                     entry,
                     destinations,
-                    parsed,
+                    toc_number,
                     requires_title=False,
                 )
             )
@@ -460,9 +471,9 @@ class TocAlignmentEngineFuzzy:
         page: ChapterPageInput,
         destination_index: int | None,
         title_score: float,
-        entry: ReferenceTocEntry,
+        entry: ChapterBase,
         destinations: Sequence[DestinationChapterEvidence],
-        parsed: ParsedTocPageNumber,
+        toc_number: TocPageNumber,
         *,
         requires_title: bool,
     ) -> _AnchorOption:
@@ -482,7 +493,7 @@ class TocAlignmentEngineFuzzy:
             "title_supported": title_supported,
             "title_score": title_score,
             "confidence": confidence,
-            "parsed": parsed,
+            "toc_number": toc_number,
             "requires_title": requires_title,
         }
 
@@ -531,7 +542,7 @@ class TocAlignmentEngineFuzzy:
     def _finalize_anchor_titles(
         self,
         selected: Sequence[_AnchorOption],
-        entries: Sequence[ReferenceTocEntry],
+        entries: Sequence[ChapterBase],
         destinations: Sequence[DestinationChapterEvidence],
         destination_indices_by_page: dict[str, list[int]],
     ) -> tuple[dict[int, _AnchorOption], set[int]]:
@@ -607,13 +618,13 @@ class TocAlignmentEngineFuzzy:
     def _resolve_title_match(
         self,
         entry_index: int,
-        entry: ReferenceTocEntry,
-        parsed: ParsedTocPageNumber | None,
+        entry: ChapterBase,
+        toc_number: TocPageNumber | None,
         anchors: dict[int, _AnchorOption],
         destinations: Sequence[DestinationChapterEvidence],
         used_destinations: set[int],
         position_by_key: dict[str, int],
-        physical_by_page: dict[str, ParsedPhysicalPageNumber],
+        physical_by_page: dict[str, PhysicalPageNumberEvidence],
     ) -> tuple[str | None, int | None]:
         if entry.title is None:
             logger.warning(
@@ -627,10 +638,14 @@ class TocAlignmentEngineFuzzy:
         upper = None if following is None else following["page_position"]
         expected_position = (
             None
-            if parsed is None
-            else self._expected_position(parsed, preceding, following)
+            if _toc_start_item(toc_number) is None
+            else self._expected_position(
+                toc_number,
+                preceding,
+                following,
+            )
         )
-        if parsed is None:
+        if _toc_start_item(toc_number) is None:
             offset_mode = "no TOC number; physical-number consistency only"
         elif expected_position is None:
             offset_mode = "no compatible ideal offset; anchor bounds only"
@@ -726,7 +741,7 @@ class TocAlignmentEngineFuzzy:
             )
             return None, None
 
-        if parsed is not None:
+        if _toc_start_item(toc_number) is not None:
             if expected_position is not None:
                 candidates = [
                     candidate
@@ -829,7 +844,7 @@ class TocAlignmentEngineFuzzy:
 
     @staticmethod
     def _expected_position(
-        parsed: ParsedTocPageNumber,
+        toc_number: TocPageNumber,
         preceding: _AnchorOption | None,
         following: _AnchorOption | None,
     ) -> int | None:
@@ -838,43 +853,51 @@ class TocAlignmentEngineFuzzy:
         for anchor in (preceding, following):
             if (
                 anchor is not None
-                and anchor["parsed"].numeral_system == parsed.numeral_system
+                and _toc_start_system(anchor["toc_number"])
+                == _toc_start_system(toc_number)
             ):
                 offsets.append(
-                    anchor["page_position"] - anchor["parsed"].start
+                    anchor["page_position"]
+                    - _toc_start_value(anchor["toc_number"])
                 )
         distinct_offsets = tuple(dict.fromkeys(offsets))
         if len(distinct_offsets) == 1:
-            return parsed.start + distinct_offsets[0]
+            return _toc_start_value(toc_number) + distinct_offsets[0]
         return None
 
     @staticmethod
     def _physical_number_is_consistent(
         page_key: str,
-        physical_by_page: dict[str, ParsedPhysicalPageNumber],
+        physical_by_page: dict[str, PhysicalPageNumberEvidence],
         preceding: _AnchorOption | None,
         following: _AnchorOption | None,
     ) -> bool:
-        parsed = physical_by_page.get(page_key)
-        if parsed is None:
+        physical_number = physical_by_page.get(page_key)
+        if physical_number is None:
             return True
         if (
             preceding is not None
-            and preceding["parsed"].numeral_system == parsed.numeral_system
+            and _toc_start_system(preceding["toc_number"])
+            == physical_number.numeral_system
         ):
-            if parsed.value < preceding["parsed"].start:
+            if physical_number.value < _toc_start_value(
+                preceding["toc_number"]
+            ):
                 return False
         if (
             following is not None
-            and following["parsed"].numeral_system == parsed.numeral_system
+            and _toc_start_system(following["toc_number"])
+            == physical_number.numeral_system
         ):
-            if parsed.value > following["parsed"].start:
+            if physical_number.value > _toc_start_value(
+                following["toc_number"]
+            ):
                 return False
         return True
 
     def _resolve_range_end(
         self,
-        parsed: ParsedTocPageNumber | None,
+        toc_number: TocPageNumber | None,
         page_start_key: str | None,
         entry_index: int,
         anchors: dict[int, _AnchorOption],
@@ -883,12 +906,14 @@ class TocAlignmentEngineFuzzy:
         position_by_key: dict[str, int],
         page_by_position: dict[int, ChapterPageInput],
     ) -> str | None:
-        if parsed is None or parsed.end is None or page_start_key is None:
+        range_end = _toc_end_value(toc_number)
+        if range_end is None or page_start_key is None:
             return None
         start_position = position_by_key.get(page_start_key)
         if start_position is None:
             return None
-        expected_position = parsed.end + (start_position - parsed.start)
+        range_start = _toc_start_value(toc_number)
+        expected_position = range_end + (start_position - range_start)
         following_position = next(
             (
                 anchors[index]["page_position"]
@@ -901,7 +926,7 @@ class TocAlignmentEngineFuzzy:
         exact = [
             page
             for page in physical_index.get(
-                (parsed.numeral_system, parsed.end),
+                (_toc_start_system(toc_number), range_end),
                 (),
             )
             if page.position >= start_position
@@ -920,8 +945,8 @@ class TocAlignmentEngineFuzzy:
                 "start_page=%r, expected_position=%d, end_page=%r, "
                 "end_position=%d, method=exact_physical_number",
                 entry_index,
-                parsed.start,
-                parsed.end,
+                range_start,
+                range_end,
                 page_start_key,
                 expected_position,
                 resolved.page_key,
@@ -944,8 +969,8 @@ class TocAlignmentEngineFuzzy:
                 "no page is eligible after start=%r and before the following "
                 "anchor",
                 entry_index,
-                parsed.start,
-                parsed.end,
+                range_start,
+                range_end,
                 page_start_key,
             )
             return None
@@ -959,8 +984,8 @@ class TocAlignmentEngineFuzzy:
                 "closest page=%r at position=%d is %d page(s) from expected "
                 "position=%d, tolerance=%d",
                 entry_index,
-                parsed.start,
-                parsed.end,
+                range_start,
+                range_end,
                 closest.page_key,
                 closest.position,
                 abs(closest.position - expected_position),
@@ -974,8 +999,8 @@ class TocAlignmentEngineFuzzy:
             "expected_position=%d, end_page=%r, end_position=%d, "
             "method=offset_fallback",
             entry_index,
-            parsed.start,
-            parsed.end,
+            range_start,
+            range_end,
             page_start_key,
             expected_position,
             resolved_page,
@@ -985,7 +1010,7 @@ class TocAlignmentEngineFuzzy:
 
     def _matching_titles(
         self,
-        entry: ReferenceTocEntry,
+        entry: ChapterBase,
         destination_indices: Iterable[int],
         destinations: Sequence[DestinationChapterEvidence],
         *,
@@ -1035,23 +1060,54 @@ class TocAlignmentEngineFuzzy:
         )
 
 
-def _entry_title(entry: ReferenceTocEntry) -> str | None:
+def _entry_title(entry: ChapterBase) -> str | None:
     return None if entry.title is None else entry.title.text
 
 
-def _entry_page_number(entry: ReferenceTocEntry) -> str | None:
+def _entry_page_number(entry: ChapterBase) -> str | None:
     return None if entry.page_number is None else entry.page_number.text
 
 
-def _normalized_page_number_evidence(
-    evidence: DetectionEvidence | None,
-    parsed: ParsedTocPageNumber | None,
-) -> DetectionEvidence | None:
-    if evidence is None or parsed is None:
-        return evidence
-    if evidence.text == parsed.normalized_text:
-        return evidence
-    return replace(evidence, text=parsed.normalized_text)
+def _toc_start_item(
+    number: TocPageNumber | None,
+) -> NormalizedTocPageNumberItem | None:
+    if number is None or not number.normalized_items:
+        return None
+    return number.normalized_items[0]
+
+
+def _toc_start_value(number: TocPageNumber) -> int:
+    item = _toc_start_item(number)
+    if item is None:
+        raise ValueError("TOC page number has no normalized start item")
+    return item[1]
+
+
+def _toc_start_system(
+    number: TocPageNumber,
+) -> PageNumberNumeralSystem:
+    item = _toc_start_item(number)
+    if item is None:
+        raise ValueError("TOC page number has no normalized start item")
+    return item[2]
+
+
+def _toc_end_value(number: TocPageNumber | None) -> int | None:
+    if (
+        number is None
+        or number.kind is not TocPageNumberKind.RANGE
+        or len(number.normalized_items) != 2
+    ):
+        return None
+    return number.normalized_items[1][1]
+
+
+def _evidence_capability_status(evidence: Sequence | None) -> str:
+    if evidence is None:
+        return "unavailable"
+    if not evidence:
+        return "implemented-empty"
+    return f"implemented(count={len(evidence)})"
 
 
 def _surrounding_anchors(
@@ -1083,31 +1139,35 @@ def _anchor_context(anchor: _AnchorOption | None) -> str:
     return (
         f"entry={anchor['entry_index']},page={anchor['page_key']!r},"
         f"position={anchor['page_position']},"
-        f"toc_number={anchor['parsed'].start},"
-        f"system={anchor['parsed'].numeral_system.value},"
-        f"offset={anchor['page_position'] - anchor['parsed'].start}"
+        f"toc_number={_toc_start_value(anchor['toc_number'])},"
+        f"system={_toc_start_system(anchor['toc_number']).value},"
+        f"offset={anchor['page_position'] - _toc_start_value(anchor['toc_number'])}"
     )
 
 
 def _physical_page_number_text(
-    parsed: ParsedPhysicalPageNumber | None,
+    number: PhysicalPageNumberEvidence | None,
 ) -> str | None:
-    if parsed is None:
+    if (
+        number is None
+        or number.numeral_system is None
+        or number.value is None
+    ):
         return None
-    return f"{parsed.numeral_system.value}:{parsed.value}"
+    return f"{number.numeral_system.value}:{number.value}"
 
 
-def flatten_reference_toc(
-    reference_toc: ReferenceToc,
-) -> tuple[ReferenceTocEntry, ...]:
-    result: list[ReferenceTocEntry] = []
+def flatten_toc(
+    reference_toc: TocBase,
+) -> tuple[ChapterBase, ...]:
+    result: list[ChapterBase] = []
 
-    def visit(entry: ReferenceTocEntry) -> None:
+    def visit(entry: ChapterBase) -> None:
         result.append(entry)
         for child in entry.children:
             visit(child)
 
-    for root in reference_toc.roots:
+    for root in reference_toc.chapters:
         visit(root)
     return tuple(result)
 

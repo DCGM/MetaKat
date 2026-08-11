@@ -8,9 +8,7 @@ from typing import Any
 
 from text_geometry_aligner import AlignmentRegion
 
-from metakat.chapter.engines.core.toc_page_analysis.models import (
-    DetectionEvidence,
-)
+from metakat.common.models import BoundingBox, DetectionEvidence
 from metakat.schemas.base_objects import ChapterType
 
 
@@ -80,7 +78,12 @@ def region_to_evidence(
     return DetectionEvidence(
         text=region.alto_text.strip(),
         confidence=region.input_geometry_confidence,
-        bbox=region.input_geometry.bounds,
+        bbox=BoundingBox(
+            x=region.input_geometry.bounds.x,
+            y=region.input_geometry.bounds.y,
+            width=region.input_geometry.bounds.width,
+            height=region.input_geometry.bounds.height,
+        ),
         page_key=page_key,
     )
 

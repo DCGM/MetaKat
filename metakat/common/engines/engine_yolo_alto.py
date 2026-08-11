@@ -3,7 +3,8 @@ import json
 import logging
 import os
 import tempfile
-from typing import List
+from collections.abc import Mapping, Sequence
+from typing import Any, List
 
 from natsort import natsorted
 from text_geometry_aligner import (
@@ -11,6 +12,8 @@ from text_geometry_aligner import (
     GeometryAligner,
     GeometryOverlapStrategy,
     InputFormat,
+    LabelDeduplicationGroup,
+    YOLOReader,
     WordAssignmentStrategy,
 )
 
@@ -25,7 +28,8 @@ class EngineYOLOALTO:
                  yolo_confidence_threshold=0.25,
                  yolo_image_size=640,
                  minimum_overlap_coverage=0.65,
-                 yolo_device=0):
+                 yolo_device=0,
+                 label_deduplication_groups=None):
         self.engine_dir = engine_dir
         config_path = os.path.join(engine_dir, "metakat_engine_config.json")
         if not os.path.exists(config_path):
@@ -49,6 +53,15 @@ class EngineYOLOALTO:
             'minimum_overlap_coverage',
             minimum_overlap_coverage,
         )
+        configured_deduplication_groups = self.config.get(
+            'label_deduplication_groups',
+            label_deduplication_groups,
+        )
+        self.label_deduplication_groups = (
+            _parse_label_deduplication_groups(
+                configured_deduplication_groups
+            )
+        )
 
         pt_path = None
         for file_name in os.listdir(engine_dir):
@@ -64,6 +77,15 @@ class EngineYOLOALTO:
             image_size=self.yolo_image_size,
             device=self.yolo_device,
         )
+        yolo_reader = (
+            YOLOReader(
+                label_deduplication_groups=(
+                    self.label_deduplication_groups
+                )
+            )
+            if self.label_deduplication_groups
+            else None
+        )
         self.geometry_aligner = GeometryAligner(
             minimum_overlap_coverage=self.minimum_overlap_coverage,
             overlap_strategy=(
@@ -72,6 +94,7 @@ class EngineYOLOALTO:
             word_assignment_strategy=(
                 WordAssignmentStrategy.GREATEST_COVERAGE
             ),
+            yolo_reader=yolo_reader,
         )
 
     def process(
@@ -95,6 +118,58 @@ class EngineYOLOALTO:
             )
 
         return document
+
+
+def _parse_label_deduplication_groups(
+    value: Any,
+) -> tuple[LabelDeduplicationGroup, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise ValueError("label_deduplication_groups must be a list")
+
+    groups: list[LabelDeduplicationGroup] = []
+    labels_seen: set[str] = set()
+    for index, raw_group in enumerate(value):
+        if isinstance(raw_group, LabelDeduplicationGroup):
+            group = raw_group
+        else:
+            if not isinstance(raw_group, Mapping):
+                raise ValueError(
+                    "Each label_deduplication_groups item must be an object: "
+                    f"index {index}"
+                )
+            raw_labels = raw_group.get("labels")
+            if (
+                isinstance(raw_labels, (str, bytes))
+                or not isinstance(raw_labels, Sequence)
+            ):
+                raise ValueError(
+                    "Label deduplication group labels must be a list: "
+                    f"index {index}"
+                )
+            if any(
+                not isinstance(label, str) or not label.strip()
+                for label in raw_labels
+            ):
+                raise ValueError(
+                    "Label deduplication group labels must be non-empty "
+                    f"strings: index {index}"
+                )
+            group = LabelDeduplicationGroup(
+                labels=frozenset(raw_labels),
+                minimum_coverage=raw_group.get("minimum_coverage"),
+            )
+
+        repeated = labels_seen.intersection(group.labels)
+        if repeated:
+            raise ValueError(
+                "A label cannot belong to multiple deduplication groups: "
+                + ", ".join(sorted(repeated))
+            )
+        labels_seen.update(group.labels)
+        groups.append(group)
+    return tuple(groups)
 
 
 def parse_args():

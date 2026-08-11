@@ -13,12 +13,20 @@ from metakat.common.aux.document_groups import (
     lowest_document_groups,
 )
 from metakat.chapter.engines.bind.chapter_bind_engine import ChapterBindEngine
-from metakat.chapter.engines.core.toc_alignment.models import (
-    ChapterCoreResult,
-    ResolvedChapter,
+from metakat.chapter.engines.core.models import (
+    ChapterResult,
+    TocResult,
 )
-from metakat.chapter.engines.core.toc_page_analysis.models import (
+from metakat.common.models import (
+    BoundingBox,
     DetectionEvidence,
+    PageDimensions,
+)
+from metakat.page_number.engines.core.models import (
+    PhysicalPageNumberEvidence,
+)
+from metakat.page_number.engines.core.page_number_parsers import (
+    DecoratedPageNumberParser,
 )
 from metakat.schemas.base_objects import (
     DocumentType,
@@ -124,28 +132,59 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 processable_pages,
                 image_mapping,
             )
+            page_key_by_id = {
+                page.id: page_key for page_key, page in page_by_key.items()
+            }
             existing_page_numbers = tuple(
-                None if page.pageNumber is None else page.pageNumber[0]
+                evidence
                 for page in processable_pages
+                if (
+                    evidence := self._physical_page_number_from_metakat(
+                        page,
+                        page_key_by_id[page.id],
+                        metakat_io,
+                    )
+                )
+                is not None
             )
             logger.info(
                 "Chapter core input for %s %s contains %d externally "
                 "supplied page number(s)",
                 group.container.type,
                 group.container.id,
-                sum(number is not None for number in existing_page_numbers),
+                len(existing_page_numbers),
             )
+            image_dimensions = tuple(
+                None
+                if page.imageDim is None
+                else PageDimensions(
+                    width=page.imageDim.width,
+                    height=page.imageDim.height,
+                )
+                for page in processable_pages
+            )
+            alto_dimensions = tuple(
+                None
+                if page.altoDim is None
+                else PageDimensions(
+                    width=page.altoDim.width,
+                    height=page.altoDim.height,
+                )
+                for page in processable_pages
+            )
+            core_options = {
+                "page_numbers": (
+                    existing_page_numbers if existing_page_numbers else None
+                ),
+            }
+            if any(value is not None for value in image_dimensions):
+                core_options["image_dimensions"] = image_dimensions
+            if any(value is not None for value in alto_dimensions):
+                core_options["alto_dimensions"] = alto_dimensions
             core_result = self.core_engine.process(
                 images,
                 alto_files,
-                page_numbers=(
-                    existing_page_numbers
-                    if any(
-                        page_number is not None
-                        for page_number in existing_page_numbers
-                    )
-                    else None
-                ),
+                **core_options,
             )
             flat_result = _flatten_resolved_chapters(core_result.chapters)
             logger.info(
@@ -181,6 +220,31 @@ class ChapterBindEngineBase(ChapterBindEngine):
             metakat_io.detection_to_bbox.update(bbox_by_id)
             metakat_io.detection_to_page_mapping.update(page_by_detection)
         return metakat_io
+
+    @staticmethod
+    def _physical_page_number_from_metakat(
+        page: MetakatPage,
+        page_key: str,
+        metakat_io: MetakatIO,
+    ) -> PhysicalPageNumberEvidence | None:
+        if page.pageNumber is None:
+            return None
+        text, confidence, detection_id = page.pageNumber
+        bbox = (metakat_io.detection_to_bbox or {}).get(detection_id)
+        if bbox is None:
+            logger.warning(
+                "Page %r has page-number evidence %s without geometry; "
+                "omitting it from chapter-core input",
+                page_key,
+                detection_id,
+            )
+            return None
+        return DecoratedPageNumberParser.create(
+            page_key=page_key,
+            text=text,
+            confidence=confidence,
+            bbox=BoundingBox(*bbox),
+        )
 
     @staticmethod
     def _document_groups(
@@ -221,7 +285,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
 
     def extract_metakat_elements_from_pipeline(
         self,
-        result: ChapterCoreResult,
+        result: TocResult,
         page_by_key: dict[str, MetakatPage],
         pages: List[MetakatPage],
         *,
@@ -234,6 +298,8 @@ class ChapterBindEngineBase(ChapterBindEngine):
 
         def bind_evidence(
             evidence: DetectionEvidence | None,
+            *,
+            output_text: str | None = None,
         ) -> tuple[str, float, UUID] | None:
             if evidence is None:
                 return None
@@ -251,10 +317,14 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 evidence.bbox.height,
             )
             page_by_detection[detection_id] = source_page.id
-            return evidence.text, evidence.confidence, detection_id
+            return (
+                evidence.text if output_text is None else output_text,
+                evidence.confidence,
+                detection_id,
+            )
 
         def bind_chapter(
-            resolved: ResolvedChapter,
+            resolved: ChapterResult,
             *,
             depth: int,
             parent_chapter_id: UUID | None,
@@ -316,7 +386,14 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 ),
                 title=bind_evidence(resolved.title),
                 partNumber=bind_evidence(resolved.part_number),
-                pageNumber=bind_evidence(resolved.page_number),
+                pageNumber=bind_evidence(
+                    resolved.page_number,
+                    output_text=(
+                        None
+                        if resolved.page_number is None
+                        else resolved.page_number.output_text()
+                    ),
+                ),
                 title_destination_page=bind_evidence(
                     resolved.title_destination_page
                 ),
@@ -359,7 +436,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
         return elements, bbox_by_id, page_by_detection
 
     @staticmethod
-    def _resolved_chapter_label(resolved: ResolvedChapter) -> str:
+    def _resolved_chapter_label(resolved: ChapterResult) -> str:
         for evidence in (
             resolved.title,
             resolved.title_destination_page,
@@ -418,8 +495,8 @@ class ChapterBindEngineBase(ChapterBindEngine):
 
 
 def _flatten_resolved_chapters(
-    chapters: Tuple[ResolvedChapter, ...],
-) -> tuple[ResolvedChapter, ...]:
+    chapters: Tuple[ChapterResult, ...],
+) -> tuple[ChapterResult, ...]:
     return tuple(
         chapter
         for root in chapters

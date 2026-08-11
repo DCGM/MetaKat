@@ -6,19 +6,21 @@ from typing import Sequence
 
 from text_geometry_aligner import AlignmentRegion
 
-from metakat.chapter.engines.core.toc_extraction.models import (
-    ReferenceToc,
-    ReferenceTocEntry,
-)
-from metakat.chapter.engines.core.toc_page_analysis.models import (
+from metakat.chapter.engines.core.models import (
     ChapterPageInput,
-    DetectionEvidence,
+    ChapterBase,
+    TocBase,
+    TocPageNumber,
 )
+from metakat.common.models import DetectionEvidence
 from metakat.chapter.engines.core.pipeline_utils import (
     load_chapter_label_mapping,
     load_engine_config,
     region_label,
     region_to_evidence,
+)
+from metakat.chapter.engines.core.toc_extraction.toc_page_number_parser import (
+    ArabicRomanTocPageNumberParser,
 )
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
 from metakat.schemas.base_objects import ChapterType
@@ -33,7 +35,6 @@ class _Unit:
     title: DetectionEvidence | None = None
     part_number: DetectionEvidence | None = None
     page_number: DetectionEvidence | None = None
-    anchor_only: bool = False
 
 
 @dataclass
@@ -42,8 +43,7 @@ class _MutableEntry:
     title: DetectionEvidence | None
     level: int
     part_number: DetectionEvidence | None = None
-    page_number: DetectionEvidence | None = None
-    anchor_only: bool = False
+    page_number: TocPageNumber | None = None
     children: list[_MutableEntry] = field(default_factory=list)
 
 
@@ -78,13 +78,13 @@ class TocExtractionEngineYOLOALTO:
     def process(
         self,
         toc_pages: Sequence[ChapterPageInput],
-    ) -> ReferenceToc:
+    ) -> TocBase:
         ordered_pages = tuple(
             sorted(toc_pages, key=lambda page: page.position)
         )
         if not ordered_pages:
             logger.info("TOC extraction received no selected TOC pages")
-            return ReferenceToc(())
+            return TocBase(())
 
         logger.info(
             "Extracting TOC hierarchy from %d page(s): pages=%s, "
@@ -128,18 +128,18 @@ class TocExtractionEngineYOLOALTO:
                 len(page_units),
             )
 
-        self._infer_anchor_levels(units)
+        self._infer_titleless_entry_levels(units)
         for unit_index, unit in enumerate(units):
+            self._parse_page_number(unit, unit_index)
             logger.debug(
                 "Extracted TOC entry %d: page=%r, level=%s, title=%r, "
-                "part_number=%r, page_number=%r, anchor_only=%s",
+                "part_number=%r, page_number=%r",
                 unit_index,
                 unit.toc_page_key,
                 unit.level,
                 None if unit.title is None else unit.title.text,
                 None if unit.part_number is None else unit.part_number.text,
                 None if unit.page_number is None else unit.page_number.text,
-                unit.anchor_only,
             )
         roots: list[_MutableEntry] = []
         active_parents: dict[int, _MutableEntry] = {}
@@ -151,7 +151,6 @@ class TocExtractionEngineYOLOALTO:
                 level=level,
                 part_number=unit.part_number,
                 page_number=unit.page_number,
-                anchor_only=unit.anchor_only,
             )
             parent = next(
                 (
@@ -170,16 +169,45 @@ class TocExtractionEngineYOLOALTO:
                 if active_level > level:
                     del active_parents[active_level]
 
-        result = ReferenceToc(tuple(self._freeze(root) for root in roots))
+        result = TocBase(tuple(self._freeze(root) for root in roots))
         logger.info(
             "TOC extraction produced %d total entry/entries, %d root(s), "
-            "%d titleless anchor(s), maximum_level=%d",
+            "%d titleless entry/entries, maximum_level=%d",
             len(units),
-            len(result.roots),
-            sum(unit.anchor_only for unit in units),
+            len(result.chapters),
+            sum(unit.title is None for unit in units),
             max((unit.level or 1 for unit in units), default=0),
         )
         return result
+
+    @staticmethod
+    def _parse_page_number(unit: _Unit, unit_index: int) -> None:
+        if unit.page_number is None:
+            return
+        page_number = ArabicRomanTocPageNumberParser.create(unit.page_number)
+        unit.page_number = page_number
+        if not page_number.normalized_items:
+            logger.warning(
+                "TOC page number was rejected by the parser; its original "
+                "evidence is retained: entry=%d, toc_page=%r, title=%r, "
+                "source_number=%r",
+                unit_index,
+                unit.toc_page_key,
+                None if unit.title is None else unit.title.text,
+                page_number.text,
+            )
+            return
+        normalized = page_number.normalized_text()
+        if normalized != page_number.text:
+            logger.debug(
+                "Normalized TOC page number: entry=%d, toc_page=%r, "
+                "source_number=%r, normalized_number=%r, kind=%s",
+                unit_index,
+                unit.toc_page_key,
+                page_number.text,
+                normalized,
+                page_number.kind.value,
+            )
 
     def _group_units(
         self,
@@ -213,12 +241,11 @@ class TocExtractionEngineYOLOALTO:
                         unit.page_number = evidence
             if unit.title is None and unit.page_number is None:
                 continue
-            unit.anchor_only = unit.title is None
             units.append(unit)
         return tuple(units)
 
     @staticmethod
-    def _infer_anchor_levels(units: list[_Unit]) -> None:
+    def _infer_titleless_entry_levels(units: list[_Unit]) -> None:
         previous_levels: list[int | None] = []
         previous = None
         for unit in units:
@@ -235,7 +262,7 @@ class TocExtractionEngineYOLOALTO:
             next_levels[index] = following
 
         for index, unit in enumerate(units):
-            if not unit.anchor_only:
+            if unit.title is not None:
                 continue
             preceding = previous_levels[index]
             following = next_levels[index]
@@ -323,12 +350,11 @@ class TocExtractionEngineYOLOALTO:
         return intersection / union if union > 0 else 0.0
 
     @classmethod
-    def _freeze(cls, entry: _MutableEntry) -> ReferenceTocEntry:
-        return ReferenceTocEntry(
+    def _freeze(cls, entry: _MutableEntry) -> ChapterBase:
+        return ChapterBase(
             toc_page_key=entry.toc_page_key,
             title=entry.title,
             part_number=entry.part_number,
             page_number=entry.page_number,
-            anchor_only=entry.anchor_only,
             children=tuple(cls._freeze(child) for child in entry.children),
         )

@@ -4,7 +4,11 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Sequence
 
-from metakat.chapter.engines.core.toc_alignment.models import ChapterCoreResult
+from metakat.chapter.engines.core.models import TocResult
+from metakat.common.models import PageDimensions
+from metakat.page_number.engines.core.models import (
+    PhysicalPageNumberEvidence,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +49,8 @@ class ChapterCoreEngine(ABC):
         self,
         images: Sequence[str],
         alto_files: Sequence[str],
-        page_numbers: Sequence[str | None] | None = None,
-    ) -> ChapterCoreResult:
+        page_numbers: Sequence[PhysicalPageNumberEvidence] | None = None,
+        image_dimensions: Sequence[PageDimensions | None] | None = None,
+        alto_dimensions: Sequence[PageDimensions | None] | None = None,
+    ) -> TocResult:
         pass

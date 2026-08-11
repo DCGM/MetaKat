@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections import Counter
 from dataclasses import dataclass
+from statistics import median
 from typing import Sequence
 
+from PIL import Image
 from text_geometry_aligner import ALTOReader, AlignmentPage
 
+from metakat.chapter.engines.core.models import ChapterPageInput
+from metakat.common.models import DetectionEvidence
 from metakat.chapter.engines.core.toc_page_analysis.models import (
-    ChapterPageInput,
     DestinationChapterEvidence,
-    DetectionEvidence,
     TocPageAnalysisResult,
 )
 from metakat.chapter.engines.core.pipeline_utils import (
@@ -21,6 +24,13 @@ from metakat.chapter.engines.core.pipeline_utils import (
     region_to_evidence,
 )
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
+from metakat.page_number.engines.core.page_number_resolver import (
+    PageNumberSelectionMode,
+    PhysicalPageNumberResolver,
+)
+from metakat.page_number.engines.core.models import (
+    PhysicalPageNumberEvidence,
+)
 from metakat.schemas.base_objects import ChapterType
 
 logger = logging.getLogger(__name__)
@@ -33,8 +43,22 @@ class _TocCandidate:
     contains_keyword: bool
 
 
+@dataclass(frozen=True)
+class _TocCandidateWindows:
+    qualifying_window_count: int
+    title_count: int
+    page_number_count: int
+    toc_area_top: float
+    toc_area_bottom: float
+    topmost_detection_bottom: float
+
+    @property
+    def visual_score(self) -> int:
+        return self.title_count + self.page_number_count
+
+
 class TocPageAnalysisEngineYOLOALTO:
-    """Select TOC pages and collect heading evidence from body pages."""
+    """Select TOC pages and collect title evidence from body pages."""
 
     DEFAULT_LABELS: dict[ChapterType, str] = {
         ChapterType.CHAPTER: "kapitola",
@@ -69,15 +93,96 @@ class TocPageAnalysisEngineYOLOALTO:
         self.toc_search_fraction = float(
             self.config.get("toc_search_fraction", 0.25)
         )
-        self.keyword_top_fraction = float(
-            self.config.get("keyword_top_fraction", 0.5)
+        self.toc_candidate_min_title_count = self.config.get(
+            "toc_candidate_min_title_count",
+            2,
+        )
+        self.toc_candidate_min_page_number_count = self.config.get(
+            "toc_candidate_min_page_number_count",
+            2,
+        )
+        self.toc_candidate_window_height_multiplier = float(
+            self.config.get(
+                "toc_candidate_window_height_multiplier",
+                10.0,
+            )
+        )
+        self.toc_candidate_min_window_height_fraction = float(
+            self.config.get(
+                "toc_candidate_min_window_height_fraction",
+                0.2,
+            )
+        )
+        self.toc_candidate_max_window_height_fraction = float(
+            self.config.get(
+                "toc_candidate_max_window_height_fraction",
+                0.5,
+            )
         )
         if not 0 < self.toc_search_fraction <= 0.5:
             raise ValueError("toc_search_fraction must be within (0, 0.5]")
-        if not 0 < self.keyword_top_fraction <= 1:
-            raise ValueError("keyword_top_fraction must be within (0, 1]")
+        for option_name, option_value in (
+            (
+                "toc_candidate_min_title_count",
+                self.toc_candidate_min_title_count,
+            ),
+            (
+                "toc_candidate_min_page_number_count",
+                self.toc_candidate_min_page_number_count,
+            ),
+        ):
+            if (
+                isinstance(option_value, bool)
+                or not isinstance(option_value, int)
+                or option_value < 1
+            ):
+                raise ValueError(f"{option_name} must be a positive integer")
+        if (
+            not math.isfinite(
+                self.toc_candidate_window_height_multiplier
+            )
+            or self.toc_candidate_window_height_multiplier <= 0
+        ):
+            raise ValueError(
+                "toc_candidate_window_height_multiplier must be positive"
+            )
+        if (
+            not math.isfinite(
+                self.toc_candidate_min_window_height_fraction
+            )
+            or not 0
+            < self.toc_candidate_min_window_height_fraction
+            <= 1
+        ):
+            raise ValueError(
+                "toc_candidate_min_window_height_fraction must be within "
+                "(0, 1]"
+            )
+        if (
+            not math.isfinite(
+                self.toc_candidate_max_window_height_fraction
+            )
+            or not 0
+            < self.toc_candidate_max_window_height_fraction
+            <= 1
+        ):
+            raise ValueError(
+                "toc_candidate_max_window_height_fraction must be within "
+                "(0, 1]"
+            )
+        if (
+            self.toc_candidate_min_window_height_fraction
+            > self.toc_candidate_max_window_height_fraction
+        ):
+            raise ValueError(
+                "toc_candidate_min_window_height_fraction must not exceed "
+                "toc_candidate_max_window_height_fraction"
+            )
         self.alignment_engine = alignment_engine or EngineYOLOALTO(
             self.engine_dir
+        )
+        self.page_number_resolver = (
+            PhysicalPageNumberResolver.from_config(self.config)
         )
         self.alto_reader = ALTOReader()
 
@@ -88,14 +193,21 @@ class TocPageAnalysisEngineYOLOALTO:
         ordered_pages = tuple(sorted(pages, key=lambda page: page.position))
         if not ordered_pages:
             logger.info("TOC page analysis received no pages")
-            return TocPageAnalysisResult((), ())
+            return TocPageAnalysisResult((), (), ())
 
         logger.info(
             "Analyzing %d page(s) for TOC candidates: search_fraction=%.3f, "
-            "keyword_top_fraction=%.3f",
+            "minimum_titles=%d, minimum_page_numbers=%d, "
+            "window_height_multiplier=%.3f, "
+            "minimum_window_height_fraction=%.3f, "
+            "maximum_window_height_fraction=%.3f",
             len(ordered_pages),
             self.toc_search_fraction,
-            self.keyword_top_fraction,
+            self.toc_candidate_min_title_count,
+            self.toc_candidate_min_page_number_count,
+            self.toc_candidate_window_height_multiplier,
+            self.toc_candidate_min_window_height_fraction,
+            self.toc_candidate_max_window_height_fraction,
         )
 
         document = self.alignment_engine.process(
@@ -115,57 +227,83 @@ class TocPageAnalysisEngineYOLOALTO:
             )
 
         candidates: list[_TocCandidate] = []
-        page_numbers = {}
         total_pages = len(ordered_pages)
 
-        for ordinal, page in enumerate(ordered_pages, start=1):
+        for page in ordered_pages:
             alignment = alignments[page.page_key]
-            counts = Counter(region_label(region) for region in alignment.regions)
-            primary_count = counts[self.labels[ChapterType.CHAPTER]]
-            secondary_count = counts[self.labels[ChapterType.SUBCHAPTER]]
-            page_number_count = counts[self.labels[ChapterType.PAGE_NUMBER]]
-            toc_candidate = (
-                primary_count >= 3 and page_number_count >= 3
-            ) or (
-                primary_count + secondary_count >= 3
-                and page_number_count >= 2
-            )
+            distance_from_start = page.position
+            distance_from_end = total_pages - page.position - 1
             in_toc_search_area = (
-                ordinal < total_pages * self.toc_search_fraction
-                or ordinal > total_pages * (1 - self.toc_search_fraction)
+                distance_from_start
+                < total_pages * self.toc_search_fraction
+                or distance_from_end
+                < total_pages * self.toc_search_fraction
             )
+            primary_count = None
+            secondary_count = None
+            page_number_count = None
+            candidate_windows = None
+            if in_toc_search_area:
+                counts = Counter(
+                    region_label(region) for region in alignment.regions
+                )
+                primary_count = counts[self.labels[ChapterType.CHAPTER]]
+                secondary_count = counts[self.labels[ChapterType.SUBCHAPTER]]
+                page_number_count = counts[
+                    self.labels[ChapterType.PAGE_NUMBER]
+                ]
+                candidate_windows = self._find_candidate_windows(
+                    alignment,
+                    page,
+                )
+            toc_candidate = candidate_windows is not None
             is_toc = toc_candidate and in_toc_search_area
-            page_number = self._page_number_evidence(alignment)
-            if page_number is not None:
-                page_numbers[page.page_key] = page_number
-
             logger.debug(
                 "TOC page candidate check: page=%r, position=%d, "
-                "primary_headings=%d, secondary_headings=%d, "
-                "page_numbers=%d, visual_candidate=%s, "
-                "in_search_area=%s, accepted_candidate=%s, "
-                "physical_page_number=%r",
+                "in_search_area=%s, primary_titles=%s, "
+                "secondary_titles=%s, page_numbers=%s, "
+                "visual_candidate=%s, "
+                "candidate_windows=%s, "
+                "accepted_candidate=%s",
                 page.page_key,
                 page.position,
+                in_toc_search_area,
                 primary_count,
                 secondary_count,
                 page_number_count,
                 toc_candidate,
-                in_toc_search_area,
+                None
+                if candidate_windows is None
+                else {
+                    "qualifying_windows": (
+                        candidate_windows.qualifying_window_count
+                    ),
+                    "cumulative_titles": candidate_windows.title_count,
+                    "cumulative_page_numbers": (
+                        candidate_windows.page_number_count
+                    ),
+                    "cumulative_visual_score": (
+                        candidate_windows.visual_score
+                    ),
+                },
                 is_toc,
-                None if page_number is None else page_number.text,
             )
 
             if is_toc:
+                assert candidate_windows is not None
                 candidates.append(
                     _TocCandidate(
                         page=page,
-                        visual_score=(
-                            primary_count
-                            + secondary_count
-                            + page_number_count
+                        visual_score=candidate_windows.visual_score,
+                        contains_keyword=self._contains_toc_keyword(
+                            page,
+                            toc_area_top=(
+                                candidate_windows.toc_area_top
+                            ),
+                            topmost_detection_bottom=(
+                                candidate_windows.topmost_detection_bottom
+                            ),
                         ),
-                        contains_keyword=self._contains_toc_keyword(page),
                     )
                 )
 
@@ -180,11 +318,19 @@ class TocPageAnalysisEngineYOLOALTO:
                 alignments[page.page_key]
             )
         )
-        page_numbers = {
-            page_key: evidence
-            for page_key, evidence in page_numbers.items()
-            if page_key not in toc_page_keys
-        }
+        destination_page_numbers = tuple(
+            evidence
+            for page in ordered_pages
+            if page.page_key not in toc_page_keys
+            if (
+                evidence := self._page_number_evidence(
+                    alignments[page.page_key],
+                    page,
+                    mode=PageNumberSelectionMode.STANDARD,
+                )
+            )
+            is not None
+        )
         if selected_group:
             logger.info(
                 "Selected consecutive TOC block: pages=%s, positions=%s, "
@@ -202,33 +348,204 @@ class TocPageAnalysisEngineYOLOALTO:
             )
         logger.info(
             "Page analysis selected %d TOC page(s), %d destination "
-            "heading(s), and %d physical page number(s)",
+            "title(s), and %d destination page number(s)",
             len(toc_pages),
             len(destination_chapters),
-            len(page_numbers),
+            len(destination_page_numbers),
         )
         return TocPageAnalysisResult(
             toc_pages=toc_pages,
             destination_chapters=destination_chapters,
-            page_numbers=page_numbers,
+            destination_page_numbers=destination_page_numbers,
         )
+
+    def _find_candidate_windows(
+        self,
+        alignment: AlignmentPage,
+        page: ChapterPageInput,
+    ) -> _TocCandidateWindows | None:
+        title_labels = {
+            self.labels[ChapterType.CHAPTER],
+            self.labels[ChapterType.SUBCHAPTER],
+        }
+        page_number_label = self.labels[ChapterType.PAGE_NUMBER]
+        relevant_regions = [
+            region
+            for region in alignment.regions
+            if region.input_geometry is not None
+            and (
+                region_label(region) in title_labels
+                or region_label(region) == page_number_label
+            )
+        ]
+        if not relevant_regions:
+            return None
+
+        region_heights = [
+            region.input_geometry.bounds.height
+            for region in relevant_regions
+        ]
+        median_region_height = median(region_heights)
+        page_height = self._page_height(page)
+        window_height = min(
+            max(
+                median_region_height
+                * self.toc_candidate_window_height_multiplier,
+                page_height
+                * self.toc_candidate_min_window_height_fraction,
+            ),
+            page_height
+            * self.toc_candidate_max_window_height_fraction,
+        )
+
+        positioned_regions = sorted(
+            (
+                (
+                    region.input_geometry.bounds.y
+                    + region.input_geometry.bounds.height / 2,
+                    region_label(region),
+                    index,
+                )
+                for index, region in enumerate(relevant_regions)
+            ),
+            key=lambda item: item[0],
+        )
+        qualifying_window_count = 0
+        covered_region_indices: set[int] = set()
+        right = 0
+        for left, (y_start, _, _) in enumerate(positioned_regions):
+            right = max(right, left)
+            while (
+                right < len(positioned_regions)
+                and positioned_regions[right][0] - y_start <= window_height
+            ):
+                right += 1
+            window_regions = positioned_regions[left:right]
+            title_count = sum(
+                label in title_labels for _, label, _ in window_regions
+            )
+            page_number_count = sum(
+                label == page_number_label
+                for _, label, _ in window_regions
+            )
+            if (
+                title_count >= self.toc_candidate_min_title_count
+                and page_number_count
+                >= self.toc_candidate_min_page_number_count
+            ):
+                qualifying_window_count += 1
+                covered_region_indices.update(
+                    index for _, _, index in window_regions
+                )
+
+        if not qualifying_window_count:
+            logger.debug(
+                "No TOC-like region window: page=%r, relevant_regions=%d, "
+                "median_region_height=%.3f, page_height=%s, "
+                "window_height=%.3f",
+                page.page_key,
+                len(relevant_regions),
+                median_region_height,
+                page_height,
+                window_height,
+            )
+            return None
+
+        covered_title_count = sum(
+            region_label(relevant_regions[index]) in title_labels
+            for index in covered_region_indices
+        )
+        covered_page_number_count = sum(
+            region_label(relevant_regions[index]) == page_number_label
+            for index in covered_region_indices
+        )
+        covered_bounds = [
+            relevant_regions[index].input_geometry.bounds
+            for index in covered_region_indices
+        ]
+        topmost_bounds = min(
+            covered_bounds,
+            key=lambda bounds: (bounds.y, bounds.y_max),
+        )
+        result = _TocCandidateWindows(
+            qualifying_window_count=qualifying_window_count,
+            title_count=covered_title_count,
+            page_number_count=covered_page_number_count,
+            toc_area_top=min(bounds.y for bounds in covered_bounds),
+            toc_area_bottom=max(bounds.y_max for bounds in covered_bounds),
+            topmost_detection_bottom=topmost_bounds.y_max,
+        )
+        logger.debug(
+            "Qualified TOC-like region windows: page=%r, "
+            "qualifying_windows=%d, cumulative_titles=%d, "
+            "cumulative_page_numbers=%d, cumulative_visual_score=%d, "
+            "toc_area_top=%.3f, toc_area_bottom=%.3f, "
+            "topmost_detection_bottom=%.3f, "
+            "median_region_height=%.3f, page_height=%s, "
+            "window_height=%.3f",
+            page.page_key,
+            result.qualifying_window_count,
+            result.title_count,
+            result.page_number_count,
+            result.visual_score,
+            result.toc_area_top,
+            result.toc_area_bottom,
+            result.topmost_detection_bottom,
+            median_region_height,
+            page_height,
+            window_height,
+        )
+        return result
+
+    @staticmethod
+    def _page_height(page: ChapterPageInput) -> float:
+        if page.image_dimensions is not None:
+            return page.image_dimensions.height
+        if page.alto_dimensions is not None:
+            return page.alto_dimensions.height
+        try:
+            with Image.open(page.image_path) as image:
+                height = image.height
+        except OSError as error:
+            raise ValueError(
+                f"Unable to read page height from image {page.image_path}"
+            ) from error
+        if height <= 0:
+            raise ValueError(
+                f"Page image has invalid height {height}: {page.image_path}"
+            )
+        return float(height)
 
     def _page_number_evidence(
         self,
-        page: AlignmentPage,
-    ) -> DetectionEvidence | None:
-        page_numbers = [
-            evidence
-            for region in page.regions
-            if region_label(region) == self.labels[ChapterType.PAGE_NUMBER]
-            if (evidence := region_to_evidence(region, page.page_key)) is not None
-        ]
-        page_number = max(
-            page_numbers,
-            key=lambda evidence: evidence.confidence,
-            default=None,
+        alignment: AlignmentPage,
+        page: ChapterPageInput,
+        *,
+        mode: PageNumberSelectionMode,
+    ) -> PhysicalPageNumberEvidence | None:
+        regions = tuple(
+            region
+            for region in alignment.regions
+            if region_label(region)
+            == self.labels[ChapterType.PAGE_NUMBER]
         )
-        return page_number
+        if not regions:
+            return None
+        page_height = (
+            self._page_height(page)
+            if (
+                mode is PageNumberSelectionMode.EDGE_ONLY
+                or len(regions) > 1
+            )
+            else alignment.alto_height
+        )
+        resolution = self.page_number_resolver.resolve(
+            alignment,
+            regions,
+            mode=mode,
+            page_height=page_height,
+        )
+        return resolution.selected_evidence
 
     def _destination_evidence(
         self,
@@ -242,19 +559,82 @@ class TocPageAnalysisEngineYOLOALTO:
             if (title := region_to_evidence(region, page.page_key)) is not None
         ]
 
-    def _contains_toc_keyword(self, page: ChapterPageInput) -> bool:
+    def _contains_toc_keyword(
+        self,
+        page: ChapterPageInput,
+        *,
+        toc_area_top: float,
+        topmost_detection_bottom: float,
+    ) -> bool:
         alto = self.alto_reader.read(page.alto_path)
-        height = alto.height
-        if height is None and alto.words:
-            height = max(word.bbox.y_max for word in alto.words)
-        cutoff = None if height is None else height * self.keyword_top_fraction
-        text = " ".join(
-            word.text
-            for word in alto.words
-            if cutoff is None or word.bbox.y <= cutoff
-        )
-        normalized = normalize_text(text)
-        return any(keyword in normalized for keyword in self.toc_keywords)
+        lines: dict[tuple[object, ...], list] = {}
+        for word in alto.words:
+            line_key: tuple[object, ...] = (
+                ("line", word.block_index, word.line_index)
+                if word.line_index is not None
+                else ("word", word.index)
+            )
+            lines.setdefault(line_key, []).append(word)
+
+        valid_occurrences: list[
+            tuple[float, str, float, float, float, float]
+        ] = []
+        for words in lines.values():
+            normalized = normalize_text(
+                " ".join(word.text for word in words)
+            )
+            line_top = min(word.bbox.y for word in words)
+            line_left = min(word.bbox.x for word in words)
+            line_right = max(word.bbox.x_max for word in words)
+            line_bottom = max(word.bbox.y_max for word in words)
+            for keyword in self.toc_keywords:
+                if (
+                    keyword in normalized
+                    and line_top <= topmost_detection_bottom
+                ):
+                    valid_occurrences.append(
+                        (
+                            abs(toc_area_top - line_top),
+                            keyword,
+                            line_left,
+                            line_top,
+                            line_right - line_left,
+                            line_bottom - line_top,
+                        )
+                    )
+
+        if not valid_occurrences:
+            logger.debug(
+                "No valid TOC keyword occurrence: page=%r, "
+                "toc_area_top=%.3f, topmost_detection_bottom=%.3f",
+                page.page_key,
+                toc_area_top,
+                topmost_detection_bottom,
+            )
+            return False
+
+        for (
+            distance,
+            keyword,
+            line_x,
+            line_y,
+            line_width,
+            line_height,
+        ) in sorted(valid_occurrences, key=lambda occurrence: occurrence[3]):
+            logger.debug(
+                "Valid TOC keyword occurrence: page=%r, keyword=%r, "
+                "line_bbox=(x=%.3f, y=%.3f, width=%.3f, height=%.3f), "
+                "toc_area_top=%.3f, distance=%.3f",
+                page.page_key,
+                keyword,
+                line_x,
+                line_y,
+                line_width,
+                line_height,
+                toc_area_top,
+                distance,
+            )
+        return True
 
     @staticmethod
     def _best_group(

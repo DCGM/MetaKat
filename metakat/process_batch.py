@@ -9,6 +9,7 @@ from uuid import uuid4, UUID
 import xml.etree.ElementTree as ET
 
 from natsort import natsorted
+from PIL import Image
 
 from metakat.chapter.engines.bind.definitions import load_chapter_bind_engine
 from metakat.page_number.engines.bind.definitions import (
@@ -17,7 +18,12 @@ from metakat.page_number.engines.bind.definitions import (
 from metakat.page_type.engines.bind.definitions import load_page_type_bind_engine
 from metakat.biblio.engines.bind.definitions import load_biblio_bind_engine
 
-from metakat.schemas.base_objects import MetakatIO, ProarcIO, MetakatPage
+from metakat.schemas.base_objects import (
+    MetakatIO,
+    MetakatPage,
+    MetakatPageDimensions,
+    ProarcIO,
+)
 from metakat.tools.create_interactive_pdf import create_interactive_pdf
 
 logger = logging.getLogger(__name__)
@@ -223,6 +229,12 @@ def init_io(batch_dir: str,
     if metakat_io.page_to_xml_mapping is None:
         metakat_io.page_to_xml_mapping = {}
 
+    metakat_pages_by_id = {
+        element.id: element
+        for element in metakat_io.elements
+        if isinstance(element, MetakatPage)
+    }
+
     if ordered_image_filenames is None:
         ordered_image_filenames = []
         for file_name in natsorted(os.listdir(batch_dir)):
@@ -240,6 +252,12 @@ def init_io(batch_dir: str,
         if image_name in metakat_io.page_to_image_mapping.values():
             logger.debug(f"Image {image_name} already in MetaKatIO")
             page_id = next(pid for pid, img in metakat_io.page_to_image_mapping.items() if img == image_name)
+            metakat_page = metakat_pages_by_id.get(page_id)
+            if metakat_page is None:
+                raise ValueError(
+                    "MetaKat image mapping refers to a missing page: "
+                    f"{page_id} -> {image_name}"
+                )
         else:
             page_id = uuid4()
             metakat_page = MetakatPage(id=page_id,
@@ -247,7 +265,10 @@ def init_io(batch_dir: str,
                                        batch_index=batch_index,
                                        pageIndex=batch_index)
             metakat_io.elements.append(metakat_page)
+            metakat_pages_by_id[page_id] = metakat_page
             metakat_io.page_to_image_mapping[page_id] = image_name
+        metakat_page.imageDim = load_image_dimensions(image_path)
+        metakat_page.altoDim = None
         batch_index += 1
         xml_name = f'{name}.xml'
         xml_path = os.path.join(batch_dir, xml_name)
@@ -257,6 +278,10 @@ def init_io(batch_dir: str,
                 logger.warning(f"Invalid XML format for {xml_name}, skipping")
                 continue
             if xml_format == 'ALTO':
+                metakat_page.altoDim = load_alto_dimensions(
+                    xml_path,
+                )
+                warn_about_dimension_mismatch(metakat_page, image_name)
                 if xml_name in metakat_io.page_to_alto_mapping.values():
                     logger.debug(f"ALTO {xml_name} already in MetaKatIO")
                     continue
@@ -271,6 +296,81 @@ def init_io(batch_dir: str,
                 continue
 
     return metakat_io, proarc_io
+
+
+def load_image_dimensions(
+    image_path: str,
+) -> Optional[MetakatPageDimensions]:
+    try:
+        with Image.open(image_path) as image:
+            width, height = image.size
+        return MetakatPageDimensions(width=width, height=height)
+    except (OSError, ValueError) as error:
+        logger.warning(
+            "Unable to read image dimensions from %s: %s",
+            image_path,
+            error,
+        )
+        return None
+
+
+def load_alto_dimensions(
+    alto_path: str,
+) -> Optional[MetakatPageDimensions]:
+    try:
+        tree = ET.parse(alto_path)
+        page_element = next(
+            (
+                element
+                for element in tree.getroot().iter()
+                if element.tag.rsplit("}", 1)[-1] == "Page"
+            ),
+            None,
+        )
+        if page_element is None:
+            logger.warning(
+                "ALTO Page element is missing from %s",
+                alto_path,
+            )
+            return None
+        width = page_element.attrib.get("WIDTH")
+        height = page_element.attrib.get("HEIGHT")
+        if width is None or height is None:
+            logger.warning(
+                "ALTO page dimensions are missing from %s",
+                alto_path,
+            )
+            return None
+        return MetakatPageDimensions(
+            width=float(width),
+            height=float(height),
+        )
+    except (ET.ParseError, OSError, ValueError) as error:
+        logger.warning(
+            "Unable to read ALTO dimensions from %s: %s",
+            alto_path,
+            error,
+        )
+        return None
+
+
+def warn_about_dimension_mismatch(
+    page: MetakatPage,
+    image_name: str,
+) -> None:
+    if page.imageDim is None or page.altoDim is None:
+        return
+    if page.imageDim == page.altoDim:
+        return
+    logger.warning(
+        "Image and ALTO dimensions differ for page %s: image=%sx%s, "
+        "ALTO=%sx%s",
+        image_name,
+        page.imageDim.width,
+        page.imageDim.height,
+        page.altoDim.width,
+        page.altoDim.height,
+    )
 
 
 def detect_xml_format(xml_path: str) -> str:
