@@ -64,13 +64,8 @@ class TocExtractionEngineYOLOALTO:
             self.DEFAULT_LABELS,
         )
         self.row_tolerance = float(self.config.get("row_tolerance", 20))
-        self.overlap_threshold = float(
-            self.config.get("overlap_threshold", 0.5)
-        )
         if self.row_tolerance < 0:
             raise ValueError("row_tolerance must not be negative")
-        if not 0 <= self.overlap_threshold <= 1:
-            raise ValueError("overlap_threshold must be within [0, 1]")
         self.alignment_engine = alignment_engine or EngineYOLOALTO(
             self.engine_dir
         )
@@ -88,11 +83,10 @@ class TocExtractionEngineYOLOALTO:
 
         logger.info(
             "Extracting TOC hierarchy from %d page(s): pages=%s, "
-            "row_tolerance=%.2f, overlap_threshold=%.3f",
+            "row_tolerance=%.2f",
             len(ordered_pages),
             [page.page_key for page in ordered_pages],
             self.row_tolerance,
-            self.overlap_threshold,
         )
 
         document = self.alignment_engine.process(
@@ -114,16 +108,14 @@ class TocExtractionEngineYOLOALTO:
         units: list[_Unit] = []
         for source_page in ordered_pages:
             alignment = alignments[source_page.page_key]
-            filtered_regions = self._filter_overlaps(alignment.regions)
-            rows = self._rows(filtered_regions)
+            rows = self._rows(alignment.regions)
             page_units = self._group_units(rows, source_page.page_key)
             units.extend(page_units)
             logger.info(
-                "TOC extraction page=%r: detected_regions=%d, "
-                "regions_after_overlap_filter=%d, rows=%d, entries=%d",
+                "TOC extraction page=%r: aligned_regions=%d, rows=%d, "
+                "entries=%d",
                 source_page.page_key,
                 len(alignment.regions),
-                len(filtered_regions),
                 len(rows),
                 len(page_units),
             )
@@ -316,38 +308,6 @@ class TocExtractionEngineYOLOALTO:
             )
         )
         return tuple(rows)
-
-    def _filter_overlaps(
-        self,
-        regions: Sequence[AlignmentRegion],
-    ) -> tuple[AlignmentRegion, ...]:
-        ordered = sorted(
-            (region for region in regions if region.input_geometry is not None),
-            key=lambda region: region.input_geometry_confidence or 0.0,
-            reverse=True,
-        )
-        kept: list[AlignmentRegion] = []
-        for region in ordered:
-            if all(
-                self._intersection_over_union(region, previous)
-                <= self.overlap_threshold
-                for previous in kept
-            ):
-                kept.append(region)
-        return tuple(kept)
-
-    @staticmethod
-    def _intersection_over_union(
-        first: AlignmentRegion,
-        second: AlignmentRegion,
-    ) -> float:
-        a = first.input_geometry.bounds
-        b = second.input_geometry.bounds
-        x1, y1 = max(a.x, b.x), max(a.y, b.y)
-        x2, y2 = min(a.x_max, b.x_max), min(a.y_max, b.y_max)
-        intersection = max(0.0, x2 - x1) * max(0.0, y2 - y1)
-        union = a.width * a.height + b.width * b.height - intersection
-        return intersection / union if union > 0 else 0.0
 
     @classmethod
     def _freeze(cls, entry: _MutableEntry) -> ChapterBase:

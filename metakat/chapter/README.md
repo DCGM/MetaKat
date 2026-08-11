@@ -603,8 +603,7 @@ The following engine is available for the stage-1 contract.
 
 This engine detects page-layout regions with YOLO, fills their text from ALTO,
 selects one consecutive TOC-page block, and returns destination-title
-evidence from pages outside that block together with physical-page-number
-evidence from every page where it can be resolved.
+and physical-page-number evidence from pages outside that block.
 
 ##### Configuration
 
@@ -792,6 +791,12 @@ toc_area_top = minimum detection bbox y
 toc_area_bottom = maximum detection bbox y_max
 ```
 
+These two bounds are diagnostic. `toc_area_top` is also the reference used to
+report each keyword occurrence's absolute vertical distance from the detected
+TOC area; neither bound is itself a keyword-acceptance boundary. Keyword
+acceptance uses the uppermost participating detection's bottom edge as
+described below.
+
 ##### Keyword and consecutive-block decision
 
 For each accepted candidate, ALTO words are grouped by text line. Lines are
@@ -809,9 +814,10 @@ keyword line top <= uppermost TOC detection bbox bottom
 The uppermost TOC detection is the detection with the smallest bounding-box
 `y` among the detection union that defines the TOC area in the page-candidate
 decision. The right-hand side of the equation is that detection's bottom edge,
-calculated as `y + height`. The complete ALTO page is searched, and the
-boundary accepts keyword lines above the TOC area as well as keyword text
-inside or overlapping its uppermost detection.
+calculated as `y + height`. If several detections have the same smallest `y`,
+the one with the smallest bottom edge supplies the boundary. The complete ALTO
+page is searched, and the boundary accepts keyword lines above the TOC area as
+well as keyword text inside or overlapping its uppermost detection.
 
 Every valid occurrence is logged with its normalized keyword, ALTO line
 bounding box, and vertical distance from `toc_area_top`. Keyword validity
@@ -835,13 +841,18 @@ Therefore any keyword-containing group beats every group without a keyword,
 regardless of visual score. If scores tie, the first encountered group wins.
 Exactly this one final consecutive group becomes `toc_pages`.
 
+If no page satisfies the visual predicate, no group is selected and the
+engine returns `toc_pages=()`. The three-stage pipeline wrapper then logs a
+warning and ends processing without invoking stages 2 and 3.
+
 ##### Other outputs
 
 Every page outside the selected group—including rejected TOC candidates—is a
 possible destination page. Every usable `DestinationChapter` detection on
-those pages becomes destination-title evidence. There is no deduplication at
-this stage. This engine implements destination-title detection, so it returns
-an empty tuple rather than `None` when no title evidence is found.
+those pages becomes destination-title evidence. Collection applies no further
+deduplication; any configured YOLO-reader deduplication has already happened
+before alignment. This engine implements destination-title detection, so it
+returns an empty tuple rather than `None` when no title evidence is found.
 
 Physical page numbers are resolved by the reusable resolver from the
 `metakat.page_number` core package, using the YOLO + ALTO alignments already
@@ -854,6 +865,9 @@ parameters:
 |---|---:|---|
 | `page_number_edge_band_ratio` | `0.15` | Resolver edge-band ratio. |
 | `page_number_edge_score_weight` | `0.65` | Resolver edge-score weight. |
+
+`page_number_edge_band_ratio` must be greater than `0` and smaller than `0.5`.
+`page_number_edge_score_weight` must be in `[0, 1]`.
 
 Successful physical-number results are returned as
 fully parsed `PhysicalPageNumberEvidence` objects in
@@ -883,12 +897,17 @@ into one hierarchy.
     "PageNumber": "cislo strany",
     "PartNumber": "jine cislo"
   },
-  "row_tolerance": 20,
-  "overlap_threshold": 0.5
+  "label_deduplication_groups": [
+    {
+      "labels": ["kapitola", "jiny nadpis"],
+      "minimum_coverage": 0.8
+    }
+  ],
+  "row_tolerance": 20
 }
 ```
 
-`row_tolerance` must be non-negative. `overlap_threshold` must be in `[0, 1]`.
+`row_tolerance` defaults to `20` and must be non-negative.
 
 ##### Geometry and text loading
 
@@ -908,40 +927,50 @@ Optional settings are `yolo_batch_size` (default `32`),
 `yolo_confidence_threshold` (`0.25`), `yolo_image_size` (`640`),
 `yolo_device` (`0`), and `minimum_overlap_coverage` (`0.65`).
 
+This engine also supports `label_deduplication_groups`. Each group contains at
+least two raw YOLO model labels and a `minimum_coverage` in `(0, 1]`. For
+differently labelled detections in the same group, the lower-confidence box is
+removed when the intersection covers at least that fraction of both boxes;
+confidence ties retain the detection produced first by YOLO. Same-class
+detections are unaffected, each label may occur in only one group, and an
+omitted or empty setting disables this deduplication. It runs in the YOLO
+reader before ALTO assignment. The extraction engine performs no additional
+geometry deduplication after alignment.
+
 The `labels` keys must be the supported `ChapterType` values `Chapter`,
 `Subchapter`, `PageNumber`, and `PartNumber`; their values must match the YOLO
 model labels. Omitted keys retain the engine defaults. Unknown keys, non-string
 values, and empty values are rejected.
 
-A region becomes `DetectionEvidence` only if it has non-empty aligned ALTO
-text, geometry, and input-geometry confidence. Its text is stripped ALTO text,
-and its confidence is the YOLO geometry confidence.
-
-##### Region filtering
-
-Each selected TOC page is processed in page order. Regions without geometry
-are discarded. Remaining regions are sorted by input confidence, highest
-first. A region is retained only when its intersection-over-union with every
-already retained region is less than or equal to `overlap_threshold`.
-
-This is a greedy, class-independent suppression rule: a high-confidence
-region can suppress an overlapping region of another class. Equal-to-threshold
-overlaps are retained.
-
 ##### Rows and TOC units
 
-Retained regions are sorted by their top `y` coordinate. A region joins the
-active row when its `y` differs from the previously added region by strictly
-less than `row_tolerance`; otherwise it starts a new row. This comparison with
-the previous region means a row may grow through a chain of locally close
-regions. Regions inside a row are sorted left to right.
+Each selected TOC page is processed in page order. At this point the objects
+are aligned `AlignmentRegion` instances. Regions without geometry are
+discarded. The remaining regions are sorted by their top `y` coordinate. A
+region joins the active row when its `y` differs from the previously added
+region by strictly less than `row_tolerance`; otherwise it starts a new row.
+This comparison with the previous region means a row may grow through a chain
+of locally close regions. Regions inside a row are sorted left to right.
+
+While converting a row into a TOC unit, each `AlignmentRegion` becomes
+`DetectionEvidence` only if it has non-empty aligned ALTO text, geometry, and
+input-geometry confidence. Regions that cannot be converted contribute no
+field to the unit. The evidence text is stripped ALTO text, and its confidence
+is the YOLO geometry confidence.
 
 One row produces at most one TOC unit. Walking left to right, the engine keeps
 only the first usable detection for each of these roles:
 
 - `PartNumber` → part-number evidence;
-- `Chapter` or `Subchapter` → title evidence and hierarchy level 1 or 2;
+- `Chapter` → title evidence, treated as level 1 while constructing the
+  hierarchy;
+- `Subchapter` → title evidence, treated as level 2 while constructing the
+  hierarchy;
 - `PageNumber` → TOC page-number evidence.
+
+The numeric level is temporary extraction state. It is not stored in
+`ChapterBase`; the resulting hierarchy is represented by the recursive
+`children` fields.
 
 Rows with neither a title nor a page number are discarded, including rows that
 contain only a part number. A row with a title but no page number is retained.
@@ -967,10 +996,10 @@ The parser retains the complete OCR string in `TocPageNumber.text` and fills
 - descending `24-23` → the single start value `24`;
 - descending `XIV-XII` → the single start value `XIV`.
 
-The first normalized item is the start value. Only a valid range has an end
-value. A list retains all normalized items, while its first item is the start
-value available to alignment. Roman token case is preserved by default and
-can be changed explicitly through the model's `case` argument.
+The first normalized item is exposed by `normalized_start()`. Only a valid
+range exposes an end value through `normalized_end()`. A list retains all
+normalized items. Roman token case is preserved by default and can be changed
+explicitly through the model's `case` argument.
 
 Zero, leading signs or dashes such as `-45`, mixed-system ranges, chained
 ranges, and ambiguous multiple-number forms such as `3. 45`, `12/45`, and
@@ -988,13 +1017,49 @@ follows:
 2. otherwise, if a preceding titled level exists, use it;
 3. otherwise use level 1, even when a following titled level exists.
 
-Units from all TOC pages are then processed as one sequence. For an entry at
-level `N`, the parent is the most recent active entry at the nearest lower
-level. If none exists, the entry becomes a root. Encountering a level replaces
-the active entry at that level and clears active deeper levels. The hierarchy
-therefore continues across TOC page boundaries.
+The selected TOC pages are traversed by ascending `ChapterPageInput.position`.
+Within each page, units follow their row order from top to bottom, determined
+by ascending bounding-box `y`. Units from all TOC pages are therefore
+processed as one sequence ordered first by page position and then by vertical
+position within the page.
 
-The present model mapping produces two levels, but `TocBase` itself can
+For an entry at level `N`, the parent is the most recent active entry at the
+nearest lower level. If none exists, the entry becomes a root. The new entry
+then becomes the active entry for its own level, and entries at deeper levels
+are removed from the temporary active-parent stack. This only controls where
+subsequent entries are attached; it does not remove or modify entries already
+added to the hierarchy.
+
+For example, this level sequence:
+
+```text
+1 Chapter A
+2 Section B
+2 Section C
+3 Subsection D
+1 Chapter E
+2 Section F
+```
+
+produces:
+
+```text
+Chapter A
+├── Section B
+└── Section C
+    └── Subsection D
+Chapter E
+└── Section F
+```
+
+`Section C` replaces `Section B` as the active level-2 entry, so `Subsection
+D` is attached to `Section C`. `Chapter E` then replaces `Chapter A` as the
+active level-1 entry and clears the temporary level-2 and level-3 parent
+choices, so `Section F` is attached to `Chapter E`. Because units from all TOC
+pages share this active-parent stack, the hierarchy can continue across TOC
+page boundaries.
+
+This engine's model mapping produces two levels, but `TocBase` itself can
 represent arbitrary depth and a future extraction engine may return more.
 
 ### Stage 3: TOC alignment
@@ -1153,11 +1218,12 @@ following anchor's TOC value. A candidate without a physical number, or with a
 different numeral system, passes this consistency check. Ranking then uses
 height, similarity, confidence, and earliest position in that order.
 
-An entry remains unresolved when it has no title, no unused destination
-title detection, no title detection inside its bounds, no title above threshold, no candidate
-within a usable expected-position tolerance, or no candidate passing the
-physical-number consistency check. A titled unresolved entry remains in the
-result with `page_start_key=None`.
+A non-anchor entry remains unresolved when it has no title, no unused
+destination-title detection, no destination-title detection inside its bounds,
+no title match above threshold, no candidate within a usable
+expected-position tolerance, or no candidate passing the physical-number
+consistency check. A titled unresolved entry remains in the result with
+`page_start_key=None`.
 
 ##### Explicit range ends
 
@@ -1168,8 +1234,9 @@ anchor.
 
 1. If one or more pages have the exact physical end number in the same numeral
    system, the page closest to the expected position is selected.
-2. Otherwise, the physically closest eligible page is used only when it is
-   within `offset_tolerance` of the expected position.
+2. Otherwise, the eligible page whose physical position is closest to the
+   expected position is used only when that distance is within
+   `offset_tolerance`.
 3. Otherwise `page_end_key` remains `None` for the binder to handle.
 
 ##### Reconstructing the result tree
@@ -1186,8 +1253,8 @@ described under
 titleless entry without `title_destination_page` is removed there and its
 retained children are spliced into its parent level.
 
-The core does not copy `title_destination_page` into `title`: TOC title and
-destination-page title remain separate optional evidence fields.
+The alignment engine does not copy `title_destination_page` into `title`: TOC
+title and destination-page title remain separate optional evidence fields.
 
 ## Binding `TocResult` into `MetakatIO`
 
