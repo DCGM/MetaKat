@@ -381,10 +381,10 @@ ChapterBase(
 | `toc_page_key` | Physical TOC page containing the entry. It is present even when the entry has no title evidence. |
 | `title` | Chapter title detected on the TOC page. This remains distinct from a title later found on the destination page. |
 | `part_number` | Optional chapter/section number printed as part of the TOC entry, such as `2.3`. It is not the destination page number. |
-| `page_number` | Optional parsed destination reference printed in the TOC entry. The model retains the complete original OCR evidence and exposes normalized semantic values for alignment. |
+| `page_number` | Optional parsed `PageNumber` printed in the TOC entry. It denotes the destination page number and retains the complete source evidence together with normalized semantic values for alignment. |
 | `children` | Nested TOC entries. The model supports arbitrary hierarchy depth. |
 
-The TOC number model extends `DetectionEvidence`:
+The `TocPageNumber` model extends `DetectionEvidence`:
 
 ```python
 TocPageNumber(DetectionEvidence):
@@ -394,11 +394,12 @@ TocPageNumber(DetectionEvidence):
     ]
 ```
 
-The inherited `text` is always the complete original OCR evidence. `kind` is
-`single`, `range`, or `list` for a successfully parsed reference and `None`
-when parsing failed. Each `normalized_items` tuple contains normalized token
-text, its integer value, and its `arabic` or `roman` numeral system. The tuple
-is empty when parsing failed.
+The inherited `text` retains the complete source evidence supplied by the
+extraction engine rather than only the numeric token recognized by the
+parser. `kind` is `single`, `range`, or `list` for a successfully parsed page
+number and `None` when parsing failed. Each `normalized_items` tuple
+contains normalized token text, its integer value, and its `arabic` or
+`roman` numeral system. The tuple is empty when parsing failed.
 
 `normalized_text(case=None)` joins normalized items with `-` for a range and
 `,` for a list. `normalized_start(case=None)` returns the first normalized
@@ -882,9 +883,49 @@ The following engine is available for the stage-2 contract.
 
 #### Engine: YOLO + ALTO (`toc_extraction_engine_yolo_alto`)
 
-This engine detects the components of TOC rows with YOLO, assigns ALTO text to
-them, constructs TOC entries, and combines entries from all selected pages
-into one hierarchy.
+This engine detects TOC components with YOLO, assigns ALTO text to them,
+constructs title-associated TOC entries, and combines entries from all
+selected pages into one hierarchy.
+
+```mermaid
+flowchart TD
+    A[Selected TOC pages]
+    B[AlignmentRegion results from YOLO and ALTO processing]
+    C[Flat chapter candidates per page]
+    D{Multi-column layout accepted?}
+    E[One page-wide candidate group]
+    F[Candidate groups ordered by column from left to right]
+    G[For each group: discard candidates without complete construction evidence]
+    H[Construct units in top-to-bottom order]
+    I[Append group units into one flat page sequence]
+    J[Append pages by ascending page position]
+    K[Infer levels for PageNumber-only units]
+    L[Construct the hierarchy from the flat unit sequence]
+    M[TocBase]
+
+    A --> B --> C --> D
+    D -- No --> E --> G
+    D -- Yes --> F --> G
+    G --> H --> I --> J --> K --> L --> M
+```
+
+Each recognized aligned region with geometry becomes one flat internal
+chapter candidate containing its `ChapterType`, source page key, bounding
+box, optional stripped ALTO text, and optional YOLO confidence. Column
+analysis and partitioning operate on these candidates before any TOC unit is
+created. Both layout outcomes then produce the same representation: a
+left-to-right sequence of candidate groups. An unsplit page is represented by
+a sequence containing one page-wide group.
+
+One shared loop processes every group. It removes candidates without complete
+construction evidence, constructs units without knowing whether the group
+represents a column or a complete page, and appends the group result to the
+page result.
+Page results are appended by ascending input-page position, producing one flat
+reading-order unit sequence. The engine infers levels for its
+`PageNumber`-only units and then constructs the hierarchy from that sequence.
+TOC page-number parsing is documented separately at the end of this engine
+description.
 
 ##### Configuration
 
@@ -903,11 +944,20 @@ into one hierarchy.
       "minimum_coverage": 0.8
     }
   ],
-  "row_tolerance": 20
+  "multicolumn_axis_min_count": 2,
+  "multicolumn_axis_min_page_number_detection_count": 3,
+  "multicolumn_axis_min_provisional_title_count": 1,
+  "multicolumn_axis_spread_median_page_number_bbox_width_multiplier": 0.5,
+  "multicolumn_axis_min_spread_page_width_fraction": 0.005,
+  "multicolumn_axis_max_spread_page_width_fraction": 0.02,
+  "multicolumn_axis_min_separation_page_width_fraction": 0.20,
+  "multicolumn_axis_min_explained_page_number_fraction": 0.75,
+  "multicolumn_axis_max_title_overlap_page_width_fraction": 0.03
 }
 ```
 
-`row_tolerance` defaults to `20` and must be non-negative.
+The multi-column parameters are described with the corresponding decision
+rules below.
 
 ##### Geometry and text loading
 
@@ -915,13 +965,19 @@ The engine directory must contain one `.pt` model. If several are present,
 the first directory entry ending in `.pt` is used, so the directory should
 contain exactly one model.
 
+An empty `toc_pages` sequence returns `TocBase(())` without running YOLO or
+reading ALTO. For non-empty input, every requested page must occur in the
+resulting aligned document; if any page is missing, the extraction engine
+raises `ValueError`.
+
 For every selected TOC page, the engine:
 
 1. runs YOLO on the image;
 2. reads the corresponding ALTO document;
 3. aligns ALTO words to detected geometry using bidirectional containment and
    greatest-coverage word assignment;
-4. exposes the resulting aligned regions to its row-extraction decisions.
+4. exposes the resulting `AlignmentRegion` objects, including unmatched YOLO
+   regions, to its column and title-band decisions.
 
 Optional settings are `yolo_batch_size` (default `32`),
 `yolo_confidence_threshold` (`0.25`), `yolo_image_size` (`640`),
@@ -942,52 +998,395 @@ The `labels` keys must be the supported `ChapterType` values `Chapter`,
 model labels. Omitted keys retain the engine defaults. Unknown keys, non-string
 values, and empty values are rejected.
 
-##### Rows and TOC units
+##### Page-number alignment axes and the column decision
 
-Each selected TOC page is processed in page order. At this point the objects
-are aligned `AlignmentRegion` instances. Regions without geometry are
-discarded. The remaining regions are sorted by their top `y` coordinate. A
-region joins the active row when its `y` differs from the previously added
-region by strictly less than `row_tolerance`; otherwise it starts a new row.
-This comparison with the previous region means a row may grow through a chain
-of locally close regions. Regions inside a row are sorted left to right.
+Each selected TOC page is processed independently before its units are added
+to the cross-page sequence. Every aligned region with a recognized configured
+type and input geometry becomes a chapter candidate. Aligned ALTO text and
+input-geometry confidence are optional at this point. Consequently, a
+geometrically valid `PageNumber` candidate participates in alignment
+clustering and provisional title-area validation even when OCR did not read
+its text.
 
-While converting a row into a TOC unit, each `AlignmentRegion` becomes
-`DetectionEvidence` only if it has non-empty aligned ALTO text, geometry, and
-input-geometry confidence. Regions that cannot be converted contribute no
-field to the unit. The evidence text is stripped ALTO text, and its confidence
-is the YOLO geometry confidence.
+Before associating any number with a title, the engine estimates possible
+columns directly from all raw `PageNumber` candidates. This ordering is
+important: a title cannot consume a page number from a neighbouring column
+before the column boundaries are known.
 
-One row produces at most one TOC unit. Walking left to right, the engine keeps
-only the first usable detection for each of these roles:
+The engine resolves page width from `ChapterPageInput.image_dimensions`, then
+`ChapterPageInput.alto_dimensions`, and finally by reading the input image. If
+the image cannot be read or reports a non-positive width, the extraction stage
+raises `ValueError`; it does not continue with a single-column fallback.
 
-- `PartNumber` → part-number evidence;
-- `Chapter` → title evidence, treated as level 1 while constructing the
-  hierarchy;
-- `Subchapter` → title evidence, treated as level 2 while constructing the
-  hierarchy;
-- `PageNumber` → TOC page-number evidence.
+The right edge (`bbox.x_max`) represents a page-number detection because
+numbers and ranges of different widths can still share the same vertical
+alignment axis. The permissible complete spread around an axis is:
 
-The numeric level is temporary extraction state. It is not stored in
-`ChapterBase`; the resulting hierarchy is represented by the recursive
-`children` fields.
+```text
+axis_spread_tolerance = min(
+    page_width * multicolumn_axis_max_spread_page_width_fraction,
+    max(
+        median_page_number_bbox_width
+            * multicolumn_axis_spread_median_page_number_bbox_width_multiplier,
+        page_width * multicolumn_axis_min_spread_page_width_fraction,
+    ),
+)
+```
 
-Rows with neither a title nor a page number are discarded, including rows that
-contain only a part number. A row with a title but no page number is retained.
-A row with a page number but no title is retained as a titleless TOC entry so
-that an alignment engine can use its number as anchor evidence.
+The defaults used to establish a supported page-number alignment axis are:
+
+| Parameter | Default |
+|---|---:|
+| `multicolumn_axis_min_page_number_detection_count` | `3` |
+| `multicolumn_axis_spread_median_page_number_bbox_width_multiplier` | `0.5` |
+| `multicolumn_axis_min_spread_page_width_fraction` | `0.005` |
+| `multicolumn_axis_max_spread_page_width_fraction` | `0.02` |
+
+Using the median makes isolated wide ranges less influential. The minimum
+page fraction prevents narrow one-digit boxes from producing an excessively
+tight tolerance, while the maximum prevents wide detections from merging
+distinct alignment clusters.
+
+The engine sorts every page-number detection by `bbox.x_max`. It starts a
+cluster at the leftmost remaining detection and adds subsequent detections
+while the complete cluster span satisfies:
+
+```text
+cluster maximum x_max - cluster minimum x_max
+    <= axis_spread_tolerance
+```
+
+The comparison is against the cluster minimum, not merely the previously
+added detection, so a chain of locally close detections cannot grow past the
+permitted complete spread. A cluster establishes a supported page-number
+alignment axis when:
+
+```text
+cluster page-number detection count
+    >= multicolumn_axis_min_page_number_detection_count
+```
+
+The median member `x_max` is the axis position. Clusters below the support
+threshold do not establish alignment axes or columns.
+
+For layout validation only, each `PageNumber` candidate supporting an axis
+provisionally selects one `Chapter` or `Subchapter` candidate. A title is
+eligible when the page number's vertical centre lies within the title's full
+vertical extent and the page number's horizontal centre lies to the right of
+the title's horizontal centre. Eligible titles are ranked by the horizontal
+gap between the title's right edge and the page number's left edge, clamped to
+`0` for overlapping boxes. Ties prefer higher title confidence, then smaller
+title `bbox.y`, and finally smaller title `bbox.x`. Missing confidence ranks
+below any numeric confidence.
+
+This provisional relationship does not consume either candidate and is not a
+TOC-unit assignment. It is used only to determine whether the supported axes
+have distinct, plausible title areas rather than representing ragged page
+numbers in one column.
+
+Multi-column processing is accepted only when all of these conditions hold:
+
+1. At least `multicolumn_axis_min_count` supported page-number alignment axes
+   exist.
+
+   The default affecting this condition is:
+
+   | Parameter | Default |
+   |---|---:|
+   | `multicolumn_axis_min_count` | `2` |
+
+2. Every adjacent pair of supported axes satisfies:
+
+   ```text
+   right axis x - left axis x
+       >= page_width * multicolumn_axis_min_separation_page_width_fraction
+   ```
+
+   The default affecting this equation is:
+
+   | Parameter | Default |
+   |---|---:|
+   | `multicolumn_axis_min_separation_page_width_fraction` | `0.20` |
+
+3. The supported axes explain enough raw page-number detections:
+
+   ```text
+   explained_detection_count = number of page-number detections whose x_max
+       is within axis_spread_tolerance of the nearest supported axis
+
+   explained_fraction =
+       explained_detection_count / total_page_number_detection_count
+
+   explained_fraction
+       >= multicolumn_axis_min_explained_page_number_fraction
+   ```
+
+   The default affecting this equation is:
+
+   | Parameter | Default |
+   |---|---:|
+   | `multicolumn_axis_min_explained_page_number_fraction` | `0.75` |
+
+4. Every supported axis has at least
+   `multicolumn_axis_min_provisional_title_count` distinct vertically
+   compatible provisional titles. Multiple page-number detections that
+   provisionally select the same title count as one title.
+
+   The default affecting this condition is:
+
+   | Parameter | Default |
+   |---|---:|
+   | `multicolumn_axis_min_provisional_title_count` | `1` |
+
+5. For every adjacent pair of axes, provisional titles associated with the
+   right axis form a distinct title area:
+
+   ```text
+   median right-axis title bbox x
+       >= left page-number axis x
+          - page_width * multicolumn_axis_max_title_overlap_page_width_fraction
+   ```
+
+   The default affecting this equation is:
+
+   | Parameter | Default |
+   |---|---:|
+   | `multicolumn_axis_max_title_overlap_page_width_fraction` | `0.03` |
+
+   A single-column TOC can contain two or more apparent page-number axes
+   because its numbers are ragged or skewed. In that case, the titles
+   provisionally associated with the right-hand axis still begin in the title
+   area left of the preceding axis, so column processing is rejected.
+
+Both `multicolumn_axis_min_page_number_detection_count` and
+`multicolumn_axis_min_count` must be integers of at least `2`.
+`multicolumn_axis_min_provisional_title_count` must be an integer of at least
+`1`.
+`multicolumn_axis_spread_median_page_number_bbox_width_multiplier` must be
+finite and greater than zero. Minimum axis spread and maximum axis-title
+overlap fractions must be in `[0, 1]`; maximum axis spread and minimum axis
+separation fractions must be in `(0, 1]`. The minimum axis-spread fraction
+cannot exceed the maximum.
+
+If any condition fails, the engine does not split the page. It applies
+page-wide title association and ordinary top-to-bottom unit order. Diagnostic
+logging records whether column processing was accepted or rejected, the
+adaptive spread tolerance, supported axis positions, support counts and
+spreads, provisional title counts, or the rejection reason.
+
+Supported layouts and known limitations:
+
+- Multi-column processing is designed for one vertical group of columns. The
+  expected reading order is the complete leftmost column from top to bottom,
+  followed by each subsequent column from left to right.
+- Grid-like TOCs containing multiple horizontal groups of columns are not
+  supported. For example, a layout whose intended order is all columns in the
+  upper row followed by all columns in the lower row requires both horizontal
+  group detection and column detection within each group. This engine does
+  not estimate those horizontal groups and would instead traverse the entire
+  leftmost alignment-axis column before moving right, producing an incorrect
+  reading order.
+- Each column must provide enough geometrically aligned page-number
+  detections to establish its axis. A column with fewer than
+  `multicolumn_axis_min_page_number_detection_count` detections cannot be
+  recognized, even when its titles are otherwise clear.
+- Strongly ragged, curved, or skewed page-number alignment can prevent an
+  axis from satisfying the spread checks. The page then uses the unsplit
+  top-to-bottom fallback.
+- Titles spanning multiple columns, decorative page-number-like detections,
+  or unusually overlapping title areas can invalidate the distinct-title-area
+  check or associate a title with the wrong axis.
+
+##### Column partition
+
+When multi-column processing is accepted, candidates are partitioned before
+TOC-unit construction:
+
+- A `Chapter` or `Subchapter` detection belongs to the closest axis at or to
+  the right of its bounding-box right edge. If no axis lies to its right, it
+  belongs to the axis nearest its right edge.
+- A `PartNumber` belongs to the first axis at or to the right of its
+  horizontal centre. If no such axis exists, the detection is discarded
+  because its column cannot be determined reliably.
+- A `PageNumber` belongs to the column of its nearest axis when the distance
+  between its right edge and that axis is at most `axis_spread_tolerance`. If
+  the distance is greater, the detection is discarded because its column
+  cannot be determined reliably.
+
+This step only partitions chapter candidates into columns; it does not
+associate numbers with titles or construct TOC units. Its complete output is
+one candidate group per accepted axis, ordered from the leftmost axis to the
+rightmost. Each group can contain `Chapter`, `Subchapter`, `PartNumber`, and
+`PageNumber` candidates. Only after this partition is complete does TOC-unit
+construction receive those column-local groups.
+
+##### Title bands and TOC-unit construction
+
+Both layout outcomes are represented as a sequence of candidate groups. An
+accepted multi-column layout supplies one group per column in left-to-right
+order. A rejected layout supplies a sequence containing one group with all
+page candidates.
+
+Before constructing units, one shared filtering step removes every candidate
+that lacks non-empty aligned ALTO text or input-geometry confidence. This is
+the only readiness filter used by either layout outcome. A geometry-only
+candidate can therefore contribute to the preceding column decision but
+cannot populate a TOC unit.
+
+The same unit-construction method processes each remaining group and receives
+no layout, column-axis, or processing-mode information. Every `Chapter` or
+`Subchapter` candidate received by this method starts one TOC unit. Candidates
+are processed by ascending bounding-box `y`, using ascending `x` to make
+equal-height ordering deterministic. The complete vertical extent of the
+title box defines its horizontal association band within that candidate
+group.
+
+`PageNumber` association is decided as follows:
+
+1. Its vertical centre must lie within the complete vertical extent of the
+   title box:
+
+   ```text
+   title bbox y
+       <= PageNumber bbox vertical centre
+       <= title bbox y_max
+   ```
+
+2. Its horizontal centre must lie to the right of the title's horizontal
+   centre:
+
+   ```text
+   PageNumber bbox horizontal centre
+       > title bbox horizontal centre
+   ```
+
+3. Eligible candidates whose boxes are horizontally outside the title are
+   separated from candidates whose boxes overlap it:
+
+   ```text
+   PageNumber is outside when:
+       PageNumber bbox x >= title bbox x_max
+   ```
+
+   When at least one outside candidate exists, only outside candidates remain
+   eligible for selection. Overlapping candidates are considered only when
+   no outside candidate exists.
+
+4. Within the selected candidate group, distance is measured between the
+   right edge of the title box and the left edge of the `PageNumber` box:
+
+   ```text
+   page_number_distance = abs(
+       PageNumber bbox x - title bbox x_max,
+   )
+   ```
+
+   The candidate with the smallest distance is selected. Equal distances
+   prefer higher input-geometry confidence, then smaller `bbox.y`, and finally
+   greater `bbox.width`. If every ranking value is equal, the candidate that
+   occurs first in the group is retained.
+
+`PartNumber` association is the horizontal mirror of this process. It uses
+the same vertical-centre eligibility and ranking rules, but its horizontal
+centre must lie to the left of the title's centre. A `PartNumber` is outside
+when its right edge is at or to the left of the title's left edge, and its
+distance is measured between those two facing edges. Outside candidates are
+again preferred as a group; overlapping candidates are considered only when
+no outside candidate is available.
+
+An assigned number is removed immediately and cannot be assigned to another
+title. Consequently, an earlier title in top-to-bottom processing order owns
+a number that would also be eligible for a later overlapping title band. With
+accepted column processing, candidates from other columns are never
+considered by either selection.
+
+Every title produces a unit even when neither number can be assigned.
+Unassigned page numbers produce separate titleless TOC units so that an
+alignment engine can use them as number evidence. Unassigned part numbers are
+discarded because they cannot independently identify a TOC entry.
+
+For an accepted multi-column layout, columns are traversed from left to right
+and units inside each column from top to bottom. For an unsplit page, all units
+are traversed from top to bottom. The resulting page sequences are appended in
+page order, creating the flat sequence used for hierarchy construction.
+
+##### Hierarchy construction
+
+Units created from `Chapter` candidates have level 1, and units created from
+`Subchapter` candidates have level 2. `PageNumber`-only units created from
+unassigned page-number candidates have no model-derived level. Such a unit
+uses the level of the most recent preceding unit with a title. If no preceding
+titled unit exists, it uses level 1. Following units do not affect this
+decision.
+
+The selected TOC pages are traversed by ascending `ChapterPageInput.position`.
+Within each page, units follow the reading order established above: either
+top-to-bottom order or accepted column-wise order. Units from all TOC pages
+are therefore processed as one sequence ordered first by page position and
+then by the per-page reading order. Level inference for `PageNumber`-only
+units operates on this complete sequence rather than restarting for each page.
+Consequently, a `PageNumber`-only unit at the beginning of a TOC page can
+inherit its level from the last titled unit on the preceding TOC page.
+
+For an entry at level `N`, the parent is the most recent active entry at the
+nearest lower level. If none exists, the entry becomes a root. The new entry
+then becomes the active entry for its own level, and entries at deeper levels
+are removed from the temporary active-parent stack. This only controls where
+subsequent entries are attached; it does not remove or modify entries already
+added to the hierarchy.
+
+For example, this level sequence:
+
+```text
+1 Chapter A
+2 Section B
+2 Section C
+1 Chapter D
+2 Section E
+```
+
+produces:
+
+```text
+Chapter A
+├── Section B
+└── Section C
+Chapter D
+└── Section E
+```
+
+`Section C` replaces `Section B` as the active level-2 entry. `Chapter D` then
+replaces `Chapter A` as the active level-1 entry and clears the temporary
+level-2 parent choice, so `Section E` is attached to `Chapter D`. Because
+units from all TOC pages share this active-parent stack, the hierarchy can
+continue across TOC page boundaries.
+
+After its level is inferred, a `PageNumber`-only unit participates in the same
+parent and active-level rules as a titled unit. It can therefore replace the
+active entry at its inferred level and can become the parent of a later,
+deeper-level entry.
+
+This engine's model mapping produces two levels, but `TocBase` itself can
+represent arbitrary depth and a future extraction engine may return more.
 
 ##### TOC page-number parsing
 
-The extraction engine parses each detected TOC page reference before returning
-`TocBase`. A reference can be:
+Page-number parsing is an output-conversion detail rather than part of the
+layout, unit-association, or hierarchy decisions described above. While each
+unit is materialized as a hierarchy entry, the extraction engine parses the
+text of its retained `PageNumber` candidate. A `PageNumber` can contain:
 
 - a single Arabic or Roman number;
 - a same-system non-descending range;
 - a comma-separated list, including a mixed Arabic/Roman list.
 
-The parser retains the complete OCR string in `TocPageNumber.text` and fills
-`kind` and `normalized_items`. Its default normalized output is:
+The parser creates the `TocPageNumber` stored in `ChapterBase.page_number`.
+It retains the candidate's complete stripped ALTO text in
+`TocPageNumber.text` and fills `kind` and `normalized_items`. Title and
+part-number candidates are converted to the `DetectionEvidence` objects
+stored in the same `ChapterBase` entry.
+
+The default normalized page-number output is:
 
 - `str. 004` → `4`;
 - `xiv–xvi` → `xiv-xvi`;
@@ -1006,61 +1405,6 @@ ranges, and ambiguous multiple-number forms such as `3. 45`, `12/45`, and
 `12 45` are rejected. For rejected input, `kind` is `None`,
 `normalized_items` is empty, and `output_text()` falls back to the original
 OCR evidence. Confidence, bounding box, and TOC source page are unchanged.
-
-##### Titleless levels and hierarchy
-
-Titleless number units have no model-derived level. Their level is inferred as
-follows:
-
-1. if preceding and following titled levels exist and are equal, use that
-   level;
-2. otherwise, if a preceding titled level exists, use it;
-3. otherwise use level 1, even when a following titled level exists.
-
-The selected TOC pages are traversed by ascending `ChapterPageInput.position`.
-Within each page, units follow their row order from top to bottom, determined
-by ascending bounding-box `y`. Units from all TOC pages are therefore
-processed as one sequence ordered first by page position and then by vertical
-position within the page.
-
-For an entry at level `N`, the parent is the most recent active entry at the
-nearest lower level. If none exists, the entry becomes a root. The new entry
-then becomes the active entry for its own level, and entries at deeper levels
-are removed from the temporary active-parent stack. This only controls where
-subsequent entries are attached; it does not remove or modify entries already
-added to the hierarchy.
-
-For example, this level sequence:
-
-```text
-1 Chapter A
-2 Section B
-2 Section C
-3 Subsection D
-1 Chapter E
-2 Section F
-```
-
-produces:
-
-```text
-Chapter A
-├── Section B
-└── Section C
-    └── Subsection D
-Chapter E
-└── Section F
-```
-
-`Section C` replaces `Section B` as the active level-2 entry, so `Subsection
-D` is attached to `Section C`. `Chapter E` then replaces `Chapter A` as the
-active level-1 entry and clears the temporary level-2 and level-3 parent
-choices, so `Section F` is attached to `Chapter E`. Because units from all TOC
-pages share this active-parent stack, the hierarchy can continue across TOC
-page boundaries.
-
-This engine's model mapping produces two levels, but `TocBase` itself can
-represent arbitrary depth and a future extraction engine may return more.
 
 ### Stage 3: TOC alignment
 
