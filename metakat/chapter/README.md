@@ -15,7 +15,10 @@
   - [Stage 1: Chapter page analysis](#stage-1-chapter-page-analysis)
   - [Stage 2: Chapter extraction](#stage-2-chapter-extraction)
   - [Stage 3: Chapter alignment](#stage-3-chapter-alignment)
-- [Binding `TocResult` into `MetakatIO`](#binding-tocresult-into-metakatio)
+- [TOC page-number parsers](#toc-page-number-parsers)
+  - [Arabic and Roman TOC page-number parser](#arabic-and-roman-toc-page-number-parser)
+- [Available bind implementation](#available-bind-implementation)
+  - [Base](#engine-base-chapter_bind_engine_base)
 - [Observability and revision](#observability-and-revision)
 
 ## Purpose
@@ -29,7 +32,7 @@ Chapter processing deliberately has two boundaries:
 1. The **[core engine](#chapter-core-engine-contract)** performs all document analysis. It returns a chapter
    tree with detected text, geometry provenance, TOC-page provenance, and
    resolved destination page keys.
-2. The **[bind engine](#binding-tocresult-into-metakatio)** projects that result into the existing `MetakatIO`. It
+2. The **[bind engine](#available-bind-implementation)** projects that result into the existing `MetakatIO`. It
    groups pages by their lowest document container, converts page keys into
    `pageIndex` values, creates detection UUIDs, and fills missing chapter ends.
 
@@ -134,7 +137,7 @@ To add a core engine:
 5. test loading, optional inputs, unresolved chapters, hierarchy, and page-key
    output.
 
-[`ChapterBindEngineBase`](#binding-tocresult-into-metakatio) can bind any
+[`ChapterBindEngineBase`](#engine-base-chapter_bind_engine_base) can bind any
 implementation satisfying this contract.
 An implementation that returns a different result model requires its own
 `ChapterBindEngine` and bind-engine registration.
@@ -144,7 +147,7 @@ An implementation that returns a different result model requires its own
 `chapter_core_engine_pipeline` is one implementation of the chapter core
 contract. It composes three independently replaceable stages, allowing a
 different model or algorithm to replace one stage without changing the other
-stages or the [MetaKat binder](#binding-tocresult-into-metakatio).
+stages or the [MetaKat binder](#available-bind-implementation).
 
 ```mermaid
 flowchart LR
@@ -179,7 +182,7 @@ The pipeline processes one document as follows:
    to destination pages where possible and returns `TocResult`.
 
 The resulting `TocResult` is passed to the
-[MetaKat bind engine](#binding-tocresult-into-metakatio). Validation,
+[MetaKat bind engine](#available-bind-implementation). Validation,
 evidence-source precedence, early termination, and the exact stage handoffs
 are described in
 [Pipeline wrapper orchestration](#pipeline-wrapper-orchestration).
@@ -889,14 +892,20 @@ each group:
 - otherwise the complete group is retained;
 - its visual score is the sum of its page visual scores.
 
-The selected group is the lexicographic maximum of:
+The selected group follows these priorities from the first row to the last:
 
-1. whether the group contains a keyword;
-2. total visual score.
+| Rank | TOC candidate group |
+|---:|---|
+| 1 | Contains a TOC keyword |
+| 2 | Greatest total visual score |
+| 3 | Fewest pages |
+| 4 | Earliest physical start position |
 
 Therefore any keyword-containing group beats every group without a keyword,
-regardless of visual score. If scores tie, the first encountered group wins.
-Exactly this one final consecutive group becomes `toc_pages`.
+regardless of visual score. For equal keyword presence and total evidence,
+the shorter group represents the greater visual-evidence density. If length
+also ties, the group beginning earlier in the document is selected. Exactly
+this one final consecutive group becomes `toc_pages`.
 
 If no page satisfies the visual predicate, no group is selected and the
 engine returns `toc_pages=()`. The
@@ -912,13 +921,16 @@ deduplication; any configured YOLO-reader deduplication has already happened
 before alignment. This engine implements destination-title detection, so it
 returns an empty tuple rather than `None` when no title evidence is found.
 
-Physical page numbers are resolved by the reusable resolver from the
-`metakat.page_number` core package, using the YOLO + ALTO alignments already
-produced by stage 1. Only pages outside the selected TOC group are resolved
-and returned as destination-page-number evidence. Resolver behavior is
-documented in the
-[page-number package](../page_number/README.md). Stage 1 exposes these resolver
-parameters:
+After the final TOC group is selected, stage 1 processes `PageNumber`
+detections only on pages outside that group. It uses the YOLO + ALTO alignments
+already produced during page analysis, parses each retained detection with
+[`DecoratedPageNumberParser`](../page_number/README.md#decorated-page-number-parser),
+and passes the successfully parsed `PhysicalPageNumberEvidence` candidates to
+[`PhysicalPageNumberResolver`](../page_number/README.md#physical-page-number-resolver)
+in `STANDARD` mode. The selected result, when present, is returned as
+destination-page-number evidence for chapter alignment.
+
+Stage 1 exposes these resolver parameters:
 
 | Parameter | Default | Meaning |
 |---|---:|---|
@@ -1505,46 +1517,9 @@ deeper-level entry.
 This engine's model mapping produces two levels, but `TocBase` itself can
 represent arbitrary depth and a future extraction engine may return more.
 
-##### TOC page-number parsing
-
-Page-number parsing is an output-conversion detail rather than part of the
-[layout](#page-number-alignment-axes-and-the-column-decision),
-[unit-association](#title-bands-and-toc-unit-construction), or
-[hierarchy](#hierarchy-construction) decisions. While each
-unit is materialized as a hierarchy entry, the extraction engine parses the
-text of its retained `PageNumber` candidate. A `PageNumber` can contain:
-
-- a single Arabic or Roman number;
-- a same-system non-descending range;
-- a comma-separated list, including a mixed Arabic/Roman list.
-
-The parser creates the `ChapterPageNumberEvidence` stored in
-`ChapterBase.page_number`.
-It retains the candidate's complete stripped ALTO text in
-`ChapterPageNumberEvidence.text` and fills `kind` and `normalized_items`. Title and
-subtitle and part-number candidates are converted to the independent
-`DetectionEvidence` objects stored in the same `ChapterBase` entry.
-
-The default normalized page-number output is:
-
-- `str. 004` → `4`;
-- `xiv–xvi` → `xiv-xvi`;
-- `23, 27, 31` → `23,27,31`;
-- `45-` → `45`;
-- descending `24-23` → the single start value `24`;
-- descending `XIV-XII` → the single start value `XIV`.
-
-The first normalized item is exposed by `normalized_start()`. Only a valid
-range exposes an end value through `normalized_end()`. A list retains all
-normalized items. Roman token case is preserved by default and can be changed
-explicitly through the model's `case` argument.
-
-Zero, leading signs or dashes such as `-45`, mixed-system ranges, chained
-ranges, and ambiguous multiple-number forms such as `3. 45`, `12/45`, and
-`12 45` are rejected. For rejected input, `kind` is `None`,
-`normalized_items` is empty, and `output_text()` falls back to the original
-OCR evidence. Confidence, bounding box, and TOC source page are unchanged.
-
+When materializing the hierarchy, this implementation converts every retained
+`PageNumber` candidate into `ChapterPageNumberEvidence` with the reusable
+[`ArabicRomanChapterPageNumberParser`](#arabic-and-roman-toc-page-number-parser).
 ### Stage 3: Chapter alignment
 
 The following engine implements the
@@ -1802,9 +1777,103 @@ removed there, and its retained children are spliced into its parent level.
 The alignment engine does not copy `title_destination_page` into `title`: TOC
 title and destination-page title remain separate optional evidence fields.
 
-## Binding `TocResult` into `MetakatIO`
+## TOC page-number parsers
 
-### Per-document processing
+TOC page-number parsers interpret the destination-page reference printed in a
+TOC entry. They do not detect entries, associate layout elements, construct a
+hierarchy, or align an entry with a physical document page. A parser is a
+reusable core supporting mechanism rather than an independently loaded stage.
+
+The available parser is:
+
+| Parser | Responsibility |
+|---|---|
+| `ArabicRomanChapterPageNumberParser` | Parse a single Arabic or Roman TOC page number, a range, or a comma-separated list. |
+
+### Arabic and Roman TOC page-number parser
+
+`ArabicRomanChapterPageNumberParser` subclasses the general
+`ChapterPageNumberParser`. Its main input and output are:
+
+```python
+parse(
+    text: str,
+) -> tuple[
+    ChapterPageNumberKind,
+    tuple[
+        tuple[str, int, PageNumberNumeralSystem],
+        ...,
+    ],
+] | None
+```
+
+`text` is the complete OCR text associated with a TOC page-number detection.
+On success, `parse()` returns the reference kind and its ordered normalized
+items. Each item contains the normalized token, integer value, and numeral
+system. It returns `None` when the text does not represent one accepted,
+unambiguous TOC page reference.
+
+| Input form | Parse result |
+|---|---|
+| One non-zero Arabic or valid Roman number | `SINGLE` with one normalized item. Surrounding non-numeric decoration is ignored. |
+| Two non-descending numbers of the same numeral system separated by `-`, `–`, `—`, or `−` | `RANGE` with the start and end items. |
+| Two or more numbers separated by commas | `LIST` with every item. Arabic and Roman items may be mixed. |
+| A descending same-system range | `SINGLE` containing only its start item. |
+| No number, zero, a leading sign, a mixed-system or chained range, or another ambiguous multiple-number form | `None`. |
+
+Unicode text is normalized before parsing. Arabic digits are normalized to
+ASCII and leading zeros are removed. Roman letter case is retained in the
+normalized token. Examples of the semantic output are:
+
+| Input | Kind | Normalized items |
+|---|---|---|
+| `str. 004` | `SINGLE` | `(("4", 4, ARABIC),)` |
+| `xiv–xvi` | `RANGE` | `(("xiv", 14, ROMAN), ("xvi", 16, ROMAN))` |
+| `23, 27, 31` | `LIST` | `(("23", 23, ARABIC), ("27", 27, ARABIC), ("31", 31, ARABIC))` |
+| `45-` | `SINGLE` | `(("45", 45, ARABIC),)` |
+| `24-23` | `SINGLE` | `(("24", 24, ARABIC),)` |
+
+Forms such as `-45`, `XIV-15`, `1-2-3`, `3. 45`, `12/45`, and `12 45`
+return `None`.
+
+#### Evidence creation helper
+
+`ChapterPageNumberParser.create()` combines parsing with existing detection
+provenance:
+
+```python
+create(
+    evidence: DetectionEvidence,
+) -> ChapterPageNumberEvidence
+```
+
+The helper copies `text`, `confidence`, `bbox`, and `page_key` from `evidence`.
+On successful parsing it also fills `kind` and `normalized_items` with the
+result of `parse()`. It always returns `ChapterPageNumberEvidence`; when
+parsing fails, `kind` is `None` and `normalized_items` is empty.
+
+`normalized_text(case=None)` renders the normalized items, joining ranges
+with `-` and lists with `,`. `normalized_start()` returns the first normalized
+token, and `normalized_end()` returns the second normalized token only for a
+valid range. Roman case is preserved by default and may be changed with
+`case="lowercase"` or `case="uppercase"`. When parsing failed,
+`output_text()` falls back to the original OCR evidence.
+
+## Available bind implementation
+
+The registered bind implementation is:
+
+| Config `name` | Implementation |
+|---|---|
+| `chapter_bind_engine_base` | Invoke any compatible chapter core engine and bind its `TocResult` into `MetakatIO`. |
+
+### Engine: Base (`chapter_bind_engine_base`)
+
+The Base bind engine deep-copies the supplied `MetakatIO`, processes each
+eligible document group with its configured core engine, and returns the
+modified copy.
+
+#### Per-document processing
 
 The binder deep-copies the input and invokes the core independently for each
 lowest document group. Eligible containers are:
@@ -1839,7 +1908,7 @@ The binder also passes available `MetakatPage.imageDim` and
 `MetakatPage.altoDim` values as ordered `PageDimensions` sequences. Missing
 values remain `None` at their page position.
 
-### Field mapping
+#### Field mapping
 
 For every `ChapterResult`, the binder creates one `MetakatChapter`:
 
@@ -1870,7 +1939,7 @@ The binder creates a new detection UUID, writes its `(x, y, width, height)` to
 `detection_to_page_mapping`. The same chapter can therefore retain separate
 TOC-title, destination-title, part-number, and page-number geometries.
 
-### Generic end-page inference
+#### Generic end-page inference
 
 After binding the returned tree in pre-order, the binder fills a missing
 `pageIndexEnd` only when `pageIndexStart` is known:

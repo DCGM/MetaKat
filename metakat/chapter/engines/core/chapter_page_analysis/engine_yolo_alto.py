@@ -24,12 +24,15 @@ from metakat.chapter.engines.core.pipeline_utils import (
     region_to_evidence,
 )
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
+from metakat.page_number.engines.core.models import (
+    PhysicalPageNumberEvidence,
+)
+from metakat.page_number.engines.core.page_number_parsers import (
+    DecoratedPageNumberParser,
+)
 from metakat.page_number.engines.core.page_number_resolver import (
     PageNumberSelectionMode,
     PhysicalPageNumberResolver,
-)
-from metakat.page_number.engines.core.models import (
-    PhysicalPageNumberEvidence,
 )
 from metakat.schemas.base_objects import ChapterType
 
@@ -502,6 +505,25 @@ class ChapterPageAnalysisEngineYOLOALTO:
         return result
 
     @staticmethod
+    def _page_width(page: ChapterPageInput) -> float:
+        if page.image_dimensions is not None:
+            return page.image_dimensions.width
+        if page.alto_dimensions is not None:
+            return page.alto_dimensions.width
+        try:
+            with Image.open(page.image_path) as image:
+                width = image.width
+        except OSError as error:
+            raise ValueError(
+                f"Unable to read page width from image {page.image_path}"
+            ) from error
+        if width <= 0:
+            raise ValueError(
+                f"Page image has invalid width {width}: {page.image_path}"
+            )
+        return float(width)
+
+    @staticmethod
     def _page_height(page: ChapterPageInput) -> float:
         if page.image_dimensions is not None:
             return page.image_dimensions.height
@@ -535,21 +557,25 @@ class ChapterPageAnalysisEngineYOLOALTO:
         )
         if not regions:
             return None
-        page_height = (
-            self._page_height(page)
+        candidates = tuple(
+            evidence
+            for region in regions
             if (
-                mode is PageNumberSelectionMode.EDGE_ONLY
-                or len(regions) > 1
+                evidence := DecoratedPageNumberParser.parse_region(
+                    page_key=alignment.page_key,
+                    region=region,
+                )
             )
-            else alignment.alto_height
+            is not None
         )
-        resolution = self.page_number_resolver.resolve(
-            alignment,
-            regions,
+        if not candidates:
+            return None
+        return self.page_number_resolver.resolve(
+            candidates,
             mode=mode,
-            page_height=page_height,
+            page_width=self._page_width(page),
+            page_height=self._page_height(page),
         )
-        return resolution.selected_evidence
 
     def _destination_evidence(
         self,
@@ -681,6 +707,8 @@ class ChapterPageAnalysisEngineYOLOALTO:
             key=lambda group: (
                 any(candidate.contains_keyword for candidate in group),
                 sum(candidate.visual_score for candidate in group),
+                -len(group),
+                -group[0].page.position,
             ),
         )
         return tuple(best)

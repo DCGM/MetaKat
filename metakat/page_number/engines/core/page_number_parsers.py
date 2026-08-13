@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
 from abc import ABC, abstractmethod
+
+from text_geometry_aligner import AlignmentRegion
 
 from metakat.common.models import BoundingBox
 from metakat.page_number.engines.core.models import (
@@ -14,6 +17,9 @@ from metakat.page_number.engines.core.models import (
 __all__ = ["DecoratedPageNumberParser", "PhysicalPageNumberParser"]
 
 
+logger = logging.getLogger(__name__)
+
+
 PhysicalPageNumberParseResult = tuple[
     str,
     int,
@@ -22,6 +28,51 @@ PhysicalPageNumberParseResult = tuple[
 
 
 class PhysicalPageNumberParser(ABC):
+    @classmethod
+    def parse_region(
+        cls,
+        *,
+        page_key: str,
+        region: AlignmentRegion,
+    ) -> PhysicalPageNumberEvidence | None:
+        if not region.matched:
+            return None
+        if (
+            region.input_geometry is None
+            or region.input_geometry_confidence is None
+            or region.alto_text is None
+        ):
+            logger.warning(
+                "Matched page-number region %s on page %s is missing "
+                "geometry, confidence, or ALTO text; skipping detection",
+                region.region_id,
+                page_key,
+            )
+            return None
+
+        evidence = cls.create(
+            page_key=page_key,
+            text=region.alto_text,
+            confidence=region.input_geometry_confidence,
+            bbox=BoundingBox(
+                x=region.input_geometry.bounds.x,
+                y=region.input_geometry.bounds.y,
+                width=region.input_geometry.bounds.width,
+                height=region.input_geometry.bounds.height,
+            ),
+        )
+        if evidence.normalized is None:
+            logger.warning(
+                "Invalid PAGE_NUMBER, skipping - val: %s, conf: %s, "
+                "bbox: %s, page_key: %s",
+                region.alto_text,
+                region.input_geometry_confidence,
+                region.input_geometry.bounds,
+                page_key,
+            )
+            return None
+        return evidence
+
     @classmethod
     def create(
         cls,

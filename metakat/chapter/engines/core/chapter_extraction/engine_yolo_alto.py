@@ -21,7 +21,7 @@ from metakat.chapter.engines.core.pipeline_utils import (
     load_engine_config,
     region_label,
 )
-from metakat.chapter.engines.core.chapter_extraction.chapter_page_number_parser import (
+from metakat.chapter.engines.core.chapter_page_number_parsers import (
     ArabicRomanChapterPageNumberParser,
 )
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO

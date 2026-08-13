@@ -27,7 +27,7 @@ class ChapterPageNumberParser(ABC):
         cls,
         evidence: DetectionEvidence,
     ) -> ChapterPageNumberEvidence:
-        parsed = cls._parse_text(evidence.text)
+        parsed = cls.parse(evidence.text)
         if parsed is None:
             kind = None
             normalized_items = ()
@@ -44,7 +44,7 @@ class ChapterPageNumberParser(ABC):
 
     @classmethod
     @abstractmethod
-    def _parse_text(
+    def parse(
         cls,
         text: str,
     ) -> ChapterPageNumberParseResult | None:
@@ -76,7 +76,7 @@ class ArabicRomanChapterPageNumberParser(ChapterPageNumberParser):
     }
 
     @classmethod
-    def _parse_text(
+    def parse(
         cls,
         text: str,
     ) -> ChapterPageNumberParseResult | None:
