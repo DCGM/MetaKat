@@ -80,6 +80,7 @@ TocResult(
 ChapterResult(
     toc_page_key: str,
     title: DetectionEvidence | None,
+    subtitle: DetectionEvidence | None = None,
     part_number: DetectionEvidence | None = None,
     page_number: ChapterPageNumberEvidence | None = None,
     title_destination_page: DetectionEvidence | None = None,
@@ -93,6 +94,7 @@ ChapterResult(
 |---|---|
 | `toc_page_key` | Input image stem of the page containing the source TOC entry. |
 | `title` | Title evidence from the TOC page, when available. |
+| `subtitle` | Optional subtitle evidence associated with the title on the TOC page. |
 | `part_number` | Optional chapter or section-number evidence from the TOC page. |
 | `page_number` | Optional parsed destination-page reference from the TOC page. It retains the original OCR evidence as well as the normalized values supplied by the TOC-producing engine. It is not the physical number detected on the destination page. |
 | `title_destination_page` | Optional title evidence found on the resolved destination page. |
@@ -402,6 +404,7 @@ TOC page. Each extracted TOC entry is represented as:
 ChapterBase(
     toc_page_key: str,
     title: DetectionEvidence | None,
+    subtitle: DetectionEvidence | None = None,
     part_number: DetectionEvidence | None = None,
     page_number: ChapterPageNumberEvidence | None = None,
     children: tuple[ChapterBase, ...] = (),
@@ -412,6 +415,7 @@ ChapterBase(
 |---|---|
 | `toc_page_key` | Physical TOC page containing the entry. It is present even when the entry has no title evidence. |
 | `title` | Chapter title detected on the TOC page. This remains distinct from a title later found on the destination page. |
+| `subtitle` | Optional subtitle detected below and geometrically associated with the entry's title on the TOC page. A subtitle never creates an entry by itself. |
 | `part_number` | Optional chapter/section number printed as part of the TOC entry, such as `2.3`. It is not the destination page number. |
 | `page_number` | Optional parsed `PageNumber` printed in the TOC entry. It denotes the destination page number and retains the complete source evidence together with normalized semantic values for alignment. |
 | `children` | Nested TOC entries. The model supports arbitrary hierarchy depth. |
@@ -440,7 +444,7 @@ range. The optional case is `"lowercase"` or `"uppercase"`; `None` preserves
 the normalized token case. `output_text(case=None)` returns normalized text
 when available and otherwise falls back to the complete original OCR text.
 
-`title`, `part_number`, and `page_number` each retain independent text,
+`title`, `subtitle`, `part_number`, and `page_number` each retain independent text,
 confidence, geometry, and source-page provenance. For every non-null field,
 its `DetectionEvidence.page_key` is expected to equal `toc_page_key`, and its
 bounding box is expected to belong to that TOC page. These expectations are
@@ -663,10 +667,10 @@ and physical-page-number evidence from pages outside that block.
 {
   "name": "chapter_page_analysis_engine_yolo_alto",
   "labels": {
-    "Chapter": "kapitola",
-    "Subchapter": "jiny nadpis",
+    "Level1Title": "kapitola",
+    "Level2Title": "jiny nadpis",
     "PageNumber": "cislo strany",
-    "DestinationChapter": "nadpis v textu"
+    "DestinationTitle": "nadpis v textu"
   },
   "label_deduplication_groups": [
     {
@@ -721,8 +725,8 @@ Optional settings are `yolo_batch_size` (default `32`),
 `yolo_confidence_threshold` (`0.25`), `yolo_image_size` (`640`),
 `yolo_device` (`0`), and `minimum_overlap_coverage` (`0.65`).
 
-The `labels` keys must be the supported `ChapterType` values `Chapter`,
-`Subchapter`, `PageNumber`, and `DestinationChapter`; their values must match
+The `labels` keys must be the supported `ChapterType` values `Level1Title`,
+`Level2Title`, `PageNumber`, and `DestinationTitle`; their values must match
 the YOLO model labels. Omitted keys retain the engine defaults. Unknown keys,
 non-string values, and empty values are rejected.
 
@@ -763,7 +767,7 @@ analysis. They remain available as possible destination pages, and their
 destination-title and physical-page-number evidence is still collected.
 
 For pages inside the search areas, candidate selection considers regions with
-the configured `Chapter`, `Subchapter`, and `PageNumber` labels and non-null
+the configured `Level1Title`, `Level2Title`, and `PageNumber` labels and non-null
 input geometry. These are the regions remaining after configured cross-class
 deduplication. Successfully aligned ALTO text is not required for this visual
 decision.
@@ -815,14 +819,14 @@ height. Horizontal coordinates do not affect window membership. A page
 satisfies the visual predicate only when one such window contains:
 
 ```text
-(Chapter + Subchapter) >= toc_candidate_min_title_count
+(Level1Title + Level2Title) >= toc_candidate_min_title_count
 and
 PageNumber >= toc_candidate_min_page_number_count
 ```
 
 | Parameter | Default | Meaning |
 |---|---:|---|
-| `toc_candidate_min_title_count` | `2` | Minimum combined number of `Chapter` and `Subchapter` detections in a window. |
+| `toc_candidate_min_title_count` | `2` | Minimum combined number of `Level1Title` and `Level2Title` detections in a window. |
 | `toc_candidate_min_page_number_count` | `2` | Minimum number of `PageNumber` detections in the same window. |
 
 With the defaults, at least two detected TOC titles of either level and at
@@ -902,7 +906,7 @@ warning and ends processing without invoking stages 2 and 3.
 ##### Other outputs
 
 Every page outside the selected group—including rejected TOC candidates—is a
-possible destination page. Every usable `DestinationChapter` detection on
+possible destination page. Every usable `DestinationTitle` detection on
 those pages becomes destination-title evidence. Collection applies no further
 deduplication; any configured YOLO-reader deduplication has already happened
 before alignment. This engine implements destination-title detection, so it
@@ -984,8 +988,9 @@ TOC page-number parsing is documented separately under
 {
   "name": "chapter_extraction_engine_yolo_alto",
   "labels": {
-    "Chapter": "kapitola",
-    "Subchapter": "jiny nadpis",
+    "Level1Title": "kapitola",
+    "Level2Title": "jiny nadpis",
+    "Subtitle": "podnadpis",
     "PageNumber": "cislo strany",
     "PartNumber": "jine cislo"
   },
@@ -1003,12 +1008,17 @@ TOC page-number parsing is documented separately under
   "multicolumn_axis_max_spread_page_width_fraction": 0.02,
   "multicolumn_axis_min_separation_page_width_fraction": 0.20,
   "multicolumn_axis_min_explained_page_number_fraction": 0.75,
-  "multicolumn_axis_max_title_overlap_page_width_fraction": 0.03
+  "multicolumn_axis_max_title_overlap_page_width_fraction": 0.03,
+  "subtitle_max_vertical_gap_height_multiplier": 1.5,
+  "subtitle_max_vertical_overlap_height_fraction": 0.25,
+  "subtitle_min_horizontal_overlap_fraction": 0.25
 }
 ```
 
 The multi-column parameters are described with the corresponding
 [page-number-axis and column-decision rules](#page-number-alignment-axes-and-the-column-decision).
+The subtitle parameters are described with the corresponding
+[TOC-unit construction rules](#title-bands-and-toc-unit-construction).
 
 ##### Geometry and text loading
 
@@ -1044,10 +1054,10 @@ omitted or empty setting disables this deduplication. It runs in the YOLO
 reader before ALTO assignment. The extraction engine performs no additional
 geometry deduplication after alignment.
 
-The `labels` keys must be the supported `ChapterType` values `Chapter`,
-`Subchapter`, `PageNumber`, and `PartNumber`; their values must match the YOLO
-model labels. Omitted keys retain the engine defaults. Unknown keys, non-string
-values, and empty values are rejected.
+The `labels` keys must be the supported `ChapterType` values `Level1Title`,
+`Level2Title`, `Subtitle`, `PageNumber`, and `PartNumber`; their values must
+match the YOLO model labels. Omitted keys retain the engine defaults. Unknown
+keys, non-string values, and empty values are rejected.
 
 ##### Page-number alignment axes and the column decision
 
@@ -1121,7 +1131,7 @@ The median member `x_max` is the axis position. Clusters below the support
 threshold do not establish alignment axes or columns.
 
 For layout validation only, each `PageNumber` candidate supporting an axis
-provisionally selects one `Chapter` or `Subchapter` candidate. A title is
+provisionally selects one `Level1Title` or `Level2Title` candidate. A title is
 eligible when the page number's vertical centre lies within the title's full
 vertical extent and the page number's horizontal centre lies to the right of
 the title's horizontal centre. Eligible titles are ranked by the horizontal
@@ -1253,9 +1263,9 @@ Supported layouts and known limitations:
 When multi-column processing is accepted, candidates are partitioned before
 TOC-unit construction:
 
-- A `Chapter` or `Subchapter` detection belongs to the closest axis at or to
-  the right of its bounding-box right edge. If no axis lies to its right, it
-  belongs to the axis nearest its right edge.
+- A `Level1Title`, `Level2Title`, or `Subtitle` detection belongs to the closest
+  axis at or to the right of its bounding-box right edge. If no axis lies to
+  its right, it belongs to the axis nearest its right edge.
 - A `PartNumber` belongs to the first axis at or to the right of its
   horizontal centre. If no such axis exists, the detection is discarded
   because its column cannot be determined reliably.
@@ -1267,9 +1277,11 @@ TOC-unit construction:
 This step only partitions chapter candidates into columns; it does not
 associate numbers with titles or construct TOC units. Its complete output is
 one candidate group per accepted axis, ordered from the leftmost axis to the
-rightmost. Each group can contain `Chapter`, `Subchapter`, `PartNumber`, and
-`PageNumber` candidates. Only after this partition is complete does TOC-unit
-construction receive those column-local groups.
+rightmost. Each group can contain `Level1Title`, `Level2Title`, `Subtitle`,
+`PartNumber`, and `PageNumber` candidates. Only after this partition is
+complete does TOC-unit construction receive those column-local groups.
+Subtitle assignment therefore operates only on the candidates already
+assigned to its group and needs no multi-column awareness.
 
 ##### Title bands and TOC-unit construction
 
@@ -1286,8 +1298,8 @@ candidate can therefore contribute to the preceding
 cannot populate a TOC unit.
 
 The same unit-construction method processes each remaining group and receives
-no layout, column-axis, or processing-mode information. Every `Chapter` or
-`Subchapter` candidate received by this method starts one TOC unit. Candidates
+no layout, column-axis, or processing-mode information. Every `Level1Title` or
+`Level2Title` candidate received by this method starts one TOC unit. Candidates
 are processed by ascending bounding-box `y`, using ascending `x` to make
 equal-height ordering deterministic. The complete vertical extent of the
 title box defines its horizontal association band within that candidate
@@ -1333,18 +1345,15 @@ group.
    )
    ```
 
-   The candidate with the smallest distance is selected. Equal distances
-   prefer higher input-geometry confidence, then smaller `bbox.y`, and finally
-   greater `bbox.width`. If every ranking value is equal, the candidate that
-   occurs first in the group is retained.
+   Candidate selection follows the
+   [assignment ranking summary](#assignment-ranking-summary).
 
 `PartNumber` association is the horizontal mirror of this process. It uses
-the same vertical-centre eligibility and ranking rules, but its horizontal
-centre must lie to the left of the title's centre. A `PartNumber` is outside
-when its right edge is at or to the left of the title's left edge, and its
-distance is measured between those two facing edges. Outside candidates are
-again preferred as a group; overlapping candidates are considered only when
-no outside candidate is available.
+the same vertical-centre eligibility rule, but its horizontal centre must lie
+to the left of the title's centre. A `PartNumber` is outside when its right
+edge is at or to the left of the title's left edge, and its distance is
+measured between those two facing edges. Its complete selection priority is
+shown in the [assignment ranking summary](#assignment-ranking-summary).
 
 An assigned number is removed immediately and cannot be assigned to another
 title. Consequently, an earlier title in top-to-bottom processing order owns
@@ -1357,6 +1366,79 @@ Unassigned page numbers produce separate titleless TOC units so that an
 alignment engine can use them as number evidence. Unassigned part numbers are
 discarded because they cannot independently identify a TOC entry.
 
+At this point, basic unit construction is complete. Every unit has its title,
+part number, and page number assignments, and the group-local unit list is in
+top-to-bottom reading order. All units still have `subtitle=None`.
+
+###### Subtitle assignment to constructed units
+
+The unit-construction method now assigns the remaining `Subtitle` candidates
+to the completed units. A subtitle never creates a standalone unit. Only
+titled units in the same candidate group are considered. The title must start
+no lower than the subtitle, and the signed vertical gap is:
+
+```text
+subtitle_vertical_gap = Subtitle bbox y - title bbox y_max
+```
+
+The gap may be slightly negative to accommodate overlapping detections, but
+must satisfy both configured limits:
+
+```text
+subtitle_vertical_gap
+    >= -min(title bbox height, Subtitle bbox height)
+        * subtitle_max_vertical_overlap_height_fraction
+
+subtitle_vertical_gap
+    <= max(title bbox height, Subtitle bbox height)
+        * subtitle_max_vertical_gap_height_multiplier
+```
+
+The boxes must also overlap horizontally. Their overlap is normalized by the
+width of the smaller box:
+
+```text
+subtitle_horizontal_overlap_fraction =
+    horizontal intersection width
+    / min(title bbox width, Subtitle bbox width)
+```
+
+It must be at least `subtitle_min_horizontal_overlap_fraction`. Zero-width
+boxes are ineligible. The defaults are:
+
+| Parameter | Default |
+|---|---:|
+| `subtitle_max_vertical_gap_height_multiplier` | `1.5` |
+| `subtitle_max_vertical_overlap_height_fraction` | `0.25` |
+| `subtitle_min_horizontal_overlap_fraction` | `0.25` |
+
+The maximum-gap multiplier must be finite and greater than zero. Both fraction
+parameters must be finite values in `[0, 1]`.
+
+The completed units are processed in group reading order. Titleless units are
+skipped. For each titled unit, the best still-unassigned eligible subtitle is
+selected according to the
+[assignment ranking summary](#assignment-ranking-summary).
+
+The selected subtitle is assigned to that unit and immediately removed from
+the available pool, so it cannot be reassigned to a later unit. Each unit can
+therefore receive at most one subtitle. Subtitle detections still available
+after the final unit remain unassigned.
+
+###### Assignment ranking summary
+
+For number candidates, the outside/overlapping choice establishes the
+selection pool before ranking. The remaining priorities are applied from the
+first row to the last:
+
+| Rank | `PartNumber` | `PageNumber` | `Subtitle` |
+|---:|---|---|---|
+| 1 | Smallest left-facing horizontal edge distance | Smallest right-facing horizontal edge distance | Smallest absolute vertical gap |
+| 2 | Highest confidence | Highest confidence | Highest confidence |
+| 3 | Greatest bounding-box area | Greatest bounding-box area | Greatest horizontal overlap |
+| 4 | Greatest bounding-box width | Greatest bounding-box width | Greatest bounding-box area |
+| 5 | — | — | Greatest bounding-box width |
+
 For an accepted multi-column layout, columns are traversed from left to right
 and units inside each column from top to bottom. For an unsplit page, all units
 are traversed from top to bottom. The resulting page sequences are appended in
@@ -1365,8 +1447,8 @@ page order, creating the flat sequence used for
 
 ##### Hierarchy construction
 
-Units created from `Chapter` candidates have level 1, and units created from
-`Subchapter` candidates have level 2. `PageNumber`-only units created from
+Units created from `Level1Title` candidates have level 1, and units created
+from `Level2Title` candidates have level 2. `PageNumber`-only units created from
 unassigned page-number candidates have no model-derived level. Such a unit
 uses the level of the most recent preceding unit with a title. If no preceding
 titled unit exists, it uses level 1. Following units do not affect this
@@ -1440,8 +1522,8 @@ The parser creates the `ChapterPageNumberEvidence` stored in
 `ChapterBase.page_number`.
 It retains the candidate's complete stripped ALTO text in
 `ChapterPageNumberEvidence.text` and fills `kind` and `normalized_items`. Title and
-part-number candidates are converted to the `DetectionEvidence` objects
-stored in the same `ChapterBase` entry.
+subtitle and part-number candidates are converted to the independent
+`DetectionEvidence` objects stored in the same `ChapterBase` entry.
 
 The default normalized page-number output is:
 
@@ -1772,7 +1854,7 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 | `title_destination_page` | Independently stored title evidence from the destination page. It is not copied into `title`. |
 | `partNumber` | Part-number evidence detected on the TOC page. |
 | `pageNumber` | Normalized valid TOC reference, or unchanged original evidence when parsing failed. It is not the physical page number. |
-| `subTitle` | Not populated by `chapter_core_engine_pipeline`. |
+| `subTitle` | Subtitle evidence detected on the TOC page and associated with the entry's title during stage 2. |
 
 Page keys are translated through the image-stem mapping for the processed
 document. An unknown TOC or evidence page key is an error. Unknown start/end

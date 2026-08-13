@@ -409,6 +409,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                     None if end_page is None else end_page.pageIndex
                 ),
                 title=bind_evidence(resolved.title),
+                subTitle=bind_evidence(resolved.subtitle),
                 partNumber=bind_evidence(resolved.part_number),
                 pageNumber=bind_evidence(
                     resolved.page_number,
@@ -463,6 +464,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
     def _resolved_chapter_label(resolved: ChapterResult) -> str:
         for evidence in (
             resolved.title,
+            resolved.subtitle,
             resolved.title_destination_page,
             resolved.page_number,
         ):

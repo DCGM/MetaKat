@@ -282,6 +282,7 @@ class ChapterAlignmentEngineFuzzy:
             resolved_by_identity[id(entry)] = ChapterResult(
                 toc_page_key=entry.toc_page_key,
                 title=entry.title,
+                subtitle=entry.subtitle,
                 part_number=entry.part_number,
                 page_number=entry.page_number,
                 title_destination_page=(

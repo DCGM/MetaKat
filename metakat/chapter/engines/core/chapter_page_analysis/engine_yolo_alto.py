@@ -61,10 +61,10 @@ class ChapterPageAnalysisEngineYOLOALTO:
     """Select TOC pages and collect title evidence from body pages."""
 
     DEFAULT_LABELS: dict[ChapterType, str] = {
-        ChapterType.CHAPTER: "kapitola",
-        ChapterType.SUBCHAPTER: "jiny nadpis",
+        ChapterType.LEVEL_1_TITLE: "kapitola",
+        ChapterType.LEVEL_2_TITLE: "jiny nadpis",
         ChapterType.PAGE_NUMBER: "cislo strany",
-        ChapterType.DESTINATION_CHAPTER: "nadpis v textu",
+        ChapterType.DESTINATION_TITLE: "nadpis v textu",
     }
     DEFAULT_TOC_KEYWORDS = (
         "obsah",
@@ -239,16 +239,20 @@ class ChapterPageAnalysisEngineYOLOALTO:
                 or distance_from_end
                 < total_pages * self.toc_search_fraction
             )
-            primary_count = None
-            secondary_count = None
+            level_1_title_count = None
+            level_2_title_count = None
             page_number_count = None
             candidate_windows = None
             if in_toc_search_area:
                 counts = Counter(
                     region_label(region) for region in alignment.regions
                 )
-                primary_count = counts[self.labels[ChapterType.CHAPTER]]
-                secondary_count = counts[self.labels[ChapterType.SUBCHAPTER]]
+                level_1_title_count = counts[
+                    self.labels[ChapterType.LEVEL_1_TITLE]
+                ]
+                level_2_title_count = counts[
+                    self.labels[ChapterType.LEVEL_2_TITLE]
+                ]
                 page_number_count = counts[
                     self.labels[ChapterType.PAGE_NUMBER]
                 ]
@@ -260,16 +264,16 @@ class ChapterPageAnalysisEngineYOLOALTO:
             is_toc = toc_candidate and in_toc_search_area
             logger.debug(
                 "TOC page candidate check: page=%r, position=%d, "
-                "in_search_area=%s, primary_titles=%s, "
-                "secondary_titles=%s, page_numbers=%s, "
+                "in_search_area=%s, level_1_titles=%s, "
+                "level_2_titles=%s, page_numbers=%s, "
                 "visual_candidate=%s, "
                 "candidate_windows=%s, "
                 "accepted_candidate=%s",
                 page.page_key,
                 page.position,
                 in_toc_search_area,
-                primary_count,
-                secondary_count,
+                level_1_title_count,
+                level_2_title_count,
                 page_number_count,
                 toc_candidate,
                 None
@@ -365,8 +369,8 @@ class ChapterPageAnalysisEngineYOLOALTO:
         page: ChapterPageInput,
     ) -> _TocCandidateWindows | None:
         title_labels = {
-            self.labels[ChapterType.CHAPTER],
-            self.labels[ChapterType.SUBCHAPTER],
+            self.labels[ChapterType.LEVEL_1_TITLE],
+            self.labels[ChapterType.LEVEL_2_TITLE],
         }
         page_number_label = self.labels[ChapterType.PAGE_NUMBER]
         relevant_regions = [
@@ -555,7 +559,7 @@ class ChapterPageAnalysisEngineYOLOALTO:
             DestinationChapterEvidence(title=title)
             for region in page.regions
             if region_label(region)
-            == self.labels[ChapterType.DESTINATION_CHAPTER]
+            == self.labels[ChapterType.DESTINATION_TITLE]
             if (title := region_to_evidence(region, page.page_key)) is not None
         ]
 

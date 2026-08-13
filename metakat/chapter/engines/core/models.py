@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from metakat.common.models import DetectionEvidence, PageDimensions
@@ -99,6 +99,7 @@ class ChapterPageNumberEvidence(DetectionEvidence):
 class ChapterBase:
     toc_page_key: str
     title: DetectionEvidence | None
+    subtitle: DetectionEvidence | None = field(default=None, kw_only=True)
     part_number: DetectionEvidence | None = None
     page_number: ChapterPageNumberEvidence | None = None
     children: tuple[ChapterBase, ...] = ()

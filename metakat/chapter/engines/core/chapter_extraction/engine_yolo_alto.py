@@ -29,6 +29,9 @@ from metakat.schemas.base_objects import ChapterType
 
 logger = logging.getLogger(__name__)
 
+_SubtitleGeometryScore = tuple[float, float]
+_SubtitleForUnitScore = tuple[float, float, float, float, float]
+
 
 @dataclass(frozen=True)
 class _ChapterCandidate:
@@ -48,6 +51,7 @@ class _Unit:
     toc_page_key: str
     level: int | None = None
     title: _ChapterCandidate | None = None
+    subtitle: _ChapterCandidate | None = None
     part_number: _ChapterCandidate | None = None
     page_number: _ChapterCandidate | None = None
 
@@ -77,6 +81,7 @@ class _MutableEntry:
     toc_page_key: str
     title: DetectionEvidence | None
     level: int
+    subtitle: DetectionEvidence | None = None
     part_number: DetectionEvidence | None = None
     page_number: ChapterPageNumberEvidence | None = None
     children: list[_MutableEntry] = field(default_factory=list)
@@ -86,8 +91,9 @@ class ChapterExtractionEngineYOLOALTO:
     """Extract one cross-page TOC hierarchy from YOLO-aligned ALTO text."""
 
     DEFAULT_LABELS: dict[ChapterType, str] = {
-        ChapterType.CHAPTER: "kapitola",
-        ChapterType.SUBCHAPTER: "jiny nadpis",
+        ChapterType.LEVEL_1_TITLE: "kapitola",
+        ChapterType.LEVEL_2_TITLE: "jiny nadpis",
+        ChapterType.SUBTITLE: "podnadpis",
         ChapterType.PAGE_NUMBER: "cislo strany",
         ChapterType.PART_NUMBER: "jine cislo",
     }
@@ -164,6 +170,24 @@ class ChapterExtractionEngineYOLOALTO:
                 0.03,
             )
         )
+        self.subtitle_max_vertical_gap_height_multiplier = (
+            self._positive_number_config(
+                "subtitle_max_vertical_gap_height_multiplier",
+                1.5,
+            )
+        )
+        self.subtitle_max_vertical_overlap_height_fraction = (
+            self._fraction_config(
+                "subtitle_max_vertical_overlap_height_fraction",
+                0.25,
+            )
+        )
+        self.subtitle_min_horizontal_overlap_fraction = (
+            self._fraction_config(
+                "subtitle_min_horizontal_overlap_fraction",
+                0.25,
+            )
+        )
         self.alignment_engine = alignment_engine or EngineYOLOALTO(
             self.engine_dir
         )
@@ -232,16 +256,18 @@ class ChapterExtractionEngineYOLOALTO:
                 toc_page_key=unit.toc_page_key,
                 title=self._to_detection_evidence(unit.title),
                 level=level,
+                subtitle=self._to_detection_evidence(unit.subtitle),
                 part_number=self._to_detection_evidence(unit.part_number),
                 page_number=page_number,
             )
             logger.debug(
                 "Extracted TOC entry %d: page=%r, level=%s, title=%r, "
-                "part_number=%r, page_number=%r",
+                "subtitle=%r, part_number=%r, page_number=%r",
                 unit_index,
                 unit.toc_page_key,
                 unit.level,
                 None if unit.title is None else unit.title.text,
+                None if unit.subtitle is None else unit.subtitle.text,
                 None if unit.part_number is None else unit.part_number.text,
                 None if page_number is None else page_number.text,
             )
@@ -340,8 +366,8 @@ class ChapterExtractionEngineYOLOALTO:
         )
         titles = self._candidates_of_type(
             candidates,
-            ChapterType.CHAPTER,
-            ChapterType.SUBCHAPTER,
+            ChapterType.LEVEL_1_TITLE,
+            ChapterType.LEVEL_2_TITLE,
         )
         page_numbers = self._candidates_of_type(
             candidates,
@@ -386,7 +412,8 @@ class ChapterExtractionEngineYOLOALTO:
 
         logger.debug(
             "Constructed TOC units: page=%r, ordering=%s, titles=%d, "
-            "part_numbers=%d, page_numbers=%d, entries=%d, "
+            "subtitles=%d, part_numbers=%d, page_numbers=%d, entries=%d, "
+            "assigned_subtitles=%d, "
             "assigned_part_numbers=%d, assigned_page_numbers=%d, "
             "titleless_page_numbers=%d",
             page.page_key,
@@ -395,11 +422,18 @@ class ChapterExtractionEngineYOLOALTO:
             len(
                 self._candidates_of_type(
                     candidates,
+                    ChapterType.SUBTITLE,
+                )
+            ),
+            len(
+                self._candidates_of_type(
+                    candidates,
                     ChapterType.PART_NUMBER,
                 )
             ),
             len(page_numbers),
             len(units),
+            sum(unit.subtitle is not None for unit in units),
             sum(unit.part_number is not None for unit in units),
             sum(
                 unit.title is not None and unit.page_number is not None
@@ -426,8 +460,9 @@ class ChapterExtractionEngineYOLOALTO:
                 (
                     candidate_type
                     for candidate_type in (
-                        ChapterType.CHAPTER,
-                        ChapterType.SUBCHAPTER,
+                        ChapterType.LEVEL_1_TITLE,
+                        ChapterType.LEVEL_2_TITLE,
+                        ChapterType.SUBTITLE,
                         ChapterType.PART_NUMBER,
                         ChapterType.PAGE_NUMBER,
                     )
@@ -499,10 +534,22 @@ class ChapterExtractionEngineYOLOALTO:
         self,
         candidates: Sequence[_ChapterCandidate],
     ) -> tuple[_Unit, ...]:
+        subtitles = self._candidates_of_type(
+            candidates,
+            ChapterType.SUBTITLE,
+        )
+        units = self._construct_basic_units(candidates)
+        self._assign_subtitles(units, subtitles)
+        return tuple(units)
+
+    def _construct_basic_units(
+        self,
+        candidates: Sequence[_ChapterCandidate],
+    ) -> list[_Unit]:
         titles = self._candidates_of_type(
             candidates,
-            ChapterType.CHAPTER,
-            ChapterType.SUBCHAPTER,
+            ChapterType.LEVEL_1_TITLE,
+            ChapterType.LEVEL_2_TITLE,
         )
         available_part_numbers = list(
             self._candidates_of_type(
@@ -549,13 +596,113 @@ class ChapterExtractionEngineYOLOALTO:
             for candidate in available_page_numbers
         )
         units.sort(key=self._unit_vertical_key)
-        return tuple(units)
+        return units
+
+    def _assign_subtitles(
+        self,
+        units: Sequence[_Unit],
+        subtitles: Sequence[_ChapterCandidate],
+    ) -> None:
+        available_subtitles = sorted(
+            subtitles,
+            key=self._candidate_vertical_key,
+        )
+        for unit in units:
+            if unit.title is None:
+                continue
+            eligible: list[
+                tuple[
+                    _SubtitleForUnitScore,
+                    int,
+                    _ChapterCandidate,
+                ]
+            ] = []
+            for subtitle_index, subtitle in enumerate(available_subtitles):
+                geometry_score = self._subtitle_geometry_score(
+                    unit.title,
+                    subtitle,
+                )
+                if geometry_score is None:
+                    continue
+                vertical_distance, horizontal_overlap_fraction = (
+                    geometry_score
+                )
+                eligible.append(
+                    (
+                        (
+                            vertical_distance,
+                            -(
+                                subtitle.confidence
+                                if subtitle.confidence is not None
+                                else -1.0
+                            ),
+                            -horizontal_overlap_fraction,
+                            -abs(
+                                subtitle.bbox.width
+                                * subtitle.bbox.height
+                            ),
+                            -abs(subtitle.bbox.width),
+                        ),
+                        subtitle_index,
+                        subtitle,
+                    )
+                )
+            if not eligible:
+                continue
+            _, subtitle_index, subtitle = min(
+                eligible,
+                key=lambda item: item[0],
+            )
+            unit.subtitle = subtitle
+            del available_subtitles[subtitle_index]
+
+    def _subtitle_geometry_score(
+        self,
+        title: _ChapterCandidate,
+        subtitle: _ChapterCandidate,
+    ) -> _SubtitleGeometryScore | None:
+        if subtitle.bbox.y < title.bbox.y:
+            return None
+
+        vertical_gap = subtitle.bbox.y - title.bbox.y_max
+        maximum_overlap = (
+            min(abs(title.bbox.height), abs(subtitle.bbox.height))
+            * self.subtitle_max_vertical_overlap_height_fraction
+        )
+        if vertical_gap < -maximum_overlap:
+            return None
+        maximum_gap = (
+            max(abs(title.bbox.height), abs(subtitle.bbox.height))
+            * self.subtitle_max_vertical_gap_height_multiplier
+        )
+        if vertical_gap > maximum_gap:
+            return None
+
+        overlap_width = max(
+            0.0,
+            min(title.bbox.x_max, subtitle.bbox.x_max)
+            - max(title.bbox.x, subtitle.bbox.x),
+        )
+        smaller_width = min(
+            abs(title.bbox.width),
+            abs(subtitle.bbox.width),
+        )
+        if smaller_width <= 0:
+            return None
+        horizontal_overlap_fraction = overlap_width / smaller_width
+        if (
+            horizontal_overlap_fraction
+            < self.subtitle_min_horizontal_overlap_fraction
+        ):
+            return None
+
+        return abs(vertical_gap), horizontal_overlap_fraction
 
     @staticmethod
     def _title_level(chapter_type: ChapterType) -> int:
-        if chapter_type is ChapterType.CHAPTER:
+        if chapter_type is ChapterType.LEVEL_1_TITLE:
             return 1
-        if chapter_type is ChapterType.SUBCHAPTER:
+        if chapter_type is ChapterType.LEVEL_2_TITLE:
             return 2
         raise ValueError(
             f"Cannot derive a title level from {chapter_type.value!r}"
@@ -646,8 +793,9 @@ class ChapterExtractionEngineYOLOALTO:
 
         for candidate in candidates:
             if candidate.chapter_type in {
-                ChapterType.CHAPTER,
-                ChapterType.SUBCHAPTER,
+                ChapterType.LEVEL_1_TITLE,
+                ChapterType.LEVEL_2_TITLE,
+                ChapterType.SUBTITLE,
             }:
                 column_index = self._title_column_index(candidate, layout)
             elif candidate.chapter_type is ChapterType.PART_NUMBER:
@@ -706,8 +854,14 @@ class ChapterExtractionEngineYOLOALTO:
                     "titles": len(
                         self._candidates_of_type(
                             column,
-                            ChapterType.CHAPTER,
-                            ChapterType.SUBCHAPTER,
+                            ChapterType.LEVEL_1_TITLE,
+                            ChapterType.LEVEL_2_TITLE,
+                        )
+                    ),
+                    "subtitles": len(
+                        self._candidates_of_type(
+                            column,
+                            ChapterType.SUBTITLE,
                         )
                     ),
                     "part_numbers": len(
@@ -787,8 +941,8 @@ class ChapterExtractionEngineYOLOALTO:
                     if candidate.confidence is not None
                     else -1.0
                 ),
-                candidate.bbox.y,
-                -candidate.bbox.width,
+                -abs(candidate.bbox.width * candidate.bbox.height),
+                -abs(candidate.bbox.width),
             ),
         )
         available.remove(selected)
@@ -1146,6 +1300,7 @@ class ChapterExtractionEngineYOLOALTO:
         return ChapterBase(
             toc_page_key=entry.toc_page_key,
             title=entry.title,
+            subtitle=entry.subtitle,
             part_number=entry.part_number,
             page_number=entry.page_number,
             children=tuple(cls._freeze(child) for child in entry.children),
