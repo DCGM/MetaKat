@@ -15,7 +15,7 @@ class DestinationChapterEvidence:
 
 
 @dataclass(frozen=True)
-class TocPageAnalysisResult:
+class ChapterPageAnalysisResult:
     toc_pages: tuple[ChapterPageInput, ...]
     destination_chapters: tuple[
         DestinationChapterEvidence, ...
@@ -25,9 +25,9 @@ class TocPageAnalysisResult:
     ] | None = None
 
 
-class TocPageAnalysisEngine(Protocol):
+class ChapterPageAnalysisEngine(Protocol):
     def process(
         self,
         pages: Sequence[ChapterPageInput],
-    ) -> TocPageAnalysisResult:
+    ) -> ChapterPageAnalysisResult:
         ...

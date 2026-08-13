@@ -5,9 +5,9 @@ import unicodedata
 from abc import ABC, abstractmethod
 
 from metakat.chapter.engines.core.models import (
-    NormalizedTocPageNumberItem,
-    TocPageNumberEvidence,
-    TocPageNumberKind,
+    NormalizedChapterPageNumberItem,
+    ChapterPageNumberEvidence,
+    ChapterPageNumberKind,
 )
 from metakat.common.models import DetectionEvidence
 from metakat.page_number.engines.core.models import (
@@ -15,25 +15,25 @@ from metakat.page_number.engines.core.models import (
 )
 
 
-TocPageNumberParseResult = tuple[
-    TocPageNumberKind,
-    tuple[NormalizedTocPageNumberItem, ...],
+ChapterPageNumberParseResult = tuple[
+    ChapterPageNumberKind,
+    tuple[NormalizedChapterPageNumberItem, ...],
 ]
 
 
-class TocPageNumberParser(ABC):
+class ChapterPageNumberParser(ABC):
     @classmethod
     def create(
         cls,
         evidence: DetectionEvidence,
-    ) -> TocPageNumberEvidence:
+    ) -> ChapterPageNumberEvidence:
         parsed = cls._parse_text(evidence.text)
         if parsed is None:
             kind = None
             normalized_items = ()
         else:
             kind, normalized_items = parsed
-        return TocPageNumberEvidence(
+        return ChapterPageNumberEvidence(
             text=evidence.text,
             confidence=evidence.confidence,
             bbox=evidence.bbox,
@@ -47,11 +47,11 @@ class TocPageNumberParser(ABC):
     def _parse_text(
         cls,
         text: str,
-    ) -> TocPageNumberParseResult | None:
+    ) -> ChapterPageNumberParseResult | None:
         ...
 
 
-class ArabicRomanTocPageNumberParser(TocPageNumberParser):
+class ArabicRomanChapterPageNumberParser(ChapterPageNumberParser):
     """Parse Arabic and Roman TOC page references, ranges, and lists."""
 
     _TOKEN = re.compile(
@@ -79,13 +79,13 @@ class ArabicRomanTocPageNumberParser(TocPageNumberParser):
     def _parse_text(
         cls,
         text: str,
-    ) -> TocPageNumberParseResult | None:
+    ) -> ChapterPageNumberParseResult | None:
         if not isinstance(text, str):
             return None
 
         normalized = unicodedata.normalize("NFKC", text).strip()
         candidates: list[
-            tuple[re.Match, NormalizedTocPageNumberItem]
+            tuple[re.Match, NormalizedChapterPageNumberItem]
         ] = []
         for match in cls._TOKEN.finditer(normalized):
             parsed = cls._parse_token(match.group())
@@ -112,7 +112,7 @@ class ArabicRomanTocPageNumberParser(TocPageNumberParser):
             return None
 
         if len(candidates) == 1:
-            return TocPageNumberKind.SINGLE, (first_item,)
+            return ChapterPageNumberKind.SINGLE, (first_item,)
 
         separators = tuple(
             normalized[first_match.end():second_match.start()]
@@ -126,11 +126,11 @@ class ArabicRomanTocPageNumberParser(TocPageNumberParser):
             if items[1][2] != items[0][2]:
                 return None
             if items[1][1] < items[0][1]:
-                return TocPageNumberKind.SINGLE, (items[0],)
-            return TocPageNumberKind.RANGE, items
+                return ChapterPageNumberKind.SINGLE, (items[0],)
+            return ChapterPageNumberKind.RANGE, items
 
         if all(cls._LIST_SEPARATOR.fullmatch(value) for value in separators):
-            return TocPageNumberKind.LIST, items
+            return ChapterPageNumberKind.LIST, items
 
         return None
 

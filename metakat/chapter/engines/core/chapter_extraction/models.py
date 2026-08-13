@@ -5,7 +5,7 @@ from typing import Protocol, Sequence
 from metakat.chapter.engines.core.models import ChapterPageInput, TocBase
 
 
-class TocExtractionEngine(Protocol):
+class ChapterExtractionEngine(Protocol):
     def process(
         self,
         toc_pages: Sequence[ChapterPageInput],

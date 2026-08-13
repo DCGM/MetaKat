@@ -9,13 +9,13 @@ from metakat.chapter.engines.core.models import (
     ChapterPageInput,
     ChapterBase,
     ChapterResult,
-    NormalizedTocPageNumberItem,
+    NormalizedChapterPageNumberItem,
     TocBase,
-    TocPageNumberEvidence,
-    TocPageNumberKind,
+    ChapterPageNumberEvidence,
+    ChapterPageNumberKind,
     TocResult,
 )
-from metakat.chapter.engines.core.toc_page_analysis.models import (
+from metakat.chapter.engines.core.chapter_page_analysis.models import (
     DestinationChapterEvidence,
 )
 from metakat.chapter.engines.core.pipeline_utils import (
@@ -41,7 +41,7 @@ class _AnchorOption(TypedDict):
     title_supported: bool
     title_score: float
     confidence: float
-    toc_number: TocPageNumberEvidence
+    toc_number: ChapterPageNumberEvidence
 
 
 class _TitleAssignment(TypedDict):
@@ -50,7 +50,7 @@ class _TitleAssignment(TypedDict):
     title_score: float
 
 
-class TocAlignmentEngineFuzzy:
+class ChapterAlignmentEngineFuzzy:
     """Resolve a flat TOC using page-number anchors and fuzzy titles."""
 
     def __init__(self, engine_dir):
@@ -116,7 +116,7 @@ class TocAlignmentEngineFuzzy:
             destination_page_numbers
         )
         logger.info(
-            "TOC alignment destination evidence capabilities: titles=%s, "
+            "Chapter alignment destination evidence capabilities: titles=%s, "
             "page_numbers=%s",
             title_capability,
             page_number_capability,
@@ -147,7 +147,7 @@ class TocAlignmentEngineFuzzy:
             ].append(index)
 
         logger.info(
-            "Starting TOC alignment: pages=%d, destination_pages=%d, "
+            "Starting Chapter alignment: pages=%d, destination_pages=%d, "
             "toc_pages=%d, toc_entries=%d, "
             "destination_titles=%d, destination_page_numbers=%d, "
             "parsed_toc_numbers=%d, minimum_title_substring_similarity=%.3f, "
@@ -299,7 +299,7 @@ class TocAlignmentEngineFuzzy:
 
         chapters = tuple(rebuild(root) for root in reference_toc.chapters)
         logger.info(
-            "TOC alignment retained %d anchor(s), assigned destination "
+            "Chapter alignment retained %d anchor(s), assigned destination "
             "titles to %d titleless entry/entries, and returned %d root "
             "chapter(s); resolved_starts=%d, unresolved_starts=%d",
             len(anchors),
@@ -373,7 +373,7 @@ class TocAlignmentEngineFuzzy:
     def _build_anchor_options(
         self,
         entries: Sequence[ChapterBase],
-        toc_number_by_entry: dict[int, TocPageNumberEvidence | None],
+        toc_number_by_entry: dict[int, ChapterPageNumberEvidence | None],
         physical_index: dict[NumberKey, list[ChapterPageInput]],
         physical_by_page: dict[str, PhysicalPageNumberEvidence],
         destinations: Sequence[DestinationChapterEvidence],
@@ -381,7 +381,7 @@ class TocAlignmentEngineFuzzy:
     ) -> list[_AnchorOption]:
         entries_by_number: dict[
             NumberKey,
-            list[tuple[int, ChapterBase, TocPageNumberEvidence]],
+            list[tuple[int, ChapterBase, ChapterPageNumberEvidence]],
         ] = defaultdict(list)
         for entry_index, entry in enumerate(entries):
             toc_number = toc_number_by_entry[entry_index]
@@ -597,7 +597,7 @@ class TocAlignmentEngineFuzzy:
         title_score: float,
         entry: ChapterBase,
         destinations: Sequence[DestinationChapterEvidence],
-        toc_number: TocPageNumberEvidence,
+        toc_number: ChapterPageNumberEvidence,
         physical_number: PhysicalPageNumberEvidence,
     ) -> _AnchorOption:
         confidence = toc_number.confidence + physical_number.confidence
@@ -790,7 +790,7 @@ class TocAlignmentEngineFuzzy:
         self,
         entry_index: int,
         entry: ChapterBase,
-        toc_number: TocPageNumberEvidence | None,
+        toc_number: ChapterPageNumberEvidence | None,
         anchors: dict[int, _AnchorOption],
         destinations: Sequence[DestinationChapterEvidence],
         used_destinations: set[int],
@@ -1019,7 +1019,7 @@ class TocAlignmentEngineFuzzy:
 
     @staticmethod
     def _expected_position(
-        toc_number: TocPageNumberEvidence,
+        toc_number: ChapterPageNumberEvidence,
         preceding: _AnchorOption | None,
         following: _AnchorOption | None,
     ) -> int | None:
@@ -1072,7 +1072,7 @@ class TocAlignmentEngineFuzzy:
 
     def _resolve_range_end(
         self,
-        toc_number: TocPageNumberEvidence | None,
+        toc_number: ChapterPageNumberEvidence | None,
         page_start_key: str | None,
         entry_index: int,
         anchors: dict[int, _AnchorOption],
@@ -1226,14 +1226,14 @@ def _entry_page_number(entry: ChapterBase) -> str | None:
 
 
 def _toc_start_item(
-    number: TocPageNumberEvidence | None,
-) -> NormalizedTocPageNumberItem | None:
+    number: ChapterPageNumberEvidence | None,
+) -> NormalizedChapterPageNumberItem | None:
     if number is None or not number.normalized_items:
         return None
     return number.normalized_items[0]
 
 
-def _toc_start_value(number: TocPageNumberEvidence) -> int:
+def _toc_start_value(number: ChapterPageNumberEvidence) -> int:
     item = _toc_start_item(number)
     if item is None:
         raise ValueError("TOC page number has no normalized start item")
@@ -1241,7 +1241,7 @@ def _toc_start_value(number: TocPageNumberEvidence) -> int:
 
 
 def _toc_start_system(
-    number: TocPageNumberEvidence,
+    number: ChapterPageNumberEvidence,
 ) -> PageNumberNumeralSystem:
     item = _toc_start_item(number)
     if item is None:
@@ -1249,10 +1249,10 @@ def _toc_start_system(
     return item[2]
 
 
-def _toc_end_value(number: TocPageNumberEvidence | None) -> int | None:
+def _toc_end_value(number: ChapterPageNumberEvidence | None) -> int | None:
     if (
         number is None
-        or number.kind is not TocPageNumberKind.RANGE
+        or number.kind is not ChapterPageNumberKind.RANGE
         or len(number.normalized_items) != 2
     ):
         return None

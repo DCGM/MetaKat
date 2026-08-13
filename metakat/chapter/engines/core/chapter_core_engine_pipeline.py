@@ -14,18 +14,18 @@ from metakat.chapter.engines.core.models import (
 )
 from metakat.chapter.engines.core.pipeline_utils import load_engine_config
 from metakat.common.models import PageDimensions
-from metakat.chapter.engines.core.toc_alignment import (
-    TocAlignmentEngine,
-    TocAlignmentEngineFuzzy,
+from metakat.chapter.engines.core.chapter_alignment import (
+    ChapterAlignmentEngine,
+    ChapterAlignmentEngineFuzzy,
 )
-from metakat.chapter.engines.core.toc_extraction import (
-    TocExtractionEngine,
-    TocExtractionEngineYOLOALTO,
+from metakat.chapter.engines.core.chapter_extraction import (
+    ChapterExtractionEngine,
+    ChapterExtractionEngineYOLOALTO,
 )
-from metakat.chapter.engines.core.toc_page_analysis import (
+from metakat.chapter.engines.core.chapter_page_analysis import (
     DestinationChapterEvidence,
-    TocPageAnalysisEngine,
-    TocPageAnalysisEngineYOLOALTO,
+    ChapterPageAnalysisEngine,
+    ChapterPageAnalysisEngineYOLOALTO,
 )
 from metakat.page_number.engines.core.models import (
     PhysicalPageNumberEvidence,
@@ -41,23 +41,32 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
         self,
         core_engine_dir,
         *,
-        page_analysis_engine: TocPageAnalysisEngine | None = None,
-        toc_extraction_engine: TocExtractionEngine | None = None,
-        toc_alignment_engine: TocAlignmentEngine | None = None,
+        chapter_page_analysis_engine: ChapterPageAnalysisEngine | None = None,
+        chapter_extraction_engine: ChapterExtractionEngine | None = None,
+        chapter_alignment_engine: ChapterAlignmentEngine | None = None,
     ):
         super().__init__(core_engine_dir)
         stage_paths = self.config.get("stages", {})
-        self.page_analysis_engine = page_analysis_engine or self._load_stage(
-            "toc_page_analysis",
-            stage_paths,
+        self.chapter_page_analysis_engine = (
+            chapter_page_analysis_engine
+            or self._load_stage(
+                "chapter_page_analysis",
+                stage_paths,
+            )
         )
-        self.toc_extraction_engine = toc_extraction_engine or self._load_stage(
-            "toc_extraction",
-            stage_paths,
+        self.chapter_extraction_engine = (
+            chapter_extraction_engine
+            or self._load_stage(
+                "chapter_extraction",
+                stage_paths,
+            )
         )
-        self.toc_alignment_engine = toc_alignment_engine or self._load_stage(
-            "toc_alignment",
-            stage_paths,
+        self.chapter_alignment_engine = (
+            chapter_alignment_engine
+            or self._load_stage(
+                "chapter_alignment",
+                stage_paths,
+            )
         )
 
     def process(
@@ -93,10 +102,10 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
         )
 
         stage_started = time.perf_counter()
-        logger.info("Starting TOC page analysis stage")
-        analysis = self.page_analysis_engine.process(pages)
+        logger.info("Starting chapter page analysis stage")
+        analysis = self.chapter_page_analysis_engine.process(pages)
         logger.info(
-            "Completed TOC page analysis stage in %.3f s: "
+            "Completed chapter page analysis stage in %.3f s: "
             "toc_pages=%d, destination_titles=%s, "
             "destination_page_numbers=%s",
             time.perf_counter() - stage_started,
@@ -124,21 +133,21 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
         if not analysis.toc_pages:
             logger.warning(
                 "No TOC pages were selected during page analysis; "
-                "stopping chapter pipeline before TOC extraction and "
+                "stopping chapter pipeline before chapter extraction and "
                 "alignment"
             )
             return TocResult(chapters=())
 
         stage_started = time.perf_counter()
         logger.info(
-            "Starting TOC extraction stage for pages=%s",
+            "Starting chapter extraction stage for pages=%s",
             [page.page_key for page in analysis.toc_pages],
         )
-        reference_toc = self.toc_extraction_engine.process(
+        reference_toc = self.chapter_extraction_engine.process(
             analysis.toc_pages
         )
         logger.info(
-            "Completed TOC extraction stage in %.3f s: roots=%d",
+            "Completed chapter extraction stage in %.3f s: roots=%d",
             time.perf_counter() - stage_started,
             len(reference_toc.chapters),
         )
@@ -156,7 +165,7 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
             toc_page_keys,
         )
         logger.info(
-            "Destination page-number evidence for TOC alignment: "
+            "Destination page-number evidence for chapter alignment: "
             "source=%s, status=%s",
             "internally detected"
             if external_destination_page_numbers is None
@@ -166,7 +175,7 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
 
         logger.info(
             "Passing all %d document page(s) and %d selected TOC page(s) "
-            "to TOC alignment; destination_titles=%s, "
+            "to chapter alignment; destination_titles=%s, "
             "destination_page_numbers=%s",
             len(pages),
             len(toc_page_keys),
@@ -175,8 +184,8 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
         )
 
         stage_started = time.perf_counter()
-        logger.info("Starting TOC alignment stage")
-        aligned_toc = self.toc_alignment_engine.process(
+        logger.info("Starting chapter alignment stage")
+        aligned_toc = self.chapter_alignment_engine.process(
             pages=pages,
             toc_pages=analysis.toc_pages,
             reference_toc=reference_toc,
@@ -184,7 +193,7 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
             destination_page_numbers=destination_page_numbers,
         )
         logger.info(
-            "Completed TOC alignment stage in %.3f s: root_chapters=%d, "
+            "Completed chapter alignment stage in %.3f s: root_chapters=%d, "
             "total_chapters=%d",
             time.perf_counter() - stage_started,
             len(aligned_toc.chapters),
@@ -241,18 +250,18 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
         _, stage_config = load_engine_config(stage_dir)
         implementation = stage_config.get("name")
         registries = {
-            "toc_page_analysis": {
-                "toc_page_analysis_engine_yolo_alto": (
-                    TocPageAnalysisEngineYOLOALTO
+            "chapter_page_analysis": {
+                "chapter_page_analysis_engine_yolo_alto": (
+                    ChapterPageAnalysisEngineYOLOALTO
                 ),
             },
-            "toc_extraction": {
-                "toc_extraction_engine_yolo_alto": (
-                    TocExtractionEngineYOLOALTO
+            "chapter_extraction": {
+                "chapter_extraction_engine_yolo_alto": (
+                    ChapterExtractionEngineYOLOALTO
                 ),
             },
-            "toc_alignment": {
-                "toc_alignment_engine_fuzzy": TocAlignmentEngineFuzzy,
+            "chapter_alignment": {
+                "chapter_alignment_engine_fuzzy": ChapterAlignmentEngineFuzzy,
             },
         }
         engine_class = registries[stage_name].get(implementation)
@@ -393,12 +402,12 @@ def _validate_toc_pages(
     for page in toc_pages:
         if page.page_key not in known_page_keys:
             raise ValueError(
-                "TOC page analysis returned an unknown page_key: "
+                "Chapter page analysis returned an unknown page_key: "
                 f"{page.page_key!r}"
             )
         if page.page_key in seen_page_keys:
             raise ValueError(
-                "TOC page analysis returned a duplicate page_key: "
+                "Chapter page analysis returned a duplicate page_key: "
                 f"{page.page_key!r}"
             )
         seen_page_keys.add(page.page_key)

@@ -13,7 +13,7 @@ from metakat.chapter.engines.core.models import (
     ChapterPageInput,
     ChapterBase,
     TocBase,
-    TocPageNumberEvidence,
+    ChapterPageNumberEvidence,
 )
 from metakat.common.models import BoundingBox, DetectionEvidence
 from metakat.chapter.engines.core.pipeline_utils import (
@@ -21,8 +21,8 @@ from metakat.chapter.engines.core.pipeline_utils import (
     load_engine_config,
     region_label,
 )
-from metakat.chapter.engines.core.toc_extraction.toc_page_number_parser import (
-    ArabicRomanTocPageNumberParser,
+from metakat.chapter.engines.core.chapter_extraction.chapter_page_number_parser import (
+    ArabicRomanChapterPageNumberParser,
 )
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
 from metakat.schemas.base_objects import ChapterType
@@ -78,11 +78,11 @@ class _MutableEntry:
     title: DetectionEvidence | None
     level: int
     part_number: DetectionEvidence | None = None
-    page_number: TocPageNumberEvidence | None = None
+    page_number: ChapterPageNumberEvidence | None = None
     children: list[_MutableEntry] = field(default_factory=list)
 
 
-class TocExtractionEngineYOLOALTO:
+class ChapterExtractionEngineYOLOALTO:
     """Extract one cross-page TOC hierarchy from YOLO-aligned ALTO text."""
 
     DEFAULT_LABELS: dict[ChapterType, str] = {
@@ -176,7 +176,7 @@ class TocExtractionEngineYOLOALTO:
             sorted(toc_pages, key=lambda page: page.position)
         )
         if not ordered_pages:
-            logger.info("TOC extraction received no selected TOC pages")
+            logger.info("Chapter extraction received no selected TOC pages")
             return TocBase(())
 
         logger.info(
@@ -197,7 +197,7 @@ class TocExtractionEngineYOLOALTO:
         ]
         if missing:
             raise ValueError(
-                "TOC extraction alignment omitted page(s): "
+                "Chapter extraction alignment omitted page(s): "
                 + ", ".join(missing)
             )
 
@@ -210,7 +210,7 @@ class TocExtractionEngineYOLOALTO:
             )
             units.extend(page_units)
             logger.info(
-                "TOC extraction page=%r: aligned_regions=%d, entries=%d, "
+                "Chapter extraction page=%r: aligned_regions=%d, entries=%d, "
                 "titled_entries=%d, titleless_entries=%d",
                 source_page.page_key,
                 len(alignment.regions),
@@ -264,7 +264,7 @@ class TocExtractionEngineYOLOALTO:
 
         result = TocBase(tuple(self._freeze(root) for root in roots))
         logger.info(
-            "TOC extraction produced %d total entry/entries, %d root(s), "
+            "Chapter extraction produced %d total entry/entries, %d root(s), "
             "%d titleless entry/entries, maximum_level=%d",
             len(units),
             len(result.chapters),
@@ -278,13 +278,13 @@ class TocExtractionEngineYOLOALTO:
         cls,
         unit: _Unit,
         unit_index: int,
-    ) -> TocPageNumberEvidence | None:
+    ) -> ChapterPageNumberEvidence | None:
         candidate = unit.page_number
         if candidate is None:
             return None
         evidence = cls._to_detection_evidence(candidate)
         assert evidence is not None
-        page_number = ArabicRomanTocPageNumberParser.create(evidence)
+        page_number = ArabicRomanChapterPageNumberParser.create(evidence)
         if not page_number.normalized_items:
             logger.warning(
                 "TOC page number was rejected by the parser; its original "

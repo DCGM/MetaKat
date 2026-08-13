@@ -12,9 +12,9 @@ from text_geometry_aligner import ALTOReader, AlignmentPage
 
 from metakat.chapter.engines.core.models import ChapterPageInput
 from metakat.common.models import DetectionEvidence
-from metakat.chapter.engines.core.toc_page_analysis.models import (
+from metakat.chapter.engines.core.chapter_page_analysis.models import (
     DestinationChapterEvidence,
-    TocPageAnalysisResult,
+    ChapterPageAnalysisResult,
 )
 from metakat.chapter.engines.core.pipeline_utils import (
     load_chapter_label_mapping,
@@ -57,7 +57,7 @@ class _TocCandidateWindows:
         return self.title_count + self.page_number_count
 
 
-class TocPageAnalysisEngineYOLOALTO:
+class ChapterPageAnalysisEngineYOLOALTO:
     """Select TOC pages and collect title evidence from body pages."""
 
     DEFAULT_LABELS: dict[ChapterType, str] = {
@@ -189,11 +189,11 @@ class TocPageAnalysisEngineYOLOALTO:
     def process(
         self,
         pages: Sequence[ChapterPageInput],
-    ) -> TocPageAnalysisResult:
+    ) -> ChapterPageAnalysisResult:
         ordered_pages = tuple(sorted(pages, key=lambda page: page.position))
         if not ordered_pages:
-            logger.info("TOC page analysis received no pages")
-            return TocPageAnalysisResult((), (), ())
+            logger.info("Chapter page analysis received no pages")
+            return ChapterPageAnalysisResult((), (), ())
 
         logger.info(
             "Analyzing %d page(s) for TOC candidates: search_fraction=%.3f, "
@@ -353,7 +353,7 @@ class TocPageAnalysisEngineYOLOALTO:
             len(destination_chapters),
             len(destination_page_numbers),
         )
-        return TocPageAnalysisResult(
+        return ChapterPageAnalysisResult(
             toc_pages=toc_pages,
             destination_chapters=destination_chapters,
             destination_page_numbers=destination_page_numbers,

@@ -12,13 +12,13 @@ from metakat.page_number.engines.core.models import (
 )
 
 
-class TocPageNumberKind(str, enum.Enum):
+class ChapterPageNumberKind(str, enum.Enum):
     SINGLE = "single"
     RANGE = "range"
     LIST = "list"
 
 
-NormalizedTocPageNumberItem = tuple[
+NormalizedChapterPageNumberItem = tuple[
     str,
     int,
     PageNumberNumeralSystem,
@@ -36,9 +36,9 @@ class ChapterPageInput:
 
 
 @dataclass(frozen=True)
-class TocPageNumberEvidence(DetectionEvidence):
-    kind: TocPageNumberKind | None
-    normalized_items: tuple[NormalizedTocPageNumberItem, ...]
+class ChapterPageNumberEvidence(DetectionEvidence):
+    kind: ChapterPageNumberKind | None
+    normalized_items: tuple[NormalizedChapterPageNumberItem, ...]
 
     def normalized_text(
         self,
@@ -48,9 +48,9 @@ class TocPageNumberEvidence(DetectionEvidence):
         if self.kind is None or not self.normalized_items:
             return None
         separator = {
-            TocPageNumberKind.SINGLE: "",
-            TocPageNumberKind.RANGE: "-",
-            TocPageNumberKind.LIST: ",",
+            ChapterPageNumberKind.SINGLE: "",
+            ChapterPageNumberKind.RANGE: "-",
+            ChapterPageNumberKind.LIST: ",",
         }[self.kind]
         return separator.join(
             apply_page_number_text_case(item_text, case)
@@ -75,7 +75,7 @@ class TocPageNumberEvidence(DetectionEvidence):
         case: PageNumberTextCase | None = None,
     ) -> str | None:
         if (
-            self.kind is not TocPageNumberKind.RANGE
+            self.kind is not ChapterPageNumberKind.RANGE
             or len(self.normalized_items) != 2
         ):
             return None
@@ -100,7 +100,7 @@ class ChapterBase:
     toc_page_key: str
     title: DetectionEvidence | None
     part_number: DetectionEvidence | None = None
-    page_number: TocPageNumberEvidence | None = None
+    page_number: ChapterPageNumberEvidence | None = None
     children: tuple[ChapterBase, ...] = ()
 
 

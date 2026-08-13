@@ -7,7 +7,7 @@ from metakat.chapter.engines.core.models import (
     TocBase,
     TocResult,
 )
-from metakat.chapter.engines.core.toc_page_analysis.models import (
+from metakat.chapter.engines.core.chapter_page_analysis.models import (
     DestinationChapterEvidence,
 )
 from metakat.page_number.engines.core.models import (
@@ -15,7 +15,7 @@ from metakat.page_number.engines.core.models import (
 )
 
 
-class TocAlignmentEngine(Protocol):
+class ChapterAlignmentEngine(Protocol):
     def process(
         self,
         *,
