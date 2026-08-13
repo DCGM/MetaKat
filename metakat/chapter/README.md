@@ -1636,18 +1636,27 @@ anchor.
 
 The engine assigns the page's destination-title detections to the repeated TOC
 entries in reading order. TOC entries use flattened TOC order; destination
-detections use ascending bounding-box `y`, then `x`. Only title pairs at or
-above `minimum_title_substring_similarity` are eligible. Each TOC entry and
-each destination detection can participate at most once, and assigned
-detection positions cannot move upward as TOC entry order advances.
+detections use ascending bounding-box `y`, then `x`, then original destination
+index. Only title pairs at or above `minimum_title_substring_similarity` are
+eligible. Each TOC entry and each destination detection can participate at
+most once, and assigned detection positions cannot move upward as TOC entry
+order advances.
 
-The assignment is ranked by:
+The following table is the complete tie-breaking order. A lower rank is
+considered only when every higher-ranked value ties:
 
-1. largest number of assigned anchors;
-2. greatest total title similarity;
-3. greatest total title-evidence confidence;
-4. when these are equal, compare the assignments in TOC-entry order and
-   prefer the assignment that resolves the first entry at which they differ.
+| Rank | Many-to-one title assignment |
+|---:|---|
+| 1 | Greatest number of assigned entries |
+| 2 | Greatest total title similarity |
+| 3 | Greatest total TOC-title and destination-title confidence |
+| 4 | Lexicographically earliest sequence of assigned destination detections in destination reading order |
+
+For rank 4, assignments are compared in TOC-entry order. Destination reading
+order is ascending bounding-box `y`, then `x`, then original destination
+index. At the first differing assigned destination, the assignment using the
+earlier detection wins. This final comparison is encoded explicitly and does
+not depend on the assignment-search traversal order.
 
 Only assigned entries become anchors.
 
@@ -1664,23 +1673,30 @@ The anchors retained by
 [one-to-one](#one-toc-entry-and-one-destination-page),
 [one-to-many](#one-toc-entry-and-multiple-destination-pages), and
 [many-to-one](#multiple-toc-entries-and-one-destination-page) matching are
-candidates for the document-wide chain. Dynamic programming compares the possible monotonic
-chains and selects the best-scoring one. Within a chain, entry indices must
-increase and physical positions must not decrease, so multiple chapters may
-share one page. The chain score is a lexicographic sum of:
+candidates for the document-wide chain. Dynamic programming compares the
+possible monotonic chains and selects the best-scoring one. Within a chain,
+entry indices must increase and physical positions must not decrease, so
+multiple chapters may share one page.
 
-1. number of anchors;
-2. total title similarity;
-3. total confidence of all evidence used by the anchors: every anchor
-   contributes its TOC page-number and physical-page-number confidence; an
-   anchor supported by title matching also contributes its TOC-title and
-   destination-title confidence.
+The following table is the complete tie-breaking order. A lower rank is
+considered only when every higher-ranked value ties:
 
-If multiple chains have identical values for all three criteria, the engine
-compares them in flattened TOC order and prefers the chain that contains the
-first entry at which they differ. Only anchors in the selected chain are
-subsequently used to define alignment bounds and offsets; all other anchor
-candidates are ignored.
+| Rank | Document-wide anchor chain |
+|---:|---|
+| 1 | Greatest number of anchors |
+| 2 | Greatest total title similarity |
+| 3 | Greatest total confidence of all evidence used by the anchors |
+| 4 | Chain containing the earliest differing entry in flattened TOC order |
+
+For rank 3, every anchor contributes its TOC page-number confidence and its
+physical-page-number confidence. An anchor supported by title matching also
+contributes its TOC-title and destination-title confidence.
+
+For rank 4, each chain is represented by its increasing sequence of flattened
+TOC entry indices. At the first differing index, the chain containing the
+earlier entry wins. Only anchors in the selected chain are subsequently used
+to define alignment bounds and offsets; all other anchor candidates are
+ignored.
 
 ##### Resolving entries between anchors
 
@@ -1715,28 +1731,34 @@ An ideal destination position is available when all applicable surrounding
 anchors produce one distinct offset. One compatible anchor is sufficient. In
 that case, candidates must lie within
 `maximum_destination_page_position_offset_from_expected` of the expected
-position and are ranked by:
-
-1. smallest distance from expected position;
-2. largest title-detection height;
-3. highest title similarity;
-4. highest confidence.
+position.
 
 When there is no compatible anchor, or compatible anchors disagree about the
 offset, no ideal position is used. Candidates only have to remain inside the
-available anchor bounds and are ranked by:
-
-1. largest title-detection height;
-2. highest title similarity;
-3. highest confidence;
-4. earliest physical position.
+available anchor bounds.
 
 For an entry whose TOC number could not be parsed or is missing, matching also
 checks any physical number detected on the candidate page. A same-system
 physical value may not precede the preceding anchor's TOC value or exceed the
 following anchor's TOC value. A candidate without a physical number, or with a
-different numeral system, passes this consistency check. Ranking then uses
-height, similarity, confidence, and earliest position in that order.
+different numeral system, passes this consistency check.
+
+After these mode-specific eligibility checks, the following table is the
+complete tie-breaking order. A lower rank is considered only when every
+higher-ranked value ties:
+
+| Rank | Non-anchor destination-title candidate |
+|---:|---|
+| 1 | Smallest absolute difference between candidate physical position and ideal physical position. This rank applies only when the TOC number is parsed and an ideal position is available. |
+| 2 | Greatest destination-title bbox height |
+| 3 | Highest title similarity |
+| 4 | Highest destination-title confidence |
+| 5 | Earliest physical page position (`ChapterPageInput.position`) |
+| 6 | First destination-title detection in input order |
+
+Physical position means zero-based `ChapterPageInput.position`. Input order in
+the final rank is the order of equally positioned detections in the supplied
+`destination_chapters` sequence; sorting by physical position is stable.
 
 A non-anchor entry is resolved only when an unused destination-title match
 passes every applicable bound, similarity, offset, and physical-number check.
@@ -1750,15 +1772,29 @@ page was resolved. The expected end position uses the start resolution's
 offset. The search cannot go before the start or after the next selected
 anchor.
 
-1. If one or more pages have the exact physical end number in the same numeral
-   system, the page closest to the expected position is selected.
-2. Otherwise, among non-TOC destination pages at or after the resolved start
-   page and no later than the following selected anchor, the page closest to
-   the expected position is used only when that distance is within
-   `maximum_destination_page_position_offset_from_expected`. When there is no
-   following anchor, only the start bound applies.
-3. Otherwise `page_end_key` remains `None` for the binder's
+1. If one or more bounded pages have the exact physical end number in the same
+   numeral system, they form the candidate pool.
+2. Otherwise, every non-TOC destination page inside the same bounds forms the
+   positional-fallback candidate pool. Its winner is accepted only when its
+   distance from the expected end position is within
+   `maximum_destination_page_position_offset_from_expected`.
+3. If the selected pool is empty or the fallback winner exceeds that maximum
+   distance, `page_end_key` remains `None` for the binder's
    [generic end-page inference](#generic-end-page-inference).
+
+When there is no following anchor, only the resolved start position provides
+a bound. The following table is the complete tie-breaking order within the
+selected candidate pool. A lower rank is considered only when every
+higher-ranked value ties:
+
+| Rank | Range-end candidate |
+|---:|---|
+| 1 | Smallest absolute difference between candidate physical page position and expected end position |
+| 2 | Earliest physical page position (`ChapterPageInput.position`) |
+
+This ranking applies identically to the exact-number and positional-fallback
+candidate pools. It does not depend on physical-page-number evidence input
+order.
 
 ##### Reconstructing the result tree
 

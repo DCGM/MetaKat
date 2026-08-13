@@ -686,7 +686,6 @@ class ChapterAlignmentEngineFuzzy:
                 if self._title_assignment_is_better(
                     selected,
                     best,
-                    entry_indices,
                     entries,
                     destinations,
                 ):
@@ -710,7 +709,6 @@ class ChapterAlignmentEngineFuzzy:
     def _title_assignment_is_better(
         candidate: Sequence[_TitleAssignment],
         incumbent: Sequence[_TitleAssignment],
-        entry_indices: Sequence[int],
         entries: Sequence[tuple[int, ChapterBase]],
         destinations: Sequence[DestinationChapterEvidence],
     ) -> bool:
@@ -718,10 +716,7 @@ class ChapterAlignmentEngineFuzzy:
 
         def score(
             assignment: Sequence[_TitleAssignment],
-        ) -> tuple[int, float, float, tuple[bool, ...]]:
-            assigned_entries = {
-                item["entry_index"] for item in assignment
-            }
+        ) -> tuple[int, float, float]:
             return (
                 len(assignment),
                 sum(item["title_score"] for item in assignment),
@@ -731,10 +726,31 @@ class ChapterAlignmentEngineFuzzy:
                     for item in assignment
                     if entry_by_index[item["entry_index"]].title is not None
                 ),
-                tuple(index in assigned_entries for index in entry_indices),
             )
 
-        return score(candidate) > score(incumbent)
+        candidate_score = score(candidate)
+        incumbent_score = score(incumbent)
+        if candidate_score != incumbent_score:
+            return candidate_score > incumbent_score
+
+        def destination_reading_order_signature(
+            assignment: Sequence[_TitleAssignment],
+        ) -> tuple[tuple[float, float, int], ...]:
+            return tuple(
+                (
+                    destinations[item["destination_index"]].title.bbox.y,
+                    destinations[item["destination_index"]].title.bbox.x,
+                    item["destination_index"],
+                )
+                for item in sorted(
+                    assignment,
+                    key=lambda item: item["entry_index"],
+                )
+            )
+
+        return destination_reading_order_signature(
+            candidate
+        ) < destination_reading_order_signature(incumbent)
 
     @staticmethod
     def _select_anchor_chain(
@@ -1114,7 +1130,10 @@ class ChapterAlignmentEngineFuzzy:
         if exact:
             resolved = min(
                 exact,
-                key=lambda page: abs(page.position - expected_position),
+                key=lambda page: (
+                    abs(page.position - expected_position),
+                    page.position,
+                ),
             )
             logger.info(
                 "Resolved TOC range end: entry=%d, range=%d-%d, "
@@ -1152,7 +1171,10 @@ class ChapterAlignmentEngineFuzzy:
             return None
         closest = min(
             eligible,
-            key=lambda page: abs(page.position - expected_position),
+            key=lambda page: (
+                abs(page.position - expected_position),
+                page.position,
+            ),
         )
         if (
             abs(closest.position - expected_position)
