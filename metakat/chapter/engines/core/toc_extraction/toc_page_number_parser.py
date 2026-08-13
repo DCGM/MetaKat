@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 from metakat.chapter.engines.core.models import (
     NormalizedTocPageNumberItem,
-    TocPageNumber,
+    TocPageNumberEvidence,
     TocPageNumberKind,
 )
 from metakat.common.models import DetectionEvidence
@@ -26,14 +26,14 @@ class TocPageNumberParser(ABC):
     def create(
         cls,
         evidence: DetectionEvidence,
-    ) -> TocPageNumber:
+    ) -> TocPageNumberEvidence:
         parsed = cls._parse_text(evidence.text)
         if parsed is None:
             kind = None
             normalized_items = ()
         else:
             kind, normalized_items = parsed
-        return TocPageNumber(
+        return TocPageNumberEvidence(
             text=evidence.text,
             confidence=evidence.confidence,
             bbox=evidence.bbox,

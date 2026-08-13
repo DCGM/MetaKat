@@ -1,5 +1,23 @@
 # Chapter processing
 
+## Navigation
+
+- [Purpose](#purpose)
+- [Chapter core engine contract](#chapter-core-engine-contract)
+- [Replaceable three-stage pipeline processing](#replaceable-three-stage-pipeline-processing)
+  - [Shared pipeline types](#shared-pipeline-types)
+  - [Stage 1 contract: TOC page analysis](#stage-1-contract-toc-page-analysis)
+  - [Stage 2 contract: TOC extraction](#stage-2-contract-toc-extraction)
+  - [Stage 3 contract: TOC alignment](#stage-3-contract-toc-alignment)
+  - [Pipeline wrapper orchestration](#pipeline-wrapper-orchestration)
+  - [Pipeline configuration and extension](#pipeline-configuration-and-extension)
+- [Available stage implementations](#available-stage-implementations)
+  - [Stage 1: TOC page analysis](#stage-1-toc-page-analysis)
+  - [Stage 2: TOC extraction](#stage-2-toc-extraction)
+  - [Stage 3: TOC alignment](#stage-3-toc-alignment)
+- [Binding `TocResult` into `MetakatIO`](#binding-tocresult-into-metakatio)
+- [Observability and revision](#observability-and-revision)
+
 ## Purpose
 
 The `metakat.chapter` package extracts a table of contents (TOC), connects its
@@ -8,15 +26,15 @@ entries to destination pages, and writes a hierarchical set of
 
 Chapter processing deliberately has two boundaries:
 
-1. The **core engine** performs all document analysis. It returns a chapter
+1. The **[core engine](#chapter-core-engine-contract)** performs all document analysis. It returns a chapter
    tree with detected text, geometry provenance, TOC-page provenance, and
    resolved destination page keys.
-2. The **bind engine** projects that result into the existing `MetakatIO`. It
+2. The **[bind engine](#binding-tocresult-into-metakatio)** projects that result into the existing `MetakatIO`. It
    groups pages by their lowest document container, converts page keys into
    `pageIndex` values, creates detection UUIDs, and fills missing chapter ends.
 
 The core engine may implement chapter extraction in any way. The bind engine
-depends only on the core interface and result model described below.
+depends only on the [core interface and result model](#chapter-core-engine-contract).
 
 ## Chapter core engine contract
 
@@ -63,7 +81,7 @@ ChapterResult(
     toc_page_key: str,
     title: DetectionEvidence | None,
     part_number: DetectionEvidence | None = None,
-    page_number: TocPageNumber | None = None,
+    page_number: TocPageNumberEvidence | None = None,
     title_destination_page: DetectionEvidence | None = None,
     page_start_key: str | None = None,
     page_end_key: str | None = None,
@@ -92,9 +110,10 @@ and detection UUID. Every `toc_page_key`, evidence `page_key`,
 
 ### Implementing another chapter core engine
 
-Every engine is represented by a directory containing
-`metakat_engine_config.json` and any implementation resources. The config must
-contain the registered engine name:
+Every engine follows the
+[engine directory convention](#engine-directory-convention): a directory
+containing `metakat_engine_config.json` and any implementation resources. The
+config must contain the registered engine name:
 
 ```json
 {
@@ -106,14 +125,15 @@ To add a core engine:
 
 1. subclass `ChapterCoreEngine` and call its constructor with the engine
    directory;
-2. implement the complete `process()` contract above;
+2. implement the complete [`process()` contract](#chapter-core-engine-contract);
 3. return `TocResult` with valid page-key provenance;
 4. register the config `name` in `chapter_core_engines` in core
    `definitions.py`;
 5. test loading, optional inputs, unresolved chapters, hierarchy, and page-key
    output.
 
-`ChapterBindEngineBase` can bind any implementation satisfying this contract.
+[`ChapterBindEngineBase`](#binding-tocresult-into-metakatio) can bind any
+implementation satisfying this contract.
 An implementation that returns a different result model requires its own
 `ChapterBindEngine` and bind-engine registration.
 
@@ -122,7 +142,7 @@ An implementation that returns a different result model requires its own
 `chapter_core_engine_pipeline` is one implementation of the chapter core
 contract. It composes three independently replaceable stages, allowing a
 different model or algorithm to replace one stage without changing the other
-stages or the MetaKat binder.
+stages or the [MetaKat binder](#binding-tocresult-into-metakatio).
 
 ```mermaid
 flowchart LR
@@ -144,19 +164,23 @@ flowchart LR
 
 The pipeline processes one document as follows:
 
-1. **TOC page analysis** examines all document pages, selects the pages that
+1. **[TOC page analysis](#stage-1-contract-toc-page-analysis)** examines all
+   document pages, selects the pages that
    form the reference TOC, and may also produce title and physical-page-number
    evidence for possible destination pages.
-2. **TOC extraction** processes the selected TOC pages together and produces
+2. **[TOC extraction](#stage-2-contract-toc-extraction)** processes the
+   selected TOC pages together and produces
    one hierarchical `TocBase` containing the entries read from the TOC.
-3. **TOC alignment** combines that hierarchy with the complete ordered page
+3. **[TOC alignment](#stage-3-contract-toc-alignment)** combines that hierarchy
+   with the complete ordered page
    sequence and the available destination evidence. It resolves TOC entries
    to destination pages where possible and returns `TocResult`.
 
-The resulting `TocResult` is passed to the MetaKat bind engine. Validation,
+The resulting `TocResult` is passed to the
+[MetaKat bind engine](#binding-tocresult-into-metakatio). Validation,
 evidence-source precedence, early termination, and the exact stage handoffs
-are described in [Pipeline wrapper orchestration](#pipeline-wrapper-orchestration)
-below.
+are described in
+[Pipeline wrapper orchestration](#pipeline-wrapper-orchestration).
 
 The models in this section form the stable boundaries between the three
 stages. A replacement stage may use any implementation mechanism as long as
@@ -164,9 +188,9 @@ it honors the corresponding interface and field meanings.
 
 | Stage | Reads | Produces |
 |---|---|---|
-| TOC page analysis | `Sequence[ChapterPageInput]` | `TocPageAnalysisResult` |
-| TOC extraction | `Sequence[ChapterPageInput]` | `TocBase` |
-| TOC alignment | All document `ChapterPageInput` pages, selected TOC pages, `TocBase`, and optional destination-title and physical-number evidence | `TocResult` |
+| [TOC page analysis](#stage-1-contract-toc-page-analysis) | `Sequence[ChapterPageInput]` | `TocPageAnalysisResult` |
+| [TOC extraction](#stage-2-contract-toc-extraction) | `Sequence[ChapterPageInput]` | `TocBase` |
+| [TOC alignment](#stage-3-contract-toc-alignment) | All document `ChapterPageInput` pages, selected TOC pages, `TocBase`, and optional destination-title and physical-number evidence | `TocResult` |
 
 ### Shared pipeline types
 
@@ -259,7 +283,9 @@ confidence and source geometry.
 
 `PhysicalPageNumberEvidence` represents a number printed on a possible
 destination page. It is defined in the page-number core package and is shared
-by the chapter core input, stage 1, and stage 3:
+by the [chapter core input](#chapter-core-engine-contract),
+[stage 1](#stage-1-contract-toc-page-analysis), and
+[stage 3](#stage-3-contract-toc-alignment):
 
 ```python
 PhysicalPageNumberEvidence(DetectionEvidence):
@@ -331,16 +357,21 @@ title detections may belong to the same page; they remain separate candidates
 for alignment.
 
 Each item in `destination_page_numbers` is the fully parsed
-`PhysicalPageNumberEvidence` model described under shared pipeline types.
-Stage 1, rather than stage 3, is responsible for choosing and parsing at most
-one physical number per destination page. If stage 1 returns more than one
+[`PhysicalPageNumberEvidence`](#physicalpagenumberevidence) model.
+Stage 1, rather than [stage 3](#stage-3-contract-toc-alignment), is responsible
+for choosing and parsing at most one physical number per destination page. If
+stage 1 returns more than one
 item with the same `page_key`, the pipeline raises `ValueError`.
 
 For use in the three-stage pipeline, stage 1 must implement at least one of
 `destination_chapters` or `destination_page_numbers`, unless physical page
 numbers are supplied externally through the chapter core input. If neither
 stage-1 capability is implemented and no external page-number sequence is
-provided, the pipeline raises `ValueError` before stage 2.
+provided, the [pipeline wrapper](#pipeline-wrapper-orchestration) raises
+`ValueError` before [stage 2](#stage-2-contract-toc-extraction).
+
+The registered stage-1 implementation is documented under
+[Stage 1: TOC page analysis](#stage-1-toc-page-analysis).
 
 ### Stage 2 contract: TOC extraction
 
@@ -352,7 +383,8 @@ process(
 ) -> TocBase
 ```
 
-The input is exactly `TocPageAnalysisResult.toc_pages`.
+The input is exactly
+[`TocPageAnalysisResult.toc_pages`](#stage-1-contract-toc-page-analysis).
 
 #### Output
 
@@ -371,7 +403,7 @@ ChapterBase(
     toc_page_key: str,
     title: DetectionEvidence | None,
     part_number: DetectionEvidence | None = None,
-    page_number: TocPageNumber | None = None,
+    page_number: TocPageNumberEvidence | None = None,
     children: tuple[ChapterBase, ...] = (),
 )
 ```
@@ -384,10 +416,10 @@ ChapterBase(
 | `page_number` | Optional parsed `PageNumber` printed in the TOC entry. It denotes the destination page number and retains the complete source evidence together with normalized semantic values for alignment. |
 | `children` | Nested TOC entries. The model supports arbitrary hierarchy depth. |
 
-The `TocPageNumber` model extends `DetectionEvidence`:
+The `TocPageNumberEvidence` model extends `DetectionEvidence`:
 
 ```python
-TocPageNumber(DetectionEvidence):
+TocPageNumberEvidence(DetectionEvidence):
     kind: TocPageNumberKind | None
     normalized_items: tuple[
         tuple[str, int, PageNumberNumeralSystem], ...
@@ -416,6 +448,9 @@ not explicitly validated, so the pipeline does not raise an error solely
 because they are violated. The explicit `toc_page_key` identifies the
 physical location of the complete TOC entry.
 
+The registered stage-2 implementation is documented under
+[Stage 2: TOC extraction](#stage-2-toc-extraction).
+
 ### Stage 3 contract: TOC alignment
 
 #### Inputs
@@ -436,10 +471,10 @@ process(
 | Argument | Information supplied |
 |---|---|
 | `pages` | Complete ordered document. `position` preserves physical document order, and selected TOC pages remain available to alignment implementations that need them. |
-| `toc_pages` | From stage 1: `TocPageAnalysisResult.toc_pages`, the ordered subset of `pages` selected as the source of the reference TOC. |
-| `reference_toc` | From stage 2: the extracted `TocBase` hierarchy, including TOC text and geometry provenance. |
-| `destination_chapters` | From stage 1: `TocPageAnalysisResult.destination_chapters`, containing candidate destination-title evidence whose page keys identify possible chapter starts. `None` means the capability is not implemented; an empty sequence means it ran but found nothing. |
-| `destination_page_numbers` | Physical page-number evidence originating either from the external core `page_numbers` input or from stage 1 as `TocPageAnalysisResult.destination_page_numbers`. Source resolution and precedence are described under Pipeline wrapper orchestration. `None` means the capability is not implemented; an empty sequence means it ran but found nothing. Each page may occur at most once. |
+| `toc_pages` | From [stage 1](#stage-1-contract-toc-page-analysis): `TocPageAnalysisResult.toc_pages`, the ordered subset of `pages` selected as the source of the reference TOC. |
+| `reference_toc` | From [stage 2](#stage-2-contract-toc-extraction): the extracted `TocBase` hierarchy, including TOC text and geometry provenance. |
+| `destination_chapters` | From [stage 1](#stage-1-contract-toc-page-analysis): `TocPageAnalysisResult.destination_chapters`, containing candidate destination-title evidence whose page keys identify possible chapter starts. `None` means the capability is not implemented; an empty sequence means it ran but found nothing. |
+| `destination_page_numbers` | Physical page-number evidence originating either from the external core `page_numbers` input or from [stage 1](#stage-1-contract-toc-page-analysis) as `TocPageAnalysisResult.destination_page_numbers`. Source resolution and precedence are described under [Pipeline wrapper orchestration](#pipeline-wrapper-orchestration). `None` means the capability is not implemented; an empty sequence means it ran but found nothing. Each page may occur at most once. |
 
 
 #### Output
@@ -469,13 +504,17 @@ ChapterResult(ChapterBase):
 | `children` | Nested aligned chapter results. This overrides `ChapterBase.children` so the recursive elements are `ChapterResult` objects. |
 
 The fields inherited by `ChapterResult`, including `page_number`, retain the
-values and meanings documented for `ChapterBase` in the stage-2 contract. An
+values and meanings documented for `ChapterBase` in the
+[stage-2 contract](#stage-2-contract-toc-extraction). An
 alignment engine adds destination bindings without reparsing, normalizing, or
 otherwise replacing the TOC entry.
 
 Chapters that cannot be connected to a destination may be returned with
 `title_destination_page=None`, `page_start_key=None`, and
 `page_end_key=None`.
+
+The registered stage-3 implementation is documented under
+[Stage 3: TOC alignment](#stage-3-toc-alignment).
 
 ### Pipeline wrapper orchestration
 
@@ -484,8 +523,10 @@ Chapters that cannot be connected to a destination may be returned with
 1. It creates one `ChapterPageInput` per paired image and ALTO file. The image
    filename stem becomes `page_key`, stems must be unique, and `position`
    follows input order.
-2. It passes the complete page sequence to stage 1.
-3. After stage 1 finishes, it determines the effective destination-title and
+2. It passes the complete page sequence to
+   [stage 1](#stage-1-contract-toc-page-analysis).
+3. After [stage 1](#stage-1-contract-toc-page-analysis) finishes, it determines
+   the effective destination-title and
    destination-page-number capabilities:
 
    - Destination titles always come from
@@ -505,11 +546,15 @@ Chapters that cannot be connected to a destination may be returned with
      the alignment implementation decides which available evidence to use.
    - Physical page numbers detected by stage 1 are pipeline inputs only and
      are not included in `TocResult`.
-4. If stage 1 returns no `toc_pages`, it logs a warning and returns an empty
-   `TocResult` without invoking stages 2 or 3.
-5. It passes `TocPageAnalysisResult.toc_pages` to stage 2.
+4. If [stage 1](#stage-1-contract-toc-page-analysis) returns no `toc_pages`, it
+   logs a warning and returns an empty `TocResult` without invoking
+   [stage 2](#stage-2-contract-toc-extraction) or
+   [stage 3](#stage-3-contract-toc-alignment).
+5. It passes `TocPageAnalysisResult.toc_pages` to
+   [stage 2](#stage-2-contract-toc-extraction).
 6. It passes the complete page sequence, the explicit selected TOC-page
-   subset, stage 2's `TocBase`, and destination evidence to stage 3.
+   subset, stage 2's `TocBase`, and destination evidence to
+   [stage 3](#stage-3-contract-toc-alignment).
    Beforehand it removes destination evidence located on selected TOC pages.
    It raises `ValueError` when a
    `DestinationChapterEvidence.title.page_key` or
@@ -566,10 +611,13 @@ fallback, but `stages` is the preferred form.
 
 #### Adding a stage implementation
 
-The three stage interfaces are structural `Protocol` types. A new class must:
+The three stage interfaces are structural `Protocol` types. Their signatures
+are defined by the [stage-1](#stage-1-contract-toc-page-analysis),
+[stage-2](#stage-2-contract-toc-extraction), and
+[stage-3](#stage-3-contract-toc-alignment) contracts. A new class must:
 
 1. accept its engine directory in the constructor;
-2. implement the appropriate `process()` signature documented above;
+2. implement the appropriate linked `process()` contract;
 3. use a unique `name` in its `metakat_engine_config.json`;
 4. be added to the appropriate registry in
    `ChapterPipelineCoreEngine._load_stage()`;
@@ -587,18 +635,20 @@ wrapper unless they affect orchestration itself.
 
 This section documents the stage engines registered for
 `chapter_core_engine_pipeline`. Their models and interfaces are defined by the
-contracts above; the algorithms described here are properties of the available
-engines, not requirements of the pipeline.
+[three-stage contracts](#replaceable-three-stage-pipeline-processing); the
+algorithms described here are properties of the available engines, not
+requirements of the pipeline.
 
 | Stage | Config `name` | Implementation |
 |---|---|---|
-| TOC page analysis | `toc_page_analysis_engine_yolo_alto` | YOLO geometry aligned with ALTO text |
-| TOC extraction | `toc_extraction_engine_yolo_alto` | YOLO geometry aligned with ALTO text |
-| TOC alignment | `toc_alignment_engine_fuzzy` | Physical-number anchors and fuzzy title matching |
+| [TOC page analysis](#stage-1-toc-page-analysis) | `toc_page_analysis_engine_yolo_alto` | YOLO geometry aligned with ALTO text |
+| [TOC extraction](#stage-2-toc-extraction) | `toc_extraction_engine_yolo_alto` | YOLO geometry aligned with ALTO text |
+| [TOC alignment](#stage-3-toc-alignment) | `toc_alignment_engine_fuzzy` | Physical-number anchors and fuzzy title matching |
 
 ### Stage 1: TOC page analysis
 
-The following engine is available for the stage-1 contract.
+The following engine implements the
+[stage-1 contract](#stage-1-contract-toc-page-analysis).
 
 #### Engine: YOLO + ALTO (`toc_page_analysis_engine_yolo_alto`)
 
@@ -796,7 +846,8 @@ These two bounds are diagnostic. `toc_area_top` is also the reference used to
 report each keyword occurrence's absolute vertical distance from the detected
 TOC area; neither bound is itself a keyword-acceptance boundary. Keyword
 acceptance uses the uppermost participating detection's bottom edge as
-described below.
+described in
+[Keyword and consecutive-block decision](#keyword-and-consecutive-block-decision).
 
 ##### Keyword and consecutive-block decision
 
@@ -843,7 +894,8 @@ regardless of visual score. If scores tie, the first encountered group wins.
 Exactly this one final consecutive group becomes `toc_pages`.
 
 If no page satisfies the visual predicate, no group is selected and the
-engine returns `toc_pages=()`. The three-stage pipeline wrapper then logs a
+engine returns `toc_pages=()`. The
+[three-stage pipeline wrapper](#pipeline-wrapper-orchestration) then logs a
 warning and ends processing without invoking stages 2 and 3.
 
 ##### Other outputs
@@ -859,7 +911,8 @@ Physical page numbers are resolved by the reusable resolver from the
 `metakat.page_number` core package, using the YOLO + ALTO alignments already
 produced by stage 1. Only pages outside the selected TOC group are resolved
 and returned as destination-page-number evidence. Resolver behavior is
-documented in the page-number package. Stage 1 exposes these resolver
+documented in the
+[page-number package](../page_number/README.md). Stage 1 exposes these resolver
 parameters:
 
 | Parameter | Default | Meaning |
@@ -872,14 +925,16 @@ parameters:
 
 Successful physical-number results are returned as
 fully parsed `PhysicalPageNumberEvidence` objects in
-`TocPageAnalysisResult.destination_page_numbers`. They are used for stage 3
-only when no external `page_numbers` sequence was supplied to the core. This
+`TocPageAnalysisResult.destination_page_numbers`. Their precedence relative
+to external evidence is defined by
+[Pipeline wrapper orchestration](#pipeline-wrapper-orchestration). This
 engine implements physical-number detection, so it returns an empty tuple
 rather than `None` when no page-number evidence is found.
 
 ### Stage 2: TOC extraction
 
-The following engine is available for the stage-2 contract.
+The following engine implements the
+[stage-2 contract](#stage-2-contract-toc-extraction).
 
 #### Engine: YOLO + ALTO (`toc_extraction_engine_yolo_alto`)
 
@@ -888,25 +943,20 @@ constructs title-associated TOC entries, and combines entries from all
 selected pages into one hierarchy.
 
 ```mermaid
-flowchart TD
+flowchart LR
     A[Selected TOC pages]
-    B[AlignmentRegion results from YOLO and ALTO processing]
-    C[Flat chapter candidates per page]
-    D{Multi-column layout accepted?}
-    E[One page-wide candidate group]
-    F[Candidate groups ordered by column from left to right]
-    G[For each group: discard candidates without complete construction evidence]
-    H[Construct units in top-to-bottom order]
-    I[Append group units into one flat page sequence]
-    J[Append pages by ascending page position]
-    K[Infer levels for PageNumber-only units]
-    L[Construct the hierarchy from the flat unit sequence]
-    M[TocBase]
+    B[YOLO and ALTO chapter candidates]
+    C{Multi-column layout?}
+    D[Ordered candidate groups]
+    E[Filter and construct units per group]
+    F[Flat reading-order units across pages]
+    G[Infer PageNumber-only levels and build hierarchy]
+    H[TocBase]
 
-    A --> B --> C --> D
-    D -- No --> E --> G
-    D -- Yes --> F --> G
-    G --> H --> I --> J --> K --> L --> M
+    A --> B --> C
+    C -- No: page-wide group --> D
+    C -- Yes: column groups --> D
+    D --> E --> F --> G --> H
 ```
 
 Each recognized aligned region with geometry becomes one flat internal
@@ -924,8 +974,8 @@ page result.
 Page results are appended by ascending input-page position, producing one flat
 reading-order unit sequence. The engine infers levels for its
 `PageNumber`-only units and then constructs the hierarchy from that sequence.
-TOC page-number parsing is documented separately at the end of this engine
-description.
+TOC page-number parsing is documented separately under
+[TOC page-number parsing](#toc-page-number-parsing).
 
 ##### Configuration
 
@@ -956,8 +1006,8 @@ description.
 }
 ```
 
-The multi-column parameters are described with the corresponding decision
-rules below.
+The multi-column parameters are described with the corresponding
+[page-number-axis and column-decision rules](#page-number-alignment-axes-and-the-column-decision).
 
 ##### Geometry and text loading
 
@@ -1227,10 +1277,11 @@ accepted multi-column layout supplies one group per column in left-to-right
 order. A rejected layout supplies a sequence containing one group with all
 page candidates.
 
-Before constructing units, one shared filtering step removes every candidate
+Before [constructing units](#title-bands-and-toc-unit-construction), one shared filtering step removes every candidate
 that lacks non-empty aligned ALTO text or input-geometry confidence. This is
 the only readiness filter used by either layout outcome. A geometry-only
-candidate can therefore contribute to the preceding column decision but
+candidate can therefore contribute to the preceding
+[column decision](#page-number-alignment-axes-and-the-column-decision) but
 cannot populate a TOC unit.
 
 The same unit-construction method processes each remaining group and receives
@@ -1308,7 +1359,8 @@ discarded because they cannot independently identify a TOC entry.
 For an accepted multi-column layout, columns are traversed from left to right
 and units inside each column from top to bottom. For an unsplit page, all units
 are traversed from top to bottom. The resulting page sequences are appended in
-page order, creating the flat sequence used for hierarchy construction.
+page order, creating the flat sequence used for
+[hierarchy construction](#hierarchy-construction).
 
 ##### Hierarchy construction
 
@@ -1320,7 +1372,8 @@ titled unit exists, it uses level 1. Following units do not affect this
 decision.
 
 The selected TOC pages are traversed by ascending `ChapterPageInput.position`.
-Within each page, units follow the reading order established above: either
+Within each page, units follow the reading order established by
+[TOC-unit construction](#title-bands-and-toc-unit-construction): either
 top-to-bottom order or accepted column-wise order. Units from all TOC pages
 are therefore processed as one sequence ordered first by page position and
 then by the per-page reading order. Level inference for `PageNumber`-only
@@ -1372,7 +1425,9 @@ represent arbitrary depth and a future extraction engine may return more.
 ##### TOC page-number parsing
 
 Page-number parsing is an output-conversion detail rather than part of the
-layout, unit-association, or hierarchy decisions described above. While each
+[layout](#page-number-alignment-axes-and-the-column-decision),
+[unit-association](#title-bands-and-toc-unit-construction), or
+[hierarchy](#hierarchy-construction) decisions. While each
 unit is materialized as a hierarchy entry, the extraction engine parses the
 text of its retained `PageNumber` candidate. A `PageNumber` can contain:
 
@@ -1380,9 +1435,10 @@ text of its retained `PageNumber` candidate. A `PageNumber` can contain:
 - a same-system non-descending range;
 - a comma-separated list, including a mixed Arabic/Roman list.
 
-The parser creates the `TocPageNumber` stored in `ChapterBase.page_number`.
+The parser creates the `TocPageNumberEvidence` stored in
+`ChapterBase.page_number`.
 It retains the candidate's complete stripped ALTO text in
-`TocPageNumber.text` and fills `kind` and `normalized_items`. Title and
+`TocPageNumberEvidence.text` and fills `kind` and `normalized_items`. Title and
 part-number candidates are converted to the `DetectionEvidence` objects
 stored in the same `ChapterBase` entry.
 
@@ -1408,38 +1464,54 @@ OCR evidence. Confidence, bounding box, and TOC source page are unchanged.
 
 ### Stage 3: TOC alignment
 
-The following engine is available for the stage-3 contract.
+The following engine implements the
+[stage-3 contract](#stage-3-contract-toc-alignment).
 
 #### Engine: fuzzy alignment (`toc_alignment_engine_fuzzy`)
 
-This engine combines exact printed-number matches, fuzzy title matches, and
-positional constraints to resolve TOC entries to physical destination pages.
-It can align unambiguous numbers without destination titles and can use title
-matching without physical page numbers.
+This engine combines exact matches between parsed page-number values, fuzzy
+title matches, and positional constraints to resolve TOC entries to physical
+destination pages. Number matching compares the numeral system and integer
+value of the first normalized TOC item with the corresponding parsed physical
+page number. For a range this is its start; for a list it is its first item.
+The engine can align unambiguous numbers without destination titles and can
+use title matching without physical page numbers.
 
-The engine distinguishes capability availability from detection results:
+The two optional destination-evidence inputs describe independent sources of
+information:
 
-- `None` means the corresponding destination-evidence capability is not
-  implemented;
-- an empty sequence means the capability is implemented but found no evidence;
-- a non-empty sequence supplies evidence for alignment.
+- `destination_chapters` supplies titles detected on possible destination
+  pages;
+- `destination_page_numbers` supplies physical page numbers detected on
+  possible destination pages.
 
-If either capability is implemented, the engine runs alignment with whatever
-evidence is available. This includes title-only and number-only alignment. The
-three-stage wrapper prevents invocation with both capabilities unavailable.
+For either input, `None` means that its source is not implemented, an empty
+sequence means that the source is implemented but found no evidence, and a
+non-empty sequence supplies evidence for alignment. The fuzzy engine can run
+with either source alone or with both sources.
+
+For every input TOC entry, the engine preserves the original `ChapterBase`
+fields and hierarchy from `TocBase` unchanged. It produces the corresponding
+`ChapterResult` by adding only `title_destination_page`, `page_start_key`, and
+`page_end_key`.
+
+When this engine directly receives `None` for both inputs, it still runs but
+has no destination evidence from which to create anchors or title matches. It
+therefore leaves all three added fields as `None` for every entry.
 
 ##### Configuration
 
 ```json
 {
   "name": "toc_alignment_engine_fuzzy",
-  "title_match_threshold": 0.7,
-  "offset_tolerance": 2
+  "minimum_title_substring_similarity": 0.7,
+  "maximum_destination_page_position_offset_from_expected": 2
 }
 ```
 
-`title_match_threshold` must be in `[0, 1]`; `offset_tolerance` must be
-non-negative.
+`minimum_title_substring_similarity` must be in `[0, 1]`;
+`maximum_destination_page_position_offset_from_expected` must be a
+non-negative integer.
 
 Alignment flattens the reference hierarchy in pre-order, performs all matching
 on that flat sequence, and reconstructs the original hierarchy afterward.
@@ -1455,12 +1527,13 @@ range-end candidates.
 The engine does not parse either number source. It indexes the `value` and
 `numeral_system` already present in each destination
 `PhysicalPageNumberEvidence`, and consumes each TOC entry's
-`TocPageNumber.normalized_items` produced by stage 2. The first item supplies
+`TocPageNumberEvidence.normalized_items` produced by
+[stage 2](#stage-2-contract-toc-extraction). The first item supplies
 the TOC start value; a valid range's second item supplies its end. A physical
 or TOC number without normalized semantic values cannot create a number
 anchor, although the TOC entry's title can still be matched. The alignment
-engine passes the original `TocPageNumber` object through to the corresponding
-`ChapterResult` unchanged.
+engine passes the original `TocPageNumberEvidence` object through to the
+corresponding `ChapterResult` unchanged.
 
 ##### Title similarity
 
@@ -1474,39 +1547,82 @@ penalized like a full-string comparison.
 ##### Anchor candidates
 
 An anchor begins with an exact match between a parsed TOC start value and a
-physical page value in the same numeral system.
+physical page value in the same numeral system. The following subsections
+separate the four possible cardinalities of that number match.
 
-- When that number occurs on exactly one physical page and in exactly one TOC
-  entry, it is a hard number anchor. A title match is preferred but not
-  required.
-- When the physical number occurs on multiple pages, or the TOC start value is
-  used by multiple entries, the entry must have a title and that title must
-  match a destination-title detection on the candidate physical page at or
-  above `title_match_threshold`.
-- For a unique titleless number anchor, the destination-title detection with
-  the largest height, then highest confidence, is tentatively attached if one
-  exists.
+###### One TOC entry and one destination page
 
-All options are reduced to one monotonic chain by dynamic programming. Entry
-indices must increase and physical positions must not decrease, so multiple
-chapters may share one page. The chain score is a lexicographic sum of:
+This is an unambiguous number match and is processed first:
+
+- If the candidate page has no destination-title detections, the entry is
+  retained as a number-only anchor.
+- If the candidate page has destination-title detections, exactly one of them
+  must match the TOC title at or above
+  `minimum_title_substring_similarity`. That detection is attached to the
+  anchor. Zero or multiple matches reject the anchor. Consequently, a
+  titleless TOC entry cannot anchor when destination-title detections exist on
+  the page.
+
+An attached destination-title detection is claimed immediately and cannot be
+used by any later anchor assignment.
+
+###### One TOC entry and multiple destination pages
+
+The engine gathers title matches from every destination page bearing the
+physical number. Exactly one destination-title detection across all those
+pages must match at or above `minimum_title_substring_similarity`. That match
+determines the anchor's destination page. Zero or multiple matches produce no
+anchor.
+
+###### Multiple TOC entries and one destination page
+
+The engine assigns the page's destination-title detections to the repeated TOC
+entries in reading order. TOC entries use flattened TOC order; destination
+detections use ascending bounding-box `y`, then `x`. Only title pairs at or
+above `minimum_title_substring_similarity` are eligible. Each TOC entry and
+each destination detection can participate at most once, and assigned
+detection positions cannot move upward as TOC entry order advances.
+
+The assignment is ranked by:
+
+1. largest number of assigned anchors;
+2. greatest total title similarity;
+3. greatest total title-evidence confidence;
+4. when these are equal, compare the assignments in TOC-entry order and
+   prefer the assignment that resolves the first entry at which they differ.
+
+Only assigned entries become anchors.
+
+###### Multiple TOC entries and multiple destination pages
+
+The engine creates no anchors for this numeral-system and number pair. The
+many-to-many relation is treated as too ambiguous to establish reliable anchor
+bounds. Its entries remain available for
+[non-anchor title matching](#resolving-entries-between-anchors).
+
+###### Document-wide anchor-chain selection
+
+The anchors retained by
+[one-to-one](#one-toc-entry-and-one-destination-page),
+[one-to-many](#one-toc-entry-and-multiple-destination-pages), and
+[many-to-one](#multiple-toc-entries-and-one-destination-page) matching are
+candidates for the document-wide chain. Dynamic programming compares the possible monotonic
+chains and selects the best-scoring one. Within a chain, entry indices must
+increase and physical positions must not decrease, so multiple chapters may
+share one page. The chain score is a lexicographic sum of:
 
 1. number of anchors;
-2. number of title-supported anchors;
-3. total title similarity;
-4. total evidence confidence, consisting of TOC-number confidence plus
-   destination-title confidence when title-supported.
+2. total title similarity;
+3. total confidence of all evidence used by the anchors: every anchor
+   contributes its TOC page-number and physical-page-number confidence; an
+   anchor supported by title matching also contributes its TOC-title and
+   destination-title confidence.
 
-This ordering means anchor count dominates every quality score. Offset
-consistency is not part of anchor-chain selection; inconsistent offsets are
-handled later while matching the entries between anchors.
-
-Destination-title detections are single-use. If two selected anchors prefer
-the same detection, a titled anchor is reassigned to another matching detection
-on that page when possible. A duplicate-number anchor that required title
-support is discarded when no unused title match remains. Titleless anchors are
-assigned the largest remaining title detection on their destination page after titled
-anchors claim their detections.
+If multiple chains have identical values for all three criteria, the engine
+compares them in flattened TOC order and prefers the chain that contains the
+first entry at which they differ. Only anchors in the selected chain are
+subsequently used to define alignment bounds and offsets; all other anchor
+candidates are ignored.
 
 ##### Resolving entries between anchors
 
@@ -1518,12 +1634,13 @@ document.
 Unused destination-title detections are filtered to those bounds and then by:
 
 ```text
-title_similarity >= title_match_threshold
+title_similarity >= minimum_title_substring_similarity
 ```
 
 | Parameter | Default | Meaning |
 |---|---:|---|
-| `title_match_threshold` | `0.7` | Minimum normalized title similarity accepted as a destination-title match. |
+| `minimum_title_substring_similarity` | `0.7` | Minimum normalized substring similarity accepted as a destination-title match. |
+| `maximum_destination_page_position_offset_from_expected` | `2` | Maximum permitted absolute difference, in physical page positions, between a destination candidate and its expected position. |
 
 For an entry with a parsed TOC number, each surrounding anchor in the same
 numeral system proposes this offset:
@@ -1538,7 +1655,8 @@ is not the printed page number.
 
 An ideal destination position is available when all applicable surrounding
 anchors produce one distinct offset. One compatible anchor is sufficient. In
-that case, candidates must lie within `offset_tolerance` of the expected
+that case, candidates must lie within
+`maximum_destination_page_position_offset_from_expected` of the expected
 position and are ranked by:
 
 1. smallest distance from expected position;
@@ -1562,12 +1680,10 @@ following anchor's TOC value. A candidate without a physical number, or with a
 different numeral system, passes this consistency check. Ranking then uses
 height, similarity, confidence, and earliest position in that order.
 
-A non-anchor entry remains unresolved when it has no title, no unused
-destination-title detection, no destination-title detection inside its bounds,
-no title match above threshold, no candidate within a usable
-expected-position tolerance, or no candidate passing the physical-number
-consistency check. A titled unresolved entry remains in the result with
-`page_start_key=None`.
+A non-anchor entry is resolved only when an unused destination-title match
+passes every applicable bound, similarity, offset, and physical-number check.
+Otherwise it remains in the result with `page_start_key=None` and
+`title_destination_page=None`.
 
 ##### Explicit range ends
 
@@ -1578,24 +1694,27 @@ anchor.
 
 1. If one or more pages have the exact physical end number in the same numeral
    system, the page closest to the expected position is selected.
-2. Otherwise, the eligible page whose physical position is closest to the
-   expected position is used only when that distance is within
-   `offset_tolerance`.
-3. Otherwise `page_end_key` remains `None` for the binder to handle.
+2. Otherwise, among non-TOC destination pages at or after the resolved start
+   page and no later than the following selected anchor, the page closest to
+   the expected position is used only when that distance is within
+   `maximum_destination_page_position_offset_from_expected`. When there is no
+   following anchor, only the start bound applies.
+3. Otherwise `page_end_key` remains `None` for the binder's
+   [generic end-page inference](#generic-end-page-inference).
 
 ##### Reconstructing the result tree
 
 The original reference hierarchy is reconstructed after flat alignment.
-Titled entries are retained even when unresolved. Titleless entries are also
-returned from the alignment stage because their page-number evidence may have
-contributed to anchor selection. When a destination title was assigned, it is
+Every input entry is retained, including unresolved and titleless entries,
+because the alignment engine preserves the input TOC and only adds destination
+fields when it resolves them. When a destination title was assigned, it is
 exposed as `title_destination_page`.
 
-After stage 3 returns, the pipeline wrapper performs the final pruning
-described under
-[Pipeline wrapper orchestration](#pipeline-wrapper-orchestration). A
-titleless entry without `title_destination_page` is removed there and its
-retained children are spliced into its parent level.
+After [stage 3](#stage-3-contract-toc-alignment) returns, the
+[pipeline wrapper](#pipeline-wrapper-orchestration) performs the final
+pruning. A
+chapter entry with both `title=None` and `title_destination_page=None` is
+removed there, and its retained children are spliced into its parent level.
 
 The alignment engine does not copy `title_destination_page` into `title`: TOC
 title and destination-page title remain separate optional evidence fields.
@@ -1610,26 +1729,23 @@ lowest document group. Eligible containers are:
 - every issue;
 - every volume that is not an ancestor of an issue.
 
-Each page is assigned to the first eligible ancestor found while walking its
-parent chain. Groups and pages are processed by `batch_index`. Pages may reach
-a container through existing chapter parents.
+Only pages whose direct `parent_id` identifies an eligible container are added
+to that container's group. Groups and pages are processed by `batch_index`.
 
-Pages with no eligible ancestor, an unknown parent, or a parent cycle are
-placed together under one synthetic monograph volume. The synthetic volume is
-added to `MetakatIO`, and those pages are reparented to it. Empty input creates
-no synthetic volume.
-
-Only pages with both image and ALTO mappings are passed to the core. Skipped
-pages remain part of the document and still affect generic end-page inference.
-Image filename stems of pages sent to the core must be unique inside a group;
-the same stem may be reused in another independently processed group.
+Pages with `parent_id=None` are placed together under one synthetic monograph
+volume. The synthetic volume is added to `MetakatIO`, and those pages are
+reparented to it. A page with any other invalid or ineligible parent is ignored
+because such a relation violates the MetaKat hierarchy. Empty input creates no
+synthetic volume.
 
 When at least one page in a group already has `MetakatPage.pageNumber`, the
 binder converts each available MetaKat tuple into parsed
 `PhysicalPageNumberEvidence` and passes the resulting sparse sequence to the
 core. Pages without an existing number are omitted. If none exist, it passes
-`page_numbers=None`, which allows stage 1's `destination_page_numbers` to be
-used.
+`page_numbers=None`, allowing the source precedence documented in
+[Pipeline wrapper orchestration](#pipeline-wrapper-orchestration) to select
+[stage 1's](#stage-1-contract-toc-page-analysis)
+`destination_page_numbers`.
 
 Physical numbers detected internally by the chapter pipeline are not returned
 in `TocResult` and are therefore not written to
@@ -1638,8 +1754,7 @@ engine.
 
 The binder also passes available `MetakatPage.imageDim` and
 `MetakatPage.altoDim` values as ordered `PageDimensions` sequences. Missing
-values remain `None` at their page position. The pipeline wrapper stores these
-values on the corresponding `ChapterPageInput`.
+values remain `None` at their page position.
 
 ### Field mapping
 
@@ -1651,7 +1766,7 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 | `parent_id` | Parent chapter UUID, or the enclosing issue/volume UUID for a root. |
 | `pageIndexToc` | `pageIndex` of `toc_page_key`; may be `None`. |
 | `pageIndexStart` | `pageIndex` of `page_start_key`; `None` when unresolved or unavailable. |
-| `pageIndexEnd` | Explicit range end when resolved, otherwise generic binder inference below. |
+| `pageIndexEnd` | Explicit range end when resolved, otherwise [generic binder inference](#generic-end-page-inference). |
 | `title` | Title evidence detected on the TOC page. |
 | `title_destination_page` | Independently stored title evidence from the destination page. It is not copied into `title`. |
 | `partNumber` | Part-number evidence detected on the TOC page. |
@@ -1661,8 +1776,9 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 Page keys are translated through the image-stem mapping for the processed
 document. An unknown TOC or evidence page key is an error. Unknown start/end
 keys and pages without `pageIndex` are logged. A missing start index remains
-unset. A missing end index starts unset but may subsequently be filled by the
-generic inference below when the start index is known; a valid explicit end
+unset. A missing end index starts unset but may subsequently be filled by
+[generic end-page inference](#generic-end-page-inference) when the start index
+is known; a valid explicit end
 can remain present even when the start is missing.
 
 Each non-null evidence field becomes `(text, confidence, detection_uuid)`.
@@ -1684,16 +1800,15 @@ After binding the returned tree in pre-order, the binder fills a missing
 
 Children do not terminate their parent because they have greater depth.
 Multiple chapters starting on the same page receive an end no earlier than
-their start. An explicit range end from the core is never overwritten.
-
-Because all group pages—not only pages sent to the core—are used here, a final
-page missing image or ALTO input can still define the document's inferred end.
-A chapter without a resolved start remains in `MetakatIO` with both start and
+their start. An explicit range end from the core is never overwritten. A chapter without a resolved start remains in `MetakatIO` with both start and
 end unset.
 
-New chapter elements are inserted at the beginning of `MetakatIO.elements` in
-document-group order, preserving each returned chapter tree's pre-order
-hierarchy. Pre-existing elements follow the newly inserted chapters.
+For each processed document group, the new chapter elements are inserted
+immediately after their enclosing issue, leaf volume, or synthetic orphan
+container in `MetakatIO.elements`. Each returned chapter tree remains a
+contiguous pre-order block: a parent chapter is followed by its descendants
+before the next root chapter. Other pre-existing elements retain their
+relative order.
 
 ## Observability and revision
 
@@ -1704,17 +1819,6 @@ binding counts at `INFO` or `WARNING`. Candidate pages, extraction units,
 anchor options, individual title candidates, and bound fields are available at
 `DEBUG`.
 
-These logs are intended to make the decision rules above auditable before
-changing thresholds or replacing a stage.
-
-## Experimental source
-
-The unregistered `metakat.chapter.xshele02` package is retained as experimental
-source material. Its command-line entry point is:
-
-```bash
-python -m metakat.chapter.xshele02.main INPUT_PATH
-```
-
-It is not loaded by `chapter_core_engines` and does not implement the standard
-three-stage core contract without additional integration work.
+These logs are intended to make the decision rules under
+[Available stage implementations](#available-stage-implementations) auditable
+before changing thresholds or replacing a stage.

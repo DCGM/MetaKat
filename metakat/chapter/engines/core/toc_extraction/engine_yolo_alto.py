@@ -13,7 +13,7 @@ from metakat.chapter.engines.core.models import (
     ChapterPageInput,
     ChapterBase,
     TocBase,
-    TocPageNumber,
+    TocPageNumberEvidence,
 )
 from metakat.common.models import BoundingBox, DetectionEvidence
 from metakat.chapter.engines.core.pipeline_utils import (
@@ -78,7 +78,7 @@ class _MutableEntry:
     title: DetectionEvidence | None
     level: int
     part_number: DetectionEvidence | None = None
-    page_number: TocPageNumber | None = None
+    page_number: TocPageNumberEvidence | None = None
     children: list[_MutableEntry] = field(default_factory=list)
 
 
@@ -278,7 +278,7 @@ class TocExtractionEngineYOLOALTO:
         cls,
         unit: _Unit,
         unit_index: int,
-    ) -> TocPageNumber | None:
+    ) -> TocPageNumberEvidence | None:
         candidate = unit.page_number
         if candidate is None:
             return None

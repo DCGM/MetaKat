@@ -65,7 +65,6 @@ class ChapterBindEngineBase(ChapterBindEngine):
         if metakat_io.detection_to_page_mapping is None:
             metakat_io.detection_to_page_mapping = {}
 
-        insertion_index = 0
         groups = self._document_groups(metakat_io)
         logger.info(
             "Starting chapter binding for %d lowest-level document(s)",
@@ -215,11 +214,37 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 group.container.type,
                 group.container.id,
             )
-            metakat_io.elements[insertion_index:insertion_index] = new_elements
-            insertion_index += len(new_elements)
+            self._insert_elements_after_container(
+                metakat_io.elements,
+                container_id=group.container.id,
+                new_elements=new_elements,
+            )
             metakat_io.detection_to_bbox.update(bbox_by_id)
             metakat_io.detection_to_page_mapping.update(page_by_detection)
         return metakat_io
+
+    @staticmethod
+    def _insert_elements_after_container(
+        elements: list[MetakatElement],
+        *,
+        container_id: UUID,
+        new_elements: list[MetakatElement],
+    ) -> None:
+        if not new_elements:
+            return
+        try:
+            container_index = next(
+                index
+                for index, element in enumerate(elements)
+                if element.id == container_id
+            )
+        except StopIteration as error:
+            raise ValueError(
+                "Cannot insert chapters after missing document container: "
+                f"{container_id}"
+            ) from error
+        insertion_index = container_index + 1
+        elements[insertion_index:insertion_index] = new_elements
 
     @staticmethod
     def _physical_page_number_from_metakat(
@@ -258,8 +283,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
             for page in group.pages:
                 page.parent_id = group.container.id
             logger.warning(
-                "Assigned %d page(s) without an issue or leaf-volume "
-                "ancestor to dummy monograph %s",
+                "Assigned %d parentless page(s) to dummy monograph %s",
                 len(group.pages),
                 group.container.id,
             )

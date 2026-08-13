@@ -36,7 +36,7 @@ class ChapterPageInput:
 
 
 @dataclass(frozen=True)
-class TocPageNumber(DetectionEvidence):
+class TocPageNumberEvidence(DetectionEvidence):
     kind: TocPageNumberKind | None
     normalized_items: tuple[NormalizedTocPageNumberItem, ...]
 
@@ -100,7 +100,7 @@ class ChapterBase:
     toc_page_key: str
     title: DetectionEvidence | None
     part_number: DetectionEvidence | None = None
-    page_number: TocPageNumber | None = None
+    page_number: TocPageNumberEvidence | None = None
     children: tuple[ChapterBase, ...] = ()
 
 

@@ -109,25 +109,24 @@ def lowest_document_groups(
     pages_by_container: dict[UUID, list[MetakatPage]] = {
         container_id: [] for container_id in eligible
     }
-    orphans: list[MetakatPage] = []
+    parentless_pages: list[MetakatPage] = []
+    ignored_pages: list[MetakatPage] = []
     for page in pages:
-        container = next(
-            (
-                ancestor
-                for ancestor in iter_ancestors(
-                    page.parent_id,
-                    element_by_id,
-                    context=f"page {page.id}",
-                    log=log,
-                )
-                if ancestor.id in eligible
-            ),
-            None,
+        if page.parent_id is None:
+            parentless_pages.append(page)
+            continue
+        if page.parent_id in eligible:
+            pages_by_container[page.parent_id].append(page)
+            continue
+        ignored_pages.append(page)
+
+    if ignored_pages:
+        log.warning(
+            "Ignoring %d page(s) whose direct parent is not an eligible "
+            "issue or leaf volume: %s",
+            len(ignored_pages),
+            ", ".join(str(page.id) for page in ignored_pages),
         )
-        if container is None:
-            orphans.append(page)
-        else:
-            pages_by_container[container.id].append(page)
 
     groups = [
         LowestDocumentGroup(
@@ -137,21 +136,20 @@ def lowest_document_groups(
         for container_id, container_pages in pages_by_container.items()
         if container_pages
     ]
-    if orphans:
+    if parentless_pages:
         groups.append(
             LowestDocumentGroup(
                 container=MetakatVolume(
                     id=uuid4(),
                     hierarchy=HierarchyType.MONOGRAPH,
                 ),
-                pages=tuple(orphans),
+                pages=tuple(parentless_pages),
                 synthetic=True,
             )
         )
         log.warning(
-            "Grouped %d page(s) without an issue or leaf-volume ancestor "
-            "under a synthetic monograph",
-            len(orphans),
+            "Grouped %d parentless page(s) under a synthetic monograph",
+            len(parentless_pages),
         )
 
     return sorted(groups, key=lambda group: group.pages[0].batch_index)
