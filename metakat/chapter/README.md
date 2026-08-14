@@ -115,10 +115,8 @@ and detection UUID. Every `toc_page_key`, evidence `page_key`,
 
 ### Implementing another chapter core engine
 
-Every engine follows the
-[engine directory convention](#engine-directory-convention): a directory
-containing `metakat_engine_config.json` and any implementation resources. The
-config must contain the registered engine name:
+Every engine receives its configuration mapping directly. The mapping must
+contain the registered engine name:
 
 ```json
 {
@@ -129,7 +127,7 @@ config must contain the registered engine name:
 To add a core engine:
 
 1. subclass `ChapterCoreEngine` and call its constructor with the engine
-   directory;
+   configuration mapping;
 2. implement the complete [`process()` contract](#chapter-core-engine-contract);
 3. return `TocResult` with valid page-key provenance;
 4. register the config `name` in `chapter_core_engines` in core
@@ -579,43 +577,45 @@ The registered stage-3 implementation is documented under
 
 ### Pipeline configuration and extension
 
-#### Engine directory convention
+#### Pipeline configuration
 
-Every engine is represented by a directory containing
-`metakat_engine_config.json` and any resources required by that engine. A
-typical pipeline directory is arranged as follows:
-
-```text
-chapter_core_engine/
-├── metakat_engine_config.json
-├── chapter_page_analysis/
-│   ├── metakat_engine_config.json
-│   └── model.pt
-├── chapter_extraction/
-│   ├── metakat_engine_config.json
-│   └── model.pt
-└── chapter_alignment/
-    └── metakat_engine_config.json
-```
-
-The pipeline configuration points to its three stage directories:
+The complete MetaKat pipeline configuration nests the core and bind
+configuration under `chapter`. The chapter core then nests its three stage
+configurations under `page_analysis`, `extraction`, and `alignment`:
 
 ```json
 {
-  "name": "chapter_core_engine_pipeline",
-  "stages": {
-    "chapter_page_analysis": "chapter_page_analysis",
-    "chapter_extraction": "chapter_extraction",
-    "chapter_alignment": "chapter_alignment"
+  "chapter": {
+    "core": {
+      "name": "chapter_core_engine_pipeline",
+      "page_analysis": {
+        "name": "chapter_page_analysis_engine_yolo_alto",
+        "model_path": "chapter/page_analysis/model.pt"
+      },
+      "extraction": {
+        "name": "chapter_extraction_engine_yolo_alto",
+        "model_path": "chapter/extraction/model.pt"
+      },
+      "alignment": {
+        "name": "chapter_alignment_engine_fuzzy"
+      }
+    },
+    "bind": {
+      "name": "chapter_bind_engine_base"
+    }
   }
 }
 ```
 
-Stage paths may be absolute. Relative paths are resolved from the core-engine
-directory. The top-level keys `chapter_page_analysis_engine`,
-`chapter_extraction_engine`, and `chapter_alignment_engine` are also accepted
-as a fallback, but `stages` is the preferred form. Pre-rename stage keys,
-registered engine names, and Python package paths are not supported.
+The central pipeline loader resolves every relative `*_path` and `*_dir`
+value against the directory containing the main pipeline configuration before
+constructing any engine. Engines receive only their prepared mapping. The
+worker instead uses the downloaded engine directory as the base and rejects
+any path that resolves outside it.
+
+There is no directory-config fallback. The former `stages` mapping,
+per-engine `metakat_engine_config.json` files, and directory-based
+constructors are not supported.
 
 #### Adding a stage implementation
 
@@ -624,9 +624,9 @@ are defined by the [stage-1](#stage-1-contract-chapter-page-analysis),
 [stage-2](#stage-2-contract-chapter-extraction), and
 [stage-3](#stage-3-contract-chapter-alignment) contracts. A new class must:
 
-1. accept its engine directory in the constructor;
+1. accept its configuration mapping in the constructor;
 2. implement the appropriate linked `process()` contract;
-3. use a unique `name` in its `metakat_engine_config.json`;
+3. use a unique configuration `name`;
 4. be added to the appropriate registry in
    `ChapterPipelineCoreEngine._load_stage()`;
 5. have tests for its contract and registration.
@@ -635,8 +635,8 @@ Registration is explicit; placing a class in a package does not
 make it discoverable automatically. A stage is free to use YOLO, a VLM, rules,
 or an external service as long as it honors the same input/output models.
 
-When a new implementation needs additional configuration or files, keep them
-inside its stage directory. Do not add stage-specific settings to the pipeline
+When a new implementation needs files, expose their paths through explicit
+`*_path` or `*_dir` fields. Do not add stage-specific settings to the pipeline
 wrapper unless they affect orchestration itself.
 
 ## Available stage implementations
@@ -669,6 +669,7 @@ and physical-page-number evidence from pages outside that block.
 ```json
 {
   "name": "chapter_page_analysis_engine_yolo_alto",
+  "model_path": "chapter/page_analysis/model.pt",
   "labels": {
     "Level1Title": "kapitola",
     "Level2Title": "jiny nadpis",
@@ -712,9 +713,7 @@ fraction.
 
 ##### Geometry and text loading
 
-The engine directory must contain one `.pt` model. If several are present,
-the first directory entry ending in `.pt` is used, so the directory should
-contain exactly one model.
+`model_path` must identify the YOLO `.pt` model explicitly.
 
 For every input page, the engine:
 
@@ -999,6 +998,7 @@ TOC page-number parsing is documented separately under
 ```json
 {
   "name": "chapter_extraction_engine_yolo_alto",
+  "model_path": "chapter/extraction/model.pt",
   "labels": {
     "Level1Title": "kapitola",
     "Level2Title": "jiny nadpis",
@@ -1034,9 +1034,7 @@ The subtitle parameters are described with the corresponding
 
 ##### Geometry and text loading
 
-The engine directory must contain one `.pt` model. If several are present,
-the first directory entry ending in `.pt` is used, so the directory should
-contain exactly one model.
+`model_path` must identify the YOLO `.pt` model explicitly.
 
 An empty `toc_pages` sequence returns `TocBase(())` without running YOLO or
 reading ALTO. For non-empty input, every requested page must occur in the

@@ -1,31 +1,26 @@
-import json
-import os
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
+from typing import Any
 
 from metakat.schemas.base_objects import MetakatIO, ProarcIO
 
 import logging
 
 from metakat.page_type.engines.core.definitions import load_page_type_core_engine
+from metakat.engine_config import require_config_mapping, require_engine_name
 
 logger = logging.getLogger(__name__)
 
 
 class PageTypeBindEngine(ABC):
-    def __init__(self, bind_engine_dir: str, core_engine_dir: str):
-        logger.info(f"Loading page type bind engine from: {bind_engine_dir}")
-        self.engine_dir = bind_engine_dir
-        config_path = os.path.join(bind_engine_dir, "metakat_engine_config.json")
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Page type bind engine config not found at {config_path}")
-        with open(config_path, "r", encoding="utf-8") as f:
-            self.config = json.load(f)
-
-        logger.info(f"Page type bind engine config {config_path}: \n{json.dumps(self.config, indent=4)}")
-
-        self.name = self.config['name']
-
-        self.core_engine = load_page_type_core_engine(core_engine_dir)
+    def __init__(
+        self,
+        config: Mapping[str, Any],
+        core_config: Mapping[str, Any],
+    ):
+        self.config = require_config_mapping(config, "Page-type bind config")
+        self.name = require_engine_name(self.config, "Page-type bind config")
+        self.core_engine = load_page_type_core_engine(core_config)
 
         logger.info(f"Loaded page type bind engine: {self.name}")
 

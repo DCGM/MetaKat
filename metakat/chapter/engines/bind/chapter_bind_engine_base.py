@@ -48,8 +48,8 @@ class _BoundChapter:
 
 
 class ChapterBindEngineBase(ChapterBindEngine):
-    def __init__(self, bind_engine_dir: str, core_engine_dir: str):
-        super().__init__(bind_engine_dir, core_engine_dir)
+    def __init__(self, config, core_config):
+        super().__init__(config, core_config)
 
     def process(
         self,

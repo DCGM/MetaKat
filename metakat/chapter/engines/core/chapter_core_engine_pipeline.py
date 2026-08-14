@@ -12,7 +12,6 @@ from metakat.chapter.engines.core.models import (
     ChapterResult,
     TocResult,
 )
-from metakat.chapter.engines.core.pipeline_utils import load_engine_config
 from metakat.common.models import PageDimensions
 from metakat.chapter.engines.core.chapter_alignment import (
     ChapterAlignmentEngine,
@@ -39,34 +38,24 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
 
     def __init__(
         self,
-        core_engine_dir,
+        config,
         *,
         chapter_page_analysis_engine: ChapterPageAnalysisEngine | None = None,
         chapter_extraction_engine: ChapterExtractionEngine | None = None,
         chapter_alignment_engine: ChapterAlignmentEngine | None = None,
     ):
-        super().__init__(core_engine_dir)
-        stage_paths = self.config.get("stages", {})
+        super().__init__(config)
         self.chapter_page_analysis_engine = (
             chapter_page_analysis_engine
-            or self._load_stage(
-                "chapter_page_analysis",
-                stage_paths,
-            )
+            or self._load_stage("page_analysis")
         )
         self.chapter_extraction_engine = (
             chapter_extraction_engine
-            or self._load_stage(
-                "chapter_extraction",
-                stage_paths,
-            )
+            or self._load_stage("extraction")
         )
         self.chapter_alignment_engine = (
             chapter_alignment_engine
-            or self._load_stage(
-                "chapter_alignment",
-                stage_paths,
-            )
+            or self._load_stage("alignment")
         )
 
     def process(
@@ -235,32 +224,25 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
         )
         return TocResult(chapters=chapters)
 
-    def _load_stage(self, stage_name: str, stage_paths: dict):
-        configured_path = stage_paths.get(
-            stage_name,
-            self.config.get(f"{stage_name}_engine"),
-        )
-        if not configured_path:
+    def _load_stage(self, stage_name: str):
+        stage_config = self.config.get(stage_name)
+        if not isinstance(stage_config, dict):
             raise ValueError(
-                f"Missing stages.{stage_name} in pipeline engine config"
+                f"Chapter core config requires an object at {stage_name!r}"
             )
-        stage_dir = Path(configured_path)
-        if not stage_dir.is_absolute():
-            stage_dir = self.engine_dir / stage_dir
-        _, stage_config = load_engine_config(stage_dir)
         implementation = stage_config.get("name")
         registries = {
-            "chapter_page_analysis": {
+            "page_analysis": {
                 "chapter_page_analysis_engine_yolo_alto": (
                     ChapterPageAnalysisEngineYOLOALTO
                 ),
             },
-            "chapter_extraction": {
+            "extraction": {
                 "chapter_extraction_engine_yolo_alto": (
                     ChapterExtractionEngineYOLOALTO
                 ),
             },
-            "chapter_alignment": {
+            "alignment": {
                 "chapter_alignment_engine_fuzzy": ChapterAlignmentEngineFuzzy,
             },
         }
@@ -269,7 +251,7 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
             raise ValueError(
                 f"Unknown {stage_name} engine: {implementation!r}"
             )
-        return engine_class(stage_dir)
+        return engine_class(stage_config)
 
     @staticmethod
     def _pair_pages(

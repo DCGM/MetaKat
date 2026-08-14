@@ -1,7 +1,7 @@
 import json
 import logging
 from abc import ABC, abstractmethod
-from pathlib import Path
+from collections.abc import Mapping
 from typing import Any, Sequence
 
 from metakat.chapter.engines.core.models import TocResult
@@ -9,35 +9,15 @@ from metakat.common.models import PageDimensions
 from metakat.page_number.engines.core.models import (
     PhysicalPageNumberEvidence,
 )
+from metakat.engine_config import require_config_mapping, require_engine_name
 
 logger = logging.getLogger(__name__)
 
 
 class ChapterCoreEngine(ABC):
-    def __init__(self, core_engine_dir: str | Path):
-        self.engine_dir = Path(core_engine_dir)
-        logger.info("Loading chapter core engine from: %s", self.engine_dir)
-        config_path = self.engine_dir / "metakat_engine_config.json"
-        if not config_path.is_file():
-            raise FileNotFoundError(
-                f"Chapter core engine config not found at {config_path}"
-            )
-        with config_path.open("r", encoding="utf-8") as source:
-            config: Any = json.load(source)
-        if not isinstance(config, dict):
-            raise ValueError(
-                "Chapter core engine config must be a JSON object: "
-                f"{config_path}"
-            )
-        name = config.get("name")
-        if not isinstance(name, str) or not name.strip():
-            raise ValueError(
-                "Chapter core engine config must contain a non-empty "
-                f"string 'name': {config_path}"
-            )
-
-        self.config: dict[str, Any] = config
-        self.name = name
+    def __init__(self, config: Mapping[str, Any]):
+        self.config = require_config_mapping(config, "Chapter core config")
+        self.name = require_engine_name(self.config, "Chapter core config")
         logger.info(
             "Chapter core engine config: \n%s",
             json.dumps(self.config, indent=4),

@@ -1,25 +1,13 @@
 from __future__ import annotations
 
-import json
 import unicodedata
 import re
-from pathlib import Path
 from typing import Any
 
 from text_geometry_aligner import AlignmentRegion
 
 from metakat.common.models import BoundingBox, DetectionEvidence
 from metakat.schemas.base_objects import ChapterType
-
-
-def load_engine_config(engine_dir: str | Path) -> tuple[Path, dict[str, Any]]:
-    directory = Path(engine_dir)
-    config_path = directory / "metakat_engine_config.json"
-    if not config_path.is_file():
-        raise FileNotFoundError(f"Engine config not found at {config_path}")
-    with config_path.open("r", encoding="utf-8") as source:
-        config = json.load(source)
-    return directory, config
 
 
 def load_chapter_label_mapping(

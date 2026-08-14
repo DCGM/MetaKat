@@ -6,14 +6,14 @@ from collections import OrderedDict
 from natsort import natsorted
 
 from metakat.page_type.engines.bind.page_type_bind_engine import PageTypeBindEngine
-from metakat.schemas.base_objects import MetakatIO, ProarcIO, PageType, DocumentType
+from metakat.schemas.base_objects import MetakatIO, ProarcIO, DocumentType
 
 logger = logging.getLogger(__name__)
 
 
 class PageTypeBindEngineBase(PageTypeBindEngine):
-    def __init__(self, bind_engine_dir, core_engine_dir):
-        super().__init__(bind_engine_dir, core_engine_dir)
+    def __init__(self, config, core_config):
+        super().__init__(config, core_config)
 
     def process(self, batch_dir: str, metakat_io: MetakatIO, proarc_io: ProarcIO = None) -> MetakatIO:
         metakat_io=copy.deepcopy(metakat_io)
@@ -28,22 +28,21 @@ class PageTypeBindEngineBase(PageTypeBindEngine):
 
         logger.info(f"Adding page types to MetaKatPage elements")
         added_page_types = 0
-        for i, (image_path, probs) in enumerate(predictions.items()):
+        for image_path, probs in predictions.items():
             page_id = image_path_to_page_id[image_path]
             metakat_page = page_id_to_metakat_page[page_id]
-            class_id = str(probs.index(max(probs)))
-            if class_id not in self.core_engine.id2label:
+            class_id = probs.index(max(probs))
+            page_type = self.core_engine.page_type_by_class_id.get(class_id)
+            if page_type is None:
                 logger.warning(
-                    f"Id {class_id} not found in id2label mapping (read from metakat_engine_config.json), skipping detection")
+                    "Class ID %d not found in the ViT checkpoint label "
+                    "mapping; skipping detection",
+                    class_id,
+                )
                 continue
-            page_type = self.core_engine.id2label[class_id]
-            page_type = PageType(page_type)
             prob = max(probs)
             metakat_page.pageType = (page_type, prob)
             added_page_types += 1
         logger.info(f"Added page types to {added_page_types} MetaKatPage elements")
 
         return metakat_io
-
-
-

@@ -1,5 +1,7 @@
-import os
-import json
+from collections.abc import Mapping
+from typing import Any
+
+from metakat.engine_config import require_config_mapping, require_engine_name
 
 from metakat.biblio.engines.core.biblio_core_engine import BiblioCoreEngine
 from metakat.biblio.engines.core.biblio_core_engine_yolo import BiblioCoreEngineYOLO
@@ -8,16 +10,11 @@ biblio_core_engines = {
     'biblio_core_engine_yolo': BiblioCoreEngineYOLO
 }
 
-def load_biblio_core_engine(core_engine_dir: str) -> BiblioCoreEngine:
-    config_path = os.path.join(core_engine_dir, "metakat_engine_config.json")
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Biblio core engine config not found at {config_path}")
-
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = json.load(f)
-
-    core_engine_class = biblio_core_engines.get(config['name'])
+def load_biblio_core_engine(config: Mapping[str, Any]) -> BiblioCoreEngine:
+    engine_config = require_config_mapping(config, "Biblio core config")
+    name = require_engine_name(engine_config, "Biblio core config")
+    core_engine_class = biblio_core_engines.get(name)
     if core_engine_class is None:
-        raise ValueError(f"Unknown biblio core engine: {config['name']}")
+        raise ValueError(f"Unknown biblio core engine: {name}")
 
-    return core_engine_class(core_engine_dir)
+    return core_engine_class(engine_config)

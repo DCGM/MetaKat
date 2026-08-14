@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 class BiblioBindEngineBase(BiblioBindEngine):
-    def __init__(self, bind_engine_dir: str, core_engine_dir: str):
-        super().__init__(bind_engine_dir, core_engine_dir)
+    def __init__(self, config, core_config):
+        super().__init__(config, core_config)
 
     def process(self, batch_dir: str, metakat_io: MetakatIO, proarc_io: ProarcIO = None) -> MetakatIO:
         metakat_io = copy.deepcopy(metakat_io)
@@ -252,8 +252,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
             if not region.matched:
                 continue
             if (
-                region.category_id is None
-                or region.input_geometry is None
+                region.input_geometry is None
                 or region.input_geometry_confidence is None
                 or region.alto_text is None
             ):
@@ -265,18 +264,20 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 )
                 continue
 
-            class_id = str(region.category_id)
-            if class_id not in self.core_engine.id2label:
+            model_label = region.label_for_export
+            biblio_type = self.core_engine.biblio_type_by_label.get(
+                model_label
+            )
+            if biblio_type is None:
                 logger.warning(
-                    "Id %s (label=%r, label_export=%r) not found in "
-                    "id2label mapping (read from "
-                    "metakat_engine_config.json), skipping detection",
-                    class_id,
+                    "Model label %r (raw=%r, export=%r) not found in the "
+                    "engine configuration's labels mapping; "
+                    "skipping detection",
+                    model_label,
                     region.label,
                     region.label_export,
                 )
                 continue
-            biblio_type = BiblioType(self.core_engine.id2label[class_id])
 
             bbox = region.input_geometry.bounds
             detection_bbox = (
@@ -535,6 +536,3 @@ class PeriodicalMetakatVolumeBag:
         self.root_volume = volume
         if page_id_to_batch_index[volume.page_id] < page_id_to_batch_index[self.root_volume.page_id]:
             self.root_page_id = volume.page_id
-
-
-

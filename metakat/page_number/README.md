@@ -136,11 +136,10 @@ no MetaKat detection UUIDs: UUID creation and schema mutation belong to the
 
 ### Implementing another core engine
 
-Every core engine follows the
-[engine directory convention](#engine-directory-convention). To add one:
+Every core engine receives its configuration mapping directly. To add one:
 
 1. subclass `PageNumberCoreEngine` and call its constructor with the core
-   engine directory;
+   configuration mapping;
 2. implement `process()` while preserving the complete
    [core contract](#page-number-core-engine-contract); the base class does not
    prescribe detection, parsing, or resolution;
@@ -157,46 +156,38 @@ bind engine and explicit bind-engine registration.
 
 ## Core and bind orchestration
 
-### Engine directory convention
+### Pipeline configuration
 
-The core and bind engines are supplied as separate directories. Each contains
-a `metakat_engine_config.json`; the core directory also contains resources
-needed by its implementation. The available engines use this layout:
-
-```text
-page_number_core_engine/
-├── metakat_engine_config.json
-└── model.pt
-
-page_number_bind_engine/
-└── metakat_engine_config.json
-```
-
-A minimal pair of configurations is:
+The complete MetaKat pipeline configuration nests the page-number core and
+bind mappings under `page_number`. A minimal configuration is:
 
 ```json
 {
-  "name": "page_number_core_engine_yolo",
-  "labels": {
-    "PageNumber": "cislo strany"
+  "page_number": {
+    "core": {
+      "name": "page_number_core_engine_yolo",
+      "model_path": "page_number/core/model.pt",
+      "labels": {
+        "PageNumber": "cislo strany"
+      }
+    },
+    "bind": {
+      "name": "page_number_bind_engine_base"
+    }
   }
 }
 ```
 
-```json
-{
-  "name": "page_number_bind_engine_base"
-}
-```
-
-Core and bind registration is explicit. `load_page_number_core_engine()` and
-`load_page_number_bind_engine()` read the `name` value and resolve it through
-their respective registries. An unknown name is an error; placing an
-implementation in the package does not register it automatically.
+The central pipeline loader resolves relative `*_path` and `*_dir` values
+before construction. Core and bind loaders receive these prepared mappings,
+read `name`, and resolve it through their respective registries. An unknown
+name is an error; placing an implementation in the package does not register
+it automatically. Per-engine configuration files and directory-based loader
+arguments are not supported.
 
 ### Processing handoff
 
-When both page-number engine directories are configured,
+When both page-number mappings are configured,
 `process_batch()` runs page-number processing before page-type,
 bibliographic, and chapter processing. This order allows later processing,
 including chapter destination alignment, to consume the physical numbers
@@ -230,6 +221,7 @@ number per page.
 ```json
 {
   "name": "page_number_core_engine_yolo",
+  "model_path": "page_number/core/model.pt",
   "labels": {
     "PageNumber": "cislo strany"
   },
@@ -247,9 +239,7 @@ defaults and validation are documented with the
 
 #### Geometry and text loading
 
-The engine directory must contain one `.pt` model. If several are present, the
-first directory entry ending in `.pt` is used, so the directory should contain
-exactly one model.
+`model_path` must identify the YOLO `.pt` model explicitly.
 
 For every input page, the shared `EngineYOLOALTO`:
 

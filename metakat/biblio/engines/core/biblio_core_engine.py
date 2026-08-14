@@ -1,44 +1,53 @@
-import json
-import os
 import logging
 from abc import ABC, abstractmethod
-from typing import List
+from collections.abc import Mapping
+from typing import Any, List
 
 from text_geometry_aligner import AlignmentPage
 
 from metakat.schemas.base_objects import BiblioType
+from metakat.engine_config import require_config_mapping, require_engine_name
 
 logger = logging.getLogger(__name__)
 
 
 class BiblioCoreEngine(ABC):
-    def __init__(self, core_engine_dir: str):
-        logger.info(f"Loading biblio core engine from: {core_engine_dir}")
-        self.engine_dir = core_engine_dir
-        config_path = os.path.join(core_engine_dir, "metakat_engine_config.json")
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Biblio core engine config not found at {config_path}")
-        with open(config_path, "r", encoding="utf-8") as f:
-            self.config = json.load(f)
+    def __init__(self, config: Mapping[str, Any]):
+        self.config = require_config_mapping(config, "Biblio core config")
+        self.name = require_engine_name(self.config, "Biblio core config")
+        if "id2label" in self.config:
+            raise ValueError("id2label is not supported; use the labels mapping")
+        configured_labels = self.config.get("labels")
+        if not isinstance(configured_labels, dict) or not configured_labels:
+            raise ValueError("labels must be a non-empty object")
 
-        logger.info(f"Biblio core engine config {config_path}: \n{json.dumps(self.config, indent=4)}")
-
-        self.name = self.config['name']
-        self.id2label = self.config['id2label']
-
-        if not isinstance(self.id2label, dict):
-            raise ValueError(f"Invalid id2label format in config: {self.id2label}")
-        if not self.id2label:
-            raise ValueError("id2label cannot be empty in config")
-
-        for my_id, label in self.id2label.items():
+        self.labels: dict[BiblioType, str] = {}
+        for raw_type, label in configured_labels.items():
             try:
-                BiblioType(label)
-            except ValueError:
-                raise ValueError(f"Invalid BiblioType label in config: '{my_id}: {label}'")
+                biblio_type = BiblioType(raw_type)
+            except (TypeError, ValueError) as error:
+                raise ValueError(
+                    f"Unknown bibliographic label type: {raw_type!r}"
+                ) from error
+            if not isinstance(label, str) or not label.strip():
+                raise ValueError(
+                    f"Label for {biblio_type.value!r} must be a non-empty "
+                    "string"
+                )
+            if label in self.labels.values():
+                raise ValueError(
+                    f"Bibliographic model label is assigned more than once: "
+                    f"{label!r}"
+                )
+            self.labels[biblio_type] = label
+
+        self.biblio_type_by_label = {
+            label: biblio_type
+            for biblio_type, label in self.labels.items()
+        }
 
         logger.info(f"Loaded biblio core engine: {self.name}")
-        logger.info(f"{len(self.id2label)}")
+        logger.info("Loaded %d bibliographic label(s)", len(self.labels))
 
     @abstractmethod
     def process(

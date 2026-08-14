@@ -1,5 +1,4 @@
 import argparse
-import json
 import logging
 import os
 import tempfile
@@ -18,24 +17,20 @@ from text_geometry_aligner import (
 )
 
 from metakat.common.engines.engine_yolo import EngineYOLO
+from metakat.engine_config import require_config_mapping
 
 logger = logging.getLogger(__name__)
 
 
 class EngineYOLOALTO:
-    def __init__(self, engine_dir,
+    def __init__(self, config,
                  yolo_batch_size=32,
                  yolo_confidence_threshold=0.25,
                  yolo_image_size=640,
                  minimum_overlap_coverage=0.65,
                  yolo_device=0,
                  label_deduplication_groups=None):
-        self.engine_dir = engine_dir
-        config_path = os.path.join(engine_dir, "metakat_engine_config.json")
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Engine config not found at {config_path}")
-        with open(config_path, "r", encoding="utf-8") as f:
-            self.config = json.load(f)
+        self.config = require_config_mapping(config, "YOLO + ALTO config")
 
         self.yolo_batch_size = yolo_batch_size
         if 'yolo_batch_size' in self.config:
@@ -63,13 +58,9 @@ class EngineYOLOALTO:
             )
         )
 
-        pt_path = None
-        for file_name in os.listdir(engine_dir):
-            if file_name.endswith(".pt"):
-                pt_path = os.path.join(engine_dir, file_name)
-                break
-        if pt_path is None:
-            raise FileNotFoundError(f"No .pt model file found in {engine_dir}")
+        pt_path = self.config.get("model_path")
+        if not isinstance(pt_path, str) or not pt_path:
+            raise ValueError("YOLO + ALTO config requires a non-empty model_path")
         self.yolo_engine = EngineYOLO(
             model_path=pt_path,
             batch_size=self.yolo_batch_size,
@@ -174,7 +165,7 @@ def _parse_label_deduplication_groups(
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--engine', required=True, help='Path to the YOLO model')
+    parser.add_argument('--engine-config', required=True, help='Path to the JSON/YAML engine configuration')
     parser.add_argument('--image-dir', required=True, help='Path to directory containing images')
     parser.add_argument('--alto-dir', required=True, help='Path to directory containing ALTO files')
     parser.add_argument('--output-file', required=True, help='Path to output text file')
@@ -189,7 +180,11 @@ def main():
     logging.basicConfig(level=args.logging_level,
                         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-    engine = EngineYOLOALTO(args.engine)
+    from metakat.engine_config import load_config_file, resolve_config_paths
+
+    config = load_config_file(args.engine_config)
+    config = resolve_config_paths(config, os.path.dirname(args.engine_config))
+    engine = EngineYOLOALTO(config)
 
     images = natsorted([os.path.join(args.image_dir, img) for img in os.listdir(args.image_dir) if os.path.splitext(img)[-1].lower() in {'.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff'}])
     alto_files = natsorted([os.path.join(args.alto_dir, alto) for alto in os.listdir(args.alto_dir) if alto.lower().endswith('.xml')])

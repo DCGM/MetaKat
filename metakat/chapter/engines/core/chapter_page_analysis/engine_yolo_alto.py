@@ -18,11 +18,11 @@ from metakat.chapter.engines.core.chapter_page_analysis.models import (
 )
 from metakat.chapter.engines.core.pipeline_utils import (
     load_chapter_label_mapping,
-    load_engine_config,
     normalize_text,
     region_label,
     region_to_evidence,
 )
+from metakat.engine_config import require_config_mapping
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
 from metakat.page_number.engines.core.models import (
     PhysicalPageNumberEvidence,
@@ -80,8 +80,8 @@ class ChapterPageAnalysisEngineYOLOALTO:
         "sommaire",
     )
 
-    def __init__(self, engine_dir, *, alignment_engine=None):
-        self.engine_dir, self.config = load_engine_config(engine_dir)
+    def __init__(self, config, *, alignment_engine=None):
+        self.config = require_config_mapping(config, "Chapter page-analysis config")
         self.labels = load_chapter_label_mapping(
             self.config,
             self.DEFAULT_LABELS,
@@ -182,7 +182,7 @@ class ChapterPageAnalysisEngineYOLOALTO:
                 "toc_candidate_max_window_height_fraction"
             )
         self.alignment_engine = alignment_engine or EngineYOLOALTO(
-            self.engine_dir
+            self.config
         )
         self.page_number_resolver = (
             PhysicalPageNumberResolver.from_config(self.config)

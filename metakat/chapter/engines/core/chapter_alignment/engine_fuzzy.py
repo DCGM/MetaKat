@@ -19,9 +19,9 @@ from metakat.chapter.engines.core.chapter_page_analysis.models import (
     DestinationChapterEvidence,
 )
 from metakat.chapter.engines.core.pipeline_utils import (
-    load_engine_config,
     normalize_text,
 )
+from metakat.engine_config import require_config_mapping
 from metakat.page_number.engines.core.models import (
     PageNumberNumeralSystem,
     PhysicalPageNumberEvidence,
@@ -53,8 +53,8 @@ class _TitleAssignment(TypedDict):
 class ChapterAlignmentEngineFuzzy:
     """Resolve a flat TOC using page-number anchors and fuzzy titles."""
 
-    def __init__(self, engine_dir):
-        self.engine_dir, self.config = load_engine_config(engine_dir)
+    def __init__(self, config):
+        self.config = require_config_mapping(config, "Chapter alignment config")
         self.minimum_title_substring_similarity = float(
             self.config.get("minimum_title_substring_similarity", 0.7)
         )

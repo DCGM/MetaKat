@@ -1,5 +1,6 @@
 import logging
-from typing import List
+from collections.abc import Mapping
+from typing import Any, List
 
 from text_geometry_aligner import AlignmentPage
 
@@ -27,20 +28,20 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
 
     def __init__(
         self,
-        core_engine_dir: str,
+        config: Mapping[str, Any],
         yolo_batch_size: int = 32,
         yolo_confidence_threshold: float = 0.25,
         yolo_image_size: int = 640,
         minimum_overlap_coverage: float = 0.65,
     ):
-        super().__init__(core_engine_dir=core_engine_dir)
+        super().__init__(config=config)
         self.labels = self._load_labels()
         self.page_number_parser = DecoratedPageNumberParser
         self.page_number_resolver = PhysicalPageNumberResolver.from_config(
             self.config
         )
         self.engine_yolo_alto = EngineYOLOALTO(
-            engine_dir=self.engine_dir,
+            config=self.config,
             yolo_batch_size=yolo_batch_size,
             yolo_confidence_threshold=yolo_confidence_threshold,
             yolo_image_size=yolo_image_size,

@@ -1,9 +1,10 @@
-import json
-import os
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple
+from collections import Counter
+from collections.abc import Mapping
+from typing import Any, Dict, List
 
 from metakat.schemas.base_objects import PageType
+from metakat.engine_config import require_config_mapping, require_engine_name
 
 import logging
 
@@ -12,33 +13,45 @@ logger = logging.getLogger(__name__)
 
 
 class PageTypeCoreEngine(ABC):
-    def __init__(self, core_engine_dir: str):
-        logger.info(f"Loading page type core engine from: {core_engine_dir}")
-        self.engine_dir = core_engine_dir
-        config_path = os.path.join(core_engine_dir, "metakat_engine_config.json")
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Page type core engine config not found at {config_path}")
-        with open(config_path, "r", encoding="utf-8") as f:
-            self.config = json.load(f)
+    def __init__(self, config: Mapping[str, Any]):
+        self.config = require_config_mapping(config, "Page-type core config")
+        self.name = require_engine_name(self.config, "Page-type core config")
+        if "id2label" in self.config:
+            raise ValueError("id2label is not supported; use the labels mapping")
+        configured_labels = self.config.get("labels", {})
+        if not isinstance(configured_labels, dict):
+            raise ValueError("labels must be an object")
 
-        logger.info(f"Page type core engine config {config_path}: \n{json.dumps(self.config, indent=4)}")
-
-        self.name = self.config['name']
-        self.id2label = self.config['id2label']
-
-        if not isinstance(self.id2label, dict):
-            raise ValueError(f"Invalid id2label format in config: {self.id2label}")
-        if not self.id2label:
-            raise ValueError("id2label cannot be empty in config")
-
-        for my_id, label in self.id2label.items():
+        self.labels: dict[PageType, str] = {
+            page_type: page_type.value for page_type in PageType
+        }
+        for raw_type, label in configured_labels.items():
             try:
-                PageType(label)
-            except ValueError:
-                raise ValueError(f"Invalid PageType label in config: '{my_id}: {label}'")
+                page_type = PageType(raw_type)
+            except (TypeError, ValueError) as error:
+                raise ValueError(
+                    f"Unknown page-type label type: {raw_type!r}"
+                ) from error
+            if not isinstance(label, str) or not label.strip():
+                raise ValueError(
+                    f"Label for {page_type.value!r} must be a non-empty "
+                    "string"
+                )
+            self.labels[page_type] = label
+
+        duplicate_labels = {
+            label
+            for label, count in Counter(self.labels.values()).items()
+            if count > 1
+        }
+        if duplicate_labels:
+            raise ValueError(
+                "Page-type model labels must be unique: "
+                + ", ".join(sorted(duplicate_labels))
+            )
 
         logger.info(f"Loaded page type core engine: {self.name}")
-        logger.info(f"{len(self.id2label)}")
+        logger.info("Loaded %d page-type label(s)", len(self.labels))
 
     @abstractmethod
     def process(self, images: List[str]) -> Dict[str, List[float]]:

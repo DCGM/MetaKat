@@ -18,9 +18,9 @@ from metakat.chapter.engines.core.models import (
 from metakat.common.models import BoundingBox, DetectionEvidence
 from metakat.chapter.engines.core.pipeline_utils import (
     load_chapter_label_mapping,
-    load_engine_config,
     region_label,
 )
+from metakat.engine_config import require_config_mapping
 from metakat.chapter.engines.core.chapter_page_number_parsers import (
     ArabicRomanChapterPageNumberParser,
 )
@@ -98,8 +98,8 @@ class ChapterExtractionEngineYOLOALTO:
         ChapterType.PART_NUMBER: "jine cislo",
     }
 
-    def __init__(self, engine_dir, *, alignment_engine=None):
-        self.engine_dir, self.config = load_engine_config(engine_dir)
+    def __init__(self, config, *, alignment_engine=None):
+        self.config = require_config_mapping(config, "Chapter extraction config")
         self.labels = load_chapter_label_mapping(
             self.config,
             self.DEFAULT_LABELS,
@@ -189,7 +189,7 @@ class ChapterExtractionEngineYOLOALTO:
             )
         )
         self.alignment_engine = alignment_engine or EngineYOLOALTO(
-            self.engine_dir
+            self.config
         )
 
     def process(

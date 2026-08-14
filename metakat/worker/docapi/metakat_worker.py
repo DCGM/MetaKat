@@ -1,4 +1,5 @@
 import os
+import json
 import tempfile
 import shutil
 from pathlib import Path
@@ -16,6 +17,7 @@ from doc_api.api.schemas.base_objects import Job
 from doc_api.connector import Connector
 
 from metakat.process_batch import process_batch
+from metakat.engine_config import prepare_engine_config, require_config_mapping
 
 
 logger = logging.getLogger(__name__)
@@ -40,7 +42,7 @@ class MetakatWorker(DocWorkerWrapper):
             result_dir: Directory path where processing results should be saved
             alto_dir: Optional directory path containing ALTO XML files
             page_xml_dir: Optional directory path containing PAGE XML files
-            meta_file: Optional path to the meta.json file
+            meta_file: Optional path to the metadata JSON envelope
             engine_dir: Optional directory path containing engine files
             
         Returns:
@@ -84,48 +86,25 @@ class MetakatWorker(DocWorkerWrapper):
                         symlink_path = Path(tmp_batch_dir) / alto_file.name
                         symlink_path.symlink_to(alto_file.resolve())
 
-                # Construct engine paths
-                (
-                    page_number_core_path,
-                    page_number_bind_path,
-                ) = self._get_optional_engine_pair_paths(
-                    engine_dir,
-                    "page_number",
-                    job.engine_definition,
-                )
-                page_type_core_path = self._get_engine_path(
-                    engine_dir, 'page_type_core_engine', job.engine_definition
-                )
-                page_type_bind_path = self._get_engine_path(
-                    engine_dir, 'page_type_bind_engine', job.engine_definition
-                )
-                biblio_core_path = self._get_engine_path(
-                    engine_dir, 'biblio_core_engine', job.engine_definition
-                )
-                biblio_bind_path = self._get_engine_path(
-                    engine_dir, 'biblio_bind_engine', job.engine_definition
-                )
-                (
-                    chapter_core_path,
-                    chapter_bind_path,
-                ) = self._get_optional_engine_pair_paths(
-                    engine_dir,
-                    "chapter",
-                    job.engine_definition,
+                metadata = self._load_metadata_envelope(meta_file)
+                if engine_dir is None:
+                    raise ValueError("Downloaded engine directory is required")
+                engine_config = prepare_engine_config(
+                    require_config_mapping(
+                        job.engine_definition,
+                        "Job engine definition",
+                    ),
+                    override=metadata["engine_config_override"],
+                    base_dir=engine_dir,
+                    require_within_base=True,
                 )
 
                 process_batch(
                     batch_dir=tmp_batch_dir,
-                    proarc_json=meta_file,
+                    engine_config=engine_config,
+                    metakat_data=metadata["metakat_json"],
+                    proarc_data=metadata["proarc_json"],
                     ordered_image_filenames=ordered_image_filenames,
-                    page_number_core_engine=page_number_core_path,
-                    page_number_bind_engine=page_number_bind_path,
-                    page_type_core_engine=page_type_core_path,
-                    page_type_bind_engine=page_type_bind_path,
-                    biblio_core_engine=biblio_core_path,
-                    biblio_bind_engine=biblio_bind_path,
-                    chapter_core_engine=chapter_core_path,
-                    chapter_bind_engine=chapter_bind_path,
                     output_metakat_json=os.path.join(result_dir, "metakat.json"),
                     output_metakat_pdf=(
                         os.path.join(Path(result_dir).parent, "result.pdf")
@@ -150,45 +129,30 @@ class MetakatWorker(DocWorkerWrapper):
             root_logger.removeHandler(job_log_file_handler)
             job_log_file_handler.close()
 
-    def _get_optional_engine_pair_paths(
-        self,
-        engine_dir: str,
-        category: str,
-        engine_definition: dict,
-    ) -> tuple[Optional[str], Optional[str]]:
-        core_key = f"{category}_core_engine"
-        bind_key = f"{category}_bind_engine"
-        core_name = engine_definition.get(core_key)
-        bind_name = engine_definition.get(bind_key)
-        if core_name is None and bind_name is None:
-            return None, None
-        if (
-            not isinstance(core_name, str)
-            or not core_name.strip()
-            or not isinstance(bind_name, str)
-            or not bind_name.strip()
-        ):
+    @staticmethod
+    def _load_metadata_envelope(meta_file: Optional[str]) -> dict:
+        keys = {
+            "metakat_json",
+            "proarc_json",
+            "engine_config_override",
+        }
+        if meta_file is None:
+            return {key: None for key in keys}
+        with open(meta_file, "r", encoding="utf-8") as source:
+            value = json.load(source)
+        if not isinstance(value, dict):
+            raise ValueError("Job metadata envelope must be a JSON object")
+        unknown = value.keys() - keys
+        if unknown:
             raise ValueError(
-                f"Engine definition must provide both {core_key!r} and "
-                f"{bind_key!r} as non-empty strings"
+                "Unknown job metadata envelope key(s): "
+                + ", ".join(sorted(unknown))
             )
-        return (
-            self._get_engine_path(engine_dir, core_key, engine_definition),
-            self._get_engine_path(engine_dir, bind_key, engine_definition),
-        )
-
-    def _get_engine_path(
-        self,
-        engine_dir: str,
-        engine_key: str,
-        engine_definition: dict,
-    ) -> str:
-        """Resolve ``category/core-or-bind/name`` from an engine key."""
-        key_parts = engine_key.removesuffix("_engine").split("_")
-        engine_type = key_parts[-1]
-        category = "_".join(key_parts[:-1])
-        engine_name = engine_definition[engine_key]
-        return os.path.join(engine_dir, category, engine_type, engine_name)
+        result = {key: value.get(key) for key in keys}
+        for key, item in result.items():
+            if item is not None and not isinstance(item, dict):
+                raise ValueError(f"Job metadata {key!r} must be an object or null")
+        return result
 
 
 def main():

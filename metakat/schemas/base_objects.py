@@ -76,7 +76,7 @@ class BiblioType(str, enum.Enum):
     PUBLISHER = "Publisher"
     PLACE_TERM = "PlaceTerm"
     DATE_ISSUED = "DateIssued"
-    MANUFACTURE_PUBLISHER = "ManucturePublisher"
+    MANUFACTURE_PUBLISHER = "ManufacturePublisher"
     MANUFACTURE_PLACE_TERM = "ManufacturePlaceTerm"
     AUTHOR = "Author"
     ILLUSTRATOR = "Illustrator"

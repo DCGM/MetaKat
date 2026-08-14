@@ -4,7 +4,9 @@ import logging
 import os.path
 import sys
 import time
-from typing import Tuple, List, Optional, Set
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Any, Tuple, List, Optional, Set
 from uuid import uuid4, UUID
 import xml.etree.ElementTree as ET
 
@@ -17,6 +19,11 @@ from metakat.page_number.engines.bind.definitions import (
 )
 from metakat.page_type.engines.bind.definitions import load_page_type_bind_engine
 from metakat.biblio.engines.bind.definitions import load_biblio_bind_engine
+from metakat.engine_config import (
+    load_config_file,
+    prepare_engine_config,
+    require_config_mapping,
+)
 
 from metakat.schemas.base_objects import (
     MetakatIO,
@@ -35,17 +42,27 @@ def parse_args():
     parser.add_argument('--batch-dir', type=str, required=True)
     parser.add_argument('--metakat-json', type=str)
     parser.add_argument('--proarc-json', type=str)
+    parser.add_argument(
+        '--engine-config',
+        type=str,
+        required=True,
+        help='Path to the complete YAML or JSON engine configuration',
+    )
+    parser.add_argument(
+        '--engine-config-override',
+        type=str,
+        help='Optional YAML or JSON configuration override',
+    )
+    parser.add_argument(
+        '--set',
+        dest='engine_config_assignments',
+        nargs=2,
+        action='append',
+        metavar=('PATH', 'VALUE'),
+        help='Override a colon-delimited engine config path; repeatable',
+    )
 
     parser.add_argument('--allowed-image-extensions', type=str, nargs='*', default=['.jpg', '.jpeg', '.png', '.tif', '.tiff'])
-
-    parser.add_argument('--page-number-core-engine', type=str, help='Path to directory containing page number core engine')
-    parser.add_argument('--page-number-bind-engine', type=str, help='Path to directory containing page number bind engine')
-    parser.add_argument('--page-type-core-engine', type=str, help='Path to directory containing page type core engine')
-    parser.add_argument('--page-type-bind-engine', type=str, help='Path to directory containing page type bind engine')
-    parser.add_argument('--biblio-core-engine', type=str, help='Path to directory containing biblio core engine')
-    parser.add_argument('--biblio-bind-engine', type=str, help='Path to directory containing biblio bind engine')
-    parser.add_argument('--chapter-core-engine', type=str, help='Path to directory containing chapter core engine')
-    parser.add_argument('--chapter-bind-engine', type=str, help='Path to directory containing chapter bind engine')
 
     parser.add_argument('--output-metakat-json', type=str, help='Path to output Metakat JSON file')
     parser.add_argument('--output-metakat-pdf', type=str, help='Path to output interactive MetaKat PDF file')
@@ -69,18 +86,25 @@ def main():
 
     logger.info(' '.join(sys.argv))
 
+    engine_config_path = Path(args.engine_config).resolve()
+    base_config = load_config_file(engine_config_path)
+    override = (
+        load_config_file(args.engine_config_override)
+        if args.engine_config_override is not None
+        else None
+    )
+    engine_config = prepare_engine_config(
+        base_config,
+        override=override,
+        assignments=args.engine_config_assignments,
+        base_dir=engine_config_path.parent,
+    )
+
     process_batch(
         batch_dir=args.batch_dir,
-        metakat_json=args.metakat_json,
-        proarc_json=args.proarc_json,
-        page_number_core_engine=args.page_number_core_engine,
-        page_number_bind_engine=args.page_number_bind_engine,
-        page_type_core_engine=args.page_type_core_engine,
-        page_type_bind_engine=args.page_type_bind_engine,
-        biblio_core_engine=args.biblio_core_engine,
-        biblio_bind_engine=args.biblio_bind_engine,
-        chapter_core_engine=args.chapter_core_engine,
-        chapter_bind_engine=args.chapter_bind_engine,
+        engine_config=engine_config,
+        metakat_data=_load_json_file(args.metakat_json),
+        proarc_data=_load_json_file(args.proarc_json),
         output_metakat_json=args.output_metakat_json,
         output_metakat_pdf=args.output_metakat_pdf,
         allowed_image_extensions=set(args.allowed_image_extensions)
@@ -89,17 +113,10 @@ def main():
 
 def process_batch(
     batch_dir: str,
-    metakat_json: Optional[str] = None,
-    proarc_json: Optional[str] = None,
+    engine_config: Mapping[str, Any],
+    metakat_data: Optional[Mapping[str, Any]] = None,
+    proarc_data: Optional[Mapping[str, Any]] = None,
     ordered_image_filenames: Optional[List] = None,
-    page_number_core_engine: Optional[str] = None,
-    page_number_bind_engine: Optional[str] = None,
-    page_type_core_engine: Optional[str] = None,
-    page_type_bind_engine: Optional[str] = None,
-    biblio_core_engine: Optional[str] = None,
-    biblio_bind_engine: Optional[str] = None,
-    chapter_core_engine: Optional[str] = None,
-    chapter_bind_engine: Optional[str] = None,
     output_metakat_json: Optional[str] = None,
     output_metakat_pdf: Optional[str] = None,
     allowed_image_extensions: Optional[Set] = None,
@@ -109,17 +126,10 @@ def process_batch(
     
     Args:
         batch_dir: Path to the batch directory
-        metakat_json: Path to input Metakat JSON file
-        proarc_json: Path to input ProARC JSON file
+        engine_config: Final merged and path-resolved pipeline configuration
+        metakat_data: Decoded input MetaKat JSON object
+        proarc_data: Decoded input ProARC JSON object
         ordered_image_filenames: List of ordered image filenames in batch_dir (defaults to natsorted image files)
-        page_number_core_engine: Path to page number core engine directory
-        page_number_bind_engine: Path to page number bind engine directory
-        page_type_core_engine: Path to page type core engine directory
-        page_type_bind_engine: Path to page type bind engine directory
-        biblio_core_engine: Path to biblio core engine directory
-        biblio_bind_engine: Path to biblio bind engine directory
-        chapter_core_engine: Path to chapter core engine directory
-        chapter_bind_engine: Path to chapter bind engine directory
         output_metakat_json: Path to output Metakat JSON file
         output_metakat_pdf: Path to output interactive MetaKat PDF file
         allowed_image_extensions: Set of allowed image file extensions
@@ -129,23 +139,24 @@ def process_batch(
     """
     if allowed_image_extensions is None:
         allowed_image_extensions = {'.jpg', '.jpeg', '.png', '.tif', '.tiff'}
-
+    pipeline_config = require_config_mapping(
+        engine_config,
+        "Pipeline engine config",
+    )
 
     metakat_io, proarc_io = init_io(
         batch_dir=batch_dir,
-        metakat_json=metakat_json,
-        proarc_json=proarc_json,
+        metakat_data=metakat_data,
+        proarc_data=proarc_data,
         ordered_image_filenames=ordered_image_filenames,
         allowed_image_extensions=allowed_image_extensions
     )
 
-    if (
-        page_number_bind_engine is not None
-        and page_number_core_engine is not None
-    ):
+    page_number = _engine_pair(pipeline_config, "page_number")
+    if page_number is not None:
         page_number_bind_engine_obj = load_page_number_bind_engine(
-            page_number_bind_engine,
-            page_number_core_engine,
+            page_number["bind"],
+            page_number["core"],
         )
         metakat_io = page_number_bind_engine_obj.process(
             batch_dir=batch_dir,
@@ -153,10 +164,11 @@ def process_batch(
             proarc_io=proarc_io,
         )
 
-    if page_type_bind_engine is not None and page_type_core_engine is not None:
+    page_type = _engine_pair(pipeline_config, "page_type")
+    if page_type is not None:
         page_type_bind_engine_obj = load_page_type_bind_engine(
-            page_type_bind_engine,
-            page_type_core_engine
+            page_type["bind"],
+            page_type["core"],
         )
         metakat_io = page_type_bind_engine_obj.process(
             batch_dir=batch_dir,
@@ -164,18 +176,23 @@ def process_batch(
             proarc_io=proarc_io
         )
 
-    if biblio_bind_engine is not None and biblio_core_engine is not None:
-        biblio_bind_engine_obj = load_biblio_bind_engine(biblio_bind_engine, biblio_core_engine)
+    biblio = _engine_pair(pipeline_config, "biblio")
+    if biblio is not None:
+        biblio_bind_engine_obj = load_biblio_bind_engine(
+            biblio["bind"],
+            biblio["core"],
+        )
         metakat_io = biblio_bind_engine_obj.process(
             batch_dir=batch_dir,
             metakat_io=metakat_io,
             proarc_io=proarc_io
         )
 
-    if chapter_bind_engine is not None and chapter_core_engine is not None:
+    chapter = _engine_pair(pipeline_config, "chapter")
+    if chapter is not None:
         chapter_bind_engine_obj = load_chapter_bind_engine(
-            chapter_bind_engine,
-            chapter_core_engine
+            chapter["bind"],
+            chapter["core"],
         )
         metakat_io = chapter_bind_engine_obj.process(
             batch_dir=batch_dir,
@@ -203,22 +220,20 @@ def process_batch(
 
 
 def init_io(batch_dir: str,
-            metakat_json: Optional[str] = None,
-            proarc_json: Optional[str] = None,
+            metakat_data: Optional[Mapping[str, Any]] = None,
+            proarc_data: Optional[Mapping[str, Any]] = None,
             batch_id: UUID = uuid4(),
             ordered_image_filenames: Optional[List] = None,
             allowed_image_extensions: Optional[Set] = None) -> Tuple[MetakatIO, ProarcIO]:
     if allowed_image_extensions is None:
         allowed_image_extensions = {'.jpg', '.jpeg', '.png', '.tif', '.tiff'}
-    if metakat_json is not None:
-        with open(metakat_json, 'r', encoding='utf-8') as f:
-            metakat_io = MetakatIO.model_validate_json(f.read())
+    if metakat_data is not None:
+        metakat_io = MetakatIO.model_validate(metakat_data)
     else:
         metakat_io = MetakatIO(batch_id=batch_id)
 
-    if proarc_json is not None:
-        with open(proarc_json, 'r', encoding='utf-8') as f:
-            proarc_io = ProarcIO.model_validate_json(f.read())
+    if proarc_data is not None:
+        proarc_io = ProarcIO.model_validate(proarc_data)
     else:
         proarc_io = None
 
@@ -296,6 +311,41 @@ def init_io(batch_dir: str,
                 continue
 
     return metakat_io, proarc_io
+
+
+def _engine_pair(
+    pipeline_config: Mapping[str, Any],
+    category: str,
+) -> Optional[dict[str, Any]]:
+    value = pipeline_config.get(category)
+    if value is None:
+        return None
+    category_config = require_config_mapping(
+        value,
+        f"Pipeline {category} config",
+    )
+    core = category_config.get("core")
+    bind = category_config.get("bind")
+    if core is None and bind is None:
+        return None
+    if core is None or bind is None:
+        raise ValueError(
+            f"Pipeline {category} config must provide both 'core' and 'bind'"
+        )
+    return {
+        "core": require_config_mapping(core, f"Pipeline {category}.core config"),
+        "bind": require_config_mapping(bind, f"Pipeline {category}.bind config"),
+    }
+
+
+def _load_json_file(path: Optional[str]) -> Optional[dict[str, Any]]:
+    if path is None:
+        return None
+    with open(path, "r", encoding="utf-8") as source:
+        value = json.load(source)
+    if not isinstance(value, dict):
+        raise ValueError(f"JSON root must be an object: {path}")
+    return value
 
 
 def load_image_dimensions(

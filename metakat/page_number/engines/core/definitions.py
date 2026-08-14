@@ -1,5 +1,7 @@
-import json
-import os
+from collections.abc import Mapping
+from typing import Any
+
+from metakat.engine_config import require_config_mapping, require_engine_name
 
 from metakat.page_number.engines.core.page_number_core_engine import (
     PageNumberCoreEngine,
@@ -15,22 +17,11 @@ page_number_core_engines = {
 
 
 def load_page_number_core_engine(
-    core_engine_dir: str,
+    config: Mapping[str, Any],
 ) -> PageNumberCoreEngine:
-    config_path = os.path.join(
-        core_engine_dir,
-        "metakat_engine_config.json",
-    )
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(
-            f"Page number core engine config not found at {config_path}"
-        )
-    with open(config_path, "r", encoding="utf-8") as source:
-        config = json.load(source)
-
-    core_engine_class = page_number_core_engines.get(config["name"])
+    engine_config = require_config_mapping(config, "Page-number core config")
+    name = require_engine_name(engine_config, "Page-number core config")
+    core_engine_class = page_number_core_engines.get(name)
     if core_engine_class is None:
-        raise ValueError(
-            f"Unknown page number core engine: {config['name']}"
-        )
-    return core_engine_class(core_engine_dir)
+        raise ValueError(f"Unknown page number core engine: {name}")
+    return core_engine_class(engine_config)
