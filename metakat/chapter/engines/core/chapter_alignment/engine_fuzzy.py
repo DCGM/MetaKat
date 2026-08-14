@@ -1127,14 +1127,11 @@ class ChapterAlignmentEngineFuzzy:
                 or page.position <= following_position
             )
         ]
-        if exact:
-            resolved = min(
-                exact,
-                key=lambda page: (
-                    abs(page.position - expected_position),
-                    page.position,
-                ),
-            )
+        resolved = self._closest_page_to_position(
+            exact,
+            expected_position,
+        )
+        if resolved is not None:
             logger.info(
                 "Resolved TOC range end: entry=%d, range=%d-%d, "
                 "start_page=%r, expected_position=%d, end_page=%r, "
@@ -1158,7 +1155,11 @@ class ChapterAlignmentEngineFuzzy:
                 or page.position <= following_position
             )
         ]
-        if not eligible:
+        closest = self._closest_page_to_position(
+            eligible,
+            expected_position,
+        )
+        if closest is None:
             logger.warning(
                 "Could not resolve TOC range end for entry=%d, range=%d-%d: "
                 "no page is eligible after start=%r and before the following "
@@ -1169,13 +1170,6 @@ class ChapterAlignmentEngineFuzzy:
                 page_start_key,
             )
             return None
-        closest = min(
-            eligible,
-            key=lambda page: (
-                abs(page.position - expected_position),
-                page.position,
-            ),
-        )
         if (
             abs(closest.position - expected_position)
             > self.maximum_destination_page_position_offset_from_expected
@@ -1208,6 +1202,20 @@ class ChapterAlignmentEngineFuzzy:
             closest.position,
         )
         return resolved_page
+
+    @staticmethod
+    def _closest_page_to_position(
+        candidates: Iterable[ChapterPageInput],
+        expected_position: int,
+    ) -> ChapterPageInput | None:
+        return min(
+            candidates,
+            key=lambda page: (
+                abs(page.position - expected_position),
+                page.position,
+            ),
+            default=None,
+        )
 
     def _matching_titles(
         self,
