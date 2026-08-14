@@ -74,10 +74,17 @@ The method returns:
 ```python
 TocResult(
     chapters: tuple[ChapterResult, ...],
+    toc_monotonicity_score: float | None = None,
 )
 ```
 
-`chapters` contains the hierarchy roots. One core chapter is represented by:
+`chapters` contains the hierarchy roots. `toc_monotonicity_score` reports how
+strongly the parsed TOC page-number sequence supports monotonic TOC order. It
+must be in `[0, 1]`, or `None` when the core cannot determine a meaningful
+score. The binder decides independently whether that evidence is sufficient
+for binder-specific inference.
+
+One core chapter is represented by:
 
 ```python
 ChapterResult(
@@ -102,7 +109,7 @@ ChapterResult(
 | `page_number` | Optional parsed destination-page reference from the TOC page. It retains the original OCR evidence as well as the normalized values supplied by the TOC-producing engine. It is not the physical number detected on the destination page. |
 | `title_destination_page` | Optional title evidence found on the resolved destination page. |
 | `page_start_key` | Input image stem of the resolved first page, or `None` when unresolved. |
-| `page_end_key` | Input image stem of an explicitly resolved last page, or `None` to delegate end inference to the binder. |
+| `page_end_key` | Input image stem of an explicitly resolved last page, or `None` for the binder to consider generic end inference. |
 | `children` | Nested chapter hierarchy of arbitrary depth. |
 
 An unresolved chapter may still be returned with TOC evidence and children;
@@ -487,11 +494,15 @@ process(
 ```python
 TocResult(
     chapters: tuple[ChapterResult, ...],
+    toc_monotonicity_score: float | None = None,
 )
 ```
 
-`chapters` contains the top-level aligned entries of the logical TOC. Each
-aligned TOC entry is represented as:
+`toc_monotonicity_score` is the stage implementation's score in `[0, 1]`, or
+`None` when it cannot evaluate TOC-number monotonicity. It describes the TOC
+and is independent of whether an implementation was configured to enforce
+TOC monotonic-order constraints. `chapters` contains the top-level aligned
+entries of the logical TOC. Each aligned TOC entry is represented as:
 
 ```python
 ChapterResult(ChapterBase):
@@ -597,11 +608,14 @@ configurations under `page_analysis`, `extraction`, and `alignment`:
         "model_path": "chapter/extraction/model.pt"
       },
       "alignment": {
-        "name": "chapter_alignment_engine_fuzzy"
+        "name": "chapter_alignment_engine_fuzzy",
+        "toc_monotonic_order_constraints": "auto",
+        "minimum_toc_number_monotonicity_ratio": 0.9
       }
     },
     "bind": {
-      "name": "chapter_bind_engine_base"
+      "name": "chapter_bind_engine_base",
+      "minimum_toc_monotonicity_score_for_end_inference": 0.9
     }
   }
 }
@@ -1561,13 +1575,41 @@ therefore leaves all three added fields as `None` for every entry.
 {
   "name": "chapter_alignment_engine_fuzzy",
   "minimum_title_substring_similarity": 0.7,
-  "maximum_destination_page_position_offset_from_expected": 2
+  "maximum_destination_page_position_offset_from_expected": 2,
+  "toc_monotonic_order_constraints": "auto",
+  "minimum_toc_number_monotonicity_ratio": 0.9
 }
 ```
 
 `minimum_title_substring_similarity` must be in `[0, 1]`;
 `maximum_destination_page_position_offset_from_expected` must be a
-non-negative integer.
+non-negative integer; `toc_monotonic_order_constraints` must be `"auto"`,
+`"yes"`, or `"no"`; and `minimum_toc_number_monotonicity_ratio` must be in
+`[0, 1]`.
+
+The engine always calculates `TocResult.toc_monotonicity_score` from parsed TOC
+start-page values in flattened TOC order. Values are grouped by numeral system,
+so a transition from Roman front matter to Arabic main matter is not treated as
+a decrease. Groups containing fewer than two parsed values do not provide
+comparable evidence and are excluded. Within every remaining group, the engine
+finds the longest nondecreasing subsequence; repeated page values are therefore
+monotonic. The score is:
+
+```text
+sum of longest nondecreasing subsequence lengths
+-------------------------------------------------
+sum of parsed values in comparable numeral-system groups
+```
+
+If no numeral-system group contains at least two parsed values, the score is
+`None`.
+
+`"yes"` always enables TOC monotonic-order constraints and `"no"` always
+disables them. `"auto"` enables them when the score is at least
+`minimum_toc_number_monotonicity_ratio`. When the score is `None`, auto mode
+also enables TOC monotonic-order constraints because there is no evidence of
+non-monotonicity. The forced modes never replace or otherwise falsify the
+reported score.
 
 Alignment flattens the reference hierarchy in pre-order, performs all matching
 on that flat sequence, and reconstructs the original hierarchy afterward.
@@ -1800,15 +1842,24 @@ Only two classes of entries reach title fallback:
    exists;
 2. entries with a missing or unparsed TOC number.
 
-Both classes consider only unused destination-title detections inside their
-anchor bounds and require:
+Each class is resolved as one global assignment before the next class is
+processed. The assignment maximizes the number of matched entries rather than
+allowing an earlier entry to greedily consume a title needed by a later entry.
+Candidates are unused destination-title detections inside their entry's anchor
+bounds and must satisfy:
 
 ```text
 title_similarity >= minimum_title_substring_similarity
 ```
 
 A parsed entry with an ideal position additionally requires the candidate to
-fall within `maximum_destination_page_position_offset_from_expected`.
+fall within `maximum_destination_page_position_offset_from_expected`. A title
+candidate outside that tolerance is not used. If no title is assigned, the
+entry instead resolves to the destination page at the ideal position and
+leaves `title_destination_page` unset. Thus missing, unsuitable, ambiguous,
+or already-consumed title evidence does not discard a start page supported by
+compatible anchor offset. The entry remains unresolved only when that physical
+position has no destination page.
 
 For a missing or unparsed number, matching checks any physical number detected
 on the candidate page. A same-system physical value may not precede the
@@ -1816,26 +1867,34 @@ preceding anchor's TOC value or exceed the following anchor's TOC value. A
 candidate without a physical number, or with a different numeral system,
 passes this consistency check.
 
-The following table contains the complete tie-breaking order for both title-
-fallback classes. A lower rank is considered only when every higher-ranked
-value ties:
+The assignment is monotonic: destination pages must be nondecreasing in
+flattened TOC order, and destination titles assigned on the same page must
+advance in reading order. The following table contains the complete ranking of
+global assignments for both fallback classes. A lower rank is considered only
+when every higher-ranked value ties:
 
-| Rank | Remaining destination-title candidate |
+| Rank | Global title-fallback assignment |
 |---:|---|
-| 1 | Smallest absolute physical-position delta from the ideal position |
-| 2 | Greatest destination-title bbox height |
-| 3 | Highest title similarity |
-| 4 | Highest destination-title confidence |
-| 5 | Earliest physical page position |
-| 6 | Earliest destination title in reading order |
+| 1 | Greatest number of assigned entries |
+| 2 | Greatest number of assignments supported by an ideal position |
+| 3 | Smallest sum of absolute physical-position deltas from those ideal positions |
+| 4 | Greatest sum of destination-title bbox heights |
+| 5 | Greatest sum of title similarities |
+| 6 | Greatest sum of destination-title confidences |
+| 7 | Lexicographically earliest sequence of assigned TOC entry indices and destination-title reading-order positions |
 
-Rank 1 applies only when the entry has a parsed TOC page number and compatible
-anchor evidence provides an ideal position. Otherwise ranking starts at rank 2.
+Ranks 2 and 3 apply only where compatible anchor evidence provides an ideal
+position. Rank 2 prevents the absence of positional evidence from appearing
+better than an eligible match supported by such evidence. Rank 7 first prefers
+retaining earlier flattened TOC entries and then earlier destinations for
+otherwise identical assignment scores.
 
 Physical position means zero-based `ChapterPageInput.position`. Destination
 reading order is ascending bbox `y`, then `x`, then original destination
-index. An entry with no eligible remaining destination title stays unresolved
-with `page_start_key=None` and `title_destination_page=None`.
+index within ascending physical page position. An entry omitted from the
+winning title assignment receives the anchor-derived positional fallback when
+an ideal position is available; otherwise it stays unresolved with
+`page_start_key=None` and `title_destination_page=None`.
 
 ##### Explicit range ends
 
@@ -1867,6 +1926,79 @@ higher-ranked value ties:
 This ranking applies identically to the exact-number and positional-fallback
 candidate pools. It does not depend on physical-page-number evidence input
 order.
+
+##### TOC-order-independent alignment
+
+The preceding alignment rules apply when TOC monotonic-order constraints are
+effective. They are disabled when `toc_monotonic_order_constraints` is `"no"`,
+or when it is `"auto"` and the calculated score is below the configured
+minimum. To disable them unconditionally, set:
+
+```json
+{
+  "toc_monotonic_order_constraints": "no"
+}
+```
+
+for a TOC whose entry order does not imply destination-page or same-page title
+order. The TOC hierarchy and flattened entry sequence are still preserved in
+the result, but that sequence is not used as matching evidence. This changes
+alignment as follows:
+
+Both modes use the same anchor-option builder, exact-number cardinality
+resolvers, title-assignment searches, candidate ranking, destination-title
+uniqueness checks, and range-end resolver. The builder's N:1 anchor options can
+differ between the modes because same-page title assignment applies TOC title
+order only when TOC monotonic-order constraints are effective.
+
+When TOC monotonic-order constraints are effective, anchor-chain selection
+directly constructs the best monotonic chain: a chain is extended only by an
+option later in flattened TOC order whose physical page position does not move
+backward. The engine does not first select an unconstrained chain and then
+filter it. When TOC monotonic-order constraints are disabled, anchor-chain
+selection is bypassed and every independently valid anchor option is retained.
+
+Many-to-many exact-number matching and title fallback instead run their same
+global solution searches in both modes. When TOC monotonic-order constraints
+are effective, their recursive searches reject a partial assignment as soon as
+its next destination would move backward in physical page order or, on a shared
+page, in title reading order. They therefore directly generate only monotonic
+solutions. When TOC monotonic-order constraints are disabled, those rejection
+predicates are removed. The independent mode also relaxes the candidate
+eligibility rules that depend on anchor bounds, ideal positions, or physical
+page-number consistency; it does not invoke a separate alignment pipeline.
+
+- Every valid anchor candidate produced by the anchor cardinality table is
+  retained. The document-wide monotonic anchor-chain selection is skipped.
+- Anchors do not provide preceding/following physical bounds, ideal positions,
+  or physical-page-number consistency checks for non-anchor entries.
+- Many-to-one title assignment becomes a global one-to-one assignment without
+  the same-page title monotonic-order requirement. It still ranks assignments
+  by greatest assigned count, total similarity, and total evidence confidence.
+  If equally ranked assignments disagree about an entry's destination title,
+  that entry receives no destination title; its exact physical page resolution
+  is retained.
+- Many-to-many exact-number matching remains global within each number group,
+  but assigned pages may move in either direction and titles on a shared page
+  need not follow TOC order. Title detections remain unique. Because no ideal
+  position is derived, a group with multiple candidate pages requires title
+  support.
+- In one-to-many exact-number matching, all exact-number pages remain eligible
+  and no ideal-position rank is available. A destination-title match is
+  therefore required; candidates use the remaining title and
+  destination-position ranks.
+- Title fallback retains its two evidence-priority passes: parsed numbers
+  without exact physical evidence first, then missing or unparsed numbers.
+  It uses the same global assignment as the default mode, but without physical-
+  page or same-page title monotonicity. Because ideal positions are unavailable,
+  assignments are ranked by greatest assigned count, total destination-title
+  bbox height, total title similarity, and total destination-title confidence.
+  Only entry-to-title assignments shared by every equally ranked best solution
+  are retained; ambiguous entries remain unresolved.
+- Explicit ranges still require an end at or after their resolved start and
+  use the offset derived from their own start. A following TOC anchor no longer
+  limits the end search. The configured maximum position offset still applies
+  to positional range-end fallback.
 
 ##### Reconstructing the result tree
 
@@ -1981,6 +2113,19 @@ The Base bind engine deep-copies the supplied `MetakatIO`, processes each
 eligible document group with its configured core engine, and returns the
 modified copy.
 
+#### Configuration
+
+```json
+{
+  "name": "chapter_bind_engine_base",
+  "minimum_toc_monotonicity_score_for_end_inference": 0.9
+}
+```
+
+`minimum_toc_monotonicity_score_for_end_inference` must be in `[0, 1]`. It is
+the binder's independent trust threshold for generic end-page inference; it
+does not configure matching in the core engine.
+
 #### Per-document processing
 
 The binder deep-copies the input and invokes the core independently for each
@@ -2049,8 +2194,14 @@ TOC-title, destination-title, part-number, and page-number geometries.
 
 #### Generic end-page inference
 
-After binding the returned tree in pre-order, the binder fills a missing
-`pageIndexEnd` only when `pageIndexStart` is known:
+For each core result, the binder performs generic end-page inference only when
+`TocResult.toc_monotonicity_score` is present and greater than or equal to
+`minimum_toc_monotonicity_score_for_end_inference`. A missing or lower score
+leaves every implicit `pageIndexEnd` unresolved. This decision depends on the
+reported TOC evidence, not on the core engine's TOC monotonic-order mode.
+
+When the score is trusted, the binder fills a missing `pageIndexEnd` only when
+`pageIndexStart` is known:
 
 1. find the next chapter later in pre-order binding traversal whose depth is
    less than or equal to the chapter's depth and whose start is known;
@@ -2078,6 +2229,13 @@ matches, unresolved reasons, range-end decisions, document grouping, and final
 binding counts at `INFO` or `WARNING`. Candidate pages, extraction units,
 anchor options, individual title candidates, and bound fields are available at
 `DEBUG`.
+
+Every non-anchor title-fallback evaluation produces a final per-entry log. A
+successful log identifies whether the global title assignment or the anchor-
+derived ideal position resolved the entry. A failed log states why neither
+route resolved it and reports candidate counts for already-used titles,
+missing page positions, anchor-bound rejection, similarity rejection,
+ideal-position tolerance rejection, and physical-number inconsistency.
 
 These logs are intended to make the decision rules under
 [Available stage implementations](#available-stage-implementations) auditable

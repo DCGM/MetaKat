@@ -183,10 +183,11 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
         )
         logger.info(
             "Completed chapter alignment stage in %.3f s: root_chapters=%d, "
-            "total_chapters=%d",
+            "total_chapters=%d, toc_monotonicity_score=%s",
             time.perf_counter() - stage_started,
             len(aligned_toc.chapters),
             _count_resolved_chapters(aligned_toc.chapters),
+            aligned_toc.toc_monotonicity_score,
         )
         return self._prune_titleless_chapters(aligned_toc)
 
@@ -222,7 +223,7 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
             "pipeline result and promoted their retained children",
             pruned_count,
         )
-        return TocResult(chapters=chapters)
+        return replace(toc, chapters=chapters)
 
     def _load_stage(self, stage_name: str):
         stage_config = self.config.get(stage_name)

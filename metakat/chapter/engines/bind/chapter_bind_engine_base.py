@@ -50,6 +50,22 @@ class _BoundChapter:
 class ChapterBindEngineBase(ChapterBindEngine):
     def __init__(self, config, core_config):
         super().__init__(config, core_config)
+        minimum_score = self.config.get(
+            "minimum_toc_monotonicity_score_for_end_inference",
+            0.9,
+        )
+        if (
+            isinstance(minimum_score, bool)
+            or not isinstance(minimum_score, (int, float))
+            or not 0 <= minimum_score <= 1
+        ):
+            raise ValueError(
+                "minimum_toc_monotonicity_score_for_end_inference must be "
+                "a number within [0, 1]"
+            )
+        self.minimum_toc_monotonicity_score_for_end_inference = float(
+            minimum_score
+        )
 
     def process(
         self,
@@ -188,7 +204,8 @@ class ChapterBindEngineBase(ChapterBindEngine):
             flat_result = _flatten_resolved_chapters(core_result.chapters)
             logger.info(
                 "Chapter core result for %s %s: roots=%d, chapters=%d, "
-                "resolved_starts=%d, unresolved_starts=%d, explicit_ends=%d",
+                "resolved_starts=%d, unresolved_starts=%d, explicit_ends=%d, "
+                "toc_monotonicity_score=%s",
                 group.container.type,
                 group.container.id,
                 len(core_result.chapters),
@@ -196,6 +213,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 sum(chapter.page_start_key is not None for chapter in flat_result),
                 sum(chapter.page_start_key is None for chapter in flat_result),
                 sum(chapter.page_end_key is not None for chapter in flat_result),
+                core_result.toc_monotonicity_score,
             )
             new_elements, bbox_by_id, page_by_detection = (
                 self.extract_metakat_elements_from_pipeline(
@@ -457,7 +475,16 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 depth=0,
                 parent_chapter_id=None,
             )
-        self._fill_missing_ends(records, pages)
+        self._fill_missing_ends(
+            records,
+            pages,
+            toc_monotonicity_score=result.toc_monotonicity_score,
+            minimum_toc_monotonicity_score=getattr(
+                self,
+                "minimum_toc_monotonicity_score_for_end_inference",
+                0.9,
+            ),
+        )
         return elements, bbox_by_id, page_by_detection
 
     @staticmethod
@@ -476,7 +503,22 @@ class ChapterBindEngineBase(ChapterBindEngine):
     def _fill_missing_ends(
         records: List[_BoundChapter],
         pages: List[MetakatPage],
+        *,
+        toc_monotonicity_score: float | None,
+        minimum_toc_monotonicity_score: float = 0.9,
     ) -> None:
+        if (
+            toc_monotonicity_score is None
+            or toc_monotonicity_score < minimum_toc_monotonicity_score
+        ):
+            logger.info(
+                "Leaving implicit chapter ends unresolved because TOC "
+                "monotonicity score=%s is missing or below required "
+                "score=%.3f",
+                toc_monotonicity_score,
+                minimum_toc_monotonicity_score,
+            )
+            return
         all_page_indices = [
             page.pageIndex for page in pages if page.pageIndex is not None
         ]

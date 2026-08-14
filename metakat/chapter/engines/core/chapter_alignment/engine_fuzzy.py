@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import replace
 from typing import Iterable, Sequence, TypedDict
@@ -59,6 +60,25 @@ class _ExactAssignment(TypedDict):
     position_delta: int | None
 
 
+class _FallbackAssignment(TypedDict):
+    entry_index: int
+    destination_index: int
+    title_score: float
+    page_position: int
+    position_delta: int | None
+
+
+class _FallbackOptionDiagnostics(TypedDict):
+    total: int
+    already_used: int
+    missing_page_position: int
+    outside_anchor_bounds: int
+    below_title_similarity: int
+    outside_expected_tolerance: int
+    physical_number_inconsistent: int
+    eligible: int
+
+
 class ChapterAlignmentEngineFuzzy:
     """Resolve a flat TOC using page-number anchors and fuzzy titles."""
 
@@ -66,6 +86,37 @@ class ChapterAlignmentEngineFuzzy:
         self.config = require_config_mapping(config, "Chapter alignment config")
         self.minimum_title_substring_similarity = float(
             self.config.get("minimum_title_substring_similarity", 0.7)
+        )
+        toc_monotonic_order_constraints = self.config.get(
+            "toc_monotonic_order_constraints",
+            "auto",
+        )
+        if (
+            not isinstance(toc_monotonic_order_constraints, str)
+            or toc_monotonic_order_constraints not in {"auto", "yes", "no"}
+        ):
+            raise ValueError(
+                "toc_monotonic_order_constraints must be one of: "
+                "auto, yes, no"
+            )
+        self.toc_monotonic_order_constraints = (
+            toc_monotonic_order_constraints
+        )
+        minimum_monotonicity_ratio = self.config.get(
+            "minimum_toc_number_monotonicity_ratio",
+            0.9,
+        )
+        if (
+            isinstance(minimum_monotonicity_ratio, bool)
+            or not isinstance(minimum_monotonicity_ratio, (int, float))
+            or not 0 <= minimum_monotonicity_ratio <= 1
+        ):
+            raise ValueError(
+                "minimum_toc_number_monotonicity_ratio must be a number "
+                "within [0, 1]"
+            )
+        self.minimum_toc_number_monotonicity_ratio = float(
+            minimum_monotonicity_ratio
         )
         maximum_offset = self.config.get(
             "maximum_destination_page_position_offset_from_expected",
@@ -117,6 +168,14 @@ class ChapterAlignmentEngineFuzzy:
             index: entry.page_number
             for index, entry in enumerate(flat_entries)
         }
+        toc_monotonicity_score = _toc_monotonicity_score(
+            toc_number_by_entry.values()
+        )
+        enforce_toc_monotonic_order = (
+            self._resolve_toc_monotonic_order_constraints(
+                toc_monotonicity_score
+            )
+        )
 
         title_capability = _evidence_capability_status(
             destination_chapters
@@ -160,7 +219,10 @@ class ChapterAlignmentEngineFuzzy:
             "toc_pages=%d, toc_entries=%d, "
             "destination_titles=%d, destination_page_numbers=%d, "
             "parsed_toc_numbers=%d, minimum_title_substring_similarity=%.3f, "
-            "maximum_destination_page_position_offset_from_expected=%d",
+            "maximum_destination_page_position_offset_from_expected=%d, "
+            "toc_monotonic_order_constraints=%s, toc_monotonicity_score=%s, "
+            "minimum_toc_number_monotonicity_ratio=%.3f, "
+            "effective_toc_monotonic_order_constraints=%s",
             len(all_ordered_pages),
             len(ordered_pages),
             len(toc_page_keys),
@@ -173,6 +235,10 @@ class ChapterAlignmentEngineFuzzy:
             ),
             self.minimum_title_substring_similarity,
             self.maximum_destination_page_position_offset_from_expected,
+            self.toc_monotonic_order_constraints,
+            toc_monotonicity_score,
+            self.minimum_toc_number_monotonicity_ratio,
+            enforce_toc_monotonic_order,
         )
         options = self._build_anchor_options(
             flat_entries,
@@ -181,16 +247,24 @@ class ChapterAlignmentEngineFuzzy:
             physical_by_page,
             destinations,
             destination_indices_by_page,
+            enforce_toc_monotonic_order=enforce_toc_monotonic_order,
         )
-        selected = self._select_anchor_chain(options)
+        selected = (
+            self._select_anchor_chain(options)
+            if enforce_toc_monotonic_order
+            else list(options)
+        )
         anchors, used_destinations = self._finalize_anchor_titles(
             selected,
         )
         logger.info(
-            "Anchor selection built %d option(s), selected a monotonic "
-            "chain of %d option(s), and retained %d finalized anchor(s)",
+            "Anchor selection built %d option(s), selected %d option(s) "
+            "using %s mode, and retained %d finalized anchor(s)",
             len(options),
             len(selected),
+            "TOC-order-constrained"
+            if enforce_toc_monotonic_order
+            else "TOC-order-independent",
             len(anchors),
         )
         for option in options:
@@ -251,59 +325,24 @@ class ChapterAlignmentEngineFuzzy:
                 destinations,
                 destination_indices_by_page,
                 used_destinations,
+                enforce_toc_monotonic_order=enforce_toc_monotonic_order,
             )
         )
         resolutions.update(exact_resolutions)
 
-        # Parsed entries with no exact physical-number evidence retain the
-        # positional/title fallback. Entries for which exact evidence exists
-        # but remains ambiguous or conflicts with anchor bounds do not fall
-        # through to an off-number title.
-        for entry_index, entry in enumerate(flat_entries):
-            if (
-                entry_index in anchors
-                or entry_index in resolutions
-                or entry_index in entries_with_exact_physical_evidence
-                or _toc_start_item(toc_number_by_entry[entry_index]) is None
-            ):
-                continue
-            resolution = self._resolve_title_match(
-                entry_index,
-                entry,
-                toc_number_by_entry[entry_index],
-                anchors,
-                destinations,
-                used_destinations,
-                position_by_key,
-                physical_by_page,
-            )
-            resolutions[entry_index] = resolution
-            if resolution[1] is not None:
-                used_destinations.add(resolution[1])
-
-        # Missing and unparsed TOC numbers use only the destination titles
-        # that remain after every parsed-number path has completed.
-        for entry_index, entry in enumerate(flat_entries):
-            if (
-                entry_index in anchors
-                or entry_index in resolutions
-                or _toc_start_item(toc_number_by_entry[entry_index])
-                is not None
-            ):
-                continue
-            resolution = self._resolve_title_match(
-                entry_index,
-                entry,
-                toc_number_by_entry[entry_index],
-                anchors,
-                destinations,
-                used_destinations,
-                position_by_key,
-                physical_by_page,
-            )
-            resolutions[entry_index] = resolution
-            if resolution[1] is not None:
-                used_destinations.add(resolution[1])
+        self._resolve_title_fallback(
+            flat_entries,
+            toc_number_by_entry,
+            anchors,
+            resolutions,
+            entries_with_exact_physical_evidence,
+            destinations,
+            used_destinations,
+            position_by_key,
+            page_by_position,
+            physical_by_page,
+            enforce_toc_monotonic_order=enforce_toc_monotonic_order,
+        )
 
         for entry_index, anchor in anchors.items():
             resolutions[entry_index] = (
@@ -332,6 +371,7 @@ class ChapterAlignmentEngineFuzzy:
                 ordered_pages,
                 position_by_key,
                 page_by_position,
+                enforce_toc_monotonic_order=enforce_toc_monotonic_order,
             )
             if entry.title is None and destination is not None:
                 titleless_entries_with_destination_titles += 1
@@ -371,7 +411,24 @@ class ChapterAlignmentEngineFuzzy:
                 for chapter in resolved_by_identity.values()
             ),
         )
-        return TocResult(chapters=chapters)
+        return TocResult(
+            chapters=chapters,
+            toc_monotonicity_score=toc_monotonicity_score,
+        )
+
+    def _resolve_toc_monotonic_order_constraints(
+        self,
+        toc_monotonicity_score: float | None,
+    ) -> bool:
+        if self.toc_monotonic_order_constraints == "yes":
+            return True
+        if self.toc_monotonic_order_constraints == "no":
+            return False
+        return (
+            toc_monotonicity_score is None
+            or toc_monotonicity_score
+            >= self.minimum_toc_number_monotonicity_ratio
+        )
 
     @staticmethod
     def _index_physical_numbers(
@@ -435,6 +492,8 @@ class ChapterAlignmentEngineFuzzy:
         physical_by_page: dict[str, PhysicalPageNumberEvidence],
         destinations: Sequence[DestinationChapterEvidence],
         destination_indices_by_page: dict[str, list[int]],
+        *,
+        enforce_toc_monotonic_order: bool,
     ) -> list[_AnchorOption]:
         entries_by_number: dict[
             NumberKey,
@@ -580,7 +639,7 @@ class ChapterAlignmentEngineFuzzy:
             # Case 3: multiple TOC entries and one physical page.
             if physical_count == 1:
                 page = matching_pages[0]
-                assignments = self._assign_titles_in_reading_order(
+                assignments = self._assign_titles(
                     tuple(
                         (entry_index, entry)
                         for entry_index, entry, _ in numbered_entries
@@ -588,6 +647,7 @@ class ChapterAlignmentEngineFuzzy:
                     destination_indices_by_page.get(page.page_key, ()),
                     destinations,
                     used=claimed_destinations,
+                    enforce_toc_monotonic_order=enforce_toc_monotonic_order,
                 )
                 toc_number_for_entry = {
                     entry_index: toc_number
@@ -677,15 +737,16 @@ class ChapterAlignmentEngineFuzzy:
             "toc_number": toc_number,
         }
 
-    def _assign_titles_in_reading_order(
+    def _assign_titles(
         self,
         entries: Sequence[tuple[int, ChapterBase]],
         destination_indices: Iterable[int],
         destinations: Sequence[DestinationChapterEvidence],
         *,
         used: set[int] | None = None,
+        enforce_toc_monotonic_order: bool,
     ) -> list[_TitleAssignment]:
-        """Return the best one-to-one, order-preserving title assignment."""
+        """Select one-to-one titles with optional reading-order constraints."""
         used = used or set()
         ordered_entries = tuple(sorted(entries, key=lambda item: item[0]))
         ordered_destinations = tuple(
@@ -727,39 +788,110 @@ class ChapterAlignmentEngineFuzzy:
             )
 
         entry_indices = tuple(index for index, _ in ordered_entries)
+        best_score: tuple[int, float, float] | None = None
         best: list[_TitleAssignment] = []
+        consensus: dict[int, _TitleAssignment] = {}
 
         def visit(
             entry_offset: int,
             last_destination_rank: int,
             selected: list[_TitleAssignment],
+            selected_destinations: set[int],
         ) -> None:
-            nonlocal best
+            nonlocal best_score, best, consensus
             remaining_entries = len(entry_indices) - entry_offset
-            if len(selected) + remaining_entries < len(best):
+            if (
+                best_score is not None
+                and len(selected) + remaining_entries < best_score[0]
+            ):
                 return
             if entry_offset == len(entry_indices):
-                if self._title_assignment_is_better(
+                selected_score = self._title_assignment_score(
                     selected,
-                    best,
                     entries,
                     destinations,
-                ):
+                )
+                selected_by_entry = {
+                    item["entry_index"]: item.copy()
+                    for item in selected
+                }
+                if best_score is None or selected_score > best_score:
+                    best_score = selected_score
                     best = selected.copy()
+                    consensus = selected_by_entry
+                elif selected_score == best_score:
+                    consensus = {
+                        entry_index: assignment
+                        for entry_index, assignment in consensus.items()
+                        if entry_index in selected_by_entry
+                        and selected_by_entry[entry_index][
+                            "destination_index"
+                        ]
+                        == assignment["destination_index"]
+                    }
+                    if (
+                        enforce_toc_monotonic_order
+                        and self._title_assignment_is_better(
+                            selected,
+                            best,
+                            entries,
+                            destinations,
+                        )
+                    ):
+                        best = selected.copy()
                 return
 
             entry_index = entry_indices[entry_offset]
-            visit(entry_offset + 1, last_destination_rank, selected)
+            visit(
+                entry_offset + 1,
+                last_destination_rank,
+                selected,
+                selected_destinations,
+            )
             for assignment in matches_by_entry[entry_index]:
-                rank = destination_rank[assignment["destination_index"]]
-                if rank <= last_destination_rank:
+                destination_index = assignment["destination_index"]
+                rank = destination_rank[destination_index]
+                if destination_index in selected_destinations:
+                    continue
+                if enforce_toc_monotonic_order and rank <= last_destination_rank:
                     continue
                 selected.append(assignment)
-                visit(entry_offset + 1, rank, selected)
+                selected_destinations.add(destination_index)
+                visit(
+                    entry_offset + 1,
+                    rank,
+                    selected,
+                    selected_destinations,
+                )
+                selected_destinations.remove(destination_index)
                 selected.pop()
 
-        visit(0, -1, [])
-        return best
+        visit(0, -1, [], set())
+        if enforce_toc_monotonic_order:
+            return best
+        return [
+            consensus[entry_index]
+            for entry_index in entry_indices
+            if entry_index in consensus
+        ]
+
+    @staticmethod
+    def _title_assignment_score(
+        assignment: Sequence[_TitleAssignment],
+        entries: Sequence[tuple[int, ChapterBase]],
+        destinations: Sequence[DestinationChapterEvidence],
+    ) -> tuple[int, float, float]:
+        entry_by_index = dict(entries)
+        return (
+            len(assignment),
+            sum(item["title_score"] for item in assignment),
+            sum(
+                entry_by_index[item["entry_index"]].title.confidence
+                + destinations[item["destination_index"]].title.confidence
+                for item in assignment
+                if entry_by_index[item["entry_index"]].title is not None
+            ),
+        )
 
     @staticmethod
     def _title_assignment_is_better(
@@ -768,24 +900,16 @@ class ChapterAlignmentEngineFuzzy:
         entries: Sequence[tuple[int, ChapterBase]],
         destinations: Sequence[DestinationChapterEvidence],
     ) -> bool:
-        entry_by_index = dict(entries)
-
-        def score(
-            assignment: Sequence[_TitleAssignment],
-        ) -> tuple[int, float, float]:
-            return (
-                len(assignment),
-                sum(item["title_score"] for item in assignment),
-                sum(
-                    entry_by_index[item["entry_index"]].title.confidence
-                    + destinations[item["destination_index"]].title.confidence
-                    for item in assignment
-                    if entry_by_index[item["entry_index"]].title is not None
-                ),
-            )
-
-        candidate_score = score(candidate)
-        incumbent_score = score(incumbent)
+        candidate_score = ChapterAlignmentEngineFuzzy._title_assignment_score(
+            candidate,
+            entries,
+            destinations,
+        )
+        incumbent_score = ChapterAlignmentEngineFuzzy._title_assignment_score(
+            incumbent,
+            entries,
+            destinations,
+        )
         if candidate_score != incumbent_score:
             return candidate_score > incumbent_score
 
@@ -868,6 +992,8 @@ class ChapterAlignmentEngineFuzzy:
         destinations: Sequence[DestinationChapterEvidence],
         destination_indices_by_page: dict[str, list[int]],
         used_destinations: set[int],
+        *,
+        enforce_toc_monotonic_order: bool,
     ) -> tuple[
         dict[int, tuple[str | None, int | None]],
         set[int],
@@ -927,6 +1053,7 @@ class ChapterAlignmentEngineFuzzy:
                     destinations,
                     destination_indices_by_page,
                     used_destinations,
+                    enforce_toc_monotonic_order=enforce_toc_monotonic_order,
                 )
             elif entry_count == 1:
                 group_resolutions = self._resolve_exact_one_to_many(
@@ -936,6 +1063,7 @@ class ChapterAlignmentEngineFuzzy:
                     destinations,
                     destination_indices_by_page,
                     used_destinations,
+                    enforce_toc_monotonic_order=enforce_toc_monotonic_order,
                 )
             elif page_count == 1:
                 group_resolutions = self._resolve_exact_many_to_one(
@@ -945,6 +1073,7 @@ class ChapterAlignmentEngineFuzzy:
                     destinations,
                     destination_indices_by_page,
                     used_destinations,
+                    enforce_toc_monotonic_order=enforce_toc_monotonic_order,
                 )
             else:
                 group_resolutions = self._resolve_exact_many_to_many(
@@ -954,6 +1083,7 @@ class ChapterAlignmentEngineFuzzy:
                     destinations,
                     destination_indices_by_page,
                     used_destinations,
+                    enforce_toc_monotonic_order=enforce_toc_monotonic_order,
                 )
             resolutions.update(group_resolutions)
 
@@ -971,6 +1101,8 @@ class ChapterAlignmentEngineFuzzy:
         destinations: Sequence[DestinationChapterEvidence],
         destination_indices_by_page: dict[str, list[int]],
         used_destinations: set[int],
+        *,
+        enforce_toc_monotonic_order: bool,
     ) -> dict[int, tuple[str | None, int | None]]:
         entry_index, entry, toc_number = numbered_entry
         eligible, _ = self._eligible_exact_pages(
@@ -979,6 +1111,7 @@ class ChapterAlignmentEngineFuzzy:
             (page,),
             anchors,
             enforce_expected_tolerance=False,
+            enforce_toc_monotonic_order=enforce_toc_monotonic_order,
         )
         if not eligible:
             logger.warning(
@@ -1020,6 +1153,8 @@ class ChapterAlignmentEngineFuzzy:
         destinations: Sequence[DestinationChapterEvidence],
         destination_indices_by_page: dict[str, list[int]],
         used_destinations: set[int],
+        *,
+        enforce_toc_monotonic_order: bool,
     ) -> dict[int, tuple[str | None, int | None]]:
         entry_index, entry, toc_number = numbered_entry
         eligible, expected_position = self._eligible_exact_pages(
@@ -1028,6 +1163,7 @@ class ChapterAlignmentEngineFuzzy:
             pages,
             anchors,
             enforce_expected_tolerance=True,
+            enforce_toc_monotonic_order=enforce_toc_monotonic_order,
         )
         if not eligible:
             logger.warning(
@@ -1144,6 +1280,8 @@ class ChapterAlignmentEngineFuzzy:
         destinations: Sequence[DestinationChapterEvidence],
         destination_indices_by_page: dict[str, list[int]],
         used_destinations: set[int],
+        *,
+        enforce_toc_monotonic_order: bool,
     ) -> dict[int, tuple[str | None, int | None]]:
         eligible_entries = []
         for numbered_entry in numbered_entries:
@@ -1154,6 +1292,7 @@ class ChapterAlignmentEngineFuzzy:
                 (page,),
                 anchors,
                 enforce_expected_tolerance=False,
+                enforce_toc_monotonic_order=enforce_toc_monotonic_order,
             )
             if eligible:
                 eligible_entries.append((entry_index, entry))
@@ -1166,11 +1305,12 @@ class ChapterAlignmentEngineFuzzy:
                     page.page_key,
                 )
 
-        assignments = self._assign_titles_in_reading_order(
+        assignments = self._assign_titles(
             eligible_entries,
             destination_indices_by_page.get(page.page_key, ()),
             destinations,
             used=used_destinations,
+            enforce_toc_monotonic_order=enforce_toc_monotonic_order,
         )
         destination_by_entry = {
             assignment["entry_index"]: assignment["destination_index"]
@@ -1203,6 +1343,8 @@ class ChapterAlignmentEngineFuzzy:
         destinations: Sequence[DestinationChapterEvidence],
         destination_indices_by_page: dict[str, list[int]],
         used_destinations: set[int],
+        *,
+        enforce_toc_monotonic_order: bool,
     ) -> dict[int, tuple[str | None, int | None]]:
         options_by_entry: dict[int, list[_ExactAssignment]] = defaultdict(list)
         entry_by_index = {
@@ -1216,6 +1358,7 @@ class ChapterAlignmentEngineFuzzy:
                 pages,
                 anchors,
                 enforce_expected_tolerance=True,
+                enforce_toc_monotonic_order=enforce_toc_monotonic_order,
             )
             position_supported = (
                 expected_position is not None or len(eligible) == 1
@@ -1363,7 +1506,10 @@ class ChapterAlignmentEngineFuzzy:
             )
             for option in options_by_entry.get(entry_index, ()):
                 destination_index = option["destination_index"]
-                if option["page_position"] < last_page_position:
+                if (
+                    enforce_toc_monotonic_order
+                    and option["page_position"] < last_page_position
+                ):
                     continue
                 if (
                     destination_index is not None
@@ -1376,7 +1522,8 @@ class ChapterAlignmentEngineFuzzy:
                     else destination_reading_rank[destination_index]
                 )
                 if (
-                    option["page_position"] == last_page_position
+                    enforce_toc_monotonic_order
+                    and option["page_position"] == last_page_position
                     and destination_rank is not None
                     and last_destination_rank is not None
                     and destination_rank <= last_destination_rank
@@ -1466,7 +1613,10 @@ class ChapterAlignmentEngineFuzzy:
         anchors: dict[int, _AnchorOption],
         *,
         enforce_expected_tolerance: bool,
+        enforce_toc_monotonic_order: bool,
     ) -> tuple[list[ChapterPageInput], int | None]:
+        if not enforce_toc_monotonic_order:
+            return list(pages), None
         preceding, following = _surrounding_anchors(entry_index, anchors)
         lower = None if preceding is None else preceding["page_position"]
         upper = None if following is None else following["page_position"]
@@ -1537,7 +1687,173 @@ class ChapterAlignmentEngineFuzzy:
             ),
         )
 
-    def _resolve_title_match(
+    def _resolve_title_fallback(
+        self,
+        entries: Sequence[ChapterBase],
+        toc_number_by_entry: dict[int, ChapterPageNumberEvidence | None],
+        anchors: dict[int, _AnchorOption],
+        resolutions: dict[int, tuple[str | None, int | None]],
+        entries_with_exact_physical_evidence: set[int],
+        destinations: Sequence[DestinationChapterEvidence],
+        used_destinations: set[int],
+        position_by_key: dict[str, int],
+        page_by_position: dict[int, ChapterPageInput],
+        physical_by_page: dict[str, PhysicalPageNumberEvidence],
+        *,
+        enforce_toc_monotonic_order: bool,
+    ) -> None:
+        for parsed_number_required in (True, False):
+            options_by_entry: dict[int, list[_FallbackAssignment]] = {}
+            expected_position_by_entry: dict[int, int] = {}
+            diagnostics_by_entry: dict[
+                int,
+                _FallbackOptionDiagnostics,
+            ] = {}
+            for entry_index, entry in enumerate(entries):
+                has_parsed_number = (
+                    _toc_start_item(toc_number_by_entry[entry_index])
+                    is not None
+                )
+                if (
+                    entry_index in anchors
+                    or entry_index in resolutions
+                    or entry_index in entries_with_exact_physical_evidence
+                    or has_parsed_number != parsed_number_required
+                ):
+                    continue
+                options, expected_position, diagnostics = (
+                    self._title_fallback_options(
+                        entry_index,
+                        entry,
+                        toc_number_by_entry[entry_index],
+                        anchors,
+                        destinations,
+                        used_destinations,
+                        position_by_key,
+                        physical_by_page,
+                        enforce_toc_monotonic_order=(
+                            enforce_toc_monotonic_order
+                        ),
+                    )
+                )
+                options_by_entry[entry_index] = options
+                diagnostics_by_entry[entry_index] = diagnostics
+                if expected_position is not None:
+                    expected_position_by_entry[entry_index] = (
+                        expected_position
+                    )
+
+            assignments = self._select_title_fallback_assignment(
+                options_by_entry,
+                destinations,
+                enforce_toc_monotonic_order=enforce_toc_monotonic_order,
+            )
+            for assignment in assignments:
+                entry_index = assignment["entry_index"]
+                destination_index = assignment["destination_index"]
+                destination = destinations[destination_index]
+                resolutions[entry_index] = (
+                    destination.title.page_key,
+                    destination_index,
+                )
+                used_destinations.add(destination_index)
+                logger.info(
+                    "Resolved non-anchor TOC entry: entry=%d, "
+                    "destination_page=%r, position=%d, "
+                    "destination_title=%r, title_score=%.3f, "
+                    "position_delta=%s, reason=%r",
+                    entry_index,
+                    destination.title.page_key,
+                    assignment["page_position"],
+                    destination.title.text,
+                    assignment["title_score"],
+                    assignment["position_delta"],
+                    "qualifying destination title selected by the global "
+                    "title assignment",
+                )
+            assigned_entry_indices = {
+                assignment["entry_index"] for assignment in assignments
+            }
+            position_assigned_count = 0
+            for entry_index, options in options_by_entry.items():
+                if entry_index in assigned_entry_indices:
+                    continue
+                entry = entries[entry_index]
+                expected_position = expected_position_by_entry.get(
+                    entry_index
+                )
+                expected_page = (
+                    None
+                    if expected_position is None
+                    else page_by_position.get(expected_position)
+                )
+                title_outcome = self._unassigned_title_reason(
+                    entry,
+                    options,
+                    enforce_toc_monotonic_order=enforce_toc_monotonic_order,
+                )
+                diagnostics = diagnostics_by_entry[entry_index]
+                if expected_page is None:
+                    position_outcome = (
+                        "no anchor-derived ideal position is available"
+                        if expected_position is None
+                        else "the anchor-derived ideal position has no "
+                        "destination page"
+                    )
+                    logger.warning(
+                        "Failed to resolve non-anchor TOC entry: entry=%d, "
+                        "toc_page=%r, title=%r, toc_number=%r, "
+                        "expected_position=%s, reason=%r; %s; "
+                        "candidate_counts=(total=%d, eligible=%d, "
+                        "already_used=%d, missing_page_position=%d, "
+                        "outside_anchor_bounds=%d, "
+                        "below_title_similarity=%d, "
+                        "outside_expected_tolerance=%d, "
+                        "physical_number_inconsistent=%d)",
+                        entry_index,
+                        entry.toc_page_key,
+                        _entry_title(entry),
+                        _entry_page_number(entry),
+                        expected_position,
+                        title_outcome,
+                        position_outcome,
+                        diagnostics["total"],
+                        diagnostics["eligible"],
+                        diagnostics["already_used"],
+                        diagnostics["missing_page_position"],
+                        diagnostics["outside_anchor_bounds"],
+                        diagnostics["below_title_similarity"],
+                        diagnostics["outside_expected_tolerance"],
+                        diagnostics["physical_number_inconsistent"],
+                    )
+                    continue
+                resolutions[entry_index] = (expected_page.page_key, None)
+                logger.info(
+                    "Resolved non-anchor TOC entry from anchor-derived "
+                    "position: entry=%d, destination_page=%r, position=%d, "
+                    "destination_title=None, reason=%r, "
+                    "eligible_title_candidates=%d, "
+                    "outside_expected_tolerance=%d",
+                    entry_index,
+                    expected_page.page_key,
+                    expected_position,
+                    title_outcome,
+                    diagnostics["eligible"],
+                    diagnostics["outside_expected_tolerance"],
+                )
+                position_assigned_count += 1
+            logger.info(
+                "Resolved global title fallback: parsed_numbers=%s, "
+                "toc_monotonic_order_constraints=%s, entries=%d, "
+                "title_assigned=%d, position_assigned=%d",
+                parsed_number_required,
+                enforce_toc_monotonic_order,
+                len(options_by_entry),
+                len(assignments),
+                position_assigned_count,
+            )
+
+    def _title_fallback_options(
         self,
         entry_index: int,
         entry: ChapterBase,
@@ -1547,27 +1863,35 @@ class ChapterAlignmentEngineFuzzy:
         used_destinations: set[int],
         position_by_key: dict[str, int],
         physical_by_page: dict[str, PhysicalPageNumberEvidence],
-    ) -> tuple[str | None, int | None]:
-        if entry.title is None:
-            logger.warning(
-                "TOC entry %d remains unresolved: it is not an anchor and "
-                "has no title for destination matching",
-                entry_index,
-            )
-            return None, None
-        preceding, following = _surrounding_anchors(entry_index, anchors)
+        *,
+        enforce_toc_monotonic_order: bool,
+    ) -> tuple[
+        list[_FallbackAssignment],
+        int | None,
+        _FallbackOptionDiagnostics,
+    ]:
+        preceding, following = (
+            _surrounding_anchors(entry_index, anchors)
+            if enforce_toc_monotonic_order
+            else (None, None)
+        )
         lower = None if preceding is None else preceding["page_position"]
         upper = None if following is None else following["page_position"]
         expected_position = (
             None
-            if _toc_start_item(toc_number) is None
+            if (
+                not enforce_toc_monotonic_order
+                or _toc_start_item(toc_number) is None
+            )
             else self._expected_position(
                 toc_number,
                 preceding,
                 following,
             )
         )
-        if _toc_start_item(toc_number) is None:
+        if not enforce_toc_monotonic_order:
+            offset_mode = "TOC-order-independent; no bounds or ideal position"
+        elif _toc_start_item(toc_number) is None:
             offset_mode = "no TOC number; physical-number consistency only"
         elif expected_position is None:
             offset_mode = "no compatible ideal offset; anchor bounds only"
@@ -1581,7 +1905,7 @@ class ChapterAlignmentEngineFuzzy:
             "maximum_destination_page_position_offset_from_expected=%d",
             entry_index,
             entry.toc_page_key,
-            entry.title.text,
+            _entry_title(entry),
             _entry_page_number(entry),
             _anchor_context(preceding),
             _anchor_context(following),
@@ -1591,192 +1915,249 @@ class ChapterAlignmentEngineFuzzy:
             offset_mode,
             self.maximum_destination_page_position_offset_from_expected,
         )
-
-        available = []
+        diagnostics: _FallbackOptionDiagnostics = {
+            "total": len(destinations),
+            "already_used": 0,
+            "missing_page_position": 0,
+            "outside_anchor_bounds": 0,
+            "below_title_similarity": 0,
+            "outside_expected_tolerance": 0,
+            "physical_number_inconsistent": 0,
+            "eligible": 0,
+        }
+        if entry.title is None:
+            return [], expected_position, diagnostics
+        options = []
         for destination_index, destination in enumerate(destinations):
             position = position_by_key.get(destination.title.page_key)
-            score = title_similarity(entry.title.text, destination.title.text)
-            within_bounds = (
-                position is not None
-                and (lower is None or position >= lower)
-                and (upper is None or position <= upper)
-            )
-            logger.debug(
-                "Title candidate for entry=%d: destination=%d, page=%r, "
-                "position=%s, title=%r, score=%.3f, confidence=%.3f, "
-                "height=%.2f, used=%s, within_bounds=%s, above_threshold=%s",
-                entry_index,
-                destination_index,
-                destination.title.page_key,
-                position,
-                destination.title.text,
-                score,
-                destination.title.confidence,
-                destination.title.bbox.height,
-                destination_index in used_destinations,
-                within_bounds,
-                score >= self.minimum_title_substring_similarity,
-            )
-            if destination_index in used_destinations or position is None:
+            if destination_index in used_destinations:
+                diagnostics["already_used"] += 1
                 continue
-            available.append((destination_index, destination, position, score))
-
-        if not available:
-            logger.warning(
-                "TOC entry %d title=%r remains unresolved: no unused "
-                "destination heading is available",
-                entry_index,
-                entry.title.text,
-            )
-            return None, None
-
-        bounded = [
-            candidate
-            for candidate in available
-            if (lower is None or candidate[2] >= lower)
-            and (upper is None or candidate[2] <= upper)
-        ]
-        if not bounded:
-            logger.warning(
-                "TOC entry %d title=%r remains unresolved: no destination "
-                "heading falls inside physical bounds %s..%s",
-                entry_index,
-                entry.title.text,
-                lower,
-                upper,
-            )
-            return None, None
-
-        candidates = [
-            candidate
-            for candidate in bounded
-            if candidate[3] >= self.minimum_title_substring_similarity
-        ]
-        if not candidates:
-            logger.warning(
-                "TOC entry %d title=%r remains unresolved: no title inside "
-                "physical bounds %s..%s reached threshold %.3f",
-                entry_index,
-                entry.title.text,
-                lower,
-                upper,
-                self.minimum_title_substring_similarity,
-            )
-            return None, None
-
-        if _toc_start_item(toc_number) is not None:
-            if expected_position is not None:
-                maximum_offset = (
-                    self.maximum_destination_page_position_offset_from_expected
+            if position is None:
+                diagnostics["missing_page_position"] += 1
+                continue
+            if (
+                enforce_toc_monotonic_order
+                and (
+                    (lower is not None and position < lower)
+                    or (upper is not None and position > upper)
                 )
-                candidates = [
-                    candidate
-                    for candidate in candidates
-                    if abs(candidate[2] - expected_position)
-                    <= maximum_offset
-                ]
-                if not candidates:
-                    logger.warning(
-                        "TOC entry %d title=%r remains unresolved: title "
-                        "matches exist inside bounds but none falls within "
-                        "%d page(s) of expected position %d",
-                        entry_index,
-                        entry.title.text,
-                        maximum_offset,
-                        expected_position,
-                    )
-                    return None, None
-                candidates.sort(
-                    key=lambda candidate: (
-                        abs(candidate[2] - expected_position),
-                        -candidate[1].title.bbox.height,
-                        -candidate[3],
-                        -candidate[1].title.confidence,
-                        candidate[2],
-                        candidate[1].title.bbox.y,
-                        candidate[1].title.bbox.x,
-                        candidate[0],
-                    )
-                )
-            else:
-                candidates.sort(
-                    key=lambda candidate: (
-                        -candidate[1].title.bbox.height,
-                        -candidate[3],
-                        -candidate[1].title.confidence,
-                        candidate[2],
-                        candidate[1].title.bbox.y,
-                        candidate[1].title.bbox.x,
-                        candidate[0],
-                    )
-                )
-        else:
-            consistent_candidates = []
-            for candidate in candidates:
-                consistent = self._physical_number_is_consistent(
-                    candidate[1].title.page_key,
+            ):
+                diagnostics["outside_anchor_bounds"] += 1
+                continue
+            title_score = title_similarity(
+                entry.title.text,
+                destination.title.text,
+            )
+            if title_score < self.minimum_title_substring_similarity:
+                diagnostics["below_title_similarity"] += 1
+                continue
+            position_delta = (
+                None
+                if expected_position is None
+                else abs(position - expected_position)
+            )
+            if (
+                position_delta is not None
+                and position_delta
+                > self.maximum_destination_page_position_offset_from_expected
+            ):
+                diagnostics["outside_expected_tolerance"] += 1
+                continue
+            if (
+                enforce_toc_monotonic_order
+                and _toc_start_item(toc_number) is None
+                and not self._physical_number_is_consistent(
+                    destination.title.page_key,
                     physical_by_page,
                     preceding,
                     following,
                 )
-                logger.debug(
-                    "Physical-number consistency for entry=%d candidate "
-                    "page=%r: physical_number=%r, consistent=%s",
-                    entry_index,
-                    candidate[1].title.page_key,
-                    _physical_page_number_text(
-                        physical_by_page.get(candidate[1].title.page_key)
-                    ),
-                    consistent,
+            ):
+                diagnostics["physical_number_inconsistent"] += 1
+                continue
+            options.append(
+                {
+                    "entry_index": entry_index,
+                    "destination_index": destination_index,
+                    "title_score": title_score,
+                    "page_position": position,
+                    "position_delta": position_delta,
+                }
+            )
+            diagnostics["eligible"] += 1
+        return options, expected_position, diagnostics
+
+    @staticmethod
+    def _unassigned_title_reason(
+        entry: ChapterBase,
+        options: Sequence[_FallbackAssignment],
+        *,
+        enforce_toc_monotonic_order: bool,
+    ) -> str:
+        if entry.title is None:
+            return "the TOC entry has no title"
+        if not options:
+            return "no destination title passed all eligibility filters"
+        if enforce_toc_monotonic_order:
+            return (
+                f"the monotonic global title assignment did not select any "
+                f"of the {len(options)} eligible candidates"
+            )
+        return (
+            f"no assignment was shared by all equally ranked best global "
+            f"solutions among the {len(options)} eligible candidates"
+        )
+
+    def _select_title_fallback_assignment(
+        self,
+        options_by_entry: dict[int, list[_FallbackAssignment]],
+        destinations: Sequence[DestinationChapterEvidence],
+        *,
+        enforce_toc_monotonic_order: bool,
+    ) -> list[_FallbackAssignment]:
+        """Select a maximum-cardinality global title assignment."""
+        entry_indices = tuple(sorted(options_by_entry))
+        position_by_destination = {
+            option["destination_index"]: option["page_position"]
+            for options in options_by_entry.values()
+            for option in options
+        }
+        destination_order = sorted(
+            position_by_destination,
+            key=lambda index: (
+                position_by_destination[index],
+                destinations[index].title.bbox.y,
+                destinations[index].title.bbox.x,
+                index,
+            ),
+        )
+        destination_rank = {
+            destination_index: rank
+            for rank, destination_index in enumerate(destination_order)
+        }
+        best_score: tuple | None = None
+        best: list[_FallbackAssignment] = []
+        consensus: dict[int, _FallbackAssignment] = {}
+
+        def score(
+            assignment: Sequence[_FallbackAssignment],
+        ) -> tuple[int, int, int, float, float, float]:
+            return (
+                len(assignment),
+                sum(
+                    option["position_delta"] is not None
+                    for option in assignment
+                ),
+                -sum(
+                    option["position_delta"] or 0
+                    for option in assignment
+                ),
+                sum(
+                    destinations[
+                        option["destination_index"]
+                    ].title.bbox.height
+                    for option in assignment
+                ),
+                sum(option["title_score"] for option in assignment),
+                sum(
+                    destinations[
+                        option["destination_index"]
+                    ].title.confidence
+                    for option in assignment
+                ),
+            )
+
+        def signature(
+            assignment: Sequence[_FallbackAssignment],
+        ) -> tuple[tuple[int, int], ...]:
+            return tuple(
+                (
+                    option["entry_index"],
+                    destination_rank[option["destination_index"]],
                 )
-                if consistent:
-                    consistent_candidates.append(candidate)
-            candidates = consistent_candidates
-            if not candidates:
-                logger.warning(
-                    "TOC entry %d title=%r remains unresolved: all title "
-                    "matches conflict with surrounding physical page numbers",
-                    entry_index,
-                    entry.title.text,
-                )
-                return None, None
-            candidates.sort(
-                key=lambda candidate: (
-                    -candidate[1].title.bbox.height,
-                    -candidate[3],
-                    -candidate[1].title.confidence,
-                    candidate[2],
-                    candidate[1].title.bbox.y,
-                    candidate[1].title.bbox.x,
-                    candidate[0],
+                for option in sorted(
+                    assignment,
+                    key=lambda option: option["entry_index"],
                 )
             )
 
-        destination_index, destination, position, score = candidates[0]
-        physical_number = physical_by_page.get(destination.title.page_key)
-        logger.info(
-            "Resolved non-anchor TOC entry: entry=%d, title=%r, "
-            "destination_page=%r, position=%d, destination_title=%r, "
-            "title_score=%.3f, confidence=%.3f, height=%.2f, "
-            "physical_page_number=%r, expected_position=%s, "
-            "position_delta=%s",
-            entry_index,
-            entry.title.text,
-            destination.title.page_key,
-            position,
-            destination.title.text,
-            score,
-            destination.title.confidence,
-            destination.title.bbox.height,
-            _physical_page_number_text(physical_number),
-            expected_position,
-            (
-                None
-                if expected_position is None
-                else abs(position - expected_position)
-            ),
-        )
-        return destination.title.page_key, destination_index
+        def visit(
+            entry_offset: int,
+            last_destination_rank: int,
+            selected: list[_FallbackAssignment],
+            selected_destinations: set[int],
+        ) -> None:
+            nonlocal best_score, best, consensus
+            remaining_entries = len(entry_indices) - entry_offset
+            if (
+                best_score is not None
+                and len(selected) + remaining_entries < best_score[0]
+            ):
+                return
+            if entry_offset == len(entry_indices):
+                selected_score = score(selected)
+                selected_by_entry = {
+                    option["entry_index"]: option.copy()
+                    for option in selected
+                }
+                if best_score is None or selected_score > best_score:
+                    best_score = selected_score
+                    best = selected.copy()
+                    consensus = selected_by_entry
+                elif selected_score == best_score:
+                    consensus = {
+                        entry_index: assignment
+                        for entry_index, assignment in consensus.items()
+                        if entry_index in selected_by_entry
+                        and selected_by_entry[entry_index][
+                            "destination_index"
+                        ]
+                        == assignment["destination_index"]
+                    }
+                    if (
+                        enforce_toc_monotonic_order
+                        and signature(selected) < signature(best)
+                    ):
+                        best = selected.copy()
+                return
+
+            entry_index = entry_indices[entry_offset]
+            for option in options_by_entry[entry_index]:
+                destination_index = option["destination_index"]
+                rank = destination_rank[destination_index]
+                if destination_index in selected_destinations:
+                    continue
+                if (
+                    enforce_toc_monotonic_order
+                    and rank <= last_destination_rank
+                ):
+                    continue
+                selected.append(option)
+                selected_destinations.add(destination_index)
+                visit(
+                    entry_offset + 1,
+                    rank,
+                    selected,
+                    selected_destinations,
+                )
+                selected_destinations.remove(destination_index)
+                selected.pop()
+            visit(
+                entry_offset + 1,
+                last_destination_rank,
+                selected,
+                selected_destinations,
+            )
+
+        visit(0, -1, [], set())
+        if enforce_toc_monotonic_order:
+            return best
+        return [
+            consensus[entry_index]
+            for entry_index in entry_indices
+            if entry_index in consensus
+        ]
 
     @staticmethod
     def _expected_position(
@@ -1841,6 +2222,8 @@ class ChapterAlignmentEngineFuzzy:
         pages: Sequence[ChapterPageInput],
         position_by_key: dict[str, int],
         page_by_position: dict[int, ChapterPageInput],
+        *,
+        enforce_toc_monotonic_order: bool,
     ) -> str | None:
         range_end = _toc_end_value(toc_number)
         if range_end is None or page_start_key is None:
@@ -1850,13 +2233,17 @@ class ChapterAlignmentEngineFuzzy:
             return None
         range_start = _toc_start_value(toc_number)
         expected_position = range_end + (start_position - range_start)
-        following_position = next(
-            (
-                anchors[index]["page_position"]
-                for index in sorted(anchors)
-                if index > entry_index
-            ),
-            None,
+        following_position = (
+            next(
+                (
+                    anchors[index]["page_position"]
+                    for index in sorted(anchors)
+                    if index > entry_index
+                ),
+                None,
+            )
+            if enforce_toc_monotonic_order
+            else None
         )
 
         exact = [
@@ -2024,6 +2411,39 @@ def _toc_start_system(
     return item[2]
 
 
+def _toc_monotonicity_score(
+    numbers: Iterable[ChapterPageNumberEvidence | None],
+) -> float | None:
+    values_by_system: dict[PageNumberNumeralSystem, list[int]] = defaultdict(list)
+    for number in numbers:
+        item = _toc_start_item(number)
+        if item is not None:
+            values_by_system[item[2]].append(item[1])
+
+    comparable_sequences = tuple(
+        values
+        for values in values_by_system.values()
+        if len(values) >= 2
+    )
+    comparable_number_count = sum(
+        len(values) for values in comparable_sequences
+    )
+    if comparable_number_count == 0:
+        return None
+
+    monotonic_number_count = 0
+    for values in comparable_sequences:
+        tails: list[int] = []
+        for value in values:
+            insertion_index = bisect_right(tails, value)
+            if insertion_index == len(tails):
+                tails.append(value)
+            else:
+                tails[insertion_index] = value
+        monotonic_number_count += len(tails)
+    return monotonic_number_count / comparable_number_count
+
+
 def _toc_end_value(number: ChapterPageNumberEvidence | None) -> int | None:
     if (
         number is None
@@ -2100,18 +2520,6 @@ def _anchor_context(anchor: _AnchorOption | None) -> str:
         f"system={_toc_start_system(anchor['toc_number']).value},"
         f"offset={anchor['page_position'] - _toc_start_value(anchor['toc_number'])}"
     )
-
-
-def _physical_page_number_text(
-    number: PhysicalPageNumberEvidence | None,
-) -> str | None:
-    if (
-        number is None
-        or number.numeral_system is None
-        or number.value is None
-    ):
-        return None
-    return f"{number.numeral_system.value}:{number.value}"
 
 
 def flatten_toc(
