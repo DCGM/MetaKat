@@ -50,6 +50,15 @@ class _TitleAssignment(TypedDict):
     title_score: float
 
 
+class _ExactAssignment(TypedDict):
+    entry_index: int
+    page_key: str
+    page_position: int
+    destination_index: int | None
+    title_score: float
+    position_delta: int | None
+
+
 class ChapterAlignmentEngineFuzzy:
     """Resolve a flat TOC using page-number anchors and fuzzy titles."""
 
@@ -230,10 +239,57 @@ class ChapterAlignmentEngineFuzzy:
         if not anchors:
             logger.warning(
                 "No consistent page-number anchors were found; falling "
-                "back to document-wide title matching"
+                "back to non-anchor number resolution and title matching"
             )
+
+        exact_resolutions, entries_with_exact_physical_evidence = (
+            self._resolve_exact_number_groups(
+                flat_entries,
+                toc_number_by_entry,
+                physical_index,
+                anchors,
+                destinations,
+                destination_indices_by_page,
+                used_destinations,
+            )
+        )
+        resolutions.update(exact_resolutions)
+
+        # Parsed entries with no exact physical-number evidence retain the
+        # positional/title fallback. Entries for which exact evidence exists
+        # but remains ambiguous or conflicts with anchor bounds do not fall
+        # through to an off-number title.
         for entry_index, entry in enumerate(flat_entries):
-            if entry_index in anchors:
+            if (
+                entry_index in anchors
+                or entry_index in resolutions
+                or entry_index in entries_with_exact_physical_evidence
+                or _toc_start_item(toc_number_by_entry[entry_index]) is None
+            ):
+                continue
+            resolution = self._resolve_title_match(
+                entry_index,
+                entry,
+                toc_number_by_entry[entry_index],
+                anchors,
+                destinations,
+                used_destinations,
+                position_by_key,
+                physical_by_page,
+            )
+            resolutions[entry_index] = resolution
+            if resolution[1] is not None:
+                used_destinations.add(resolution[1])
+
+        # Missing and unparsed TOC numbers use only the destination titles
+        # that remain after every parsed-number path has completed.
+        for entry_index, entry in enumerate(flat_entries):
+            if (
+                entry_index in anchors
+                or entry_index in resolutions
+                or _toc_start_item(toc_number_by_entry[entry_index])
+                is not None
+            ):
                 continue
             resolution = self._resolve_title_match(
                 entry_index,
@@ -803,6 +859,684 @@ class ChapterAlignmentEngineFuzzy:
             used.add(destination_index)
         return anchors, used
 
+    def _resolve_exact_number_groups(
+        self,
+        entries: Sequence[ChapterBase],
+        toc_number_by_entry: dict[int, ChapterPageNumberEvidence | None],
+        physical_index: dict[NumberKey, list[ChapterPageInput]],
+        anchors: dict[int, _AnchorOption],
+        destinations: Sequence[DestinationChapterEvidence],
+        destination_indices_by_page: dict[str, list[int]],
+        used_destinations: set[int],
+    ) -> tuple[
+        dict[int, tuple[str | None, int | None]],
+        set[int],
+    ]:
+        entries_by_number: dict[
+            NumberKey,
+            list[tuple[int, ChapterBase, ChapterPageNumberEvidence]],
+        ] = defaultdict(list)
+        for entry_index, entry in enumerate(entries):
+            if entry_index in anchors:
+                continue
+            toc_number = toc_number_by_entry[entry_index]
+            if _toc_start_item(toc_number) is None:
+                continue
+            key = (
+                _toc_start_system(toc_number),
+                _toc_start_value(toc_number),
+            )
+            entries_by_number[key].append(
+                (entry_index, entry, toc_number)
+            )
+
+        resolutions: dict[int, tuple[str | None, int | None]] = {}
+        entries_with_exact_evidence: set[int] = set()
+        ordered_groups = sorted(
+            entries_by_number.items(),
+            key=lambda item: item[1][0][0],
+        )
+        for key, numbered_entries in ordered_groups:
+            matching_pages = tuple(
+                sorted(
+                    physical_index.get(key, ()),
+                    key=lambda page: page.position,
+                )
+            )
+            if not matching_pages:
+                continue
+            entries_with_exact_evidence.update(
+                entry_index
+                for entry_index, _, _ in numbered_entries
+            )
+            entry_count = len(numbered_entries)
+            page_count = len(matching_pages)
+            logger.info(
+                "Resolving exact-number non-anchor group: system=%s, "
+                "value=%d, entries=%d, physical_pages=%d",
+                key[0].value,
+                key[1],
+                entry_count,
+                page_count,
+            )
+            if entry_count == 1 and page_count == 1:
+                group_resolutions = self._resolve_exact_one_to_one(
+                    numbered_entries[0],
+                    matching_pages[0],
+                    anchors,
+                    destinations,
+                    destination_indices_by_page,
+                    used_destinations,
+                )
+            elif entry_count == 1:
+                group_resolutions = self._resolve_exact_one_to_many(
+                    numbered_entries[0],
+                    matching_pages,
+                    anchors,
+                    destinations,
+                    destination_indices_by_page,
+                    used_destinations,
+                )
+            elif page_count == 1:
+                group_resolutions = self._resolve_exact_many_to_one(
+                    numbered_entries,
+                    matching_pages[0],
+                    anchors,
+                    destinations,
+                    destination_indices_by_page,
+                    used_destinations,
+                )
+            else:
+                group_resolutions = self._resolve_exact_many_to_many(
+                    numbered_entries,
+                    matching_pages,
+                    anchors,
+                    destinations,
+                    destination_indices_by_page,
+                    used_destinations,
+                )
+            resolutions.update(group_resolutions)
+
+        return resolutions, entries_with_exact_evidence
+
+    def _resolve_exact_one_to_one(
+        self,
+        numbered_entry: tuple[
+            int,
+            ChapterBase,
+            ChapterPageNumberEvidence,
+        ],
+        page: ChapterPageInput,
+        anchors: dict[int, _AnchorOption],
+        destinations: Sequence[DestinationChapterEvidence],
+        destination_indices_by_page: dict[str, list[int]],
+        used_destinations: set[int],
+    ) -> dict[int, tuple[str | None, int | None]]:
+        entry_index, entry, toc_number = numbered_entry
+        eligible, _ = self._eligible_exact_pages(
+            entry_index,
+            toc_number,
+            (page,),
+            anchors,
+            enforce_expected_tolerance=False,
+        )
+        if not eligible:
+            logger.warning(
+                "Exact one-to-one non-anchor remains unresolved: entry=%d, "
+                "page=%r conflicts with selected-anchor bounds",
+                entry_index,
+                page.page_key,
+            )
+            return {}
+        destination_index, _ = self._best_title_on_page(
+            entry,
+            page.page_key,
+            destinations,
+            destination_indices_by_page,
+            used_destinations,
+        )
+        if destination_index is not None:
+            used_destinations.add(destination_index)
+        logger.info(
+            "Resolved exact one-to-one non-anchor: entry=%d, page=%r, "
+            "destination_title=%r",
+            entry_index,
+            page.page_key,
+            None
+            if destination_index is None
+            else destinations[destination_index].title.text,
+        )
+        return {entry_index: (page.page_key, destination_index)}
+
+    def _resolve_exact_one_to_many(
+        self,
+        numbered_entry: tuple[
+            int,
+            ChapterBase,
+            ChapterPageNumberEvidence,
+        ],
+        pages: Sequence[ChapterPageInput],
+        anchors: dict[int, _AnchorOption],
+        destinations: Sequence[DestinationChapterEvidence],
+        destination_indices_by_page: dict[str, list[int]],
+        used_destinations: set[int],
+    ) -> dict[int, tuple[str | None, int | None]]:
+        entry_index, entry, toc_number = numbered_entry
+        eligible, expected_position = self._eligible_exact_pages(
+            entry_index,
+            toc_number,
+            pages,
+            anchors,
+            enforce_expected_tolerance=True,
+        )
+        if not eligible:
+            logger.warning(
+                "Exact one-to-many non-anchor remains unresolved: entry=%d "
+                "has no exact-number page inside its anchor bounds and "
+                "expected-position tolerance",
+                entry_index,
+            )
+            return {}
+
+        candidates = []
+        for page in eligible:
+            destination_index, title_score = self._best_title_on_page(
+                entry,
+                page.page_key,
+                destinations,
+                destination_indices_by_page,
+                used_destinations,
+            )
+            candidates.append(
+                (
+                    page,
+                    destination_index,
+                    title_score,
+                    None
+                    if expected_position is None
+                    else abs(page.position - expected_position),
+                )
+            )
+
+        if len(candidates) == 1:
+            selected = candidates[0]
+        elif expected_position is not None:
+            selected = min(
+                candidates,
+                key=lambda item: self._one_to_many_candidate_key(
+                    item,
+                    destinations,
+                    use_position=True,
+                ),
+            )
+        else:
+            title_supported = [
+                candidate
+                for candidate in candidates
+                if candidate[1] is not None
+            ]
+            if not title_supported:
+                logger.warning(
+                    "Exact one-to-many non-anchor remains unresolved: "
+                    "entry=%d has neither an ideal position nor a title "
+                    "match on an exact-number page",
+                    entry_index,
+                )
+                return {}
+            selected = min(
+                title_supported,
+                key=lambda item: self._one_to_many_candidate_key(
+                    item,
+                    destinations,
+                    use_position=False,
+                ),
+            )
+
+        page, destination_index, _, position_delta = selected
+        if destination_index is not None:
+            used_destinations.add(destination_index)
+        logger.info(
+            "Resolved exact one-to-many non-anchor: entry=%d, page=%r, "
+            "expected_position=%s, position_delta=%s, "
+            "destination_title=%r",
+            entry_index,
+            page.page_key,
+            expected_position,
+            position_delta,
+            None
+            if destination_index is None
+            else destinations[destination_index].title.text,
+        )
+        return {entry_index: (page.page_key, destination_index)}
+
+    @staticmethod
+    def _one_to_many_candidate_key(
+        candidate,
+        destinations: Sequence[DestinationChapterEvidence],
+        *,
+        use_position: bool,
+    ) -> tuple:
+        page, destination_index, title_score, position_delta = candidate
+        title = (
+            None
+            if destination_index is None
+            else destinations[destination_index].title
+        )
+        return (
+            position_delta if use_position else 0,
+            0 if title is not None else 1,
+            0.0 if title is None else -title.bbox.height,
+            -title_score,
+            0.0 if title is None else -title.confidence,
+            page.position,
+            float("inf") if title is None else title.bbox.y,
+            float("inf") if title is None else title.bbox.x,
+            -1 if destination_index is None else destination_index,
+        )
+
+    def _resolve_exact_many_to_one(
+        self,
+        numbered_entries: Sequence[
+            tuple[int, ChapterBase, ChapterPageNumberEvidence]
+        ],
+        page: ChapterPageInput,
+        anchors: dict[int, _AnchorOption],
+        destinations: Sequence[DestinationChapterEvidence],
+        destination_indices_by_page: dict[str, list[int]],
+        used_destinations: set[int],
+    ) -> dict[int, tuple[str | None, int | None]]:
+        eligible_entries = []
+        for numbered_entry in numbered_entries:
+            entry_index, entry, toc_number = numbered_entry
+            eligible, _ = self._eligible_exact_pages(
+                entry_index,
+                toc_number,
+                (page,),
+                anchors,
+                enforce_expected_tolerance=False,
+            )
+            if eligible:
+                eligible_entries.append((entry_index, entry))
+            else:
+                logger.warning(
+                    "Exact many-to-one non-anchor entry remains "
+                    "unresolved: entry=%d, page=%r conflicts with "
+                    "selected-anchor bounds",
+                    entry_index,
+                    page.page_key,
+                )
+
+        assignments = self._assign_titles_in_reading_order(
+            eligible_entries,
+            destination_indices_by_page.get(page.page_key, ()),
+            destinations,
+            used=used_destinations,
+        )
+        destination_by_entry = {
+            assignment["entry_index"]: assignment["destination_index"]
+            for assignment in assignments
+        }
+        used_destinations.update(destination_by_entry.values())
+        resolutions = {
+            entry_index: (
+                page.page_key,
+                destination_by_entry.get(entry_index),
+            )
+            for entry_index, _ in eligible_entries
+        }
+        logger.info(
+            "Resolved exact many-to-one non-anchor group: page=%r, "
+            "resolved_entries=%d, attached_titles=%d",
+            page.page_key,
+            len(resolutions),
+            len(assignments),
+        )
+        return resolutions
+
+    def _resolve_exact_many_to_many(
+        self,
+        numbered_entries: Sequence[
+            tuple[int, ChapterBase, ChapterPageNumberEvidence]
+        ],
+        pages: Sequence[ChapterPageInput],
+        anchors: dict[int, _AnchorOption],
+        destinations: Sequence[DestinationChapterEvidence],
+        destination_indices_by_page: dict[str, list[int]],
+        used_destinations: set[int],
+    ) -> dict[int, tuple[str | None, int | None]]:
+        options_by_entry: dict[int, list[_ExactAssignment]] = defaultdict(list)
+        entry_by_index = {
+            entry_index: entry
+            for entry_index, entry, _ in numbered_entries
+        }
+        for entry_index, entry, toc_number in numbered_entries:
+            eligible, expected_position = self._eligible_exact_pages(
+                entry_index,
+                toc_number,
+                pages,
+                anchors,
+                enforce_expected_tolerance=True,
+            )
+            position_supported = (
+                expected_position is not None or len(eligible) == 1
+            )
+            for page in eligible:
+                matches = self._title_matches_on_page(
+                    entry,
+                    page.page_key,
+                    destinations,
+                    destination_indices_by_page,
+                    used_destinations,
+                )
+                for destination_index, title_score in matches:
+                    options_by_entry[entry_index].append(
+                        {
+                            "entry_index": entry_index,
+                            "page_key": page.page_key,
+                            "page_position": page.position,
+                            "destination_index": destination_index,
+                            "title_score": title_score,
+                            "position_delta": (
+                                None
+                                if expected_position is None
+                                else abs(page.position - expected_position)
+                            ),
+                        }
+                    )
+                if position_supported:
+                    options_by_entry[entry_index].append(
+                        {
+                            "entry_index": entry_index,
+                            "page_key": page.page_key,
+                            "page_position": page.position,
+                            "destination_index": None,
+                            "title_score": 0.0,
+                            "position_delta": (
+                                None
+                                if expected_position is None
+                                else abs(page.position - expected_position)
+                            ),
+                        }
+                    )
+            options_by_entry[entry_index].sort(
+                key=lambda option: (
+                    option["page_position"],
+                    -1
+                    if option["destination_index"] is None
+                    else option["destination_index"],
+                )
+            )
+
+        ordered_entry_indices = tuple(
+            entry_index for entry_index, _, _ in numbered_entries
+        )
+        destination_reading_rank = {}
+        for page in pages:
+            ordered_page_destinations = sorted(
+                destination_indices_by_page.get(page.page_key, ()),
+                key=lambda index: (
+                    destinations[index].title.bbox.y,
+                    destinations[index].title.bbox.x,
+                    index,
+                ),
+            )
+            destination_reading_rank.update(
+                {
+                    destination_index: rank
+                    for rank, destination_index in enumerate(
+                        ordered_page_destinations
+                    )
+                }
+            )
+        best_score = None
+        best_assignments: list[list[_ExactAssignment]] = []
+
+        def score(
+            assignment: Sequence[_ExactAssignment],
+        ) -> tuple[int, int, int, float, float, float]:
+            return (
+                len(assignment),
+                -sum(
+                    option["position_delta"] or 0
+                    for option in assignment
+                ),
+                sum(
+                    option["destination_index"] is not None
+                    for option in assignment
+                ),
+                sum(
+                    0.0
+                    if option["destination_index"] is None
+                    else destinations[
+                        option["destination_index"]
+                    ].title.bbox.height
+                    for option in assignment
+                ),
+                sum(option["title_score"] for option in assignment),
+                sum(
+                    0.0
+                    if option["destination_index"] is None
+                    else (
+                        entry_by_index[
+                            option["entry_index"]
+                        ].title.confidence
+                        + destinations[
+                            option["destination_index"]
+                        ].title.confidence
+                    )
+                    for option in assignment
+                    if entry_by_index[option["entry_index"]].title
+                    is not None
+                ),
+            )
+
+        def visit(
+            entry_offset: int,
+            last_page_position: int,
+            last_destination_rank: int | None,
+            selected: list[_ExactAssignment],
+            selected_destinations: set[int],
+        ) -> None:
+            nonlocal best_score, best_assignments
+            remaining = len(ordered_entry_indices) - entry_offset
+            if (
+                best_score is not None
+                and len(selected) + remaining < best_score[0]
+            ):
+                return
+            if entry_offset == len(ordered_entry_indices):
+                selected_score = score(selected)
+                if best_score is None or selected_score > best_score:
+                    best_score = selected_score
+                    best_assignments = [selected.copy()]
+                elif selected_score == best_score:
+                    best_assignments.append(selected.copy())
+                return
+
+            entry_index = ordered_entry_indices[entry_offset]
+            visit(
+                entry_offset + 1,
+                last_page_position,
+                last_destination_rank,
+                selected,
+                selected_destinations,
+            )
+            for option in options_by_entry.get(entry_index, ()):
+                destination_index = option["destination_index"]
+                if option["page_position"] < last_page_position:
+                    continue
+                if (
+                    destination_index is not None
+                    and destination_index in selected_destinations
+                ):
+                    continue
+                destination_rank = (
+                    None
+                    if destination_index is None
+                    else destination_reading_rank[destination_index]
+                )
+                if (
+                    option["page_position"] == last_page_position
+                    and destination_rank is not None
+                    and last_destination_rank is not None
+                    and destination_rank <= last_destination_rank
+                ):
+                    continue
+                next_destination_rank = (
+                    destination_rank
+                    if option["page_position"] != last_page_position
+                    else (
+                        last_destination_rank
+                        if destination_rank is None
+                        else destination_rank
+                    )
+                )
+                selected.append(option)
+                if destination_index is not None:
+                    selected_destinations.add(destination_index)
+                visit(
+                    entry_offset + 1,
+                    option["page_position"],
+                    next_destination_rank,
+                    selected,
+                    selected_destinations,
+                )
+                if destination_index is not None:
+                    selected_destinations.remove(destination_index)
+                selected.pop()
+
+        visit(0, -1, None, [], set())
+        if not best_assignments:
+            return {}
+
+        resolutions: dict[int, tuple[str | None, int | None]] = {}
+        for entry_index in ordered_entry_indices:
+            variants = []
+            for assignment in best_assignments:
+                variants.append(
+                    next(
+                        (
+                            option
+                            for option in assignment
+                            if option["entry_index"] == entry_index
+                        ),
+                        None,
+                    )
+                )
+            if any(option is None for option in variants):
+                continue
+            page_keys = {option["page_key"] for option in variants}
+            if len(page_keys) != 1:
+                logger.warning(
+                    "Exact many-to-many non-anchor entry remains "
+                    "unresolved across equally ranked assignments: "
+                    "entry=%d, pages=%s",
+                    entry_index,
+                    sorted(page_keys),
+                )
+                continue
+            destination_indices = {
+                option["destination_index"] for option in variants
+            }
+            destination_index = (
+                next(iter(destination_indices))
+                if len(destination_indices) == 1
+                else None
+            )
+            page_key = next(iter(page_keys))
+            resolutions[entry_index] = (page_key, destination_index)
+            if destination_index is not None:
+                used_destinations.add(destination_index)
+
+        logger.info(
+            "Resolved exact many-to-many non-anchor group: entries=%d, "
+            "physical_pages=%d, best_assignments=%d, resolved_entries=%d",
+            len(numbered_entries),
+            len(pages),
+            len(best_assignments),
+            len(resolutions),
+        )
+        return resolutions
+
+    def _eligible_exact_pages(
+        self,
+        entry_index: int,
+        toc_number: ChapterPageNumberEvidence,
+        pages: Sequence[ChapterPageInput],
+        anchors: dict[int, _AnchorOption],
+        *,
+        enforce_expected_tolerance: bool,
+    ) -> tuple[list[ChapterPageInput], int | None]:
+        preceding, following = _surrounding_anchors(entry_index, anchors)
+        lower = None if preceding is None else preceding["page_position"]
+        upper = None if following is None else following["page_position"]
+        expected_position = self._expected_position(
+            toc_number,
+            preceding,
+            following,
+        )
+        eligible = [
+            page
+            for page in pages
+            if (lower is None or page.position >= lower)
+            and (upper is None or page.position <= upper)
+        ]
+        if enforce_expected_tolerance and expected_position is not None:
+            maximum_offset = (
+                self.maximum_destination_page_position_offset_from_expected
+            )
+            eligible = [
+                page
+                for page in eligible
+                if abs(page.position - expected_position) <= maximum_offset
+            ]
+        return eligible, expected_position
+
+    def _title_matches_on_page(
+        self,
+        entry: ChapterBase,
+        page_key: str,
+        destinations: Sequence[DestinationChapterEvidence],
+        destination_indices_by_page: dict[str, list[int]],
+        used_destinations: set[int],
+    ) -> list[tuple[int, float]]:
+        return self._matching_titles(
+            entry,
+            destination_indices_by_page.get(page_key, ()),
+            destinations,
+            used=used_destinations,
+        )
+
+    def _best_title_on_page(
+        self,
+        entry: ChapterBase,
+        page_key: str,
+        destinations: Sequence[DestinationChapterEvidence],
+        destination_indices_by_page: dict[str, list[int]],
+        used_destinations: set[int],
+    ) -> tuple[int | None, float]:
+        matches = self._title_matches_on_page(
+            entry,
+            page_key,
+            destinations,
+            destination_indices_by_page,
+            used_destinations,
+        )
+        if not matches:
+            return None, 0.0
+        return min(
+            matches,
+            key=lambda item: (
+                -destinations[item[0]].title.bbox.height,
+                -item[1],
+                -destinations[item[0]].title.confidence,
+                -destinations[item[0]].title.bbox.width,
+                destinations[item[0]].title.bbox.y,
+                destinations[item[0]].title.bbox.x,
+                item[0],
+            ),
+        )
+
     def _resolve_title_match(
         self,
         entry_index: int,
@@ -958,6 +1692,10 @@ class ChapterAlignmentEngineFuzzy:
                         -candidate[1].title.bbox.height,
                         -candidate[3],
                         -candidate[1].title.confidence,
+                        candidate[2],
+                        candidate[1].title.bbox.y,
+                        candidate[1].title.bbox.x,
+                        candidate[0],
                     )
                 )
             else:
@@ -967,6 +1705,9 @@ class ChapterAlignmentEngineFuzzy:
                         -candidate[3],
                         -candidate[1].title.confidence,
                         candidate[2],
+                        candidate[1].title.bbox.y,
+                        candidate[1].title.bbox.x,
+                        candidate[0],
                     )
                 )
         else:
@@ -1005,6 +1746,9 @@ class ChapterAlignmentEngineFuzzy:
                     -candidate[3],
                     -candidate[1].title.confidence,
                     candidate[2],
+                    candidate[1].title.bbox.y,
+                    candidate[1].title.bbox.x,
+                    candidate[0],
                 )
             )
 

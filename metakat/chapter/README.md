@@ -1603,78 +1603,62 @@ penalized like a full-string comparison.
 ##### Anchor candidates
 
 An anchor begins with an exact match between a parsed TOC start value and a
-physical page value in the same numeral system. The following subsections
-separate the four possible cardinalities of that number match.
+physical page value in the same numeral system. The following table separates
+the four possible cardinalities of that number match.
 
-###### One TOC entry and one destination page
+###### Cardinality rules and tie-breaking
 
-This is an unambiguous number match and is processed first:
+The following table contains the complete anchor-candidate rule for every
+number-match cardinality. Each column is independent. A lower rank applies
+only when that column contains a rule at that rank and every higher-ranked
+value ties. A rank-1 cell that states an outcome rather than a preference is
+the complete decision rule for that column.
 
-- If the candidate page has no destination-title detections, the entry is
-  retained as a number-only anchor.
-- If the candidate page has destination-title detections, exactly one of them
-  must match the TOC title at or above
-  `minimum_title_substring_similarity`. That detection is attached to the
-  anchor. Zero or multiple matches reject the anchor. Consequently, a
-  titleless TOC entry cannot anchor when destination-title detections exist on
-  the page.
+| Rank | One TOC entry → one page | One TOC entry → multiple pages | Multiple TOC entries → one page | Multiple TOC entries → multiple pages |
+|---:|---|---|---|---|
+| 1 | Create a number-only anchor when the page has no destination-title detections; otherwise require exactly one qualifying title match on that page | Require exactly one qualifying title match across all exact-number pages | Greatest number of assigned entries | Create no anchor candidates; defer the entries to exact-number non-anchor resolution |
+| 2 | — | — | Greatest total title similarity | — |
+| 3 | — | — | Greatest total TOC-title and destination-title confidence | — |
+| 4 | — | — | Lexicographically earliest sequence of assigned destination detections in destination reading order | — |
 
-An attached destination-title detection is claimed immediately and cannot be
-used by any later anchor assignment.
+A qualifying title match reaches `minimum_title_substring_similarity`.
+Destination reading order is ascending bounding-box `y`, then `x`, then
+original destination index.
 
-###### One TOC entry and multiple destination pages
+- **One TOC entry → one page.** Rank 1 is the complete rule. With no
+  destination-title detections, the exact number match creates a number-only
+  anchor candidate. Otherwise exactly one qualifying match is required; zero
+  or multiple matches reject the anchor, so a titleless TOC entry cannot
+  anchor in this situation. An attached detection is claimed immediately.
 
-The engine gathers title matches from every destination page bearing the
-physical number. Exactly one destination-title detection across all those
-pages must match at or above `minimum_title_substring_similarity`. That match
-determines the anchor's destination page. Zero or multiple matches produce no
-anchor.
+- **One TOC entry → multiple pages.** Rank 1 is the complete rule. Exactly one
+  qualifying title match must exist across the complete exact-number page
+  group; it selects the anchor page and is claimed immediately. Zero or
+  multiple matches create no anchor candidate.
 
-###### Multiple TOC entries and one destination page
+- **Multiple TOC entries → one page.** Assignment is one-to-one and
+  order-preserving. TOC entries use flattened TOC order and destination
+  detections use destination reading order. Only qualifying pairs
+  participate; each entry and detection can be assigned once, and assignments
+  may skip either side but cannot cross or reverse. Ranks 1–3 maximize the
+  assigned count, similarity, and confidence. At rank 4, assignments are
+  compared in TOC-entry order and the first differing assigned destination
+  prefers the earlier detection in destination reading order. This comparison
+  is explicit rather than dependent on search traversal. Only assigned
+  entries become anchor candidates, and their detections are claimed.
 
-The engine assigns the page's destination-title detections to the repeated TOC
-entries in reading order. TOC entries use flattened TOC order; destination
-detections use ascending bounding-box `y`, then `x`, then original destination
-index. Only title pairs at or above `minimum_title_substring_similarity` are
-eligible. Each TOC entry and each destination detection can participate at
-most once, and assigned detection positions cannot move upward as TOC entry
-order advances.
-
-The following table is the complete tie-breaking order. A lower rank is
-considered only when every higher-ranked value ties:
-
-| Rank | Many-to-one title assignment |
-|---:|---|
-| 1 | Greatest number of assigned entries |
-| 2 | Greatest total title similarity |
-| 3 | Greatest total TOC-title and destination-title confidence |
-| 4 | Lexicographically earliest sequence of assigned destination detections in destination reading order |
-
-For rank 4, assignments are compared in TOC-entry order. Destination reading
-order is ascending bounding-box `y`, then `x`, then original destination
-index. At the first differing assigned destination, the assignment using the
-earlier detection wins. This final comparison is encoded explicitly and does
-not depend on the assignment-search traversal order.
-
-Only assigned entries become anchors.
-
-###### Multiple TOC entries and multiple destination pages
-
-The engine creates no anchors for this numeral-system and number pair. The
-many-to-many relation is treated as too ambiguous to establish reliable anchor
-bounds. Its entries remain available for
-[non-anchor title matching](#resolving-entries-between-anchors).
+- **Multiple TOC entries → multiple pages.** Rank 1 is the complete rule. The
+  relationship is too ambiguous to establish anchor bounds, so it creates no
+  anchor candidates and remains available for
+  [exact-number non-anchor resolution](#exact-number-non-anchor-resolution).
 
 ###### Document-wide anchor-chain selection
 
-The anchors retained by
-[one-to-one](#one-toc-entry-and-one-destination-page),
-[one-to-many](#one-toc-entry-and-multiple-destination-pages), and
-[many-to-one](#multiple-toc-entries-and-one-destination-page) matching are
-candidates for the document-wide chain. Dynamic programming compares the
-possible monotonic chains and selects the best-scoring one. Within a chain,
-entry indices must increase and physical positions must not decrease, so
-multiple chapters may share one page.
+Every candidate produced by the cardinality table is available to the
+document-wide anchor chain. Dynamic programming compares the possible
+monotonic chains and selects the best-scoring one. Within a chain, entry
+indices must increase and physical positions must not decrease, so multiple
+chapters may share one page.
 
 The following table is the complete tie-breaking order. A lower rank is
 considered only when every higher-ranked value ties:
@@ -1696,18 +1680,27 @@ earlier entry wins. Only anchors in the selected chain are subsequently used
 to define alignment bounds and offsets; all other anchor candidates are
 ignored.
 
-##### Resolving entries between anchors
+##### Resolving non-anchor entries
 
-Every non-anchor entry needs a TOC title. Its inclusive physical bounds are the
-positions of the closest preceding and following selected anchors in flat TOC
-order. Either bound may be absent; with no anchors the search covers the whole
-document.
+Non-anchor resolution runs only after the document-wide anchor chain is
+final. It has two ordered phases:
 
-Unused destination-title detections are filtered to those bounds and then by:
+1. resolve remaining parsed entries having exact physical-number evidence by
+   the four number-match cardinalities;
+2. title-match all remaining entries, comprising parsed entries without an
+   exact physical-number page and entries whose TOC number is missing or could
+   not be parsed.
 
-```text
-title_similarity >= minimum_title_substring_similarity
-```
+Destination-title detections claimed by the exact-number phase are unavailable
+to the title-matching phase. Within title matching, parsed entries without an
+exact physical-number page are processed in flattened TOC order before entries
+whose number is missing or unparsed, which are then processed in the same
+order. Each claimed destination title is unavailable to subsequent entries. A
+physical page may still be shared by multiple entries.
+
+Every entry uses inclusive physical bounds from its closest preceding and
+following selected anchors in flattened TOC order. Either bound may be absent;
+with no anchors the bounds cover the complete non-TOC document.
 
 | Parameter | Default | Meaning |
 |---|---:|---|
@@ -1727,41 +1720,122 @@ is not the printed page number.
 
 An ideal destination position is available when all applicable surrounding
 anchors produce one distinct offset. One compatible anchor is sufficient. In
-that case, candidates must lie within
-`maximum_destination_page_position_offset_from_expected` of the expected
+resolution paths that use positional tolerance, candidates must then lie
+within `maximum_destination_page_position_offset_from_expected` of that
 position.
 
 When there is no compatible anchor, or compatible anchors disagree about the
 offset, no ideal position is used. Candidates only have to remain inside the
 available anchor bounds.
 
-For an entry whose TOC number could not be parsed or is missing, matching also
-checks any physical number detected on the candidate page. A same-system
-physical value may not precede the preceding anchor's TOC value or exceed the
-following anchor's TOC value. A candidate without a physical number, or with a
-different numeral system, passes this consistency check.
+###### Exact-number non-anchor resolution
 
-After these mode-specific eligibility checks, the following table is the
-complete tie-breaking order. A lower rank is considered only when every
-higher-ranked value ties:
+Remaining parsed entries are grouped by `(numeral system, start value)`. A
+group is processed only when the same key occurs in physical-page-number
+evidence. Selected anchors are excluded from the entry side, while physical
+pages remain reusable. Exact-number pages outside an entry's selected-anchor
+bounds are ineligible.
 
-| Rank | Non-anchor destination-title candidate |
+The following table contains the complete tie-breaking order for this exact-
+number phase. Each column is independent. A lower rank in a column is
+considered only when all its higher-ranked values tie. A dash means that the
+rank does not apply to that cardinality.
+
+| Rank | One TOC entry → one page | One TOC entry → multiple pages | Multiple TOC entries → one page | Multiple TOC entries → multiple pages |
+|---:|---|---|---|---|
+| 1 | Greatest optional destination-title bbox height | Smallest absolute physical-position delta from the ideal position | Greatest number of attached destination titles | Greatest number of resolved entries |
+| 2 | Highest optional title similarity | Presence of a qualifying destination-title match | Greatest total title similarity | Smallest total ideal-position delta |
+| 3 | Highest optional destination-title confidence | Greatest destination-title bbox height | Greatest total TOC-title and destination-title confidence | Greatest number of attached destination titles |
+| 4 | Greatest optional destination-title bbox width | Highest title similarity | Lexicographically earliest attached-title sequence in destination reading order | Greatest total destination-title bbox height |
+| 5 | Earliest optional destination title in reading order | Highest destination-title confidence | — | Greatest total title similarity |
+| 6 | — | Earliest physical page position | — | Greatest total TOC-title and destination-title confidence |
+| 7 | — | Earliest destination title in reading order | — | Retain only page assignments shared by every otherwise tied best assignment |
+
+Destination reading order is ascending bbox `y`, then `x`, then original
+destination index.
+
+- **One TOC entry → one page.** The unique exact page is checked against this
+  entry's anchor bounds but not against ideal-position tolerance, and it
+  resolves `page_start_key` regardless of title support. The table therefore
+  ranks only optional qualifying titles on that page: height, similarity,
+  confidence, width, and finally destination reading order. No matching title
+  leaves the entry page-resolved without `title_destination_page`.
+
+- **One TOC entry → multiple pages.** Every candidate is an exact-number page
+  inside this entry's anchor bounds. When an ideal position exists, candidates
+  outside its tolerance are removed, rank 1 chooses the smallest delta, and
+  title rules compare only equal deltas. Without an ideal position, rank 1 is
+  skipped: multiple remaining pages require qualifying title support and are
+  ranked from rank 3, while a single bounded page resolves without a title.
+  Rank 7 uses destination reading order.
+
+- **Multiple TOC entries → one page.** Each entry whose bounds contain the unique
+  exact page resolves to it without ideal-position tolerance. Optional titles
+  are assigned one-to-one while entries advance in flattened TOC order and
+  detections advance in destination reading order. Either side may be skipped,
+  but assignments cannot cross or reverse. The table ranks the complete
+  assignment; entries left without an assigned title remain page-resolved.
+
+- **Multiple TOC entries → multiple pages.** Resolution is global within this
+  exact-number group. Per-entry candidates are exact pages inside that entry's
+  bounds and, when an ideal position exists, its tolerance. Assigned page
+  positions must be nondecreasing in flattened TOC order, pages may be shared,
+  titles are unique, and titles on a shared page must advance in destination
+  reading order. An ideal position permits titleless candidates; without one,
+  a multiple-page pool requires title support. The table ranks complete global
+  assignments. If equally best assignments disagree about an entry's page,
+  that entry remains unresolved; otherwise its common page is retained, with
+  a title only when all best assignments also agree on the detection.
+
+An entry belonging to an exact-number group never falls through to an off-
+number destination-title match. If its exact relationship conflicts with
+anchor bounds, exceeds an applicable ideal-position tolerance, or remains
+ambiguous, it stays unresolved.
+
+###### Remaining destination-title matching
+
+Only two classes of entries reach title fallback:
+
+1. entries with a parsed TOC number for which no exact physical-number page
+   exists;
+2. entries with a missing or unparsed TOC number.
+
+Both classes consider only unused destination-title detections inside their
+anchor bounds and require:
+
+```text
+title_similarity >= minimum_title_substring_similarity
+```
+
+A parsed entry with an ideal position additionally requires the candidate to
+fall within `maximum_destination_page_position_offset_from_expected`.
+
+For a missing or unparsed number, matching checks any physical number detected
+on the candidate page. A same-system physical value may not precede the
+preceding anchor's TOC value or exceed the following anchor's TOC value. A
+candidate without a physical number, or with a different numeral system,
+passes this consistency check.
+
+The following table contains the complete tie-breaking order for both title-
+fallback classes. A lower rank is considered only when every higher-ranked
+value ties:
+
+| Rank | Remaining destination-title candidate |
 |---:|---|
-| 1 | Smallest absolute difference between candidate physical position and ideal physical position. This rank applies only when the TOC number is parsed and an ideal position is available. |
+| 1 | Smallest absolute physical-position delta from the ideal position |
 | 2 | Greatest destination-title bbox height |
 | 3 | Highest title similarity |
 | 4 | Highest destination-title confidence |
-| 5 | Earliest physical page position (`ChapterPageInput.position`) |
-| 6 | First destination-title detection in input order |
+| 5 | Earliest physical page position |
+| 6 | Earliest destination title in reading order |
 
-Physical position means zero-based `ChapterPageInput.position`. Input order in
-the final rank is the order of equally positioned detections in the supplied
-`destination_chapters` sequence; sorting by physical position is stable.
+Rank 1 applies only when the entry has a parsed TOC page number and compatible
+anchor evidence provides an ideal position. Otherwise ranking starts at rank 2.
 
-A non-anchor entry is resolved only when an unused destination-title match
-passes every applicable bound, similarity, offset, and physical-number check.
-Otherwise it remains in the result with `page_start_key=None` and
-`title_destination_page=None`.
+Physical position means zero-based `ChapterPageInput.position`. Destination
+reading order is ascending bbox `y`, then `x`, then original destination
+index. An entry with no eligible remaining destination title stays unresolved
+with `page_start_key=None` and `title_destination_page=None`.
 
 ##### Explicit range ends
 
