@@ -609,8 +609,12 @@ configurations under `page_analysis`, `extraction`, and `alignment`:
       },
       "alignment": {
         "name": "chapter_alignment_engine_fuzzy",
+        "minimum_title_substring_similarity": 0.7,
+        "maximum_destination_page_position_offset_from_expected": 2,
         "toc_monotonic_order_constraints": "auto",
-        "minimum_toc_number_monotonicity_ratio": 0.9
+        "minimum_toc_number_monotonicity_ratio": 0.9,
+        "use_anchors": true,
+        "solver_time_limit_seconds": null
       }
     },
     "bind": {
@@ -624,12 +628,8 @@ configurations under `page_analysis`, `extraction`, and `alignment`:
 The central pipeline loader resolves every relative `*_path` and `*_dir`
 value against the directory containing the main pipeline configuration before
 constructing any engine. Engines receive only their prepared mapping. The
-worker instead uses the downloaded engine directory as the base and rejects
-any path that resolves outside it.
-
-There is no directory-config fallback. The former `stages` mapping,
-per-engine `metakat_engine_config.json` files, and directory-based
-constructors are not supported.
+worker uses the downloaded engine directory as the base and rejects any path
+that resolves outside it.
 
 #### Adding a stage implementation
 
@@ -665,7 +665,7 @@ requirements of the pipeline.
 |---|---|---|
 | [Chapter page analysis](#stage-1-chapter-page-analysis) | `chapter_page_analysis_engine_yolo_alto` | YOLO geometry aligned with ALTO text |
 | [Chapter extraction](#stage-2-chapter-extraction) | `chapter_extraction_engine_yolo_alto` | YOLO geometry aligned with ALTO text |
-| [Chapter alignment](#stage-3-chapter-alignment) | `chapter_alignment_engine_fuzzy` | Physical-number anchors and fuzzy title matching |
+| [Chapter alignment](#stage-3-chapter-alignment) | `chapter_alignment_engine_fuzzy` | Optional physical-number anchors and global CP-SAT resolution from number, position, and title evidence |
 
 ### Stage 1: Chapter page analysis
 
@@ -779,8 +779,8 @@ or distance_from_end < page_count * toc_search_fraction
 
 `position` and both distances are zero-based, and both comparisons are strict.
 Pages outside these search areas skip all candidate-region counting and window
-analysis. They remain available as possible destination pages, and their
-destination-title and physical-page-number evidence is still collected.
+analysis. They remain available as possible destination pages. The engine
+collects their destination-title and physical-page-number evidence.
 
 For pages inside the search areas, candidate selection considers regions with
 the configured `Level1Title`, `Level2Title`, and `PageNumber` labels and non-null
@@ -1392,11 +1392,11 @@ discarded because they cannot independently identify a TOC entry.
 
 At this point, basic unit construction is complete. Every unit has its title,
 part number, and page number assignments, and the group-local unit list is in
-top-to-bottom reading order. All units still have `subtitle=None`.
+top-to-bottom reading order. Every unit has `subtitle=None`.
 
 ###### Subtitle assignment to constructed units
 
-The unit-construction method now assigns the remaining `Subtitle` candidates
+The unit-construction method then assigns the remaining `Subtitle` candidates
 to the completed units. A subtitle never creates a standalone unit. Only
 titled units in the same candidate group are considered. The title must start
 no lower than the subtitle, and the signed vertical gap is:
@@ -1446,8 +1446,8 @@ selected according to the
 
 The selected subtitle is assigned to that unit and immediately removed from
 the available pool, so it cannot be reassigned to a later unit. Each unit can
-therefore receive at most one subtitle. Subtitle detections still available
-after the final unit remain unassigned.
+therefore receive at most one subtitle. Subtitle detections left in the pool
+after the final unit are unassigned.
 
 ###### Assignment ranking summary
 
@@ -1565,9 +1565,9 @@ fields and hierarchy from `TocBase` unchanged. It produces the corresponding
 `ChapterResult` by adding only `title_destination_page`, `page_start_key`, and
 `page_end_key`.
 
-When this engine directly receives `None` for both inputs, it still runs but
-has no destination evidence from which to create anchors or title matches. It
-therefore leaves all three added fields as `None` for every entry.
+When this engine directly receives `None` for both inputs, it has no
+destination evidence from which to create anchors or title matches and leaves
+all three added fields as `None` for every entry.
 
 ##### Configuration
 
@@ -1577,7 +1577,9 @@ therefore leaves all three added fields as `None` for every entry.
   "minimum_title_substring_similarity": 0.7,
   "maximum_destination_page_position_offset_from_expected": 2,
   "toc_monotonic_order_constraints": "auto",
-  "minimum_toc_number_monotonicity_ratio": 0.9
+  "minimum_toc_number_monotonicity_ratio": 0.9,
+  "use_anchors": true,
+  "solver_time_limit_seconds": null
 }
 ```
 
@@ -1585,7 +1587,9 @@ therefore leaves all three added fields as `None` for every entry.
 `maximum_destination_page_position_offset_from_expected` must be a
 non-negative integer; `toc_monotonic_order_constraints` must be `"auto"`,
 `"yes"`, or `"no"`; and `minimum_toc_number_monotonicity_ratio` must be in
-`[0, 1]`.
+`[0, 1]`. `use_anchors` must be a boolean. `solver_time_limit_seconds` must be
+`null` or a positive finite number. `null` imposes no solver time limit and is
+the default.
 
 The engine always calculates `TocResult.toc_monotonicity_score` from parsed TOC
 start-page values in flattened TOC order. Values are grouped by numeral system,
@@ -1644,6 +1648,9 @@ penalized like a full-string comparison.
 
 ##### Anchor candidates
 
+When `use_anchors` is `false`, the engine skips this entire section and sends
+every TOC entry to unified resolution.
+
 An anchor begins with an exact match between a parsed TOC start value and a
 physical page value in the same numeral system. The following table separates
 the four possible cardinalities of that number match.
@@ -1658,7 +1665,7 @@ the complete decision rule for that column.
 
 | Rank | One TOC entry → one page | One TOC entry → multiple pages | Multiple TOC entries → one page | Multiple TOC entries → multiple pages |
 |---:|---|---|---|---|
-| 1 | Create a number-only anchor when the page has no destination-title detections; otherwise require exactly one qualifying title match on that page | Require exactly one qualifying title match across all exact-number pages | Greatest number of assigned entries | Create no anchor candidates; defer the entries to exact-number non-anchor resolution |
+| 1 | Create a number-only anchor when the page has no destination-title detections; otherwise require exactly one qualifying title match on that page | Require exactly one qualifying title match across all exact-number pages | Greatest number of assigned entries | Create no anchor candidates; defer the entries to unified non-anchor resolution |
 | 2 | — | — | Greatest total title similarity | — |
 | 3 | — | — | Greatest total TOC-title and destination-title confidence | — |
 | 4 | — | — | Lexicographically earliest sequence of assigned destination detections in destination reading order | — |
@@ -1686,13 +1693,13 @@ original destination index.
   assigned count, similarity, and confidence. At rank 4, assignments are
   compared in TOC-entry order and the first differing assigned destination
   prefers the earlier detection in destination reading order. This comparison
-  is explicit rather than dependent on search traversal. Only assigned
-  entries become anchor candidates, and their detections are claimed.
+  makes selection independent of search traversal. Only assigned entries
+  become anchor candidates, and their detections are claimed.
 
 - **Multiple TOC entries → multiple pages.** Rank 1 is the complete rule. The
   relationship is too ambiguous to establish anchor bounds, so it creates no
   anchor candidates and remains available for
-  [exact-number non-anchor resolution](#exact-number-non-anchor-resolution).
+  [unified non-anchor resolution](#unified-non-anchor-resolution).
 
 ###### Document-wide anchor-chain selection
 
@@ -1722,179 +1729,161 @@ earlier entry wins. Only anchors in the selected chain are subsequently used
 to define alignment bounds and offsets; all other anchor candidates are
 ignored.
 
-##### Resolving non-anchor entries
+##### Unified non-anchor resolution
 
-Non-anchor resolution runs only after the document-wide anchor chain is
-final. It has two ordered phases:
+After optional anchor selection, every remaining TOC entry is resolved by one
+document-wide Google OR-Tools CP-SAT model. The engine creates all valid
+entry-to-page candidates and the solver selects one globally compatible
+assignment.
 
-1. resolve remaining parsed entries having exact physical-number evidence by
-   the four number-match cardinalities;
-2. title-match all remaining entries, comprising parsed entries without an
-   exact physical-number page and entries whose TOC number is missing or could
-   not be parsed.
+Each candidate contains the flattened TOC entry index, destination page and
+physical position, optional destination-title detection, evidence source,
+optional ideal-position delta, title similarity, confidence, and geometry.
+A page may be used by multiple entries, but a destination-title detection may
+be used only once.
 
-Destination-title detections claimed by the exact-number phase are unavailable
-to the title-matching phase. Within title matching, parsed entries without an
-exact physical-number page are processed in flattened TOC order before entries
-whose number is missing or unparsed, which are then processed in the same
-order. Each claimed destination title is unavailable to subsequent entries. A
-physical page may still be shared by multiple entries.
+###### Anchor bounds and ideal positions
 
-Every entry uses inclusive physical bounds from its closest preceding and
-following selected anchors in flattened TOC order. Either bound may be absent;
-with no anchors the bounds cover the complete non-TOC document.
+When anchors and TOC monotonic-order constraints are both active, each entry
+uses inclusive physical bounds from its closest preceding and following
+selected anchors in flattened TOC order. Either bound may be absent.
 
-| Parameter | Default | Meaning |
-|---|---:|---|
-| `minimum_title_substring_similarity` | `0.7` | Minimum normalized substring similarity accepted as a destination-title match. |
-| `maximum_destination_page_position_offset_from_expected` | `2` | Maximum permitted absolute difference, in physical page positions, between a destination candidate and its expected position. |
-
-For an entry with a parsed TOC number, each surrounding anchor in the same
-numeral system proposes this offset:
+For an entry with a parsed TOC number, every surrounding anchor in the same
+numeral system proposes:
 
 ```text
 physical anchor position - printed TOC number
 ```
 
-The physical position here is zero-based `ChapterPageInput.position` inside
-the independently processed document. It is not `MetakatPage.pageIndex` and it
-is not the printed page number.
+The physical position is zero-based `ChapterPageInput.position`; it is not
+`MetakatPage.pageIndex` and is not the printed page number. An ideal position
+is available when all applicable anchors produce one distinct offset. One
+compatible anchor is sufficient. If compatible anchors disagree, bounds still
+apply but there is no ideal position.
 
-An ideal destination position is available when all applicable surrounding
-anchors produce one distinct offset. One compatible anchor is sufficient. In
-resolution paths that use positional tolerance, candidates must then lie
-within `maximum_destination_page_position_offset_from_expected` of that
-position.
+`maximum_destination_page_position_offset_from_expected` is the greatest
+allowed absolute difference between a candidate's physical position and this
+ideal position. It is applied to multiple exact-number pages and to non-exact
+title candidates. A unique exact-number page is checked against anchor bounds
+but not rejected by ideal-position tolerance.
 
-When there is no compatible anchor, or compatible anchors disagree about the
-offset, no ideal position is used. Candidates only have to remain inside the
-available anchor bounds.
+###### Candidate generation
 
-###### Exact-number non-anchor resolution
+Candidate eligibility is determined before optimization:
 
-Remaining parsed entries are grouped by `(numeral system, start value)`. A
-group is processed only when the same key occurs in physical-page-number
-evidence. Selected anchors are excluded from the entry side, while physical
-pages remain reusable. Exact-number pages outside an entry's selected-anchor
-bounds are ineligible.
+| TOC-entry evidence | Generated candidates |
+|---|---|
+| Parsed number with one or more exact physical-number pages | Only bounded exact-number pages participate. Off-number title and anchor-position candidates are prohibited. Every qualifying title on an eligible exact page creates a titled candidate. A titleless candidate is also created when exactly one eligible exact page remains or an ideal position is available. Multiple exact pages without an ideal position therefore require title support. |
+| Parsed number without any exact physical-number page | Every qualifying unused destination title inside anchor bounds and ideal-position tolerance creates a candidate. When an ideal position names an available non-TOC page, that page also creates a titleless anchor-position candidate. |
+| Missing or unparsed number | Every qualifying unused destination title inside anchor bounds creates a candidate. A detected physical number in the same numeral system may not precede the preceding anchor value or exceed the following anchor value. No anchor-position candidate can be derived. |
 
-The following table contains the complete tie-breaking order for this exact-
-number phase. Each column is independent. A lower rank in a column is
-considered only when all its higher-ranked values tie. A dash means that the
-rank does not apply to that cardinality.
+A qualifying title reaches `minimum_title_substring_similarity`. A destination
+title already claimed by a fixed anchor is unavailable. Exact-number evidence
+has hard precedence: when at least one physical page carries the exact parsed
+number, the engine generates candidates exclusively from those exact-number
+pages.
 
-| Rank | One TOC entry → one page | One TOC entry → multiple pages | Multiple TOC entries → one page | Multiple TOC entries → multiple pages |
-|---:|---|---|---|---|
-| 1 | Greatest optional destination-title bbox height | Smallest absolute physical-position delta from the ideal position | Greatest number of attached destination titles | Greatest number of resolved entries |
-| 2 | Highest optional title similarity | Presence of a qualifying destination-title match | Greatest total title similarity | Smallest total ideal-position delta |
-| 3 | Highest optional destination-title confidence | Greatest destination-title bbox height | Greatest total TOC-title and destination-title confidence | Greatest number of attached destination titles |
-| 4 | Greatest optional destination-title bbox width | Highest title similarity | Lexicographically earliest attached-title sequence in destination reading order | Greatest total destination-title bbox height |
-| 5 | Earliest optional destination title in reading order | Highest destination-title confidence | — | Greatest total title similarity |
-| 6 | — | Earliest physical page position | — | Greatest total TOC-title and destination-title confidence |
-| 7 | — | Earliest destination title in reading order | — | Retain only page assignments shared by every otherwise tied best assignment |
+Here, one eligible exact page means one page remains after anchor-bound and,
+when applicable, ideal-position-tolerance filtering. It need not have been the
+only raw physical-page-number detection with that value.
 
-Destination reading order is ascending bbox `y`, then `x`, then original
-destination index.
+For an exact-number page, titled and titleless candidates may coexist. This
+allows the global solver to keep the exact page resolution while assigning a
+scarce destination-title detection to another entry when that produces the
+better document-wide solution.
 
-- **One TOC entry → one page.** The unique exact page is checked against this
-  entry's anchor bounds but not against ideal-position tolerance, and it
-  resolves `page_start_key` regardless of title support. The table therefore
-  ranks only optional qualifying titles on that page: height, similarity,
-  confidence, width, and finally destination reading order. No matching title
-  leaves the entry page-resolved without `title_destination_page`.
+###### Hard assignment constraints
 
-- **One TOC entry → multiple pages.** Every candidate is an exact-number page
-  inside this entry's anchor bounds. When an ideal position exists, candidates
-  outside its tolerance are removed, rank 1 chooses the smallest delta, and
-  title rules compare only equal deltas. Without an ideal position, rank 1 is
-  skipped: multiple remaining pages require qualifying title support and are
-  ranked from rank 3, while a single bounded page resolves without a title.
-  Rank 7 uses destination reading order.
+The CP-SAT model creates one Boolean variable per candidate and enforces:
 
-- **Multiple TOC entries → one page.** Each entry whose bounds contain the unique
-  exact page resolves to it without ideal-position tolerance. Optional titles
-  are assigned one-to-one while entries advance in flattened TOC order and
-  detections advance in destination reading order. Either side may be skipped,
-  but assignments cannot cross or reverse. The table ranks the complete
-  assignment; entries left without an assigned title remain page-resolved.
+1. at most one candidate is selected for each non-anchor TOC entry;
+2. each destination-title detection is selected at most once;
+3. fixed anchors remain assigned and their destination titles remain claimed;
+4. when TOC monotonic-order constraints are active, selected physical page
+   positions are nondecreasing in flattened TOC order;
+5. under the same mode, destination titles selected on one physical page must
+   advance in top-to-bottom, left-to-right reading order.
 
-- **Multiple TOC entries → multiple pages.** Resolution is global within this
-  exact-number group. Per-entry candidates are exact pages inside that entry's
-  bounds and, when an ideal position exists, its tolerance. Assigned page
-  positions must be nondecreasing in flattened TOC order, pages may be shared,
-  titles are unique, and titles on a shared page must advance in destination
-  reading order. An ideal position permits titleless candidates; without one,
-  a multiple-page pool requires title support. The table ranks complete global
-  assignments. If equally best assignments disagree about an entry's page,
-  that entry remains unresolved; otherwise its common page is retained, with
-  a title only when all best assignments also agree on the detection.
+Titleless candidates do not impose same-page title order. Entries may share a
+page in either mode.
 
-An entry belonging to an exact-number group never falls through to an off-
-number destination-title match. If its exact relationship conflicts with
-anchor bounds, exceeds an applicable ideal-position tolerance, or remains
-ambiguous, it stays unresolved.
+###### Global tie-breaking
 
-###### Remaining destination-title matching
+The following table is the complete semantic objective order. Each objective
+is optimized separately, fixed to its proven optimum, and followed by the next
+rank. A lower rank is considered only when every higher-ranked value ties.
 
-Only two classes of entries reach title fallback:
-
-1. entries with a parsed TOC number for which no exact physical-number page
-   exists;
-2. entries with a missing or unparsed TOC number.
-
-Each class is resolved as one global assignment before the next class is
-processed. The assignment maximizes the number of matched entries rather than
-allowing an earlier entry to greedily consume a title needed by a later entry.
-Candidates are unused destination-title detections inside their entry's anchor
-bounds and must satisfy:
-
-```text
-title_similarity >= minimum_title_substring_similarity
-```
-
-A parsed entry with an ideal position additionally requires the candidate to
-fall within `maximum_destination_page_position_offset_from_expected`. A title
-candidate outside that tolerance is not used. If no title is assigned, the
-entry instead resolves to the destination page at the ideal position and
-leaves `title_destination_page` unset. Thus missing, unsuitable, ambiguous,
-or already-consumed title evidence does not discard a start page supported by
-compatible anchor offset. The entry remains unresolved only when that physical
-position has no destination page.
-
-For a missing or unparsed number, matching checks any physical number detected
-on the candidate page. A same-system physical value may not precede the
-preceding anchor's TOC value or exceed the following anchor's TOC value. A
-candidate without a physical number, or with a different numeral system,
-passes this consistency check.
-
-The assignment is monotonic: destination pages must be nondecreasing in
-flattened TOC order, and destination titles assigned on the same page must
-advance in reading order. The following table contains the complete ranking of
-global assignments for both fallback classes. A lower rank is considered only
-when every higher-ranked value ties:
-
-| Rank | Global title-fallback assignment |
+| Rank | Global CP-SAT assignment |
 |---:|---|
-| 1 | Greatest number of assigned entries |
-| 2 | Greatest number of assignments supported by an ideal position |
-| 3 | Smallest sum of absolute physical-position deltas from those ideal positions |
-| 4 | Greatest sum of destination-title bbox heights |
-| 5 | Greatest sum of title similarities |
-| 6 | Greatest sum of destination-title confidences |
-| 7 | Lexicographically earliest sequence of assigned TOC entry indices and destination-title reading-order positions |
+| 1 | Greatest number of entries resolved through exact physical-page-number evidence |
+| 2 | Greatest total number of resolved entries |
+| 3 | Greatest number of exact-number assignments supported by an anchor-derived ideal position |
+| 4 | Smallest total absolute ideal-position delta for those exact-number assignments |
+| 5 | Greatest number of attached destination-title detections |
+| 6 | Greatest number of non-exact title assignments supported by an anchor-derived ideal position |
+| 7 | Smallest total absolute ideal-position delta for those non-exact title assignments |
+| 8 | Greatest total destination-title bbox height |
+| 9 | Greatest total title similarity |
+| 10 | Greatest total TOC-title and destination-title confidence |
+| 11 | Greatest total destination-title bbox width |
 
-Ranks 2 and 3 apply only where compatible anchor evidence provides an ideal
-position. Rank 2 prevents the absence of positional evidence from appearing
-better than an eligible match supported by such evidence. Rank 7 first prefers
-retaining earlier flattened TOC entries and then earlier destinations for
-otherwise identical assignment scores.
+Rank 1 gives exact-number resolutions precedence over the total resolved-entry
+count. Ranks 3–4 place ideal-position evidence before optional title attachment
+inside an exact-number page set. Ranks 5–7 rank qualifying title evidence and
+ideal-position distance for non-exact resolution.
 
-Physical position means zero-based `ChapterPageInput.position`. Destination
-reading order is ascending bbox `y`, then `x`, then original destination
-index within ascending physical page position. An entry omitted from the
-winning title assignment receives the anchor-derived positional fallback when
-an ideal position is available; otherwise it stays unresolved with
-`page_start_key=None` and `title_destination_page=None`.
+CP-SAT accepts integer objectives. Similarity, confidence, and bbox dimensions
+are finite floats in the core models, so the engine multiplies them by
+`1,000,000` and rounds before optimization. Physical page positions, counts,
+and position deltas remain integers. Objectives are optimized separately, so
+geometry values are never combined with confidence or similarity through
+arbitrary cross-unit weights.
+
+###### Canonical final solution
+
+The engine returns one deterministic optimal solution. When ranks 1–11 permit
+multiple optimal assignments, entries are considered in flattened TOC order.
+For each entry, the solver fixes the first still-optimal choice in this order:
+
+1. resolved before unresolved;
+2. earliest physical page position;
+3. a titled candidate before a titleless candidate on the same page;
+4. earliest destination title by bbox `y`, then bbox `x`, then original
+   destination index;
+5. lowest stable candidate ID.
+
+Fixing each entry before considering the next makes the result independent of
+CP-SAT search traversal. Solver execution also uses one worker and a fixed
+random seed.
+
+###### Optional anchors and monotonic order
+
+`use_anchors` and `toc_monotonic_order_constraints` control independent parts
+of alignment:
+
+| `use_anchors` | Effective monotonic order | Behaviour |
+|---|---|---|
+| `true` | active | Select a monotonic anchor chain, fix it, derive bounds and compatible ideal positions, and require a monotonic global assignment. |
+| `true` | inactive | Retain independently valid anchors, but do not infer surrounding bounds, ideal positions, physical-number consistency, destination-page order, or same-page title order from flattened TOC order. |
+| `false` | active | Skip anchor generation. Resolve all entries in the CP-SAT model from exact numbers and titles while requiring a monotonic assignment. |
+| `false` | inactive | Skip anchors and resolve all entries from exact numbers and titles without TOC-order assumptions. |
+
+With anchors disabled, all entries participate as ordinary candidates in the
+unified solver and exact physical-number matching remains available. Anchor
+bounds, ideal positions, and anchor-position candidates are unavailable.
+
+When monotonic order is inactive, page assignments may cross and same-page
+title assignments may reverse flattened TOC order. Candidate generation,
+uniqueness constraints, objectives, and canonical final selection are the same
+in both modes. Explicit range ends require an end at or after their resolved
+start; a following TOC anchor does not limit the search in this mode.
+
+###### Solver completion
+
+`solver_time_limit_seconds` applies to the complete sequence of optimization
+and canonicalization solves. `null` imposes no limit. Every rank must return
+CP-SAT status `OPTIMAL`. Expiration of a configured time limit before all
+optima are proven raises an error.
 
 ##### Explicit range ends
 
@@ -1926,79 +1915,6 @@ higher-ranked value ties:
 This ranking applies identically to the exact-number and positional-fallback
 candidate pools. It does not depend on physical-page-number evidence input
 order.
-
-##### TOC-order-independent alignment
-
-The preceding alignment rules apply when TOC monotonic-order constraints are
-effective. They are disabled when `toc_monotonic_order_constraints` is `"no"`,
-or when it is `"auto"` and the calculated score is below the configured
-minimum. To disable them unconditionally, set:
-
-```json
-{
-  "toc_monotonic_order_constraints": "no"
-}
-```
-
-for a TOC whose entry order does not imply destination-page or same-page title
-order. The TOC hierarchy and flattened entry sequence are still preserved in
-the result, but that sequence is not used as matching evidence. This changes
-alignment as follows:
-
-Both modes use the same anchor-option builder, exact-number cardinality
-resolvers, title-assignment searches, candidate ranking, destination-title
-uniqueness checks, and range-end resolver. The builder's N:1 anchor options can
-differ between the modes because same-page title assignment applies TOC title
-order only when TOC monotonic-order constraints are effective.
-
-When TOC monotonic-order constraints are effective, anchor-chain selection
-directly constructs the best monotonic chain: a chain is extended only by an
-option later in flattened TOC order whose physical page position does not move
-backward. The engine does not first select an unconstrained chain and then
-filter it. When TOC monotonic-order constraints are disabled, anchor-chain
-selection is bypassed and every independently valid anchor option is retained.
-
-Many-to-many exact-number matching and title fallback instead run their same
-global solution searches in both modes. When TOC monotonic-order constraints
-are effective, their recursive searches reject a partial assignment as soon as
-its next destination would move backward in physical page order or, on a shared
-page, in title reading order. They therefore directly generate only monotonic
-solutions. When TOC monotonic-order constraints are disabled, those rejection
-predicates are removed. The independent mode also relaxes the candidate
-eligibility rules that depend on anchor bounds, ideal positions, or physical
-page-number consistency; it does not invoke a separate alignment pipeline.
-
-- Every valid anchor candidate produced by the anchor cardinality table is
-  retained. The document-wide monotonic anchor-chain selection is skipped.
-- Anchors do not provide preceding/following physical bounds, ideal positions,
-  or physical-page-number consistency checks for non-anchor entries.
-- Many-to-one title assignment becomes a global one-to-one assignment without
-  the same-page title monotonic-order requirement. It still ranks assignments
-  by greatest assigned count, total similarity, and total evidence confidence.
-  If equally ranked assignments disagree about an entry's destination title,
-  that entry receives no destination title; its exact physical page resolution
-  is retained.
-- Many-to-many exact-number matching remains global within each number group,
-  but assigned pages may move in either direction and titles on a shared page
-  need not follow TOC order. Title detections remain unique. Because no ideal
-  position is derived, a group with multiple candidate pages requires title
-  support.
-- In one-to-many exact-number matching, all exact-number pages remain eligible
-  and no ideal-position rank is available. A destination-title match is
-  therefore required; candidates use the remaining title and
-  destination-position ranks.
-- Title fallback retains its two evidence-priority passes: parsed numbers
-  without exact physical evidence first, then missing or unparsed numbers.
-  It uses the same global assignment as the default mode, but without physical-
-  page or same-page title monotonicity. Because ideal positions are unavailable,
-  assignments are ranked by greatest assigned count, total destination-title
-  bbox height, total title similarity, and total destination-title confidence.
-  Only entry-to-title assignments shared by every equally ranked best solution
-  are retained; ambiguous entries remain unresolved.
-- Explicit ranges still require an end at or after their resolved start and
-  use the offset derived from their own start. A following TOC anchor no longer
-  limits the end search. The configured maximum position offset still applies
-  to positional range-end fallback.
 
 ##### Reconstructing the result tree
 
@@ -2230,12 +2146,12 @@ binding counts at `INFO` or `WARNING`. Candidate pages, extraction units,
 anchor options, individual title candidates, and bound fields are available at
 `DEBUG`.
 
-Every non-anchor title-fallback evaluation produces a final per-entry log. A
-successful log identifies whether the global title assignment or the anchor-
-derived ideal position resolved the entry. A failed log states why neither
-route resolved it and reports candidate counts for already-used titles,
-missing page positions, anchor-bound rejection, similarity rejection,
-ideal-position tolerance rejection, and physical-number inconsistency.
+Unified alignment logs candidate totals by evidence type, CP-SAT model size,
+every optimized and fixed objective value, elapsed solver time, and one final
+result for every non-anchor entry. A successful result identifies the selected
+number, title, or anchor-position evidence. A failed result distinguishes an
+empty candidate pool from an entry omitted by the globally optimal assignment
+and reports the applicable candidate-filter counts.
 
 These logs are intended to make the decision rules under
 [Available stage implementations](#available-stage-implementations) auditable
