@@ -12,7 +12,7 @@ from metakat.biblio.engines.bind.biblio_bind_engine_base import (
 )
 from metakat.schemas.base_objects import (
     BiblioType,
-    MetakatPage,
+    HierarchyType,
 )
 
 
@@ -93,3 +93,21 @@ def test_binding_does_not_depend_on_category_id(metakat_page):
     )
 
     assert elements[0].title[:2] == ("Book title", 0.9)
+
+
+def test_biblio_binding_uses_model_labels(metakat_page, yolo_alignment_page):
+    yolo_alignment_page.regions[0].label = "Title"
+    yolo_alignment_page.regions[0].alto_text = "Book title"
+    binder = _binder({"Title": BiblioType.TITLE})
+
+    elements, bbox_by_id = binder.get_volume_issue_from_page(
+        yolo_alignment_page,
+        metakat_page,
+    )
+
+    assert len(elements) == 1
+    volume = elements[0]
+    assert volume.hierarchy == HierarchyType.MONOGRAPH
+    assert volume.title[0:2] == ("Book title", 0.91)
+    assert bbox_by_id[volume.title[2]] == (10, 20, 30, 10)
+    assert len(bbox_by_id) == 1
