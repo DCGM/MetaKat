@@ -39,6 +39,53 @@ def page_image():
 
 
 @pytest.fixture
+def yolo_alignment_page():
+    """A YOLO-derived page whose first PageNumber region carries matched text.
+
+    The second region is geometry only, so binding has both a matched and an
+    unmatched detection to choose between. Function scoped, so a test may mutate
+    the regions it is handed.
+    """
+    from text_geometry_aligner import (
+        AlignmentPage,
+        AlignmentRegion,
+        AlignmentWord,
+        BoundingBox,
+        InputFormat,
+    )
+
+    bbox = BoundingBox(10, 20, 30, 10)
+    return AlignmentPage(
+        page_key="scan.001",
+        input_format=InputFormat.YOLO,
+        regions=[
+            AlignmentRegion(
+                region_id=0,
+                label="PageNumber",
+                input_geometry=bbox,
+                category_id=0,
+                input_geometry_confidence=0.91,
+                alto_text="12",
+                words=[
+                    AlignmentWord(
+                        word_index=0,
+                        text="12",
+                        bbox=bbox,
+                    )
+                ],
+            ),
+            AlignmentRegion(
+                region_id=1,
+                label="PageNumber",
+                input_geometry=BoundingBox(50, 50, 10, 10),
+                category_id=0,
+                input_geometry_confidence=0.99,
+            ),
+        ],
+    )
+
+
+@pytest.fixture
 def write_engine_config():
     """Write the metakat_engine_config.json an engine directory is loaded from."""
 
