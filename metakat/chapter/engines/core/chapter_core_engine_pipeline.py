@@ -12,25 +12,83 @@ from metakat.chapter.engines.core.models import (
     ChapterResult,
     TocResult,
 )
+from metakat.common.engines.registry import (
+    EngineEntry,
+    check_engine_requirements,
+    resolve_engine_class,
+)
 from metakat.common.models import PageDimensions
 from metakat.chapter.engines.core.chapter_alignment import (
     ChapterAlignmentEngine,
-    ChapterAlignmentEngineFuzzy,
 )
 from metakat.chapter.engines.core.chapter_extraction import (
     ChapterExtractionEngine,
-    ChapterExtractionEngineYOLOALTO,
 )
 from metakat.chapter.engines.core.chapter_page_analysis import (
     DestinationChapterEvidence,
     ChapterPageAnalysisEngine,
-    ChapterPageAnalysisEngineYOLOALTO,
+    ChapterPageAnalysisResult,
 )
 from metakat.page_number.engines.core.models import (
     PhysicalPageNumberEvidence,
 )
 
 logger = logging.getLogger(__name__)
+
+# Stage implementations are named rather than imported, so a chapter pipeline
+# only pays for the dependencies of the stages it actually selects.
+_STAGE_ENGINES = {
+    "page_analysis": {
+        "chapter_page_analysis_engine_yolo_alto": EngineEntry(
+            module=(
+                "metakat.chapter.engines.core.chapter_page_analysis"
+                ".engine_yolo_alto"
+            ),
+            attribute="ChapterPageAnalysisEngineYOLOALTO",
+            requires=("ultralytics",),
+            extra="yolo",
+        ),
+    },
+    "extraction": {
+        "chapter_extraction_engine_yolo_alto": EngineEntry(
+            module=(
+                "metakat.chapter.engines.core.chapter_extraction"
+                ".engine_yolo_alto"
+            ),
+            attribute="ChapterExtractionEngineYOLOALTO",
+            requires=("ultralytics",),
+            extra="yolo",
+        ),
+    },
+    "alignment": {
+        "chapter_alignment_engine_fuzzy": EngineEntry(
+            module=(
+                "metakat.chapter.engines.core.chapter_alignment.engine_fuzzy"
+            ),
+            attribute="ChapterAlignmentEngineFuzzy",
+        ),
+    },
+}
+
+
+def check_chapter_pipeline_stages(config) -> None:
+    """Verify every stage the chapter pipeline config selects is available."""
+    for stage_name in _STAGE_ENGINES:
+        check_engine_requirements(
+            _STAGE_ENGINES[stage_name],
+            _require_stage_config(config, stage_name),
+            f"Chapter core config {stage_name!r}",
+            f"{stage_name} engine",
+        )
+
+
+def _require_stage_config(config, stage_name: str):
+    stage_config = config.get(stage_name)
+    if not isinstance(stage_config, dict):
+        raise ValueError(
+            f"Chapter core config requires an object at {stage_name!r}"
+        )
+    return stage_config
 
 
 class ChapterPipelineCoreEngine(ChapterCoreEngine):
@@ -226,32 +284,15 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
         return replace(toc, chapters=chapters)
 
     def _load_stage(self, stage_name: str):
-        stage_config = self.config.get(stage_name)
-        if not isinstance(stage_config, dict):
-            raise ValueError(
-                f"Chapter core config requires an object at {stage_name!r}"
-            )
-        implementation = stage_config.get("name")
-        registries = {
-            "page_analysis": {
-                "chapter_page_analysis_engine_yolo_alto": (
-                    ChapterPageAnalysisEngineYOLOALTO
-                ),
-            },
-            "extraction": {
-                "chapter_extraction_engine_yolo_alto": (
-                    ChapterExtractionEngineYOLOALTO
-                ),
-            },
-            "alignment": {
-                "chapter_alignment_engine_fuzzy": ChapterAlignmentEngineFuzzy,
-            },
-        }
-        engine_class = registries[stage_name].get(implementation)
-        if engine_class is None:
-            raise ValueError(
-                f"Unknown {stage_name} engine: {implementation!r}"
-            )
+        stage_config = _require_stage_config(self.config, stage_name)
+        engine_class, _ = resolve_engine_class(
+            _STAGE_ENGINES[stage_name],
+            stage_config,
+            f"Chapter core config {stage_name!r}",
+            f"{stage_name} engine",
+        )
+        # The stage engine receives the caller's own mapping, as it did before
+        # the registry was introduced; resolve_engine_class returns a deepcopy.
         return engine_class(stage_config)
 
     @staticmethod

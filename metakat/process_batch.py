@@ -18,6 +18,12 @@ from metakat.page_number.engines.bind.definitions import (
 )
 from metakat.page_type.engines.bind.definitions import load_page_type_bind_engine
 from metakat.biblio.engines.bind.definitions import load_biblio_bind_engine
+from metakat.biblio.engines.core.definitions import check_biblio_core_engine
+from metakat.chapter.engines.core.definitions import check_chapter_core_engine
+from metakat.page_number.engines.core.definitions import (
+    check_page_number_core_engine,
+)
+from metakat.page_type.engines.core.definitions import check_page_type_core_engine
 from metakat.engine_config import (
     load_config_file,
     prepare_engine_config,
@@ -145,6 +151,8 @@ def process_batch(
         "Starting MetaKat processing with engine pipeline configuration:\n%s",
         redacted_for_logging(pipeline_config),
     )
+
+    _preflight_engine_requirements(pipeline_config)
 
     metakat_io, proarc_io = init_io(
         batch_dir=batch_dir,
@@ -313,6 +321,29 @@ def init_io(batch_dir: str,
                 continue
 
     return metakat_io, proarc_io
+
+
+def _preflight_engine_requirements(pipeline_config: Mapping[str, Any]) -> None:
+    """Fail before any processing when an enabled engine cannot be loaded.
+
+    Engine implementations are imported lazily, so a component whose optional
+    dependencies are absent would otherwise only fail once the pipeline reached
+    it, discarding the work of every component before it. Checking every enabled
+    component up front keeps that failure immediate.
+
+    Checking every enabled component up front also catches a misspelled engine
+    name before any inference runs, instead of when the pipeline reaches it.
+    """
+    checks = (
+        ("page_number", check_page_number_core_engine),
+        ("page_type", check_page_type_core_engine),
+        ("biblio", check_biblio_core_engine),
+        ("chapter", check_chapter_core_engine),
+    )
+    for category, check in checks:
+        component = _engine_pair(pipeline_config, category)
+        if component is not None:
+            check(component["core"])
 
 
 def _engine_pair(
