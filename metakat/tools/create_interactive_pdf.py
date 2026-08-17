@@ -421,7 +421,10 @@ def _insert_toc_links(
     group_by_container_id = {group.container.id: group for group in groups}
     for chapter in chapters:
         destination = chapter_destinations.get(chapter.id)
-        description = _chapter_annotation_text(chapter)
+        description = _chapter_annotation_text(
+            chapter,
+            _chapter_level(chapter, elements_by_id),
+        )
 
         group = _chapter_group(
             chapter,
@@ -549,7 +552,22 @@ def _insert_toc_links(
             )
 
 
-def _chapter_annotation_text(chapter: MetakatChapter) -> str:
+def _chapter_level(
+    chapter: MetakatChapter,
+    elements_by_id: dict[UUID, MetakatElement],
+) -> int:
+    level = 1
+    current = elements_by_id.get(chapter.parent_id)
+    while current is not None and current.type == DocumentType.CHAPTER.value:
+        level += 1
+        current = elements_by_id.get(current.parent_id)
+    return level
+
+
+def _chapter_annotation_text(
+    chapter: MetakatChapter,
+    level: int,
+) -> str:
     fields = (
         ("partNumber", chapter.partNumber),
         ("title", chapter.title),
@@ -561,6 +579,7 @@ def _chapter_annotation_text(chapter: MetakatChapter) -> str:
         for field_name, evidence in fields
         if evidence is not None
     ]
+    lines.append(f"level: {level}")
     lines.append(f"pageIndexToc: {chapter.pageIndexToc}")
     lines.append(f"pageIndexStart: {chapter.pageIndexStart}")
     lines.append(f"pageIndexEnd: {chapter.pageIndexEnd}")
