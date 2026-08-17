@@ -2,7 +2,6 @@ import argparse
 import json
 import logging
 import os.path
-import sys
 import time
 from collections.abc import Mapping
 from pathlib import Path
@@ -24,6 +23,7 @@ from metakat.engine_config import (
     prepare_engine_config,
     require_config_mapping,
 )
+from metakat.logging_utils import redacted_for_logging
 
 from metakat.schemas.base_objects import (
     MetakatIO,
@@ -84,8 +84,6 @@ def main():
     logger.addHandler(handler)
     logger.setLevel(args.logging_level)
 
-    logger.info(' '.join(sys.argv))
-
     engine_config_path = Path(args.engine_config).resolve()
     base_config = load_config_file(engine_config_path)
     override = (
@@ -142,6 +140,10 @@ def process_batch(
     pipeline_config = require_config_mapping(
         engine_config,
         "Pipeline engine config",
+    )
+    logger.info(
+        "Starting MetaKat processing with engine pipeline configuration:\n%s",
+        redacted_for_logging(pipeline_config),
     )
 
     metakat_io, proarc_io = init_io(

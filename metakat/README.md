@@ -145,6 +145,45 @@ prepared `engine_config`, plus decoded `metakat_data` and `proarc_data`
 objects. YAML/JSON loading, merging, assignments, and path resolution belong
 outside that function.
 
+Before IO initialization and engine loading, `process_batch()` logs the
+complete final pipeline configuration at `INFO`. The logged value is a
+separate recursively sanitized view; the configuration passed to engines is
+not modified. Values under potential secret keys are replaced with
+`<redacted>`. Detection is case-insensitive, recognizes snake case, kebab
+case, and camel case, and covers passwords, passphrases, secrets, credentials,
+authorization, cookies, connection strings, DSNs, tokens, and API, access,
+private, signing, encryption, or SSH keys.
+
+## Interactive PDF metadata
+
+When `output_metakat_pdf` or `--output-metakat-pdf` is provided, the generated
+PDF uses compact chapter outline labels in this order:
+
+```text
+part number | TOC title | page number
+```
+
+Missing values are omitted. The destination title replaces the TOC title only
+when the TOC title is unavailable. Document-level outline entries use
+`monograph | title`, or `monograph` when the title is unavailable.
+
+The clickable rectangle over a detected TOC entry carries the complete chapter
+description and opens the resolved destination page. When destination-title
+geometry is available on that page, the title rectangle carries the same
+description, links back to the TOC entry, and has a visible sticky note.
+
+The PDF also adds visible sticky notes for:
+
+- a detected physical page number, beside its detection geometry;
+- every bibliographic detection, beside its detection geometry;
+- the complete bibliographic information for each issue or volume, in the
+  upper-left corner of the first page classified as `TitlePage`;
+- each page type, in the upper-right corner of the page.
+
+Geometry-specific annotations are omitted when their detection-to-page or
+bounding-box mapping is unavailable. Sticky-note contents are standard PDF
+text annotations; their popup presentation depends on the PDF viewer.
+
 ## Worker metadata envelope
 
 The DocAPI worker treats `job.engine_definition` as the base pipeline mapping.
