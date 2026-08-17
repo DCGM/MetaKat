@@ -5,6 +5,7 @@ import logging
 import math
 import os
 import tempfile
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -22,10 +23,36 @@ from metakat.schemas.base_objects import (
     MetakatElement,
     MetakatIO,
     MetakatPage,
+    PageType,
 )
 
 
 logger = logging.getLogger(__name__)
+
+_NOTE_SIZE = 18.0
+_DETECTION_BOX_COLOR = (0.85, 0.1, 0.1)
+_DETECTION_BOX_LINE_WIDTH = 0.6
+_DETECTION_BOX_OPACITY = 0.55
+_BIBLIO_FIELD_NAMES = (
+    "title",
+    "subTitle",
+    "partName",
+    "partNumber",
+    "dateIssued",
+    "edition",
+    "placeTerm",
+    "publisher",
+    "manufacturePublisher",
+    "manufacturePlaceTerm",
+    "author",
+    "illustrator",
+    "photographer",
+    "translator",
+    "editor",
+    "seriesName",
+    "seriesNumber",
+    "redaktor",
+)
 
 
 @dataclass(frozen=True)
@@ -96,6 +123,19 @@ def create_interactive_pdf(
             page_maps,
             rendered_by_page_id,
             chapter_destinations,
+        )
+        _insert_page_metadata_notes(
+            pymupdf,
+            document,
+            metakat_io,
+            groups,
+            rendered_by_page_id,
+        )
+        _insert_detection_boxes(
+            pymupdf,
+            document,
+            metakat_io,
+            rendered_by_page_id,
         )
         if outline:
             document.set_toc(outline)
@@ -259,7 +299,10 @@ def _build_outline(
         label = _chapter_label(chapter)
         included = destination is not None and label is not None
         if chapter.pageIndexStart is None:
-            logger.warning("Chapter %s has no pageIndexStart; skipping bookmark", chapter.id)
+            logger.warning(
+                "Chapter %s has no pageIndexStart; skipping bookmark",
+                chapter.id,
+            )
         elif destination is None:
             logger.warning(
                 "Chapter %s pageIndexStart=%s is not present in %s %s; "
@@ -341,29 +384,21 @@ def _value_text(value) -> str | None:
 
 
 def _container_label(group: LowestDocumentGroup) -> str:
-    container = group.container
-    for field_name in ("title", "partName", "partNumber", "dateIssued"):
-        text = _value_text(getattr(container, field_name, None))
-        if text is not None:
-            return text
-    return (
-        "Untitled issue"
-        if container.type == DocumentType.ISSUE.value
-        else "Untitled volume"
-    )
+    title = _value_text(getattr(group.container, "title", None))
+    return "monograph" if title is None else f"monograph | {title}"
 
 
 def _chapter_label(chapter: MetakatChapter) -> str | None:
-    for field_name in (
-        "title",
-        "title_destination_page",
-        "partNumber",
-        "pageNumber",
-    ):
-        text = _value_text(getattr(chapter, field_name))
-        if text is not None:
-            return text
-    return None
+    title = _value_text(chapter.title)
+    if title is None:
+        title = _value_text(chapter.title_destination_page)
+    parts = (
+        _value_text(chapter.partNumber),
+        title,
+        _value_text(chapter.pageNumber),
+    )
+    label = " | ".join(part for part in parts if part is not None)
+    return label or None
 
 
 def _insert_toc_links(
@@ -386,8 +421,8 @@ def _insert_toc_links(
     group_by_container_id = {group.container.id: group for group in groups}
     for chapter in chapters:
         destination = chapter_destinations.get(chapter.id)
-        if destination is None:
-            continue
+        description = _chapter_annotation_text(chapter)
+
         group = _chapter_group(
             chapter,
             elements_by_id,
@@ -413,6 +448,8 @@ def _insert_toc_links(
                 chapter.id,
             )
             continue
+
+        source_rectangle = None
         bboxes = [bbox for page_id, bbox in evidence if page_id == source.page.id]
         if not bboxes:
             logger.warning(
@@ -420,26 +457,430 @@ def _insert_toc_links(
                 chapter.id,
                 source.page.id,
             )
+        else:
+            rectangle = _scaled_union_rectangle(
+                pymupdf,
+                document[source.pdf_index].rect,
+                source,
+                bboxes,
+            )
+            if rectangle is None:
+                logger.warning(
+                    "Chapter %s has no usable TOC geometry; bookmark only",
+                    chapter.id,
+                )
+            else:
+                source_rectangle = rectangle
+                # Always leave the chapter's metadata next to its TOC entry,
+                # even when no destination page could be matched below.
+                _add_sticky_note(
+                    document[source.pdf_index],
+                    _note_point(
+                        document[source.pdf_index].rect,
+                        source_rectangle,
+                    ),
+                    description,
+                    subject="Chapter metadata",
+                )
+
+        if destination is None:
             continue
+
+        if source_rectangle is not None:
+            _insert_described_link(
+                pymupdf,
+                document[source.pdf_index],
+                {
+                    "kind": pymupdf.LINK_GOTO,
+                    "from": source_rectangle,
+                    "page": destination.pdf_index,
+                },
+                description,
+            )
+
+        destination_title = _evidence_rectangle(
+            pymupdf,
+            document,
+            chapter.title_destination_page,
+            detection_to_bbox,
+            detection_to_page,
+            rendered_by_page_id,
+        )
+        destination_title_rectangle = None
+        if destination_title is not None:
+            title_page, destination_title_rectangle = destination_title
+            if title_page.page.id != destination.page.id:
+                logger.warning(
+                    "Chapter %s destination-title detection is on page %s, "
+                    "but pageIndexStart resolves to page %s; skipping "
+                    "destination annotation",
+                    chapter.id,
+                    title_page.page.id,
+                    destination.page.id,
+                )
+                destination_title_rectangle = None
+            else:
+                _add_sticky_note(
+                    document[destination.pdf_index],
+                    _note_point(
+                        document[destination.pdf_index].rect,
+                        destination_title_rectangle,
+                    ),
+                    description,
+                    subject="Chapter metadata",
+                )
+
+        if destination_title_rectangle is not None:
+            reverse_link = {
+                "kind": pymupdf.LINK_GOTO,
+                "from": destination_title_rectangle,
+                "page": source.pdf_index,
+            }
+            if source_rectangle is not None:
+                reverse_link["to"] = pymupdf.Point(
+                    source_rectangle.x0,
+                    source_rectangle.y0,
+                )
+            _insert_described_link(
+                pymupdf,
+                document[destination.pdf_index],
+                reverse_link,
+                description,
+            )
+
+
+def _chapter_annotation_text(chapter: MetakatChapter) -> str:
+    fields = (
+        ("partNumber", chapter.partNumber),
+        ("title", chapter.title),
+        ("title_destination_page", chapter.title_destination_page),
+        ("pageNumber", chapter.pageNumber),
+    )
+    lines = [
+        _bibliographic_line(field_name, evidence)
+        for field_name, evidence in fields
+        if evidence is not None
+    ]
+    lines.append(f"pageIndexToc: {chapter.pageIndexToc}")
+    lines.append(f"pageIndexStart: {chapter.pageIndexStart}")
+    lines.append(f"pageIndexEnd: {chapter.pageIndexEnd}")
+    return "\n".join(("Chapter", *lines))
+
+
+def _insert_described_link(pymupdf, page, link: dict, description: str) -> None:
+    existing_xrefs = {item[0] for item in page.annot_xrefs()}
+    page.insert_link(link)
+    created_xrefs = [
+        item[0]
+        for item in page.annot_xrefs()
+        if item[0] not in existing_xrefs
+    ]
+    if len(created_xrefs) != 1:
+        raise RuntimeError(
+            "Could not identify the newly created PDF link annotation"
+        )
+    page.parent.xref_set_key(
+        created_xrefs[0],
+        "Contents",
+        pymupdf.get_pdf_str(description),
+    )
+
+
+def _insert_page_metadata_notes(
+    pymupdf,
+    document,
+    metakat_io: MetakatIO,
+    groups: list[LowestDocumentGroup],
+    rendered_by_page_id: dict[UUID, _RenderedPage],
+) -> None:
+    detection_to_bbox = metakat_io.detection_to_bbox or {}
+    detection_to_page = metakat_io.detection_to_page_mapping or {}
+    pages = [
+        element
+        for element in metakat_io.elements
+        if element.type == DocumentType.PAGE.value
+    ]
+    for page in pages:
+        rendered = rendered_by_page_id.get(page.id)
+        if rendered is None:
+            continue
+        pdf_page = document[rendered.pdf_index]
+        if page.pageType is not None:
+            page_type, confidence = page.pageType
+            page_type_text = (
+                page_type.value if hasattr(page_type, "value") else str(page_type)
+            )
+            _add_sticky_note(
+                pdf_page,
+                _corner_note_point(pdf_page.rect, "top_right"),
+                _detection_note_text("pageType", page_type_text, confidence),
+                subject="Page type",
+            )
+        if page.pageNumber is not None:
+            page_number_rectangle = _evidence_rectangle(
+                pymupdf,
+                document,
+                page.pageNumber,
+                detection_to_bbox,
+                detection_to_page,
+                rendered_by_page_id,
+            )
+            if page_number_rectangle is None:
+                logger.warning(
+                    "Page %s has page-number evidence without usable "
+                    "geometry; skipping sticky note",
+                    page.id,
+                )
+                continue
+            evidence_page, rectangle = page_number_rectangle
+            if evidence_page.page.id != page.id:
+                logger.warning(
+                    "Page %s page-number evidence belongs to page %s; "
+                    "skipping sticky note",
+                    page.id,
+                    evidence_page.page.id,
+                )
+                continue
+            value, confidence, _ = page.pageNumber
+            _add_sticky_note(
+                pdf_page,
+                _note_point(pdf_page.rect, rectangle),
+                _detection_note_text("pageNumber", value, confidence),
+                subject="Page number",
+            )
+
+    biblio_elements = [
+        element
+        for element in metakat_io.elements
+        if element.type
+        in {DocumentType.VOLUME.value, DocumentType.ISSUE.value}
+    ]
+    evidence_by_detection: dict[UUID, list[tuple[str, tuple]]] = defaultdict(
+        list
+    )
+    evidence_by_element: dict[UUID, list[tuple[str, tuple]]] = {}
+    for element in biblio_elements:
+        evidence = list(_bibliographic_evidence(element))
+        evidence_by_element[element.id] = evidence
+        for field_name, item in evidence:
+            evidence_by_detection[item[2]].append((field_name, item))
+
+    for detection_id, evidence in evidence_by_detection.items():
+        rectangle_result = _detection_rectangle(
+            pymupdf,
+            document,
+            detection_id,
+            detection_to_bbox,
+            detection_to_page,
+            rendered_by_page_id,
+        )
+        if rectangle_result is None:
+            logger.warning(
+                "Bibliographic detection %s has no usable page geometry; "
+                "skipping sticky note",
+                detection_id,
+            )
+            continue
+        rendered, rectangle = rectangle_result
+        field_name, (text, confidence, _) = evidence[0]
+        pdf_page = document[rendered.pdf_index]
+        _add_sticky_note(
+            pdf_page,
+            _note_point(pdf_page.rect, rectangle),
+            _detection_note_text(field_name, text, confidence),
+            subject="Bibliographic detection",
+        )
+
+    aggregate_slots: dict[UUID, int] = defaultdict(int)
+    group_by_container_id = {group.container.id: group for group in groups}
+    for element in biblio_elements:
+        evidence = evidence_by_element.get(element.id, [])
+        if not evidence:
+            continue
+        group = group_by_container_id.get(element.id)
+        if group is not None:
+            candidate_pages = group.pages
+        else:
+            candidate_page_ids = {
+                detection_to_page.get(item[2]) for _, item in evidence
+            }
+            page_id = getattr(element, "page_id", None)
+            if page_id is not None:
+                candidate_page_ids.add(page_id)
+            candidate_pages = tuple(
+                page
+                for page in pages
+                if page.id in candidate_page_ids
+            )
+        title_pages = sorted(
+            (
+                page
+                for page in candidate_pages
+                if page.pageType is not None
+                and page.pageType[0] == PageType.TITLE_PAGE.value
+            ),
+            key=lambda page: page.batch_index,
+        )
+        if not title_pages:
+            logger.info(
+                "%s %s has bibliographic information but no TitlePage; "
+                "skipping aggregate sticky note",
+                element.type,
+                element.id,
+            )
+            continue
+        title_page = title_pages[0]
+        rendered = rendered_by_page_id[title_page.id]
+        pdf_page = document[rendered.pdf_index]
+        slot = aggregate_slots[title_page.id]
+        aggregate_slots[title_page.id] += 1
+        lines = tuple(
+            dict.fromkeys(
+                _bibliographic_line(field_name, item) for field_name, item in evidence
+            )
+        )
+        _add_sticky_note(
+            pdf_page,
+            _corner_note_point(pdf_page.rect, "top_left", slot),
+            f"{element.type.capitalize()} bibliography\n"
+            + "\n".join(lines),
+            subject="Complete bibliographic information",
+        )
+
+
+def _insert_detection_boxes(
+    pymupdf,
+    document,
+    metakat_io: MetakatIO,
+    rendered_by_page_id: dict[UUID, _RenderedPage],
+) -> None:
+    detection_to_bbox = metakat_io.detection_to_bbox or {}
+    detection_to_page = metakat_io.detection_to_page_mapping or {}
+    drawn = 0
+    for detection_id, bbox in detection_to_bbox.items():
+        page_id = detection_to_page.get(detection_id)
+        rendered = rendered_by_page_id.get(page_id)
+        if rendered is None:
+            logger.warning(
+                "Detection %s has no resolvable page; skipping bbox overlay",
+                detection_id,
+            )
+            continue
+        pdf_page = document[rendered.pdf_index]
         rectangle = _scaled_union_rectangle(
             pymupdf,
-            document[source.pdf_index].rect,
-            source,
-            bboxes,
+            pdf_page.rect,
+            rendered,
+            [bbox],
         )
         if rectangle is None:
             logger.warning(
-                "Chapter %s has no usable TOC geometry; bookmark only",
-                chapter.id,
+                "Detection %s has invalid geometry; skipping bbox overlay",
+                detection_id,
             )
             continue
-        document[source.pdf_index].insert_link(
-            {
-                "kind": pymupdf.LINK_GOTO,
-                "from": rectangle,
-                "page": destination.pdf_index,
-            }
+        pdf_page.draw_rect(
+            rectangle,
+            color=_DETECTION_BOX_COLOR,
+            fill=None,
+            width=_DETECTION_BOX_LINE_WIDTH,
+            stroke_opacity=_DETECTION_BOX_OPACITY,
+            overlay=True,
         )
+        drawn += 1
+    logger.info("Drew %d detection bounding boxes", drawn)
+
+
+def _bibliographic_evidence(element):
+    for field_name in _BIBLIO_FIELD_NAMES:
+        value = getattr(element, field_name, None)
+        if value is None:
+            continue
+        if isinstance(value, tuple):
+            yield field_name, value
+            continue
+        for item in value:
+            yield field_name, item
+
+
+def _bibliographic_line(field_name: str, evidence: tuple) -> str:
+    return f"{field_name}: {evidence[0]} ({evidence[1]:.2f})"
+
+
+def _evidence_rectangle(
+    pymupdf,
+    document,
+    evidence,
+    detection_to_bbox: dict,
+    detection_to_page: dict,
+    rendered_by_page_id: dict[UUID, _RenderedPage],
+):
+    if evidence is None:
+        return None
+    return _detection_rectangle(
+        pymupdf,
+        document,
+        evidence[2],
+        detection_to_bbox,
+        detection_to_page,
+        rendered_by_page_id,
+    )
+
+
+def _detection_rectangle(
+    pymupdf,
+    document,
+    detection_id: UUID,
+    detection_to_bbox: dict,
+    detection_to_page: dict,
+    rendered_by_page_id: dict[UUID, _RenderedPage],
+):
+    page_id = detection_to_page.get(detection_id)
+    rendered = rendered_by_page_id.get(page_id)
+    bbox = detection_to_bbox.get(detection_id)
+    if rendered is None or bbox is None:
+        return None
+    rectangle = _scaled_union_rectangle(
+        pymupdf,
+        document[rendered.pdf_index].rect,
+        rendered,
+        [bbox],
+    )
+    if rectangle is None:
+        return None
+    return rendered, rectangle
+
+
+def _detection_note_text(field_name: str, value, confidence: float) -> str:
+    return f"{field_name}: {value} ({confidence:.2f})"
+
+
+def _add_sticky_note(page, point, content: str, *, subject: str) -> None:
+    annotation = page.add_text_annot(point, content, icon="Note")
+    annotation.set_info(title="MetaKat", subject=subject)
+    annotation.update()
+
+
+def _note_point(page_rectangle, anchor_rectangle):
+    x = min(
+        max(anchor_rectangle.x1 + 2, page_rectangle.x0 + 2),
+        page_rectangle.x1 - _NOTE_SIZE - 2,
+    )
+    y = min(
+        max(anchor_rectangle.y0, page_rectangle.y0 + 2),
+        page_rectangle.y1 - _NOTE_SIZE - 2,
+    )
+    return x, y
+
+
+def _corner_note_point(page_rectangle, corner: str, slot: int = 0):
+    y = page_rectangle.y0 + 2
+    if corner == "top_right":
+        return page_rectangle.x1 - _NOTE_SIZE - 2, y
+    if corner == "top_left":
+        x = page_rectangle.x0 + 2 + slot * (_NOTE_SIZE + 2)
+        return min(x, page_rectangle.x1 - _NOTE_SIZE - 2), y
+    raise ValueError(f"Unsupported sticky-note corner: {corner}")
 
 
 def _toc_evidence(
