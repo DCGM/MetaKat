@@ -68,7 +68,11 @@ include = ["metakat*"]
 exclude = [
     "metakat.old_examples*",
     "metakat.chapter.xshele02*",
+    "metakat*.tests",
 ]
+# The co-located tests directories carry no __init__.py; disabling namespace
+# discovery keeps them, and only them, out of the installed distribution.
+namespaces = false
 
 [tool.pytest.ini_options]
 minversion = "8.0"
@@ -80,7 +84,7 @@ addopts = [
     "--strict-markers",
     "--import-mode=importlib",
 ]
-testpaths = ["metakat", "tests"]
+testpaths = ["metakat"]
 markers = [
     "requires_torch: needs the torch/HF stack (install .[torch] or .[yolo])",
     "requires_model: needs real model weights on disk",
