@@ -1,4 +1,3 @@
-from .engine_yolo_alto import ChapterPageAnalysisEngineYOLOALTO
 from .models import (
     DestinationChapterEvidence,
     ChapterPageAnalysisEngine,
@@ -8,6 +7,5 @@ from .models import (
 __all__ = [
     "DestinationChapterEvidence",
     "ChapterPageAnalysisEngine",
-    "ChapterPageAnalysisEngineYOLOALTO",
     "ChapterPageAnalysisResult",
 ]
