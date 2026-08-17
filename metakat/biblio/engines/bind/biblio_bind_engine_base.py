@@ -65,6 +65,14 @@ class BiblioBindEngineBase(BiblioBindEngine):
             metakat_elements = [title_element] + metakat_elements
         logger.info(f"Adding {len(metakat_elements)} MetaKat elements to MetaKatIO")
         metakat_io.elements = metakat_elements + metakat_io.elements
+        metakat_io.detection_to_bbox = {
+            **(metakat_io.detection_to_bbox or {}),
+            **detection_id_to_detection_bbox,
+        }
+        metakat_io.detection_to_page_mapping = {
+            **(metakat_io.detection_to_page_mapping or {}),
+            **detection_id_to_page_id,
+        }
         logger.info(f"Binding MetaKat elements")
         self.bind(metakat_io)
         return metakat_io
