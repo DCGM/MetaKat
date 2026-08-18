@@ -323,10 +323,13 @@ supplied. Either `BASE_DIR`, or both `JOBS_DIR` and `ENGINES_DIR`, must resolve;
 the worker exits with a usage error otherwise. The three directories are created
 at startup if missing.
 
-The boolean flags are not symmetric. `--store-metakat-pdf` has a matching
-`--no-store-metakat-pdf` and therefore overrides the environment in both
-directions, while `--cleanup-job-dir` and `--cleanup-old-engines` can only
-enable what the environment left off.
+Each of the three boolean settings has both forms, so the environment sets the
+baseline and the command line overrides it in either direction:
+`--store-metakat-pdf` and `--no-store-metakat-pdf`, `--cleanup-job-dir` and
+`--no-cleanup-job-dir`, `--cleanup-old-engines` and `--no-cleanup-old-engines`.
+An option that is not given leaves the environment value alone, which for the
+non-boolean settings means a legitimate `0` is honoured rather than mistaken for
+an absent argument.
 
 ### Running it
 
