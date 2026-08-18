@@ -49,19 +49,26 @@ train = [
     "safe-gpu==2.0.0",
 ]
 
-# DocAPI worker (metakat/worker/docapi). The worker extra keeps the API
-# service's own stack -- SQLAlchemy, asyncpg, alembic, uvicorn -- out of the
-# install; metakat only reaches doc_worker and the thin doc_api layer beneath it.
-worker = ["doc-api[worker]"]
+# Everything needed to actually run metakat/worker/docapi: every engine a job
+# may select, the PDF exporter, and the DocAPI layer the worker talks to.
+#
+#   yolo   page_number, biblio and the chapter stages; brings torch with it,
+#          which is also what page_type's ViT engine needs
+#   pdf    the interactive PDF the worker writes when STORE_METAKAT_PDF is set
+#
+# doc-api's own worker extra keeps the API service's stack -- SQLAlchemy,
+# asyncpg, alembic, uvicorn -- out of the install.
+worker = [
+    "metakat[yolo,pdf]",
+    "doc-api[worker]",
+]
 
 dev = [
     "pytest>=8.3",
     "pytest-cov>=5.0",
 ]
 
-# Aggregates: pure composition, no packages of their own.
-inference = ["metakat[yolo,pdf]"]
-all = ["metakat[inference,train,worker,dev]"]
+all = ["metakat[worker,train,dev]"]
 
 [tool.setuptools.packages.find]
 include = ["metakat*"]
