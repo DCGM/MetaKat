@@ -273,7 +273,98 @@ Geometry-specific annotations are omitted when their detection-to-page or
 bounding-box mapping is unavailable. Sticky-note contents are standard PDF
 text annotations; their popup presentation depends on the PDF viewer.
 
-## Worker metadata envelope
+## DocAPI worker
+
+`metakat/worker/docapi/metakat_worker.py` runs MetaKat as a long-lived worker
+against a DocAPI server. It polls for a job, downloads the engine files the job
+names, runs the pipeline over the job's pages, and uploads the result. It then
+polls again; it does not exit after a job.
+
+Running it needs the `worker` installation tier and a worker key issued by the
+DocAPI server:
+
+```bash
+pip install -e ".[worker]"
+```
+
+That tier is the complete set: every engine a job may select, the interactive
+PDF exporter, and the DocAPI client layer. A base installation is not enough —
+a worker would accept a job and then fail to process it. Should a job select an
+engine whose dependencies are missing anyway, the pipeline reports it before
+reading any page, naming the missing module and the extra that supplies it.
+
+A job must carry ALTO files alongside its images; the worker fails the job
+otherwise. Images whose extension is outside `ALLOWED_IMAGE_EXTENSIONS` are
+rejected in the same way.
+
+### Configuration
+
+Every setting is read from an environment variable, and most can also be given
+on the command line, in which case the command line wins.
+
+| Variable | Flag | Default | Meaning |
+| --- | --- | --- | --- |
+| `API_URL` | `--api-url` | `https://metakat.smart.lib.cas.cz` | DocAPI server to poll |
+| `WORKER_KEY` | `--api-key` | a placeholder that will not authenticate | key issued by the server |
+| `BASE_DIR` | `--base-dir` | `./metakat_worker_data` | parent of the directories below |
+| `JOBS_DIR` | `--jobs-dir` | `$BASE_DIR/jobs` | per-job working data |
+| `ENGINES_DIR` | `--engines-dir` | `$BASE_DIR/engines` | downloaded engine files |
+| `LOGGING_DIR` | — | `$BASE_DIR/logs` | `worker.log`, rotated at UTC midnight |
+| `POLLING_INTERVAL` | `--polling-interval` | `5` | seconds between job requests |
+| `STORE_METAKAT_PDF` | `--store-metakat-pdf` | `false` | also write the interactive PDF |
+| `CLEANUP_JOB_DIR` | `--cleanup-job-dir` | `false` | delete the job directory once uploaded |
+| `CLEANUP_OLD_ENGINES` | `--cleanup-old-engines` | `false` | delete superseded engine versions |
+| `ALLOWED_IMAGE_EXTENSIONS` | — | `.jpg,.jpeg,.png,.tif,.tiff` | comma-separated |
+| `LOGGING_CONSOLE_LEVEL` | `--log-level` | `INFO` | console verbosity |
+| `LOGGING_FILE_LEVEL` | — | `INFO` | file verbosity |
+
+`WORKER_KEY` has a placeholder default that will not authenticate, so it must be
+supplied. Either `BASE_DIR`, or both `JOBS_DIR` and `ENGINES_DIR`, must resolve;
+the worker exits with a usage error otherwise. The three directories are created
+at startup if missing.
+
+The boolean flags are not symmetric. `--store-metakat-pdf` has a matching
+`--no-store-metakat-pdf` and therefore overrides the environment in both
+directions, while `--cleanup-job-dir` and `--cleanup-old-engines` can only
+enable what the environment left off.
+
+### Running it
+
+`run_worker.sh` beside the worker is the reference invocation. It reads the
+worker key from `.docapi_worker_key` in the same directory, exports the rest of
+the settings, activates the environment and starts the worker:
+
+```bash
+cd metakat/worker/docapi
+printf '%s' 'metakat.<the key issued to you>' > .docapi_worker_key
+chmod 600 .docapi_worker_key
+./run_worker.sh
+```
+
+The key file is gitignored and never appears in the script, so rotating the key
+does not touch a tracked file. A missing or unreadable key file stops the script
+before the worker starts. The script sets no `PYTHONPATH`: MetaKat and its two
+submodule dependencies are expected to be installed into the environment.
+
+The equivalent without the script:
+
+```bash
+WORKER_KEY=... BASE_DIR=/data/metakat_worker STORE_METAKAT_PDF=true \
+  python -m metakat.worker.docapi.metakat_worker
+```
+
+### Results
+
+For each job the worker writes `metakat.json` into the job's result directory,
+which is uploaded as `result.zip`. With `STORE_METAKAT_PDF` enabled it also
+writes `result.pdf` beside that archive, built as described in
+[Interactive PDF metadata](#interactive-pdf-metadata).
+
+Enabling `CLEANUP_JOB_DIR` together with `STORE_METAKAT_PDF` is contradictory:
+the PDF is written into the directory that is then deleted after upload. The
+worker logs a warning at startup rather than refusing to run.
+
+### Worker metadata envelope
 
 The DocAPI worker treats `job.engine_definition` as the base pipeline mapping.
 When `meta_file` is present, it must be a JSON object containing only these
