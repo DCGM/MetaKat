@@ -38,7 +38,16 @@ class Config:
         self.LOGGING_CONSOLE_LEVEL = os.getenv("LOGGING_CONSOLE_LEVEL", logging.INFO)
         self.LOGGING_FILE_LEVEL = os.getenv("LOGGING_FILE_LEVEL", logging.INFO)
         self.LOGGING_DIR = os.getenv("LOGGING_DIR", os.path.join(self.BASE_DIR, "logs"))
-        self.LOGGING_CONFIG = {
+
+    @property
+    def LOGGING_CONFIG(self):
+        """Assembled on access rather than stored.
+
+        The worker applies command-line overrides to this object after it has
+        been constructed, so a dictionary built in __init__ would describe the
+        environment rather than the settings actually in force.
+        """
+        return {
             'version': 1,
             'disable_existing_loggers': False,
             'formatters': {
