@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from typing import List, Tuple, Optional, Union
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from natsort import natsorted
 from text_geometry_aligner import AlignmentPage
@@ -65,6 +65,32 @@ class BiblioBindEngineBase(BiblioBindEngine):
             metakat_elements = [title_element] + metakat_elements
         logger.info(f"Adding {len(metakat_elements)} MetaKat elements to MetaKatIO")
         metakat_io.elements = metakat_elements + metakat_io.elements
+
+        # get_volume_issue_from_page records every matched, labeled detection's
+        # geometry unconditionally, but finalize_periodical_volumes/get_title can
+        # drop the MetakatVolume/MetakatIssue a detection was gathered for (e.g. a
+        # title page with no TITLE-labeled detection never becomes a kept element).
+        # Only detections still referenced as evidence by a kept element should be
+        # exposed, so unused candidate detections don't leak into the MetaKatIO.
+        referenced_detection_ids = self._referenced_detection_ids(metakat_elements)
+        dropped_detection_ids = detection_id_to_detection_bbox.keys() - referenced_detection_ids
+        if dropped_detection_ids:
+            logger.info(
+                "Dropping %d detection(s) that did not end up as bibliographic "
+                "evidence in a kept element",
+                len(dropped_detection_ids),
+            )
+        detection_id_to_detection_bbox = {
+            detection_id: bbox
+            for detection_id, bbox in detection_id_to_detection_bbox.items()
+            if detection_id in referenced_detection_ids
+        }
+        detection_id_to_page_id = {
+            detection_id: page_id
+            for detection_id, page_id in detection_id_to_page_id.items()
+            if detection_id in referenced_detection_ids
+        }
+
         metakat_io.detection_to_bbox = {
             **(metakat_io.detection_to_bbox or {}),
             **detection_id_to_detection_bbox,
@@ -76,6 +102,20 @@ class BiblioBindEngineBase(BiblioBindEngine):
         logger.info(f"Binding MetaKat elements")
         self.bind(metakat_io)
         return metakat_io
+
+    @staticmethod
+    def _referenced_detection_ids(elements: List[MetakatElement]) -> set:
+        referenced: set = set()
+        for element in elements:
+            for field_name in type(element).model_fields:
+                value = getattr(element, field_name, None)
+                if isinstance(value, tuple) and len(value) == 3:
+                    referenced.add(value[2])
+                elif isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, tuple) and len(item) == 3:
+                            referenced.add(item[2])
+        return referenced
 
     def bind(self, metakat_io: MetakatIO):
         infant_pages = []
