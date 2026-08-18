@@ -299,8 +299,10 @@ rejected in the same way.
 
 ### Configuration
 
-Every setting is read from an environment variable, and most can also be given
-on the command line, in which case the command line wins.
+Every setting is read from an environment variable and can also be given on the
+command line, in which case the command line wins. Directories and logging
+handlers are set up after the arguments are applied, so an option changes what
+is actually created and installed rather than only what is recorded.
 
 | Variable | Flag | Default | Meaning |
 | --- | --- | --- | --- |
@@ -309,14 +311,14 @@ on the command line, in which case the command line wins.
 | `BASE_DIR` | `--base-dir` | `./metakat_worker_data` | parent of the directories below |
 | `JOBS_DIR` | `--jobs-dir` | `$BASE_DIR/jobs` | per-job working data |
 | `ENGINES_DIR` | `--engines-dir` | `$BASE_DIR/engines` | downloaded engine files |
-| `LOGGING_DIR` | — | `$BASE_DIR/logs` | `worker.log`, rotated at UTC midnight |
+| `LOGGING_DIR` | `--logging-dir` | `$BASE_DIR/logs` | `worker.log`, rotated at UTC midnight |
 | `POLLING_INTERVAL` | `--polling-interval` | `5` | seconds between job requests |
 | `STORE_METAKAT_PDF` | `--store-metakat-pdf` | `false` | also write the interactive PDF |
 | `CLEANUP_JOB_DIR` | `--cleanup-job-dir` | `false` | delete the job directory once uploaded |
 | `CLEANUP_OLD_ENGINES` | `--cleanup-old-engines` | `false` | delete superseded engine versions |
-| `ALLOWED_IMAGE_EXTENSIONS` | — | `.jpg,.jpeg,.png,.tif,.tiff` | comma-separated |
+| `ALLOWED_IMAGE_EXTENSIONS` | `--allowed-image-extensions` | `.jpg,.jpeg,.png,.tif,.tiff` | comma-separated |
 | `LOGGING_CONSOLE_LEVEL` | `--log-level` | `INFO` | console verbosity |
-| `LOGGING_FILE_LEVEL` | — | `INFO` | file verbosity |
+| `LOGGING_FILE_LEVEL` | `--log-file-level` | `INFO` | `worker.log` verbosity |
 
 `WORKER_KEY` has a placeholder default that will not authenticate, so it must be
 supplied. Either `BASE_DIR`, or both `JOBS_DIR` and `ENGINES_DIR`, must resolve;

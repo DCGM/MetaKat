@@ -6,8 +6,6 @@ from pathlib import Path
 import logging.config
 
 from metakat.worker.docapi.config import config
-config.create_dirs()
-logging.config.dictConfig(config.LOGGING_CONFIG)
 
 import argparse
 from typing import Optional
@@ -155,6 +153,14 @@ class MetakatWorker(DocWorkerWrapper):
         return result
 
 
+def _extension_set(value: str) -> set:
+    """Parse a comma-separated extension list the way the environment variable is."""
+    extensions = {item.strip() for item in value.split(",") if item.strip()}
+    if not extensions:
+        raise argparse.ArgumentTypeError("expected at least one extension")
+    return extensions
+
+
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -208,13 +214,28 @@ def main():
         default=None,
         help="Store an interactive result.pdf beside result.zip"
     )
+    parser.add_argument(
+        "--allowed-image-extensions",
+        type=_extension_set,
+        metavar="EXT[,EXT...]",
+        help="Comma-separated image extensions a job may contain"
+    )
 
     
     # Logging configuration
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help="Logging level (default: LOGGING_CONSOLE_LEVEL, or INFO)"
+        help="Console logging level (default: LOGGING_CONSOLE_LEVEL, or INFO)"
+    )
+    parser.add_argument(
+        "--log-file-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging level for worker.log (default: LOGGING_FILE_LEVEL, or INFO)"
+    )
+    parser.add_argument(
+        "--logging-dir",
+        help="Directory for worker.log (overrides base-dir/logs)"
     )
     
     args = parser.parse_args()
@@ -232,11 +253,20 @@ def main():
         ("cleanup_job_dir", "CLEANUP_JOB_DIR"),
         ("cleanup_old_engines", "CLEANUP_OLD_ENGINES"),
         ("store_metakat_pdf", "STORE_METAKAT_PDF"),
+        ("allowed_image_extensions", "ALLOWED_IMAGE_EXTENSIONS"),
         ("log_level", "LOGGING_CONSOLE_LEVEL"),
+        ("log_file_level", "LOGGING_FILE_LEVEL"),
+        ("logging_dir", "LOGGING_DIR"),
     ):
         value = getattr(args, argument_name)
         if value is not None:
             setattr(config, setting, value)
+
+    # Directories and logging are set up only once the overrides are in place,
+    # so that the directories created and the handlers installed are the ones
+    # actually asked for.
+    config.create_dirs()
+    logging.config.dictConfig(config.LOGGING_CONFIG)
 
     if config.STORE_METAKAT_PDF and config.CLEANUP_JOB_DIR:
         logger.warning(
