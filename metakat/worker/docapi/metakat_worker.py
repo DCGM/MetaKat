@@ -192,12 +192,14 @@ def main():
     )
     parser.add_argument(
         "--cleanup-job-dir",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help="Remove job directory after successful processing"
     )
     parser.add_argument(
         "--cleanup-old-engines",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help="Remove old engine versions when downloading new ones"
     )
     parser.add_argument(
@@ -227,18 +229,14 @@ def main():
         ("jobs_dir", "JOBS_DIR"),
         ("engines_dir", "ENGINES_DIR"),
         ("polling_interval", "POLLING_INTERVAL"),
+        ("cleanup_job_dir", "CLEANUP_JOB_DIR"),
+        ("cleanup_old_engines", "CLEANUP_OLD_ENGINES"),
         ("store_metakat_pdf", "STORE_METAKAT_PDF"),
         ("log_level", "LOGGING_CONSOLE_LEVEL"),
     ):
         value = getattr(args, argument_name)
         if value is not None:
             setattr(config, setting, value)
-
-    # These two are store_true rather than BooleanOptionalAction, so an absent
-    # flag is False rather than None and cannot be told apart from an explicit
-    # one. They can only turn on what the environment left off.
-    config.CLEANUP_JOB_DIR = args.cleanup_job_dir or config.CLEANUP_JOB_DIR
-    config.CLEANUP_OLD_ENGINES = args.cleanup_old_engines or config.CLEANUP_OLD_ENGINES
 
     if config.STORE_METAKAT_PDF and config.CLEANUP_JOB_DIR:
         logger.warning(
