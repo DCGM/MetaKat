@@ -1,4 +1,8 @@
 page_annotator
+metakat/chapter/xshele02
+
+# Deployment secrets, never commit
+.docapi_worker_key
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
