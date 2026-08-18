@@ -212,23 +212,33 @@ def main():
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        default="INFO",
-        help="Logging level"
+        help="Logging level (default: LOGGING_CONSOLE_LEVEL, or INFO)"
     )
     
     args = parser.parse_args()
 
-    config.API_URL = args.api_url or config.API_URL
-    config.WORKER_KEY = args.api_key or config.WORKER_KEY
-    config.BASE_DIR = args.base_dir or config.BASE_DIR
-    config.JOBS_DIR = args.jobs_dir or config.JOBS_DIR
-    config.ENGINES_DIR = args.engines_dir or config.ENGINES_DIR
-    config.POLLING_INTERVAL = args.polling_interval or config.POLLING_INTERVAL
+    # An option overrides the environment when it was supplied, which is not the
+    # same question as whether its value is truthy: 0 is a legitimate polling
+    # interval and would be discarded by `or`.
+    for argument_name, setting in (
+        ("api_url", "API_URL"),
+        ("api_key", "WORKER_KEY"),
+        ("base_dir", "BASE_DIR"),
+        ("jobs_dir", "JOBS_DIR"),
+        ("engines_dir", "ENGINES_DIR"),
+        ("polling_interval", "POLLING_INTERVAL"),
+        ("store_metakat_pdf", "STORE_METAKAT_PDF"),
+        ("log_level", "LOGGING_CONSOLE_LEVEL"),
+    ):
+        value = getattr(args, argument_name)
+        if value is not None:
+            setattr(config, setting, value)
+
+    # These two are store_true rather than BooleanOptionalAction, so an absent
+    # flag is False rather than None and cannot be told apart from an explicit
+    # one. They can only turn on what the environment left off.
     config.CLEANUP_JOB_DIR = args.cleanup_job_dir or config.CLEANUP_JOB_DIR
     config.CLEANUP_OLD_ENGINES = args.cleanup_old_engines or config.CLEANUP_OLD_ENGINES
-    if args.store_metakat_pdf is not None:
-        config.STORE_METAKAT_PDF = args.store_metakat_pdf
-    config.LOGGING_CONSOLE_LEVEL = args.log_level or config.LOGGING_CONSOLE_LEVEL
 
     if config.STORE_METAKAT_PDF and config.CLEANUP_JOB_DIR:
         logger.warning(
