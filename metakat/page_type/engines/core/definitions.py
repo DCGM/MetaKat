@@ -9,7 +9,7 @@ from metakat.common.engines.registry import (
 
 from metakat.page_type.engines.core.page_type_core_engine import PageTypeCoreEngine
 
-_LOCATION = "Page-type core config"
+_LOCATION = "Page type core config"
 _LABEL = "Page type core engine"
 
 page_type_core_engines = {

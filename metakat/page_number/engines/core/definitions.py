@@ -11,7 +11,7 @@ from metakat.page_number.engines.core.page_number_core_engine import (
     PageNumberCoreEngine,
 )
 
-_LOCATION = "Page-number core config"
+_LOCATION = "Page number core config"
 _LABEL = "Page number core engine"
 
 page_number_core_engines = {
