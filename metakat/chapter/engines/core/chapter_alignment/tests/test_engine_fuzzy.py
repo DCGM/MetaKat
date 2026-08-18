@@ -1150,37 +1150,11 @@ def test_unique_page_number_aligns_without_destination_titles(
     assert result.toc_monotonicity_score is None
 
 
-def test_unique_page_number_resolves_non_anchor_when_title_mismatches(
-    fuzzy_engine,
-    evidence,
-    toc_page_number_fields,
-    page_numbers,
-):
-    engine = fuzzy_engine()
-    reference = TocBase(
-        (
-            ChapterBase(
-                toc_page_key="toc",
-                title=evidence("Expected chapter", "toc"),
-                **toc_page_number_fields("10", "toc"),
-            ),
-        )
-    )
-
-    result = engine.process(
-        pages=_pages(5),
-        reference_toc=reference,
-        destination_chapters=(
-            DestinationChapterEvidence(evidence("Different chapter", "page-3")),
-        ),
-        destination_page_numbers=page_numbers({3: "10"}),
-    )
-
-    chapter = result.chapters[0]
-    assert chapter.page_start_key == "page-3"
-    assert chapter.title_destination_page is None
-
-
+# Subsumes the former test_unique_page_number_resolves_non_anchor_when_title_
+# mismatches: that test had the same TOC entry, the same {3: "10"} page number
+# and the same mismatching "Different chapter" destination on page-3, and
+# asserted the same outcome. This adds a competing exact title match on page-4,
+# so it exercises the same branch under strictly more pressure.
 def test_unique_exact_number_precedes_off_number_title_match(
     fuzzy_engine,
     evidence,
