@@ -50,6 +50,95 @@ flowchart TD
     Validate --> Result[Return or write configured outputs]
 ```
 
+## Installation
+
+MetaKat requires Python 3.12 or newer. Runtime versions are pinned to a
+known-good set rather than left to the resolver; upgrading them is a deliberate,
+wholesale change rather than something that happens on a fresh install.
+
+Two dependencies are git submodules rather than published packages, so they are
+installed from the checkout. Install all three in one command, so that the
+declarations naming `text-geometry-aligner` and `doc-api` are satisfied locally
+instead of being looked for on an index:
+
+```bash
+git submodule update --init --recursive
+
+pip install -e libs/text-geometry-aligner \
+            -e libs/DocAPI \
+            -e ".[all]"
+```
+
+Editable installs place a pointer to the checkout rather than a copy, so edits
+take effect without reinstalling, and no `PYTHONPATH` is needed.
+
+### Installation modes
+
+The base install carries the schemas, the pipeline configuration handling and
+the IO layer, but no engine. Engine implementations are imported only when a
+pipeline selects them, so an environment installs only the tiers it uses. A
+component whose dependencies are absent is reported before any page is read,
+naming the missing module and the extra that provides it.
+
+| Extra | Adds | Use for |
+| --- | --- | --- |
+| *(none)* | schemas, configuration, IO | consumers that only read or write `MetakatIO` |
+| `torch` | torch, torchvision, transformers | the `page_type` ViT engine |
+| `yolo` | ultralytics, and `torch` with it | `page_number`, `biblio`, and the `chapter` page-analysis and extraction stages |
+| `pdf` | PyMuPDF | interactive PDF output |
+| `worker` | `yolo`, `pdf`, and the DocAPI client layer | running `metakat/worker/docapi` |
+| `train` | accelerate, scikit-learn, safe-gpu, and `torch` | training and evaluation in `metakat/page_type/nets` |
+| `dev` | pytest, pytest-cov | running the test suite |
+| `all` | `worker`, `train`, `dev` | a full development machine |
+
+`ultralytics` depends on torch, so `yolo` is never lighter than `torch`. The
+`worker` extra is the complete set needed to process a job: every engine a job
+may select, plus the PDF exporter the worker writes when `STORE_METAKAT_PDF` is
+set. `doc-api` is requested through its own `worker` extra, which keeps the API
+service's database and ASGI stack out of the installation.
+
+```bash
+pip install -e ".[worker]"    # a worker deployment
+pip install -e ".[train]"     # a training machine, no DocAPI, no PDF export
+pip install -e ".[yolo,pdf]"  # the pipeline through process_batch, no worker
+pip install -e ".[dev]"       # the tests that need no model runtime
+```
+
+## Tests
+
+Tests live beside the code they exercise, in a `tests` directory within each
+package, so a path selects a subset and no separate mapping has to be
+remembered. `testpaths` is configured, so an invocation without arguments runs
+everything:
+
+```bash
+pytest                                                  # the whole suite
+pytest metakat/chapter                                  # one component
+pytest metakat/chapter/engines/core/chapter_alignment   # one pipeline stage
+pytest metakat/page_number/engines/core                 # parsers, resolver, loaders
+pytest metakat/worker/docapi/tests                      # the DocAPI worker
+```
+
+Single files, single tests and keyword selection work as usual, the last being
+the simplest way to reach the cases of a parametrized test:
+
+```bash
+pytest metakat/chapter/engines/core/chapter_alignment/tests/test_engine_fuzzy.py
+pytest metakat/tests/test_engine_config.py::test_deep_merge_replaces_only_leaves_and_lists
+pytest -k "anchor"
+```
+
+Which tests can run depends on the installed tier, and the directory layout is
+what separates them. Most of the suite needs only the base install and `dev`;
+the tests that exercise a model runtime, the PDF exporter or the DocAPI worker
+fail to collect without the corresponding extra. `metakat[all]` runs all of
+them.
+
+The tests directories carry no `__init__.py`, which keeps them out of an
+installed distribution. Because several test modules share a file name across
+different packages, pytest is configured with `--import-mode=importlib`, which
+imports each file under a name derived from its path.
+
 ## Pipeline components
 
 Components run in the order shown below. The hierarchy mirrors their pipeline
