@@ -49,8 +49,10 @@ train = [
     "safe-gpu==2.0.0",
 ]
 
-# DocAPI worker (metakat/worker/docapi).
-worker = ["doc-api"]
+# DocAPI worker (metakat/worker/docapi). The worker extra keeps the API
+# service's own stack -- SQLAlchemy, asyncpg, alembic, uvicorn -- out of the
+# install; metakat only reaches doc_worker and the thin doc_api layer beneath it.
+worker = ["doc-api[worker]"]
 
 dev = [
     "pytest>=8.3",
