@@ -49,6 +49,10 @@ _PROARC_TEXT_SIMILARITY_THRESHOLD = 0.7
 # the scoring threshold: agreeing well enough to help identify the book is a
 # weaker claim than being the reading that should be written.
 _PROARC_PREFERRED_VALUE_SIMILARITY = 0.8
+# The shortest normalized value that may be matched as a substring of a longer
+# one. A four-character year still locates inside a fuller date, while shorter
+# fragments have to match a value whole to count.
+_MINIMUM_SUBSTRING_MATCH_LENGTH = 4
 
 
 def _normalize_text(text: str) -> str:
@@ -75,18 +79,43 @@ def _substring_levenshtein_distance(target: str, source: str) -> int:
     return min(previous)
 
 
+def _levenshtein_distance(first: str, second: str) -> int:
+    previous = list(range(len(second) + 1))
+    for first_index, first_character in enumerate(first, start=1):
+        current = [first_index]
+        for second_index, second_character in enumerate(second, start=1):
+            substitution_cost = 0 if first_character == second_character else 1
+            current.append(min(
+                previous[second_index] + 1,
+                current[second_index - 1] + 1,
+                previous[second_index - 1] + substitution_cost,
+            ))
+        previous = current
+    return previous[-1]
+
+
 def _text_similarity(first: str, second: str) -> float:
+    # Substring matching is what lets a detected title match a catalog title
+    # carrying extra subtitle or statement-of-responsibility text. It is not
+    # directional: whichever value is shorter is the one located inside the
+    # other, so it works whether the detector or the catalog holds the fuller
+    # string.
+    #
+    # That only makes sense while the shorter value is long enough to locate
+    # meaningfully. Below that it degenerates - every single character occurs
+    # inside almost any value, so a one-character OCR fragment would score a
+    # perfect 1.0 against a whole catalog title, enough to clear every
+    # threshold here and even to win a field over a correctly read one. Short
+    # values are therefore compared whole, which still scores an exact match
+    # 1.0 while giving a fragment of a longer value the low score it deserves.
     normalized_first = _normalize_text(first)
     normalized_second = _normalize_text(second)
     if not normalized_first or not normalized_second:
         return 0.0
-    target, source = (
-        (normalized_first, normalized_second)
-        if len(normalized_first) <= len(normalized_second)
-        else (normalized_second, normalized_first)
-    )
-    distance = _substring_levenshtein_distance(target, source)
-    return 1.0 - distance / len(target)
+    shorter, longer = sorted((normalized_first, normalized_second), key=len)
+    if len(shorter) < _MINIMUM_SUBSTRING_MATCH_LENGTH:
+        return 1.0 - _levenshtein_distance(shorter, longer) / len(longer)
+    return 1.0 - _substring_levenshtein_distance(shorter, longer) / len(shorter)
 
 
 def _best_text_similarity(

@@ -239,6 +239,73 @@ def test_single_proarc_volume_returns_none_without_proarc_io():
     assert BiblioBindEngineBase._single_proarc_volume(None) is None
 
 
+def test_a_detected_title_matches_a_fuller_catalog_title():
+    # What substring matching is for: the catalog title carries subtitle or
+    # statement-of-responsibility text the title page does not.
+    assert _text_similarity("Kytice", "Kytice z pověstí národních") == 1.0
+    assert _text_similarity(
+        "Kytice z povesti narodnich, vydal Storch", "Kytice z pověstí národních"
+    ) == 1.0
+
+
+def test_a_short_fragment_does_not_match_a_longer_value():
+    # Regression test: matching located the shorter value inside the longer
+    # one whichever side it came from, so any one-character OCR fragment
+    # scored a perfect 1.0 against a whole catalog title - enough to clear
+    # every threshold and even to take a field from a correctly read title.
+    for fragment in ("K", "z", "i", "Ky", "Kyt"):
+        assert _text_similarity(fragment, "Kytice z pověstí národních") < 0.3
+    for digit in ("1", "8", "5"):
+        assert _text_similarity(digit, "1853") < 0.3
+
+
+def test_short_values_still_match_each_other_exactly():
+    # The guard removes substring matching for short values, not matching:
+    # a year or an edition number still matches its own counterpart.
+    assert _text_similarity("1853", "1853") == 1.0
+    assert _text_similarity("2", "2") == 1.0
+
+
+def test_similarity_does_not_depend_on_argument_order():
+    for first, second in (
+        ("K", "Kytice z pověstí národních"),
+        ("Kytice", "Kytice z pověstí národních"),
+        ("8", "1853"),
+    ):
+        assert _text_similarity(first, second) == _text_similarity(second, first)
+
+
+def test_a_one_character_detection_cannot_corroborate_a_field():
+    proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"])
+    fragment = MetakatVolume(id=uuid4(), title=("K", 0.99, uuid4()))
+
+    assert BiblioBindEngineBase._count_proarc_matches([fragment], proarc_volume) == 0
+    assert not BiblioBindEngineBase._title_is_corroborated([fragment], proarc_volume)
+
+
+def test_a_one_character_detection_cannot_take_a_field(metakat_page):
+    # The sharpest consequence of the old behaviour: a stray fragment scored a
+    # perfect match, so it beat the correctly read title outright at the 0.8
+    # preference, regardless of how much less confident it was.
+    binder = _binder({})
+    proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"])
+    fragment = MetakatVolume(
+        id=uuid4(), page_id=metakat_page.id, title=("K", 0.99, uuid4())
+    )
+    read_properly = MetakatVolume(
+        id=uuid4(),
+        page_id=metakat_page.id,
+        title=("Kytice z povesti narodnich", 0.5, uuid4()),
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [fragment, read_properly], proarc_volume,
+        title_pages=[metakat_page], pages=[metakat_page],
+    )
+
+    assert result[0].title == read_properly.title
+
+
 def test_field_matches_proarc_on_overlapping_title():
     candidate = MetakatVolume(id=uuid4(), title=("Kytice z povesti narodnich", 0.9, uuid4()))
     assert BiblioBindEngineBase._field_matches_proarc(
