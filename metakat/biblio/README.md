@@ -589,33 +589,34 @@ score in the ranking above, and is the entirety of the record's influence.
 
 Similarity is computed on normalized text: NFKD decomposition, lower-casing,
 removal of combining marks, punctuation replaced by spaces, and whitespace
-collapsed. The shorter normalized string is then matched against any substring
-of the longer one:
+collapsed. It is then **asymmetric**, because a detection and a catalog value
+are not alike, and which of the two is longer means something:
 
-```text
-similarity = 1 - substring_levenshtein_distance(shorter, longer) / len(shorter)
-```
+| Case | Comparison |
+|---|---|
+| The record value is **shorter** than the detection | It is looked for anywhere inside the detection: `1 - substring_levenshtein_distance(record, detected) / len(record)` |
+| The record value is **longer or equal** | The two are compared whole: `1 - levenshtein_distance(detected, record) / len(record)` |
 
-Matching a substring rather than the whole string lets a detected title match a
-catalog title that carries extra subtitle or statement-of-responsibility text.
-It is not directional — whichever value is shorter is the one located inside
-the other — so it works whether the detector or the catalog holds the fuller
-string.
+The first case is the one worth allowing. A detector routinely reads more of a
+title page than the catalog holds — a subtitle, a statement of responsibility,
+an imprint line — so finding the record's whole value somewhere inside that
+reading is genuine agreement, and the surrounding text should not count against
+it. `"Kytice"` in the record matches a detected
+`"Kytice z povesti narodnich, vydal Storch, Praha 1853"` exactly.
 
-Substring matching only applies while the shorter value is at least **four
-characters**. Below that it degenerates: every single character occurs inside
-almost any value, so a one-character OCR fragment would score a perfect `1.0`
-against a whole catalog title, clearing all three thresholds and able to take a
-field from a correctly read one. Shorter values are compared whole instead:
-
-```text
-similarity = 1 - levenshtein_distance(shorter, longer) / len(longer)
-```
+The second case gets no such licence, and that is what keeps short OCR out.
+Locating whichever value happened to be shorter inside the other meant a
+one-character fragment scored a perfect `1.0` against an entire catalog title —
+almost any value contains almost any single character — which cleared all three
+bars at once and could take a field from a correctly read title. Compared
+whole, `"K"` against that title scores `0.04`.
 
 An exact match still scores `1.0` at any length, so a year or an edition number
-matches its own counterpart; what it no longer does is match a value that
-merely contains it. The four-character floor keeps a year locating inside a
-fuller date while ruling out shorter fragments.
+matches its own counterpart, and a record `"1853"` still matches a detected
+`"Praha 1853 Storch"` by the first rule. What a detection can no longer do is
+claim a longer record value by being a fragment of it: a bare detected
+`"Kytice"` against a catalog `"Kytice z pověstí národních"` scores `0.23`, not
+`1.0`.
 
 The resulting score is read against three different bars, loosest to strictest:
 

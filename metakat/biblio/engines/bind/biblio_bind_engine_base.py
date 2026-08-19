@@ -49,10 +49,6 @@ _PROARC_TEXT_SIMILARITY_THRESHOLD = 0.7
 # the scoring threshold: agreeing well enough to help identify the book is a
 # weaker claim than being the reading that should be written.
 _PROARC_PREFERRED_VALUE_SIMILARITY = 0.8
-# The shortest normalized value that may be matched as a substring of a longer
-# one. A four-character year still locates inside a fuller date, while shorter
-# fragments have to match a value whole to count.
-_MINIMUM_SUBSTRING_MATCH_LENGTH = 4
 
 
 def _normalize_text(text: str) -> str:
@@ -94,39 +90,50 @@ def _levenshtein_distance(first: str, second: str) -> int:
     return previous[-1]
 
 
-def _text_similarity(first: str, second: str) -> float:
-    # Substring matching is what lets a detected title match a catalog title
-    # carrying extra subtitle or statement-of-responsibility text. It is not
-    # directional: whichever value is shorter is the one located inside the
-    # other, so it works whether the detector or the catalog holds the fuller
-    # string.
-    #
-    # That only makes sense while the shorter value is long enough to locate
-    # meaningfully. Below that it degenerates - every single character occurs
-    # inside almost any value, so a one-character OCR fragment would score a
-    # perfect 1.0 against a whole catalog title, enough to clear every
-    # threshold here and even to win a field over a correctly read one. Short
-    # values are therefore compared whole, which still scores an exact match
-    # 1.0 while giving a fragment of a longer value the low score it deserves.
-    normalized_first = _normalize_text(first)
-    normalized_second = _normalize_text(second)
-    if not normalized_first or not normalized_second:
+def _text_similarity(detected: str, record: str) -> float:
+    """How well a detected value agrees with one of the catalog record's.
+
+    Deliberately asymmetric, because the two sides are not alike.
+
+    A record value *shorter* than the detection is looked for inside it. The
+    detector routinely captures more of a title page than the catalog holds -
+    a subtitle, a statement of responsibility, an imprint line - so finding
+    the record's whole string somewhere in that is genuine agreement, and the
+    surrounding text should not count against it.
+
+    A record value *longer or equal* gets no such licence: the two are
+    compared whole. Locating whichever side happened to be shorter inside the
+    other is what let a one-character OCR fragment score a perfect match
+    against an entire catalog title, since almost any value contains almost
+    any single character. Comparing whole means a fragment scores as the
+    fragment it is, while an exact match still scores 1.0 at any length.
+
+    Either way the score is normalized by the record's length, which is the
+    needle in the first case and the longer side in the second, so the result
+    stays within [0, 1].
+    """
+    normalized_detected = _normalize_text(detected)
+    normalized_record = _normalize_text(record)
+    if not normalized_detected or not normalized_record:
         return 0.0
-    shorter, longer = sorted((normalized_first, normalized_second), key=len)
-    if len(shorter) < _MINIMUM_SUBSTRING_MATCH_LENGTH:
-        return 1.0 - _levenshtein_distance(shorter, longer) / len(longer)
-    return 1.0 - _substring_levenshtein_distance(shorter, longer) / len(shorter)
+    if len(normalized_record) < len(normalized_detected):
+        distance = _substring_levenshtein_distance(
+            normalized_record, normalized_detected
+        )
+    else:
+        distance = _levenshtein_distance(normalized_detected, normalized_record)
+    return 1.0 - distance / len(normalized_record)
 
 
 def _best_text_similarity(
-    text: str,
+    detected: str,
     proarc_values: Optional[List[Optional[str]]],
 ) -> float:
     # An index-aligned column holds None wherever its source block had no
     # value for the field; those placeholders are not text to compare against.
     return max(
         (
-            _text_similarity(text, proarc_text)
+            _text_similarity(detected, proarc_text)
             for proarc_text in (proarc_values or [])
             if proarc_text
         ),
