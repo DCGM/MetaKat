@@ -1,5 +1,12 @@
+import argparse
+import json
+import logging
+import sys
+import time
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 MODS_NS = "http://www.loc.gov/mods/v3"
 NS = {"mods": MODS_NS}
@@ -165,3 +172,40 @@ def parse_mods(xml_text: str) -> Dict[str, object]:
     result.update(_parse_names(mods))
     result.update(_parse_origin_info(mods))
     return result
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mods-file', required=True, type=str)
+    parser.add_argument('--output-file', required=True, type=str)
+    parser.add_argument('--logging-level', default=logging.INFO)
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+
+    log_formatter = logging.Formatter('PARSE MODS - %(asctime)s - %(filename)s - %(levelname)s - %(message)s')
+    log_formatter.converter = time.gmtime
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(log_formatter)
+    logger = logging.getLogger()
+    logger.handlers = []
+    logger.addHandler(handler)
+    logger.setLevel(args.logging_level)
+
+    logger.info(' '.join(sys.argv))
+
+    with open(args.mods_file, encoding='utf-8') as f:
+        xml_text = f.read()
+
+    result = parse_mods(xml_text)
+
+    with open(args.output_file, 'w', encoding='utf-8') as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
+    logger.info(f'Wrote parsed MODS fields to {args.output_file}')
+
+
+if __name__ == '__main__':
+    main()
