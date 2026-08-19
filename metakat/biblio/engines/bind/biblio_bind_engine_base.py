@@ -70,6 +70,21 @@ def _text_similarity(first: str, second: str) -> float:
     return 1.0 - distance / len(target)
 
 
+def _tuple_texts_match(
+    first: Optional[Tuple[str, float, UUID]],
+    second: Optional[Tuple[str, float, UUID]],
+) -> bool:
+    # Two detections of the same value (e.g. the same volume's partNumber)
+    # never share a detection_id, and rarely share a confidence either, so
+    # comparing the raw (text, confidence, detection_id) tuples for equality
+    # would only ever match a tuple against itself. Compare normalized text
+    # instead; None matches only None, mirroring how the raw tuples compared
+    # under `==`/`!=` before normalization was introduced.
+    if first is None or second is None:
+        return first is None and second is None
+    return _normalize_text(first[0]) == _normalize_text(second[0])
+
+
 class BiblioBindEngineBase(BiblioBindEngine):
     def __init__(self, config, core_config):
         super().__init__(config, core_config)
@@ -198,21 +213,40 @@ class BiblioBindEngineBase(BiblioBindEngine):
         pages = [p for p in metakat_io.elements if p.type == DocumentType.PAGE.value]
 
         if infant_issues:
-            self.bind_pages(pages, infants=infant_pages, parents=infant_issues)
-            self.bind_issues(pages, infants=infant_issues, parents=infant_volumes)
+            self.bind_infants(pages, infants=infant_pages, parents=infant_issues, apply_cover_nudge=True)
+            self.bind_infants(pages, infants=infant_issues, parents=infant_volumes, apply_cover_nudge=False)
         elif infant_pages:
-            self.bind_pages(pages, infants=infant_pages, parents=infant_volumes)
+            self.bind_infants(pages, infants=infant_pages, parents=infant_volumes, apply_cover_nudge=True)
 
+    @staticmethod
+    def _infant_batch_index(infant: Union[MetakatPage, MetakatIssue], page_id_to_batch_index: dict) -> int:
+        if infant.type == DocumentType.PAGE.value:
+            return infant.batch_index
+        return page_id_to_batch_index[infant.page_id]
 
-    def bind_pages(self,
-                   pages: List[MetakatPage],
-                   infants: List[Union[MetakatPage]],
-                   parents: List[Union[MetakatVolume, MetakatIssue]]):
+    # Walks the full, ordered page list once, tracking which parent (volume or
+    # issue) currently "owns" the pages being walked, switching to the next
+    # parent exactly when its anchor page is reached. Whenever the walked page
+    # is itself the anchor of one of the infants, that infant is attached to
+    # the current parent. Used both for pages -> issue/volume and for
+    # issue -> volume binding: an infant that is a page resolves its own
+    # position directly (batch_index), any other infant (e.g. an issue)
+    # resolves it via its anchor page_id. apply_cover_nudge is a page-only
+    # heuristic (pushes a front/back cover to the next parent) and must stay
+    # off when infants aren't pages.
+    def bind_infants(self,
+                     pages: List[MetakatPage],
+                     infants: List[Union[MetakatPage, MetakatIssue]],
+                     parents: List[Union[MetakatVolume, MetakatIssue]],
+                     apply_cover_nudge: bool):
         if not pages or not parents or not infants:
             return
 
         page_id_to_batch_index = {p.id: p.batch_index for p in pages}
-        batch_index_to_infants = {infant.batch_index: infant for infant in infants}
+        batch_index_to_infants = {
+            self._infant_batch_index(infant, page_id_to_batch_index): infant
+            for infant in infants
+        }
         parents_to_batch_index = {parent.id: page_id_to_batch_index[parent.page_id] for parent in parents}
 
         sorted_parents = sorted(parents, key=lambda x: parents_to_batch_index[x.id])
@@ -227,33 +261,10 @@ class BiblioBindEngineBase(BiblioBindEngine):
             if current_infant is not None:
                 current_infant.parent_id = current_parent.id
 
-            if page.pageType in [PageType.BACK_COVER, PageType.FRONT_COVER] and parents_to_batch_index[current_parent.id] < page.batch_index:
+            if apply_cover_nudge and page.pageType in [PageType.BACK_COVER, PageType.FRONT_COVER] and parents_to_batch_index[current_parent.id] < page.batch_index:
                 if current_parent_index < len(sorted_parents) - 1:
                     current_parent = sorted_parents[current_parent_index + 1]
                     current_parent_index += 1
-
-    def bind_issues(self,
-                    pages: List[MetakatPage],
-                    infants: List[MetakatIssue],
-                    parents: List[MetakatVolume]):
-        if not pages or not parents or not infants:
-            return
-
-        page_id_to_batch_index = {p.id: p.batch_index for p in pages}
-        infants_to_batch_index = {issue.id: page_id_to_batch_index[issue.page_id] for issue in infants}
-        parents_to_batch_index = {volume.id: page_id_to_batch_index[volume.page_id] for volume in parents}
-
-        sorted_parents = sorted(parents, key=lambda v: parents_to_batch_index[v.id])
-
-        current_parent_index = 0
-        for issue in sorted(infants, key=lambda i: infants_to_batch_index[i.id]):
-            issue_batch_index = infants_to_batch_index[issue.id]
-
-            while current_parent_index + 1 < len(sorted_parents) and \
-                    parents_to_batch_index[sorted_parents[current_parent_index + 1].id] <= issue_batch_index:
-                current_parent_index += 1
-
-            issue.parent_id = sorted_parents[current_parent_index].id
 
     # Create the MetakatTitle element from the list of MetakatElements
     # Extract the title and subtitle from the MetakatVolume element that has the most confident title detection
@@ -652,7 +663,11 @@ class BiblioBindEngineBase(BiblioBindEngine):
             elements.append(metakat_volume)
             if metakat_issue.title is not None and (metakat_issue.partNumber is not None or
                                                     metakat_issue.dateIssued is not None):
-                metakat_issue.parent_id = metakat_volume.id
+                # parent_id is intentionally left unset: bind() only treats an
+                # issue as an infant to bind while its parent_id is None, and
+                # position (not this page's volume candidate, which may not
+                # survive finalize_periodical_volumes' dedup) is what should
+                # decide its final parent volume.
                 elements.append(metakat_issue)
 
         return elements, detection_id_to_detection_bbox
@@ -703,51 +718,60 @@ class PeriodicalMetakatVolumeBag:
             return False
         if volume.partNumber is None and volume.dateIssued is None:
             return False
-        if self.root_volume.partNumber != volume.partNumber and self.root_volume.dateIssued != volume.dateIssued:
+        if not _tuple_texts_match(self.root_volume.partNumber, volume.partNumber) and \
+                not _tuple_texts_match(self.root_volume.dateIssued, volume.dateIssued):
             return False
 
+        merged = self._merge_matching_volume(volume, page_id_to_batch_index)
+        # The anchor is the earliest page of every volume the bag ever
+        # accepts, whether or not that volume goes on to win root - it's
+        # what bind_infants sorts volumes/issues by, so it must reflect the
+        # bag's full page range, not just whichever volume's fields are used.
+        if merged and page_id_to_batch_index[volume.page_id] < page_id_to_batch_index[self.root_page_id]:
+            self.root_page_id = volume.page_id
+        return merged
+
+    def _merge_matching_volume(self, volume: MetakatVolume, page_id_to_batch_index: dict) -> bool:
         if self.root_volume.partNumber is not None and self.root_volume.dateIssued is not None:
             # Added volume has both partNumber and dateIssued
             if volume.partNumber is not None and volume.dateIssued is not None:
                 if volume.partNumber[1] + volume.dateIssued[1] > self.root_volume.partNumber[1] + self.root_volume.dateIssued[1]:
                     self.volumes.append(self.root_volume)
-                    self.root_volume = self.change_root_volume(volume, page_id_to_batch_index)
+                    self.change_root_volume(volume)
                 else:
                     self.volumes.append(volume)
                 return True
             # Added volume has only partNumber
-            elif volume.partNumber == self.root_volume.partNumber:
+            elif _tuple_texts_match(volume.partNumber, self.root_volume.partNumber):
                 self.volumes.append(volume)
                 return True
             # Added volume has only dateIssued
-            elif volume.dateIssued == self.root_volume.dateIssued:
+            elif _tuple_texts_match(volume.dateIssued, self.root_volume.dateIssued):
                 self.volumes.append(volume)
                 return True
 
         elif self.root_volume.partNumber is not None and self.root_volume.dateIssued is None and \
             volume.partNumber is not None and volume.dateIssued is None and \
-            self.root_volume.partNumber == volume.partNumber:
+            _tuple_texts_match(self.root_volume.partNumber, volume.partNumber):
             if volume.partNumber[1] > self.root_volume.partNumber[1]:
                 self.volumes.append(self.root_volume)
-                self.root_volume = self.change_root_volume(volume, page_id_to_batch_index)
+                self.change_root_volume(volume)
             else:
                 self.volumes.append(volume)
             return True
 
         elif self.root_volume.partNumber is None and self.root_volume.dateIssued is not None and \
             volume.partNumber is None and volume.dateIssued is not None and \
-            self.root_volume.dateIssued == volume.dateIssued:
+            _tuple_texts_match(self.root_volume.dateIssued, volume.dateIssued):
             if volume.dateIssued[1] > self.root_volume.dateIssued[1]:
                 self.volumes.append(self.root_volume)
-                self.root_volume = self.change_root_volume(volume, page_id_to_batch_index)
+                self.change_root_volume(volume)
             else:
                 self.volumes.append(volume)
             return True
         return False
 
-    def change_root_volume(self, volume: MetakatVolume, page_id_to_batch_index: dict):
+    def change_root_volume(self, volume: MetakatVolume) -> None:
         if volume.hierarchy != HierarchyType.PERIODICAL:
             raise ValueError("Volume must be a periodical volume")
         self.root_volume = volume
-        if page_id_to_batch_index[volume.page_id] < page_id_to_batch_index[self.root_volume.page_id]:
-            self.root_page_id = volume.page_id

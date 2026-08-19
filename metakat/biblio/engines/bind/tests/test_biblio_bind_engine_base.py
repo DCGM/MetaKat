@@ -10,12 +10,15 @@ from text_geometry_aligner import (
 
 from metakat.biblio.engines.bind.biblio_bind_engine_base import (
     BiblioBindEngineBase,
+    PeriodicalMetakatVolumeBag,
 )
 from metakat.schemas.base_objects import (
     BiblioType,
     DocumentType,
     HierarchyType,
+    MetakatIO,
     MetakatIssue,
+    MetakatPage,
     MetakatVolume,
     ObjectItem,
     ObjectModel,
@@ -305,3 +308,125 @@ def test_resolve_single_proarc_volume_falls_back_to_empty_volume_when_nothing_ma
     volume = result[0]
     assert volume.title is None
     assert volume.page_id == metakat_page.id
+
+
+def test_bind_attaches_periodical_issues_to_the_volume_they_belong_to():
+    # Regression test: MetakatIssue used to get parent_id set at creation
+    # time in get_volume_issue_from_page, so bind()'s infant_issues branch
+    # (issues -> volumes binding) could never run - infant_issues was always
+    # empty. Issues are now left unparented and must be positioned by bind()
+    # itself, the same way pages are positioned against volumes.
+    binder = _binder({})
+    batch_id = uuid4()
+    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(6)]
+    volume_1 = MetakatVolume(id=uuid4(), page_id=pages[0].id, hierarchy=HierarchyType.PERIODICAL)
+    issue_1 = MetakatIssue(id=uuid4(), page_id=pages[0].id)
+    volume_2 = MetakatVolume(id=uuid4(), page_id=pages[3].id, hierarchy=HierarchyType.PERIODICAL)
+    issue_2 = MetakatIssue(id=uuid4(), page_id=pages[3].id)
+
+    metakat_io = MetakatIO(
+        batch_id=batch_id,
+        elements=[volume_1, issue_1, volume_2, issue_2, *pages],
+    )
+
+    binder.bind(metakat_io)
+
+    assert issue_1.parent_id == volume_1.id
+    assert issue_2.parent_id == volume_2.id
+    assert {p.parent_id for p in pages[:3]} == {issue_1.id}
+    assert {p.parent_id for p in pages[3:]} == {issue_2.id}
+
+
+def test_periodical_bag_matches_same_volume_across_pages_despite_ocr_noise():
+    # Regression test: matching used to compare the raw (text, confidence,
+    # detection_id) tuples, so two detections of the literal same volume
+    # number/date from two different pages - each with its own confidence and
+    # a fresh detection_id - could never be equal and were never merged.
+    page_1, page_2 = uuid4(), uuid4()
+    page_id_to_batch_index = {page_1: 0, page_2: 1}
+    first = MetakatVolume(
+        id=uuid4(), page_id=page_1, hierarchy=HierarchyType.PERIODICAL,
+        partNumber=("1", 0.5, uuid4()), dateIssued=("1900", 0.5, uuid4()),
+    )
+    second = MetakatVolume(
+        id=uuid4(), page_id=page_2, hierarchy=HierarchyType.PERIODICAL,
+        partNumber=(" 1.", 0.9, uuid4()), dateIssued=("1900 ", 0.9, uuid4()),
+    )
+
+    bag = PeriodicalMetakatVolumeBag(first)
+
+    assert bag.add_volume(second, page_id_to_batch_index) is True
+    assert bag.root_volume is second
+    assert first in bag.volumes
+
+
+def test_periodical_bag_moves_anchor_to_the_earliest_page_on_root_swap():
+    # Regression test: change_root_volume reassigned self.root_volume before
+    # comparing page positions, so the comparison always compared a volume's
+    # page against itself and root_page_id could never move past whichever
+    # volume happened to construct the bag.
+    later_page, earlier_page = uuid4(), uuid4()
+    page_id_to_batch_index = {later_page: 5, earlier_page: 0}
+    started_bag = MetakatVolume(
+        id=uuid4(), page_id=later_page, hierarchy=HierarchyType.PERIODICAL,
+        partNumber=("1", 0.3, uuid4()),
+    )
+    better_but_earlier = MetakatVolume(
+        id=uuid4(), page_id=earlier_page, hierarchy=HierarchyType.PERIODICAL,
+        partNumber=("1", 0.9, uuid4()),
+    )
+
+    bag = PeriodicalMetakatVolumeBag(started_bag)
+    bag.add_volume(better_but_earlier, page_id_to_batch_index)
+
+    assert bag.root_volume is better_but_earlier
+    assert bag.root_page_id == earlier_page
+
+
+def test_periodical_bag_anchor_moves_to_earliest_page_even_without_a_root_swap():
+    # The anchor must track the earliest page across every volume the bag
+    # accepts, not only whichever volume wins root by confidence - it's what
+    # bind_infants sorts volumes (and, transitively, issues) by, so an
+    # append-only merge (the added volume loses the confidence contest) must
+    # still pull root_page_id earlier when its own page precedes it.
+    strong_page, weak_earlier_page = uuid4(), uuid4()
+    page_id_to_batch_index = {strong_page: 3, weak_earlier_page: 0}
+    strong = MetakatVolume(
+        id=uuid4(), page_id=strong_page, hierarchy=HierarchyType.PERIODICAL,
+        partNumber=("1", 0.9, uuid4()),
+    )
+    weak_but_earlier = MetakatVolume(
+        id=uuid4(), page_id=weak_earlier_page, hierarchy=HierarchyType.PERIODICAL,
+        partNumber=("1", 0.3, uuid4()),
+    )
+
+    bag = PeriodicalMetakatVolumeBag(strong)
+    assert bag.add_volume(weak_but_earlier, page_id_to_batch_index) is True
+
+    assert bag.root_volume is strong
+    assert bag.root_page_id == weak_earlier_page
+
+
+def test_periodical_bag_root_swap_does_not_null_out_root_volume():
+    # Regression test: change_root_volume has no return statement, but
+    # add_volume did `self.root_volume = self.change_root_volume(...)`,
+    # overwriting the correctly-mutated self.root_volume with None and
+    # crashing finalize_periodical_volumes downstream.
+    page_1, page_2 = uuid4(), uuid4()
+    page_id_to_batch_index = {page_1: 0, page_2: 1}
+    weaker = MetakatVolume(
+        id=uuid4(), page_id=page_1, hierarchy=HierarchyType.PERIODICAL,
+        partNumber=("1", 0.3, uuid4()),
+    )
+    stronger = MetakatVolume(
+        id=uuid4(), page_id=page_2, hierarchy=HierarchyType.PERIODICAL,
+        partNumber=("1", 0.9, uuid4()),
+    )
+
+    binder = _binder({})
+    result = binder.finalize_periodical_volumes([weaker, stronger], page_id_to_batch_index)
+
+    volumes = [el for el in result if el.type == DocumentType.VOLUME.value]
+    assert len(volumes) == 1
+    assert volumes[0] is not None
+    assert volumes[0].partNumber == stronger.partNumber
