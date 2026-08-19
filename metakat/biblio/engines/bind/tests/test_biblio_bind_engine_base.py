@@ -447,6 +447,122 @@ def test_list_fields_keep_every_detection_regardless_of_the_record(metakat_page)
     ]
 
 
+def _two_groups(pages, first, second):
+    """Two groups of neighbouring pages, far enough apart not to merge."""
+    return [
+        MetakatVolume(id=uuid4(), page_id=pages[0].id, **first),
+        MetakatVolume(id=uuid4(), page_id=pages[5].id, **second),
+    ]
+
+
+def test_a_recognised_title_outranks_broader_corroboration():
+    # The first ranking key: a title the catalog recognises is the strongest
+    # single sign that a group is the book, so it beats a group agreeing with
+    # the record on more fields but on no title of its own.
+    binder = _binder({})
+    batch_id = uuid4()
+    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
+    proarc_volume = _proarc_volume(
+        title=["Kytice z pověstí národních"],
+        publisher=["Storch"],
+        placeTerm=["Praha"],
+        dateIssued=["1853"],
+    )
+
+    recognised_title, broader = _two_groups(
+        pages,
+        {"title": ("Kytice z povesti narodnich", 0.5, uuid4())},
+        {
+            "publisher": [("Storch", 0.9, uuid4())],
+            "placeTerm": ("Praha", 0.9, uuid4()),
+            "dateIssued": ("1853", 0.9, uuid4()),
+        },
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [recognised_title, broader], proarc_volume, title_pages=pages, pages=pages,
+    )
+
+    assert result[0].title == recognised_title.title
+    assert result[0].page_id == pages[0].id
+
+
+def test_a_roughly_read_title_still_counts_as_recognised():
+    # The title bar is the loosest of the three thresholds - 0.6 - because
+    # conflicts behind it are settled by overall corroboration. This pair
+    # scores 0.667: too rough to count as corroboration when scoring fields,
+    # close enough for the catalog to recognise the title.
+    binder = _binder({})
+    batch_id = uuid4()
+    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
+    proarc_volume = _proarc_volume(title=["Kytice basni"], publisher=["Storch"])
+
+    assert 0.6 <= _text_similarity("Kytice basni", "Kxtxcx basnx") < 0.7
+
+    roughly_read, other = _two_groups(
+        pages,
+        {"title": ("Kxtxcx basnx", 0.5, uuid4())},
+        {"publisher": [("Storch", 0.9, uuid4())]},
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [roughly_read, other], proarc_volume, title_pages=pages, pages=pages,
+    )
+
+    assert result[0].title == roughly_read.title
+
+
+def test_overall_corroboration_decides_when_no_title_is_recognised():
+    binder = _binder({})
+    batch_id = uuid4()
+    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
+    proarc_volume = _proarc_volume(publisher=["Storch"], placeTerm=["Praha"])
+
+    titled_but_unrecognised, corroborated = _two_groups(
+        pages,
+        {"title": ("Some other book", 0.99, uuid4())},
+        {
+            "title": ("Another book", 0.4, uuid4()),
+            "publisher": [("Storch", 0.5, uuid4())],
+            "placeTerm": ("Praha", 0.5, uuid4()),
+        },
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [titled_but_unrecognised, corroborated],
+        proarc_volume,
+        title_pages=pages,
+        pages=pages,
+    )
+
+    assert result[0].title == corroborated.title
+
+
+def test_a_bare_record_leaves_the_titled_group_winning():
+    # With nothing to corroborate, the first two keys tie at zero for every
+    # group and the ranking reduces to the vision-only preference: a group
+    # with a title beats a titleless one with more detections.
+    binder = _binder({})
+    batch_id = uuid4()
+    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
+
+    titled, more_detections = _two_groups(
+        pages,
+        {"title": ("Kytice", 0.5, uuid4())},
+        {
+            "publisher": [("Storch", 0.9, uuid4())],
+            "placeTerm": ("Praha", 0.9, uuid4()),
+            "edition": ("2", 0.9, uuid4()),
+        },
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [titled, more_detections], _proarc_volume(), title_pages=pages, pages=pages,
+    )
+
+    assert result[0].title == titled.title
+
+
 def test_resolve_single_proarc_volume_picks_the_group_the_record_corroborates():
     # What proarc is actually for: two separate groups of neighbouring pages,
     # and the record decides which one is the book. The losing group's higher
