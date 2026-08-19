@@ -33,7 +33,7 @@ def test_returns_proarc_io_with_parsed_fields_filled_in():
 
     assert volume_obj.pid == "uuid:2"
     assert volume_obj.partNumber == "38"
-    assert volume_obj.dateIssued == "2002"
+    assert volume_obj.dateIssued == ["2002"]
 
 
 def test_raw_metadata_string_is_preserved_alongside_parsed_fields():
