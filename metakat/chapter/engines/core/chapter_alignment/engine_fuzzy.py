@@ -1282,8 +1282,8 @@ class ChapterAlignmentEngineFuzzy:
                         if entry.title is None:
                             continue
                         title_score = title_similarity(
-                            entry.title.text,
                             destinations[destination_index].title.text,
+                            entry.title.text,
                         )
                         if (
                             title_score
@@ -1342,8 +1342,8 @@ class ChapterAlignmentEngineFuzzy:
                         diagnostics["outside_anchor_bounds"] += 1
                         continue
                     title_score = title_similarity(
-                        entry.title.text,
                         destination.title.text,
+                        entry.title.text,
                     )
                     if title_score < self.minimum_title_substring_similarity:
                         diagnostics["below_title_similarity"] += 1
@@ -2120,8 +2120,8 @@ class ChapterAlignmentEngineFuzzy:
                 continue
             destination = destinations[destination_index]
             score = title_similarity(
-                entry.title.text,
                 destination.title.text,
+                entry.title.text,
             )
             if score >= self.minimum_title_substring_similarity:
                 matches.append((destination_index, score))
@@ -2310,18 +2310,54 @@ def flatten_toc(
     return tuple(result)
 
 
-def title_similarity(first: str, second: str) -> float:
-    normalized_first = normalize_text(first)
-    normalized_second = normalize_text(second)
-    if not normalized_first or not normalized_second:
+def title_similarity(candidate: str, reference: str) -> float:
+    """How well a destination-page title agrees with its TOC entry.
+
+    Deliberately asymmetric. The TOC entry is the reference: it is what the
+    document says the chapter is called, and the destination heading is the
+    uncertain reading being tested against it.
+
+    A reference shorter than the candidate is looked for inside it, because a
+    destination heading often carries more than the TOC entry does - a running
+    head, a subtitle, a chapter number set as part of the heading - and that
+    surrounding text should not count against the match.
+
+    A reference longer or equal is compared whole. Locating whichever side
+    happened to be shorter inside the other meant a one-character heading
+    detection scored a perfect match against any TOC entry containing that
+    character, since almost any title does; such a fragment would then satisfy
+    the similarity threshold and could win an alignment outright.
+    """
+    normalized_candidate = normalize_text(candidate)
+    normalized_reference = normalize_text(reference)
+    if not normalized_candidate or not normalized_reference:
         return 0.0
-    target, source = (
-        (normalized_first, normalized_second)
-        if len(normalized_first) <= len(normalized_second)
-        else (normalized_second, normalized_first)
-    )
-    distance = _substring_levenshtein_distance(target, source)
-    return 1.0 - distance / len(target)
+    if len(normalized_reference) < len(normalized_candidate):
+        distance = _substring_levenshtein_distance(
+            normalized_reference, normalized_candidate
+        )
+    else:
+        distance = _levenshtein_distance(
+            normalized_candidate, normalized_reference
+        )
+    return 1.0 - distance / len(normalized_reference)
+
+
+def _levenshtein_distance(first: str, second: str) -> int:
+    previous = list(range(len(second) + 1))
+    for first_index, first_character in enumerate(first, start=1):
+        current = [first_index]
+        for second_index, second_character in enumerate(second, start=1):
+            substitution_cost = (
+                0 if first_character == second_character else 1
+            )
+            current.append(min(
+                previous[second_index] + 1,
+                current[second_index - 1] + 1,
+                previous[second_index - 1] + substitution_cost,
+            ))
+        previous = current
+    return previous[-1]
 
 
 def _substring_levenshtein_distance(target: str, source: str) -> int:
