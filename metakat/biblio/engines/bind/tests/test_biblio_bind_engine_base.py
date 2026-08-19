@@ -239,40 +239,55 @@ def test_single_proarc_volume_returns_none_without_proarc_io():
     assert BiblioBindEngineBase._single_proarc_volume(None) is None
 
 
-def test_a_detected_title_matches_a_fuller_catalog_title():
-    # What substring matching is for: the catalog title carries subtitle or
-    # statement-of-responsibility text the title page does not.
-    assert _text_similarity("Kytice", "Kytice z pověstí národních") == 1.0
-    assert _text_similarity(
-        "Kytice z povesti narodnich, vydal Storch", "Kytice z pověstí národních"
-    ) == 1.0
+# _text_similarity(detected, record) is deliberately asymmetric: a record
+# value shorter than the detection is looked for inside it, a longer one is
+# compared whole. The argument order is therefore part of its meaning.
 
 
-def test_a_short_fragment_does_not_match_a_longer_value():
-    # Regression test: matching located the shorter value inside the longer
-    # one whichever side it came from, so any one-character OCR fragment
-    # scored a perfect 1.0 against a whole catalog title - enough to clear
+def test_a_shorter_record_value_is_looked_for_inside_the_detection():
+    # The detector routinely reads more of a title page than the catalog
+    # holds - a subtitle, a responsibility statement, an imprint line - and
+    # the surrounding text must not count against the match.
+    for detected in (
+        "Kytice z povesti narodnich",
+        "Kytice z povesti narodnich, vydal Storch, Praha 1853",
+        "Basne: Kytice z povesti narodnich / K. J. Erben",
+    ):
+        assert _text_similarity(detected, "Kytice") == 1.0
+
+    # An unrelated detection is not rescued by the same licence.
+    assert _text_similarity("Almanach ceskych basniku", "Kytice") < 0.6
+
+
+def test_a_longer_record_value_is_compared_whole():
+    # No substring licence in this direction. Locating whichever side happened
+    # to be shorter inside the other is what let a one-character OCR fragment
+    # score a perfect 1.0 against an entire catalog title - enough to clear
     # every threshold and even to take a field from a correctly read title.
+    catalog = "Kytice z pověstí národních"
+    assert _text_similarity("Kytice z povesti narodnich", catalog) == 1.0
     for fragment in ("K", "z", "i", "Ky", "Kyt"):
-        assert _text_similarity(fragment, "Kytice z pověstí národních") < 0.3
+        assert _text_similarity(fragment, catalog) < 0.2
     for digit in ("1", "8", "5"):
         assert _text_similarity(digit, "1853") < 0.3
 
+    # A detection shorter than the record has to stand on its own similarity,
+    # so a bare title read against a fuller catalog title does not match.
+    assert _text_similarity("Kytice", catalog) < 0.3
+
 
 def test_short_values_still_match_each_other_exactly():
-    # The guard removes substring matching for short values, not matching:
-    # a year or an edition number still matches its own counterpart.
+    # Comparing whole removes the substring licence, not matching itself: a
+    # year or an edition number still matches its own counterpart.
     assert _text_similarity("1853", "1853") == 1.0
     assert _text_similarity("2", "2") == 1.0
+    assert _text_similarity("Praha 1853 Storch", "1853") == 1.0
 
 
-def test_similarity_does_not_depend_on_argument_order():
-    for first, second in (
-        ("K", "Kytice z pověstí národních"),
-        ("Kytice", "Kytice z pověstí národních"),
-        ("8", "1853"),
-    ):
-        assert _text_similarity(first, second) == _text_similarity(second, first)
+def test_similarity_is_asymmetric_by_design():
+    catalog = "Kytice z pověstí národních"
+    assert _text_similarity(catalog, "Kytice") == 1.0
+    assert _text_similarity("Kytice", catalog) < 0.3
 
 
 def test_a_one_character_detection_cannot_corroborate_a_field():
@@ -473,7 +488,7 @@ def test_a_loose_resemblance_does_not_override_confidence(metakat_page):
         id=uuid4(), page_id=metakat_page.id, title=("Some other book", 0.99, uuid4())
     )
 
-    assert 0.7 <= _text_similarity("Kytice basni", "Kxtxce basnx") < 0.8
+    assert 0.7 <= _text_similarity("Kxtxce basnx", "Kytice basni") < 0.8
     assert BiblioBindEngineBase._count_proarc_matches(
         [loosely_similar], proarc_volume
     ) == 1
@@ -564,7 +579,7 @@ def test_a_roughly_read_title_still_counts_as_recognised():
     pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
     proarc_volume = _proarc_volume(title=["Kytice basni"], publisher=["Storch"])
 
-    assert 0.6 <= _text_similarity("Kytice basni", "Kxtxcx basnx") < 0.7
+    assert 0.6 <= _text_similarity("Kxtxcx basnx", "Kytice basni") < 0.7
 
     roughly_read, other = _two_groups(
         pages,
