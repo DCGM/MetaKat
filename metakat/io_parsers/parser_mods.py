@@ -126,20 +126,19 @@ def _place_text(origin: ET.Element) -> Optional[str]:
 
 
 def _parse_origin_info(mods: ET.Element) -> Dict[str, object]:
-    # One entry per publication-era originInfo block, index-aligned across the
-    # four lists (e.g. Estetika has 5 publisher/place/date/edition eras from 1964-2008).
+    # One entry per originInfo block, index-aligned within each event type
+    # (e.g. Estetika has 5 publisher/place/date/edition eras from 1964-2008).
     publisher, place, date_issued, edition = [], [], [], []
     manufacture_publisher, manufacture_place = [], []
 
     for origin in mods.findall("mods:originInfo", NS):
         if origin.get("eventType") == "manufacture":
-            for pub in origin.findall("mods:publisher", NS):
-                value = _clean(pub.text)
-                if value:
-                    manufacture_publisher.append(value)
+            manufacture_pub_value = _clean(origin.findtext("mods:publisher", namespaces=NS))
             manufacture_place_value = _place_text(origin)
-            if manufacture_place_value:
-                manufacture_place.append(manufacture_place_value)
+            if manufacture_pub_value is None and manufacture_place_value is None:
+                continue
+            manufacture_publisher.append(manufacture_pub_value)
+            manufacture_place.append(manufacture_place_value)
             continue
 
         pub_value = _clean(origin.findtext("mods:publisher", namespaces=NS))
@@ -159,8 +158,8 @@ def _parse_origin_info(mods: ET.Element) -> Dict[str, object]:
         "dateIssued": date_issued or None,
         "edition": edition or None,
         "publisher": publisher or None,
-        "manufacturePublisher": _dedup(manufacture_publisher),
-        "manufacturePlaceTerm": _dedup(manufacture_place),
+        "manufacturePublisher": manufacture_publisher or None,
+        "manufacturePlaceTerm": manufacture_place or None,
     }
 
 

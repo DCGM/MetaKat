@@ -91,6 +91,21 @@ def test_multi_era_origin_info_stays_index_aligned_with_none_for_missing_values(
     assert result["edition"] == [None, "New series"]
 
 
+def test_manufacture_publisher_and_place_stay_index_aligned_with_none_for_missing_values():
+    xml = _wrap("""
+    <mods:originInfo eventType="manufacture">
+      <mods:place><mods:placeTerm type="text">Brno</mods:placeTerm></mods:place>
+      <mods:publisher>Tiskarna XY</mods:publisher>
+    </mods:originInfo>
+    <mods:originInfo eventType="manufacture">
+      <mods:place><mods:placeTerm type="text">Praha</mods:placeTerm></mods:place>
+    </mods:originInfo>
+    """)
+    result = parse_mods(xml)
+    assert result["manufacturePublisher"] == ["Tiskarna XY", None]
+    assert result["manufacturePlaceTerm"] == ["Brno", "Praha"]
+
+
 def test_series_name_and_number_from_related_item():
     xml = _wrap("""
     <mods:relatedItem type="series">
