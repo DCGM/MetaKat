@@ -244,6 +244,21 @@ def test_volume_matches_proarc_on_overlapping_title():
     assert BiblioBindEngineBase._volume_matches_proarc(candidate, proarc_volume)
 
 
+def test_volume_matches_proarc_skips_aligned_group_placeholders():
+    # A proarc catalog field is a column of an index-aligned group, so it holds
+    # None wherever that source block had no value. Matching used to hand those
+    # placeholders to _text_similarity, which raised AttributeError before it
+    # ever reached the real value behind them.
+    proarc_volume = _proarc_volume(title=[None, "Kytice z pověstí národních"])
+    candidate = MetakatVolume(
+        id=uuid4(),
+        page_id=uuid4(),
+        title=("Kytice z povesti narodnich", 0.9, uuid4()),
+    )
+
+    assert BiblioBindEngineBase._volume_matches_proarc(candidate, proarc_volume)
+
+
 def test_volume_matches_proarc_rejects_unrelated_candidate():
     proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"], dateIssued=["1853"])
     candidate = MetakatVolume(id=uuid4(), title=("Advertisement", 0.9, uuid4()))

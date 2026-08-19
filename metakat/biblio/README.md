@@ -504,7 +504,10 @@ stray detection rather than evidence about this volume.
 `_volume_matches_proarc` compares each candidate text against each of the
 record's strings for the same field and accepts the candidate on the first pair
 whose similarity reaches `0.7`. Fields empty on either side are skipped, and one
-matching field is enough to make the whole candidate relevant.
+matching field is enough to make the whole candidate relevant. A record's
+catalog field is a column of an index-aligned group, so it holds `None`
+wherever that source block carried no value for it; those placeholders keep the
+columns lined up and are skipped rather than compared.
 
 Similarity is computed on normalized text: NFKD decomposition, lower-casing,
 removal of combining marks, punctuation replaced by spaces, and whitespace

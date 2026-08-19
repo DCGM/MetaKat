@@ -447,6 +447,12 @@ class BiblioBindEngineBase(BiblioBindEngine):
             )
             for candidate_text in candidate_texts:
                 for proarc_text in proarc_values:
+                    # A proarc catalog field is a column of an index-aligned
+                    # group, so it holds None wherever the source block had no
+                    # value for it. Those placeholders keep the columns lined
+                    # up; they are not text to compare against.
+                    if not proarc_text:
+                        continue
                     if _text_similarity(candidate_text, proarc_text) >= _PROARC_TEXT_SIMILARITY_THRESHOLD:
                         return True
         return False

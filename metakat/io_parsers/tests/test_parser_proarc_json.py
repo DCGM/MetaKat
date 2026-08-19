@@ -78,29 +78,27 @@ def test_document_that_is_not_a_proarc_json_reads_as_none(caplog):
     assert "cannot be attempted" in caplog.text
 
 
-def test_pid_rejected_by_the_schema_makes_the_whole_document_malformed(caplog):
-    # The ^uuid: pattern is enforced by ProarcIO itself, so a pid that fails it
-    # is a validation error for the document, not a per-record problem.
+def test_pid_without_the_uuid_prefix_discards_the_document(caplog):
     assert parse_proarc_json(_package(_object("nonsense"))) is None
-    assert "cannot be attempted" in caplog.text
+    assert "carries no valid UUID" in caplog.text
 
 
-def test_object_whose_pid_is_not_a_uuid_is_dropped(caplog):
-    # The pattern only guarantees the prefix; the remainder still has to be a
-    # real UUID, and without an id the record cannot be placed in a hierarchy.
-    good = uuid4()
+def test_one_unidentifiable_object_discards_the_whole_document(caplog):
+    # A hierarchy with a record missing still looks like a complete one to the
+    # engines downstream, so a package is all-or-nothing on identity: the
+    # readable neighbour must not survive on its own.
     package = parse_proarc_json(
-        _package(_object(f"uuid:{good}"), _object("uuid:not-a-uuid"))
+        _package(_object(f"uuid:{uuid4()}"), _object("uuid:not-a-uuid"))
     )
 
-    assert [obj.id for obj in package.objects] == [good]
+    assert package is None
     assert "carries no valid UUID" in caplog.text
-    assert "Read 1 of 2" in caplog.text
+    assert "discarding the whole document" in caplog.text
 
 
-def test_document_whose_every_object_is_unusable_reads_as_none(caplog):
+def test_document_whose_only_object_is_unusable_reads_as_none(caplog):
     assert parse_proarc_json(_package(_object("uuid:not-a-uuid"))) is None
-    assert "No usable record could be read" in caplog.text
+    assert "carries no valid UUID" in caplog.text
 
 
 def test_document_without_objects_reads_as_none(caplog):
@@ -130,6 +128,8 @@ def test_object_with_empty_mods_is_kept_with_its_identity():
 
 
 def test_readable_records_survive_an_unreadable_neighbour():
+    # Unlike identity, a record's catalog fields are not all-or-nothing: an
+    # unparseable MODS costs that one record its fields, nothing more.
     good, broken = uuid4(), uuid4()
     package = parse_proarc_json(
         _package(
@@ -141,3 +141,41 @@ def test_readable_records_survive_an_unreadable_neighbour():
     assert [obj.id for obj in package.objects] == [good, broken]
     assert package.objects[0].title == ["Kytice"]
     assert package.objects[1].title is None
+
+
+def test_aligned_groups_keep_their_none_placeholders():
+    # An index-aligned group holds one entry per source block, so a block with
+    # no value for a field occupies its index as None. The model has to accept
+    # that, otherwise validating the finished document would reject exactly
+    # what the MODS parser produces.
+    object_uuid = uuid4()
+    metadata = (
+        '<mods:modsCollection xmlns:mods="http://www.loc.gov/mods/v3">'
+        '<mods:mods version="3.5">'
+        '<mods:titleInfo usage="primary"><mods:title>Kytice</mods:title>'
+        "</mods:titleInfo>"
+        "<mods:titleInfo><mods:partNumber>2</mods:partNumber></mods:titleInfo>"
+        "</mods:mods></mods:modsCollection>"
+    )
+
+    package = parse_proarc_json(_package(_object(f"uuid:{object_uuid}", metadata)))
+
+    obj = package.objects[0]
+    assert obj.title == ["Kytice", None]
+    assert obj.partNumber == [None, "2"]
+
+
+def test_the_parsed_package_is_what_pydantic_validated():
+    # The document is assembled first and validated once, so a package coming
+    # out of here round-trips through its own model. Filling fields in after
+    # validation would not: pydantic does not check assignment, so the model
+    # would never have seen them.
+    object_uuid = uuid4()
+    package = parse_proarc_json(
+        _package(_object(f"uuid:{object_uuid}", _mods(title="Kytice")))
+    )
+
+    revalidated = ProarcIO.model_validate(package.model_dump(mode="json"))
+
+    assert revalidated == package
+    assert revalidated.objects[0].id == object_uuid

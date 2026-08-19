@@ -413,27 +413,54 @@ consumer of `ProarcIO` expects to have happened already — deriving each object
 An object that skipped them has a null `id` and no catalog values, which fails
 later and further away, inside whichever engine first tries to use it.
 
+The document is assembled first — each object's `id` derived and its MODS
+parsed — and validated **once, as a whole**. Validating first and filling the
+fields in afterwards would leave the model guarding nothing, because pydantic
+does not check assignment: whatever the MODS parser produced would reach the
+engines unchecked. Because the finished document is what gets validated,
+`ObjectItem` describes what the parser actually emits, which is why the twelve
+index-aligned fields are `List[Optional[str]]` — see
+[the aligned groups](#index-aligned-catalog-fields).
+
 Reading is best effort and never raises. A ProArc document that cannot be read
 must not stop a batch: processing always runs, at worst without ProArc support.
 The parser returns either a package with something in it or `None` — never an
 empty package, so no engine is handed a record that offers nothing.
 
-An object is **usable** when its `pid` yields a valid `UUID`. That identity is
-the minimum needed to place a record in the hierarchy at all, so a record
-without it is dropped rather than partially read. The outcomes are:
+Identity is all-or-nothing. Every object's `pid` must yield a valid `UUID`,
+because that identity is what places a record in the hierarchy — and a
+hierarchy with one record missing still looks complete further down the
+pipeline, where it would be read as a different structure than the catalog
+describes. So one unidentifiable object discards the whole document rather than
+just itself. Catalog fields are not all-or-nothing: an unparseable MODS costs
+that one record its fields and nothing more.
 
 | Input | Outcome |
 |---|---|
+| Any object's `pid` carries no valid UUID | Warning naming the pid; the whole document is discarded, `None` |
 | The document fails `ProarcIO` validation | Warning that reading cannot be attempted; `None` |
-| An object's `pid` carries no valid UUID | Warning naming the pid; that object is dropped |
-| Some objects dropped, others kept | Warning with the kept/total counts; package of the kept ones |
 | An object's MODS cannot be parsed | Warning naming the object; it is kept with its identity and no catalog fields |
-| No object survives, or the document has none | Warning that nothing could be read; `None` |
+| The document has no objects | Warning that nothing could be read; `None` |
 
-A `pid` that does not match the `^uuid:` pattern is a document-level validation
-error rather than a per-record one, because the pattern is enforced by
-`ProarcIO` itself. Only a `pid` that has the prefix but no real UUID after it is
-handled per record.
+### Index-aligned catalog fields
+
+`title`/`subTitle`/`partName`/`partNumber` carry one entry per `titleInfo`
+block and stay aligned with each other; `publisher`/`placeTerm`/`dateIssued`/
+`edition` do the same over publication-era `originInfo` blocks,
+`manufacturePublisher`/`manufacturePlaceTerm` over manufacture ones, and
+`seriesName`/`seriesNumber` over series `relatedItem`s.
+
+Keeping a group aligned means a block with no value for one of its fields still
+occupies that index, as `null`. A record whose first `titleInfo` has only a
+title and whose second has only a part number reads as:
+
+```json
+{ "title": ["Kytice", null], "partNumber": [null, "2"] }
+```
+
+The six role-derived name fields — `author`, `illustrator`, `photographer`,
+`translator`, `editor`, `redaktor` — are a set of names rather than a column of
+an aligned group, so they never hold a placeholder and stay `List[str]`.
 
 The same function backs the standalone parser, which writes the parsed package
 as JSON and exits non-zero when nothing usable could be read:
