@@ -35,6 +35,12 @@ _PROARC_VOLUME_LIST_FIELDS = (
     "publisher", "manufacturePublisher", "manufacturePlaceTerm", "author", "illustrator",
     "photographer", "translator", "editor", "seriesName", "seriesNumber",
 )
+# How close a group's title has to be to one of the record's titles for the
+# catalog to be treated as recognising it. Deliberately the most permissive of
+# the three bars: this only decides which group gets looked at first, and if
+# several titles clear it the overall corroboration count behind it resolves
+# the conflict, so letting a rough OCR reading through costs nothing.
+_PROARC_TITLE_SUPPORT_SIMILARITY = 0.6
 # How close a candidate value has to be to one of the record's values to count
 # as corroborating it when scoring a group.
 _PROARC_TEXT_SIMILARITY_THRESHOLD = 0.7
@@ -376,15 +382,26 @@ class BiblioBindEngineBase(BiblioBindEngine):
     # the batch must not be pooled together with them).
     #
     # Proarc's one job here is judging which of those groups describes the
-    # book: the group corroborating more of the catalog record wins. It never
-    # contributes content. Everything written to the MetakatIO comes from the
-    # winning group's own detections - the record's values are compared
-    # against them and then discarded, never copied out - and the record does
-    # not get to say which of those detections may be written either, so a
-    # whole group is merged rather than the subset that happened to match.
-    # Title precedence outranks the record's opinion: a group whose merge
-    # produced a title always beats one that did not. Remaining ties go to
-    # whichever group gathered more field-level detections.
+    # book. Groups are ranked by, in order: whether the catalog recognises a
+    # title the group detected, how much of the record the group corroborates
+    # overall, whether it produced a title at all, and how many field-level
+    # detections it gathered.
+    #
+    # A recognised title is the strongest single signal that a group is the
+    # book, so it leads; overall corroboration resolves conflicts behind it,
+    # which is why the title bar can afford to be the loosest of the three
+    # similarity thresholds. The last two keys carry no proarc input at all,
+    # and decide alone when the record corroborates nothing - a record whose
+    # MODS could not be read leaves every group scoring zero, and the ranking
+    # then reduces to the vision-only preference for a titled group with the
+    # most evidence.
+    #
+    # Proarc never contributes content. Everything written to the MetakatIO
+    # comes from the winning group's own detections - the record's values are
+    # compared against them and then discarded, never copied out - and the
+    # record does not get to say which of those detections may be written
+    # either, so a whole group is merged rather than the subset that happened
+    # to match.
     #
     # Candidate MetakatIssue elements are dropped outright, since a lone
     # volume object implies no issue-level structure.
@@ -413,17 +430,19 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 group, volume_id, anchor_page_id=None, proarc_volume=proarc_volume
             )
             rank = (
-                merged.title is not None,
+                self._title_is_corroborated(group, proarc_volume),
                 self._count_proarc_matches(group, proarc_volume),
+                merged.title is not None,
                 self._count_detections(group),
             )
             if best_merged is None or rank > best_rank:
                 best_group, best_merged, best_rank = group, merged, rank
 
         logger.info(
-            "Winning group: %d volume candidate(s), title=%s, %d proarc field(s) "
-            "corroborated, %d overall detection(s)",
-            len(best_group), best_rank[0], best_rank[1], best_rank[2],
+            "Winning group: %d volume candidate(s), title recognised by the "
+            "record=%s, %d proarc field(s) corroborated, has title=%s, "
+            "%d overall detection(s)",
+            len(best_group), best_rank[0], best_rank[1], best_rank[2], best_rank[3],
         )
 
         best_merged.page_id = self._pick_anchor_page_id(best_group, title_pages, pages)
@@ -466,6 +485,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
         volume: MetakatVolume,
         field_name: str,
         proarc_values: Optional[List[Optional[str]]],
+        threshold: float = _PROARC_TEXT_SIMILARITY_THRESHOLD,
     ) -> bool:
         candidate_value = getattr(volume, field_name)
         if not candidate_value or not proarc_values:
@@ -476,9 +496,25 @@ class BiblioBindEngineBase(BiblioBindEngine):
             else [item[0] for item in candidate_value]
         )
         return any(
-            _best_text_similarity(candidate_text, proarc_values)
-            >= _PROARC_TEXT_SIMILARITY_THRESHOLD
+            _best_text_similarity(candidate_text, proarc_values) >= threshold
             for candidate_text in candidate_texts
+        )
+
+    # Whether the catalog recognises any title this group detected. Asked of
+    # the group's detections rather than of the merged title, because the
+    # question here is which group is the book - a group holding a title the
+    # catalog knows is evidence of that whoever ends up winning the merge.
+    @classmethod
+    def _title_is_corroborated(
+        cls,
+        volumes: List[MetakatVolume],
+        proarc_volume: ObjectItem,
+    ) -> bool:
+        return any(
+            cls._field_matches_proarc(
+                volume, "title", proarc_volume.title, _PROARC_TITLE_SUPPORT_SIMILARITY
+            )
+            for volume in volumes
         )
 
     # How much of the catalog record this group corroborates, as a count of
