@@ -266,16 +266,17 @@ class ObjectItem(BaseModel):
 
     # Values parsed out of `metadata` (MODS XML) by parser_mods.parse_mods.
     # Keys are named after the matching fields on MetakatTitle/MetakatVolume/
-    # MetakatIssue. publisher/placeTerm/dateIssued are one entry per publication-era
-    # originInfo block and stay index-aligned with each other (None where a block is
-    # missing that particular value) - richer than the singular Metakat fields, since
-    # a MODS record (e.g. a periodical title) can carry several publisher eras.
+    # MetakatIssue. publisher/placeTerm/dateIssued/edition are one entry per
+    # publication-era originInfo block and stay index-aligned with each other
+    # (None where a block is missing that particular value) - richer than the
+    # singular Metakat fields, since a MODS record (e.g. a periodical title) can
+    # carry several publisher eras.
     title: Optional[str] = None
     subTitle: Optional[str] = None
     partName: Optional[str] = None
     partNumber: Optional[str] = None
     dateIssued: Optional[List[str]] = None
-    edition: Optional[str] = None
+    edition: Optional[List[str]] = None
     placeTerm: Optional[List[str]] = None
     publisher: Optional[List[str]] = None
     manufacturePublisher: Optional[List[str]] = None
