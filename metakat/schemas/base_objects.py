@@ -264,6 +264,28 @@ class ObjectItem(BaseModel):
     model: ObjectModel
     metadata: str
 
+    # Values parsed out of `metadata` (MODS XML) by parser_mods.parse_mods.
+    # Keys/types mirror the matching fields on MetakatTitle/MetakatVolume/MetakatIssue
+    # so parser_proarc_json can map them onto the internal representation directly.
+    title: Optional[str] = None
+    subTitle: Optional[str] = None
+    partName: Optional[str] = None
+    partNumber: Optional[str] = None
+    dateIssued: Optional[str] = None
+    edition: Optional[str] = None
+    placeTerm: Optional[str] = None
+    publisher: Optional[List[str]] = None
+    manufacturePublisher: Optional[List[str]] = None
+    manufacturePlaceTerm: Optional[List[str]] = None
+    author: Optional[List[str]] = None
+    illustrator: Optional[List[str]] = None
+    photographer: Optional[List[str]] = None
+    translator: Optional[List[str]] = None
+    editor: Optional[List[str]] = None
+    redaktor: Optional[List[str]] = None
+    seriesName: Optional[List[str]] = None
+    seriesNumber: Optional[List[str]] = None
+
 class ProarcIO(BaseModel):
     model_config = ConfigDict(extra="forbid")  # additionalProperties: false
     type: PackageType
