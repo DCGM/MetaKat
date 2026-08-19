@@ -9,7 +9,7 @@ def _wrap(mods_body: str, version: str = "3.5") -> str:
 </mods:modsCollection>"""
 
 
-def test_primary_title_wins_over_alternative():
+def test_all_titleinfo_blocks_retained_in_document_order_without_primary_marker():
     xml = _wrap("""
     <mods:titleInfo type="alternative">
       <mods:title>Alt Title</mods:title>
@@ -20,8 +20,50 @@ def test_primary_title_wins_over_alternative():
     </mods:titleInfo>
     """)
     result = parse_mods(xml)
-    assert result["title"] == "Estetika"
-    assert result["subTitle"] == "casopis pro estetiku"
+    assert result["title"] == ["Alt Title", "Estetika"]
+    assert result["subTitle"] == [None, "casopis pro estetiku"]
+
+
+def test_primary_marked_titleinfo_sorts_first():
+    xml = _wrap("""
+    <mods:titleInfo type="alternative">
+      <mods:title>Alt Title</mods:title>
+    </mods:titleInfo>
+    <mods:titleInfo usage="primary">
+      <mods:title>Estetika</mods:title>
+      <mods:subTitle>casopis pro estetiku</mods:subTitle>
+    </mods:titleInfo>
+    """)
+    result = parse_mods(xml)
+    assert result["title"] == ["Estetika", "Alt Title"]
+    assert result["subTitle"] == ["casopis pro estetiku", None]
+
+
+def test_titleinfo_with_only_partnumber_aligns_with_none_title():
+    xml = _wrap("""
+    <mods:titleInfo>
+      <mods:title>Estetika</mods:title>
+    </mods:titleInfo>
+    <mods:titleInfo>
+      <mods:partNumber>38</mods:partNumber>
+    </mods:titleInfo>
+    """)
+    result = parse_mods(xml)
+    assert result["title"] == ["Estetika", None]
+    assert result["partNumber"] == [None, "38"]
+
+
+def test_exact_duplicate_titleinfo_row_is_dropped_as_a_whole():
+    xml = _wrap("""
+    <mods:titleInfo>
+      <mods:title>Estetika</mods:title>
+    </mods:titleInfo>
+    <mods:titleInfo>
+      <mods:title>Estetika</mods:title>
+    </mods:titleInfo>
+    """)
+    result = parse_mods(xml)
+    assert result["title"] == ["Estetika"]
 
 
 def test_roles_are_mapped_including_photographer_and_unmapped_role_is_dropped():

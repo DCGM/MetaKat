@@ -29,10 +29,10 @@ def test_returns_proarc_io_with_parsed_fields_filled_in():
 
     title_obj, volume_obj = package.objects
     assert title_obj.pid == "uuid:1"
-    assert title_obj.title == "Estetika"
+    assert title_obj.title == ["Estetika"]
 
     assert volume_obj.pid == "uuid:2"
-    assert volume_obj.partNumber == "38"
+    assert volume_obj.partNumber == ["38"]
     assert volume_obj.dateIssued == ["2002"]
 
 
@@ -45,5 +45,5 @@ def test_raw_metadata_string_is_preserved_alongside_parsed_fields():
     }
     package = parse_proarc_json(data)
     obj = package.objects[0]
-    assert obj.title == "Some Book"
+    assert obj.title == ["Some Book"]
     assert "<mods:title>Some Book</mods:title>" in obj.metadata

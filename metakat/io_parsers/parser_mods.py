@@ -71,23 +71,23 @@ def _find_mods_element(root: ET.Element) -> Optional[ET.Element]:
     return None
 
 
-def _parse_title_info(mods: ET.Element) -> Dict[str, Optional[str]]:
-    title_infos = mods.findall("mods:titleInfo", NS)
-    primary = next((ti for ti in title_infos if ti.get("usage") == "primary"), None)
-    if primary is None:
-        primary = next((ti for ti in title_infos if ti.get("type") is None), None)
-    if primary is None and title_infos:
-        primary = title_infos[0]
+def _parse_title_info(mods: ET.Element) -> Dict[str, Optional[List[str]]]:
+    # One row per titleInfo block (a record can have several, e.g. a plain title
+    # plus a type="uniform" one). usage="primary" rows sort first; the rest keep
+    # document order. Deduped as whole rows so the four columns stay aligned.
+    primary_rows, other_rows = [], []
+    for title_info in mods.findall("mods:titleInfo", NS):
+        title = _clean(title_info.findtext("mods:title", namespaces=NS))
+        sub_title = _clean(title_info.findtext("mods:subTitle", namespaces=NS))
+        part_name = _clean(title_info.findtext("mods:partName", namespaces=NS))
+        part_number = _clean(title_info.findtext("mods:partNumber", namespaces=NS))
+        if title is None and sub_title is None and part_name is None and part_number is None:
+            continue
+        row = (title, sub_title, part_name, part_number)
+        (primary_rows if title_info.get("usage") == "primary" else other_rows).append(row)
 
-    if primary is None:
-        return {"title": None, "subTitle": None, "partName": None, "partNumber": None}
-
-    return {
-        "title": _clean(primary.findtext("mods:title", namespaces=NS)),
-        "subTitle": _clean(primary.findtext("mods:subTitle", namespaces=NS)),
-        "partName": _clean(primary.findtext("mods:partName", namespaces=NS)),
-        "partNumber": _clean(primary.findtext("mods:partNumber", namespaces=NS)),
-    }
+    title, sub_title, part_name, part_number = _columns(_dedup_rows(primary_rows + other_rows), width=4)
+    return {"title": title, "subTitle": sub_title, "partName": part_name, "partNumber": part_number}
 
 
 def _parse_series(mods: ET.Element) -> Dict[str, Optional[List[str]]]:
@@ -177,12 +177,13 @@ def _parse_origin_info(mods: ET.Element) -> Dict[str, object]:
 def parse_mods(xml_text: str) -> Dict[str, object]:
     """Parse a single MODS record (optionally wrapped in modsCollection) into a flat
     dict, with keys named after the matching fields on MetakatTitle/MetakatVolume/
-    MetakatIssue. publisher/placeTerm/dateIssued/edition are index-aligned lists,
-    one entry per publication-era originInfo block; manufacturePublisher/
-    manufacturePlaceTerm the same over manufacture-type blocks; seriesName/
-    seriesNumber the same over series relatedItems. None where a block is missing
-    a particular value; an exact-duplicate row (all fields equal) is dropped as a
-    whole so the remaining entries stay aligned.
+    MetakatIssue. title/subTitle/partName/partNumber are index-aligned lists, one
+    entry per titleInfo block (usage="primary" sorted first); publisher/placeTerm/
+    dateIssued/edition the same, one entry per publication-era originInfo block;
+    manufacturePublisher/manufacturePlaceTerm the same over manufacture-type
+    blocks; seriesName/seriesNumber the same over series relatedItems. None where
+    a block is missing a particular value; an exact-duplicate row (all fields
+    equal) is dropped as a whole so the remaining entries stay aligned.
     """
     result: Dict[str, object] = {field: None for field in FIELD_NAMES}
 
