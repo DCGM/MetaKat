@@ -106,6 +106,47 @@ def test_manufacture_publisher_and_place_stay_index_aligned_with_none_for_missin
     assert result["manufacturePlaceTerm"] == ["Brno", "Praha"]
 
 
+def test_exact_duplicate_origin_info_row_is_dropped_as_a_whole():
+    xml = _wrap("""
+    <mods:originInfo eventType="publication">
+      <mods:place><mods:placeTerm type="text">Praha</mods:placeTerm></mods:place>
+      <mods:publisher>Academia</mods:publisher>
+      <mods:dateIssued>1964</mods:dateIssued>
+    </mods:originInfo>
+    <mods:originInfo eventType="publication">
+      <mods:place><mods:placeTerm type="text">Praha</mods:placeTerm></mods:place>
+      <mods:publisher>Academia</mods:publisher>
+      <mods:dateIssued>1964</mods:dateIssued>
+    </mods:originInfo>
+    <mods:originInfo eventType="publication">
+      <mods:place><mods:placeTerm type="text">Praha</mods:placeTerm></mods:place>
+      <mods:publisher>Academia</mods:publisher>
+      <mods:dateIssued>1965</mods:dateIssued>
+    </mods:originInfo>
+    """)
+    result = parse_mods(xml)
+    assert result["publisher"] == ["Academia", "Academia"]
+    assert result["placeTerm"] == ["Praha", "Praha"]
+    assert result["dateIssued"] == ["1964", "1965"]
+
+
+def test_partial_duplicate_origin_info_row_is_kept_distinct():
+    xml = _wrap("""
+    <mods:originInfo eventType="publication">
+      <mods:place><mods:placeTerm type="text">Praha</mods:placeTerm></mods:place>
+      <mods:publisher>Academia</mods:publisher>
+    </mods:originInfo>
+    <mods:originInfo eventType="publication">
+      <mods:place><mods:placeTerm type="text">Praha</mods:placeTerm></mods:place>
+      <mods:dateIssued>1980</mods:dateIssued>
+    </mods:originInfo>
+    """)
+    result = parse_mods(xml)
+    assert result["publisher"] == ["Academia", None]
+    assert result["placeTerm"] == ["Praha", "Praha"]
+    assert result["dateIssued"] == [None, "1980"]
+
+
 def test_series_name_and_number_from_related_item():
     xml = _wrap("""
     <mods:relatedItem type="series">
