@@ -465,18 +465,16 @@ exactly one `MetakatVolume`:
    book yields one title-page detection, sometimes a couple of adjacent ones
    such as a half-title plus a title page, and this keeps unrelated detections
    elsewhere in the batch from pooling with them.
-2. **Match each group against the record.** A candidate is *relevant* when any
-   of its comparable fields matches any of the record's values for that field.
-   When a group has no relevant candidate, the whole group is used instead —
-   see [ProArc as bonus information](#proarc-as-bonus-information).
-3. **Merge each group independently** into one volume.
+2. **Merge each group independently** into one volume, using every candidate in
+   it. The record does not select which detections take part.
+3. **Score each group against the record** by counting how many comparable
+   fields any of its candidates corroborates.
 4. **Pick the winning group** by comparing the tuple
-   `(has_title, detection_count)`, where `has_title` is whether the merge
-   produced a title and `detection_count` is the number of field-level
-   detections gathered across the group's relevant candidates. Tuple comparison
-   is lexicographic, so a title-bearing group always beats a titleless one
-   regardless of detection counts, and ties among title-bearing groups go to the
-   larger evidence count.
+   `(has_title, proarc_match_count, detection_count)`. Tuple comparison is
+   lexicographic, so a group whose merge produced a title always beats a
+   titleless one; among those, the group corroborating more of the record wins;
+   and if the record cannot separate them, the larger field-level detection
+   count does.
 5. **Assign the anchor page** and return `[merged volume] + elements that are
    neither a volume nor an issue`. Every candidate issue is dropped, since a
    lone volume object implies no issue-level structure.
@@ -485,27 +483,38 @@ When there are no candidate volumes at all, an empty group is still processed,
 so the batch always ends with exactly one volume — carrying the record's
 identity but no evidence.
 
-#### ProArc as bonus information
+#### What ProArc decides, and what it does not
 
-A ProArc record settles how many volumes the batch has and supplies the
-winning volume's identity, but it must never cost the batch evidence it would
-otherwise have kept. Matching against it therefore only ever narrows a group;
-it cannot empty one. When no candidate in a group is relevant, the group's own
-candidates are merged instead.
+The record's only job is judging **which group** describes the book. Everything
+else is MetaKat's.
 
-This matters because a record with nothing to match against is ordinary rather
-than exotic. [Reading ProArc input](../README.md#reading-proarc-input) keeps an
-object whose MODS could not be parsed, with its identity and no catalog fields
-at all, and an index-aligned column can consist entirely of `null`
-placeholders. A record can also simply describe a different book than the one
-the detector read. Without the fallback each of those cases replaced every
-detected volume with one carrying an id and nothing else, leaving the batch
-worse off than if no ProArc record had been supplied.
+| Decided by the ProArc record | Decided by the detections |
+|---|---|
+| That the batch holds exactly one volume | Which text, confidence, and geometry every field carries |
+| Which group of neighbouring title pages wins | Which candidate wins a contested field, by confidence |
+| The volume's `id`, taken from the record's `pid` | Whether a field is present at all |
 
-The engine tolerates every ProArc state the IO guards permit. It never fails
-because of ProArc content: a document that offers nothing usable is either
-rejected before it arrives, or degrades to the same result the vision-only
-branch would have produced.
+No catalog value is ever written to `MetakatIO`. The record's values are read
+only to be compared against detections and are then discarded; every value in
+the merged volume is a detection tuple from the winning group, with its own
+detection UUID and geometry. The record also does not gate which detections may
+be written: a whole group is merged, not the subset that happened to match, so
+a field the record disagrees with is still written when the detector saw it.
+Within a group, a contested field goes to the highest-confidence detection —
+the record gets no vote.
+
+This also means a record that corroborates nothing costs the batch nothing.
+That state is ordinary rather than exotic:
+[Reading ProArc input](../README.md#reading-proarc-input) keeps an object whose
+MODS could not be parsed, with its identity and no catalog fields at all; an
+index-aligned column can consist entirely of `null` placeholders; and a record
+may simply describe a different book than the detector read. In each case the
+score is zero for every group, the ranking falls through to title precedence
+and detection count, and the result is what the vision-only branch would have
+produced — plus the record's `id`.
+
+The engine tolerates every ProArc state the IO guards permit, and never fails
+because of ProArc content.
 
 #### Comparable fields
 
@@ -517,21 +526,31 @@ Matching and merging use the fields shared by `MetakatVolume` and the ProArc
 | Single-value | `dateIssued`, `title`, `subTitle`, `edition`, `placeTerm` |
 | List-valued | `publisher`, `manufacturePublisher`, `manufacturePlaceTerm`, `author`, `illustrator`, `photographer`, `translator`, `editor`, `seriesName`, `seriesNumber` |
 
-`partNumber` and `partName` are excluded from matching, merging, and detection
+`partNumber` and `partName` are excluded from scoring, merging, and detection
 counting. A candidate can only carry them from `PartNumber`, `PartName`, or
 `PeriodicalVolume*` detections, all of which imply a `multipart` or `periodical`
 volume. A single ProArc volume object is neither, so such a value reflects a
 stray detection rather than evidence about this volume.
 
+Together with the merged volume's `hierarchy` always being `monograph`, this is
+the one place where the record's structural verdict — one plain volume — removes
+something a detection would otherwise have written. It follows from the volume
+count rather than from any catalog value, so no ProArc *content* is involved,
+but it is worth knowing about when reading the rule that the record never gates
+which detections are written.
+
 #### Text matching
 
-`_volume_matches_proarc` compares each candidate text against each of the
-record's strings for the same field and accepts the candidate on the first pair
-whose similarity reaches `0.7`. Fields empty on either side are skipped, and one
-matching field is enough to make the whole candidate relevant. A record's
-catalog field is a column of an index-aligned group, so it holds `None`
-wherever that source block carried no value for it; those placeholders keep the
-columns lined up and are skipped rather than compared.
+`_field_matches_proarc` compares each candidate text against each of the
+record's strings for one field and accepts on the first pair whose similarity
+reaches `0.7`. Fields empty on either side are skipped. A record's catalog
+field is a column of an index-aligned group, so it holds `None` wherever that
+source block carried no value for it; those placeholders keep the columns lined
+up and are skipped rather than compared.
+
+`_count_proarc_matches` applies that to a whole group, counting the comparable
+fields at least one of its candidates agrees with. That count is the group's
+score in the ranking above, and is the entirety of the record's influence.
 
 Similarity is computed on normalized text: NFKD decomposition, lower-casing,
 removal of combining marks, punctuation replaced by spaces, and whitespace

@@ -238,31 +238,57 @@ def test_single_proarc_volume_returns_none_without_proarc_io():
     assert BiblioBindEngineBase._single_proarc_volume(None) is None
 
 
-def test_volume_matches_proarc_on_overlapping_title():
-    proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"])
+def test_field_matches_proarc_on_overlapping_title():
     candidate = MetakatVolume(id=uuid4(), title=("Kytice z povesti narodnich", 0.9, uuid4()))
-    assert BiblioBindEngineBase._volume_matches_proarc(candidate, proarc_volume)
+    assert BiblioBindEngineBase._field_matches_proarc(
+        candidate, "title", ["Kytice z pověstí národních"]
+    )
 
 
-def test_volume_matches_proarc_skips_aligned_group_placeholders():
+def test_field_matches_proarc_skips_aligned_group_placeholders():
     # A proarc catalog field is a column of an index-aligned group, so it holds
     # None wherever that source block had no value. Matching used to hand those
     # placeholders to _text_similarity, which raised AttributeError before it
     # ever reached the real value behind them.
-    proarc_volume = _proarc_volume(title=[None, "Kytice z pověstí národních"])
     candidate = MetakatVolume(
         id=uuid4(),
         page_id=uuid4(),
         title=("Kytice z povesti narodnich", 0.9, uuid4()),
     )
 
-    assert BiblioBindEngineBase._volume_matches_proarc(candidate, proarc_volume)
+    assert BiblioBindEngineBase._field_matches_proarc(
+        candidate, "title", [None, "Kytice z pověstí národních"]
+    )
 
 
-def test_volume_matches_proarc_rejects_unrelated_candidate():
+def test_count_proarc_matches_counts_the_corroborated_fields():
+    proarc_volume = _proarc_volume(
+        title=["Kytice z pověstí národních"],
+        dateIssued=["1853"],
+        placeTerm=["Praha"],
+    )
+    group = [
+        MetakatVolume(id=uuid4(), title=("Kytice z povesti narodnich", 0.9, uuid4())),
+        MetakatVolume(id=uuid4(), dateIssued=("1853", 0.7, uuid4())),
+    ]
+
+    # title and dateIssued agree, placeTerm was never detected.
+    assert BiblioBindEngineBase._count_proarc_matches(group, proarc_volume) == 2
+
+
+def test_count_proarc_matches_is_zero_for_an_unrelated_group():
     proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"], dateIssued=["1853"])
-    candidate = MetakatVolume(id=uuid4(), title=("Advertisement", 0.9, uuid4()))
-    assert not BiblioBindEngineBase._volume_matches_proarc(candidate, proarc_volume)
+    group = [MetakatVolume(id=uuid4(), title=("Advertisement", 0.9, uuid4()))]
+
+    assert BiblioBindEngineBase._count_proarc_matches(group, proarc_volume) == 0
+
+
+def test_count_proarc_matches_is_zero_when_the_record_is_bare():
+    # The state an unreadable MODS leaves behind: identity, no catalog fields,
+    # so the record cannot discriminate between groups at all.
+    group = [MetakatVolume(id=uuid4(), title=("Kytice", 0.9, uuid4()))]
+
+    assert BiblioBindEngineBase._count_proarc_matches(group, _proarc_volume()) == 0
 
 
 def test_resolve_single_proarc_volume_uses_the_proarc_pid_as_the_volume_id(metakat_page):
@@ -286,28 +312,27 @@ def test_resolve_single_proarc_volume_uses_the_proarc_pid_as_the_volume_id(metak
     assert result[0].id == record_uuid
 
 
-def test_resolve_single_proarc_volume_discards_unrelated_candidates_and_merges_relevant_ones(metakat_page):
-    # Proarc says the batch is exactly one catalogued volume: two of the three
-    # detected volume candidates carry fields that overlap with the catalog
-    # record's own title/dateIssued and get merged into one MetakatVolume; the
-    # third candidate's title doesn't match anything in the record and is
-    # discarded as evidence for an unrelated title page. The stray issue
-    # candidate is dropped outright since a lone volume object implies no
-    # issue-level structure.
+def test_resolve_single_proarc_volume_merges_the_whole_winning_group(metakat_page):
+    # Proarc ranks groups; it does not filter within one. Every candidate in
+    # the winning group contributes, and which detection wins a field is
+    # decided by MetaKat confidence alone - here the highest-confidence title
+    # takes the field even though the record corroborates a different one. The
+    # stray issue candidate is dropped outright, since a lone volume object
+    # implies no issue-level structure.
     binder = _binder({})
     proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"], dateIssued=["1853"])
-    matching_volume = MetakatVolume(
+    corroborated_title = MetakatVolume(
         id=uuid4(),
         page_id=metakat_page.id,
         title=("Kytice z povesti narodnich", 0.9, uuid4()),
     )
-    matching_volume_more_evidence = MetakatVolume(
+    more_evidence = MetakatVolume(
         id=uuid4(),
         page_id=metakat_page.id,
         dateIssued=("1853", 0.7, uuid4()),
         publisher=[("Storch", 0.6, uuid4())],
     )
-    unrelated_volume = MetakatVolume(
+    most_confident_title = MetakatVolume(
         id=uuid4(),
         page_id=metakat_page.id,
         title=("Some other book", 0.99, uuid4()),
@@ -315,7 +340,7 @@ def test_resolve_single_proarc_volume_discards_unrelated_candidates_and_merges_r
     stray_issue = MetakatIssue(id=uuid4(), page_id=metakat_page.id)
 
     result = binder.resolve_single_proarc_volume(
-        [matching_volume, matching_volume_more_evidence, unrelated_volume, stray_issue],
+        [corroborated_title, more_evidence, most_confident_title, stray_issue],
         proarc_volume,
         title_pages=[metakat_page],
         pages=[metakat_page],
@@ -324,9 +349,43 @@ def test_resolve_single_proarc_volume_discards_unrelated_candidates_and_merges_r
     assert len(result) == 1
     volume = result[0]
     assert volume.type == DocumentType.VOLUME.value
-    assert volume.title[0] == "Kytice z povesti narodnich"
+    assert volume.title == most_confident_title.title
     assert volume.dateIssued[0] == "1853"
-    assert volume.publisher == [matching_volume_more_evidence.publisher[0]]
+    assert volume.publisher == [more_evidence.publisher[0]]
+
+
+def test_resolve_single_proarc_volume_picks_the_group_the_record_corroborates():
+    # What proarc is actually for: two separate groups of neighbouring pages,
+    # and the record decides which one is the book. The losing group's higher
+    # detection count does not save it, and none of the record's own values
+    # end up in the result.
+    binder = _binder({})
+    batch_id = uuid4()
+    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
+    proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"])
+
+    corroborated = MetakatVolume(
+        id=uuid4(),
+        page_id=pages[0].id,
+        title=("Kytice z povesti narodnich", 0.5, uuid4()),
+    )
+    unrelated = MetakatVolume(
+        id=uuid4(),
+        page_id=pages[5].id,
+        title=("Some other book", 0.99, uuid4()),
+        publisher=[("Storch", 0.9, uuid4())],
+        placeTerm=("Praha", 0.9, uuid4()),
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [corroborated, unrelated], proarc_volume, title_pages=pages, pages=pages,
+    )
+
+    assert len(result) == 1
+    volume = result[0]
+    assert volume.title == corroborated.title
+    assert volume.page_id == pages[0].id
+    assert volume.publisher is None
 
 
 def test_resolve_single_proarc_volume_keeps_detections_when_nothing_matches(metakat_page):
