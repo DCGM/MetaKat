@@ -266,21 +266,23 @@ class ObjectItem(BaseModel):
 
     # Values parsed out of `metadata` (MODS XML) by parser_mods.parse_mods.
     # Keys are named after the matching fields on MetakatTitle/MetakatVolume/
-    # MetakatIssue. publisher/placeTerm/dateIssued/edition are one entry per
-    # publication-era originInfo block and stay index-aligned with each other
-    # (None where a block is missing that particular value) - richer than the
-    # singular Metakat fields, since a MODS record (e.g. a periodical title) can
-    # carry several publisher eras. manufacturePublisher/manufacturePlaceTerm are
-    # the same, index-aligned with each other, but over eventType="manufacture"
-    # blocks - a separate index space from the publication-era lists above.
-    # seriesName/seriesNumber are likewise index-aligned with each other, one
-    # entry per series relatedItem. Within each aligned group, an exact-duplicate
-    # row (all fields equal) is dropped as a whole rather than deduping columns
-    # independently, which would break the alignment.
-    title: Optional[str] = None
-    subTitle: Optional[str] = None
-    partName: Optional[str] = None
-    partNumber: Optional[str] = None
+    # MetakatIssue. title/subTitle/partName/partNumber are one entry per
+    # titleInfo block (usage="primary" sorted first, rest in document order) and
+    # stay index-aligned with each other - richer than the singular Metakat
+    # fields, since a record can have several titleInfo blocks (e.g. a plain
+    # title plus a type="uniform" one). publisher/placeTerm/dateIssued/edition
+    # are the same, one entry per publication-era originInfo block.
+    # manufacturePublisher/manufacturePlaceTerm are the same, index-aligned with
+    # each other, but over eventType="manufacture" blocks - a separate index
+    # space from the publication-era lists above. seriesName/seriesNumber are
+    # likewise index-aligned with each other, one entry per series relatedItem.
+    # Within each aligned group, an exact-duplicate row (all fields equal) is
+    # dropped as a whole rather than deduping columns independently, which would
+    # break the alignment.
+    title: Optional[List[str]] = None
+    subTitle: Optional[List[str]] = None
+    partName: Optional[List[str]] = None
+    partNumber: Optional[List[str]] = None
     dateIssued: Optional[List[str]] = None
     edition: Optional[List[str]] = None
     placeTerm: Optional[List[str]] = None
