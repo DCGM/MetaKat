@@ -246,8 +246,15 @@ class BiblioBindEngineBase(BiblioBindEngine):
     # issue -> volume binding: an infant that is a page resolves its own
     # position directly (batch_index), any other infant (e.g. an issue)
     # resolves it via its anchor page_id. apply_cover_nudge is a page-only
-    # heuristic (pushes a front/back cover to the next parent) and must stay
-    # off when infants aren't pages.
+    # heuristic and must stay off when infants aren't pages.
+    #
+    # A parent is anchored on its title page, but a scan of one volume/issue
+    # runs front cover -> ... -> title page -> ... -> back cover, so the pages
+    # around a boundary lie outside the anchor range of the parent they belong
+    # to. The nudge moves the boundary onto the covers themselves, and the two
+    # cover types are opposites: a front cover opens the next parent, so it has
+    # to switch before the page is attached, while a back cover closes the
+    # current one and switches only after.
     def bind_infants(self,
                      pages: List[MetakatPage],
                      infants: List[Union[MetakatPage, MetakatIssue]],
@@ -265,20 +272,48 @@ class BiblioBindEngineBase(BiblioBindEngine):
 
         sorted_parents = sorted(parents, key=lambda x: parents_to_batch_index[x.id])
         current_parent_index = 0
-        current_parent = sorted_parents[current_parent_index]
         for page in pages:
-            if current_parent_index < len(sorted_parents) - 1 and parents_to_batch_index[sorted_parents[current_parent_index + 1].id] == page.batch_index:
-                current_parent = sorted_parents[current_parent_index + 1]
-                current_parent_index += 1
+            next_parent_index = current_parent_index + 1
+            if next_parent_index < len(sorted_parents) and parents_to_batch_index[sorted_parents[next_parent_index].id] == page.batch_index:
+                current_parent_index = next_parent_index
+
+            if apply_cover_nudge and self._has_page_type(page, PageType.FRONT_COVER):
+                current_parent_index = self._nudge_over_cover(
+                    page, sorted_parents, parents_to_batch_index, current_parent_index)
 
             current_infant = batch_index_to_infants.get(page.batch_index, None)
             if current_infant is not None:
-                current_infant.parent_id = current_parent.id
+                current_infant.parent_id = sorted_parents[current_parent_index].id
 
-            if apply_cover_nudge and page.pageType in [PageType.BACK_COVER, PageType.FRONT_COVER] and parents_to_batch_index[current_parent.id] < page.batch_index:
-                if current_parent_index < len(sorted_parents) - 1:
-                    current_parent = sorted_parents[current_parent_index + 1]
-                    current_parent_index += 1
+            if apply_cover_nudge and self._has_page_type(page, PageType.BACK_COVER):
+                current_parent_index = self._nudge_over_cover(
+                    page, sorted_parents, parents_to_batch_index, current_parent_index)
+
+    @staticmethod
+    def _has_page_type(page: MetakatPage, *page_types: PageType) -> bool:
+        # MetakatPage.pageType is a (type, confidence) tuple, so comparing the
+        # attribute itself against PageType members never holds - the type has
+        # to be read out of the tuple. MetakatBaseModel sets use_enum_values,
+        # which stores the type as PageType's plain string value; PageType
+        # subclasses str, so it still compares equal to its own member.
+        return page.pageType is not None and page.pageType[0] in page_types
+
+    @staticmethod
+    def _nudge_over_cover(
+        page: MetakatPage,
+        sorted_parents: List[Union[MetakatVolume, MetakatIssue]],
+        parents_to_batch_index: dict,
+        current_parent_index: int,
+    ) -> int:
+        if current_parent_index >= len(sorted_parents) - 1:
+            return current_parent_index
+        # Only nudge once the current parent's own anchor page is behind us.
+        # After a nudge that anchor lies ahead, which is what stops a back
+        # cover immediately followed by the next front cover - the usual way a
+        # boundary is scanned - from nudging twice and skipping a parent.
+        if parents_to_batch_index[sorted_parents[current_parent_index].id] >= page.batch_index:
+            return current_parent_index
+        return current_parent_index + 1
 
     # Create the MetakatTitle element from the list of MetakatElements
     # Extract the title and subtitle from the MetakatVolume element that has the most confident title detection
@@ -696,7 +731,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 if metakat_volume.edition is None or metakat_volume.edition[1] < detection[1]:
                     metakat_volume.edition = detection
 
-            elif biblio_type == BiblioType.DATE_ISSUED and metakat_volume.dateIssued is None:
+            elif biblio_type == BiblioType.DATE_ISSUED:
                 if metakat_volume.dateIssued is None or metakat_volume.dateIssued[1] < detection[1]:
                     metakat_volume.dateIssued = detection
 

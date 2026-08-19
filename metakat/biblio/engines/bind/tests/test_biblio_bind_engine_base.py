@@ -23,6 +23,7 @@ from metakat.schemas.base_objects import (
     ObjectItem,
     ObjectModel,
     PackageType,
+    PageType,
     ProarcIO,
 )
 
@@ -556,3 +557,178 @@ def test_periodical_bag_root_swap_does_not_null_out_root_volume():
     assert len(volumes) == 1
     assert volumes[0] is not None
     assert volumes[0].partNumber == stronger.partNumber
+
+
+def _date_issued_page(*confidences):
+    """A title page carrying one TITLE and several DateIssued detections."""
+    regions = [
+        AlignmentRegion(
+            region_id=0,
+            label="titulek",
+            category_id=0,
+            input_geometry=BoundingBox(10, 10, 100, 20),
+            input_geometry_confidence=0.9,
+            alto_text="Book title",
+            words=[],
+        ),
+    ]
+    for index, confidence in enumerate(confidences, start=1):
+        regions.append(
+            AlignmentRegion(
+                region_id=index,
+                label="rok vydani",
+                category_id=5,
+                input_geometry=BoundingBox(10, 20 * index, 100, 20),
+                input_geometry_confidence=confidence,
+                alto_text=f"18{index:02d}",
+                words=[],
+            )
+        )
+    return AlignmentPage(
+        page_key="page-1",
+        input_format=InputFormat.YOLO,
+        regions=regions,
+    )
+
+
+def test_date_issued_keeps_the_most_confident_detection(metakat_page):
+    # Regression test: the DateIssued branch used to be guarded by
+    # `and metakat_volume.dateIssued is None`, so once a value was set every
+    # later DateIssued detection fell through the whole if/elif chain to
+    # `continue` - discarded without a confidence comparison, and without its
+    # geometry being recorded. DateIssued now follows the same
+    # highest-confidence rule as every other single-value field.
+    binder = _binder(
+        {"titulek": BiblioType.TITLE, "rok vydani": BiblioType.DATE_ISSUED}
+    )
+
+    elements, detection_to_bbox = binder.get_volume_issue_from_page(
+        _date_issued_page(0.4, 0.9),
+        metakat_page,
+    )
+
+    volume = elements[0]
+    assert volume.dateIssued[0:2] == ("1802", 0.9)
+    # Both detections are now recorded; process() drops the losing one via
+    # _referenced_detection_ids.
+    assert len(detection_to_bbox) == 3
+
+
+def test_date_issued_does_not_downgrade_to_a_weaker_later_detection(metakat_page):
+    binder = _binder(
+        {"titulek": BiblioType.TITLE, "rok vydani": BiblioType.DATE_ISSUED}
+    )
+
+    elements, _ = binder.get_volume_issue_from_page(
+        _date_issued_page(0.9, 0.4),
+        metakat_page,
+    )
+
+    assert elements[0].dateIssued[0:2] == ("1801", 0.9)
+
+
+def _cover_batch(page_types):
+    """Pages 0..7, with the given {batch_index: PageType} classified."""
+    batch_id = uuid4()
+    return [
+        MetakatPage(
+            id=uuid4(),
+            batch_id=batch_id,
+            batch_index=index,
+            pageType=(page_types[index], 0.9) if index in page_types else None,
+        )
+        for index in range(8)
+    ]
+
+
+def test_front_cover_is_bound_to_the_volume_it_opens():
+    # Regression test: the nudge used to compare page.pageType - a
+    # (type, confidence) tuple - against PageType members, which never holds,
+    # so it never fired at all. A volume is anchored on its title page, but its
+    # scan starts at the front cover, so the cover pages ahead of the next
+    # title page belong to the next volume, not the one that just ended.
+    binder = _binder({})
+    pages = _cover_batch({4: PageType.FRONT_COVER})
+    volume_1 = MetakatVolume(id=uuid4(), page_id=pages[0].id)
+    volume_2 = MetakatVolume(id=uuid4(), page_id=pages[5].id)
+
+    binder.bind_infants(
+        pages, infants=pages, parents=[volume_1, volume_2], apply_cover_nudge=True
+    )
+
+    assert [p.parent_id for p in pages[:4]] == [volume_1.id] * 4
+    assert [p.parent_id for p in pages[4:]] == [volume_2.id] * 4
+
+
+def test_back_cover_stays_with_the_volume_it_closes():
+    # The opposite of the front cover: a back cover is the last page of the
+    # volume that just ended, so it keeps that parent and only the pages after
+    # it move on.
+    binder = _binder({})
+    pages = _cover_batch({4: PageType.BACK_COVER})
+    volume_1 = MetakatVolume(id=uuid4(), page_id=pages[0].id)
+    volume_2 = MetakatVolume(id=uuid4(), page_id=pages[6].id)
+
+    binder.bind_infants(
+        pages, infants=pages, parents=[volume_1, volume_2], apply_cover_nudge=True
+    )
+
+    assert [p.parent_id for p in pages[:5]] == [volume_1.id] * 5
+    assert [p.parent_id for p in pages[5:]] == [volume_2.id] * 3
+
+
+def test_back_cover_followed_by_front_cover_does_not_skip_a_volume():
+    # The usual way a boundary is scanned: volume 1's back cover is
+    # immediately followed by volume 2's front cover. The back cover nudges
+    # once; the front cover must not nudge again and skip volume 2 entirely.
+    binder = _binder({})
+    pages = _cover_batch({3: PageType.BACK_COVER, 4: PageType.FRONT_COVER})
+    volume_1 = MetakatVolume(id=uuid4(), page_id=pages[0].id)
+    volume_2 = MetakatVolume(id=uuid4(), page_id=pages[5].id)
+    volume_3 = MetakatVolume(id=uuid4(), page_id=pages[7].id)
+
+    binder.bind_infants(
+        pages,
+        infants=pages,
+        parents=[volume_1, volume_2, volume_3],
+        apply_cover_nudge=True,
+    )
+
+    assert [p.parent_id for p in pages[:4]] == [volume_1.id] * 4
+    assert [p.parent_id for p in pages[4:7]] == [volume_2.id] * 3
+    assert pages[7].parent_id == volume_3.id
+
+
+def test_cover_nudge_is_off_when_the_infants_are_not_pages():
+    # apply_cover_nudge=False is used for the issue -> volume sweep; a cover
+    # page must not move the parent there.
+    binder = _binder({})
+    pages = _cover_batch({4: PageType.FRONT_COVER})
+    volume_1 = MetakatVolume(id=uuid4(), page_id=pages[0].id)
+    volume_2 = MetakatVolume(id=uuid4(), page_id=pages[5].id)
+    issue = MetakatIssue(id=uuid4(), page_id=pages[4].id)
+
+    binder.bind_infants(
+        pages,
+        infants=[issue],
+        parents=[volume_1, volume_2],
+        apply_cover_nudge=False,
+    )
+
+    assert issue.parent_id == volume_1.id
+
+
+def test_cover_on_the_first_volumes_own_anchor_page_does_not_nudge():
+    # A volume anchored on a cover page must keep that page: the guard is the
+    # current parent's anchor being strictly behind the walked page.
+    binder = _binder({})
+    pages = _cover_batch({0: PageType.FRONT_COVER})
+    volume_1 = MetakatVolume(id=uuid4(), page_id=pages[0].id)
+    volume_2 = MetakatVolume(id=uuid4(), page_id=pages[4].id)
+
+    binder.bind_infants(
+        pages, infants=pages, parents=[volume_1, volume_2], apply_cover_nudge=True
+    )
+
+    assert pages[0].parent_id == volume_1.id
+    assert [p.parent_id for p in pages[4:]] == [volume_2.id] * 4
