@@ -40,7 +40,8 @@ class MetakatWorker(DocWorkerWrapper):
             result_dir: Directory path where processing results should be saved
             alto_dir: Optional directory path containing ALTO XML files
             page_xml_dir: Optional directory path containing PAGE XML files
-            meta_file: Optional path to the metadata JSON envelope
+            meta_file: Optional path to the metadata JSON envelope, or to a
+                plain ProArc JSON, which is accepted as proarc_json
             engine_dir: Optional directory path containing engine files
             
         Returns:
@@ -140,6 +141,22 @@ class MetakatWorker(DocWorkerWrapper):
             value = json.load(source)
         if not isinstance(value, dict):
             raise ValueError("Job metadata envelope must be a JSON object")
+        if value and not value.keys() & keys:
+            # Jobs that predate the envelope send the plain ProArc
+            # packageInfo.json as the meta file. It carries none of the
+            # envelope keys - only its own "type" and "objects" - so treat the
+            # whole document as proarc_json instead of rejecting those as
+            # unknown envelope keys. An empty object stays an empty envelope:
+            # a ProArc JSON always has at least its own required keys, so {}
+            # cannot be one.
+            logger.info(
+                "Job metadata has none of the envelope keys; processing the "
+                "whole document as a plain ProArc JSON"
+            )
+            return {
+                key: (value if key == "proarc_json" else None)
+                for key in keys
+            }
         unknown = value.keys() - keys
         if unknown:
             raise ValueError(
