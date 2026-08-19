@@ -148,7 +148,7 @@ the type never contributes to that element.
 | `Edition` | `edition` | — | highest confidence | — |
 | `Publisher` | `publisher` | `publisher` | appended | — |
 | `PlaceTerm` | `placeTerm` | `placeTerm` | highest confidence | — |
-| `DateIssued` | `dateIssued` | — | first only, see below | — |
+| `DateIssued` | `dateIssued` | — | highest confidence | — |
 | `ManufacturePublisher` | `manufacturePublisher` | `manufacturePublisher` | appended | — |
 | `ManufacturePlaceTerm` | `manufacturePlaceTerm` | `manufacturePlaceTerm` | appended | — |
 | `Author` | `author` | — | appended | — |
@@ -166,12 +166,10 @@ the type never contributes to that element.
 its `input_geometry_confidence` is strictly greater. "Appended" means every
 detection is kept, in region order, with no deduplication.
 
-`DateIssued` is the one exception to confidence precedence. Its branch is
-entered only while `MetakatVolume.dateIssued` is still unset, so once a value
-exists — from an earlier `DateIssued` region or from a
-`PeriodicalVolumeDateIssued` region — any further `DateIssued` detection falls
-through the whole chain and is discarded, and its geometry is never recorded.
-For this field the first detection processed wins regardless of confidence.
+`DateIssued` and `PeriodicalVolumeDateIssued` write the same
+`MetakatVolume.dateIssued` field and compete on confidence like any other pair
+of detections for it. The hierarchy that `PeriodicalVolumeDateIssued` forces is
+set independently, so losing the field does not revert it.
 
 Configuring a label is what makes a type reachable. A `BiblioType` absent from
 `labels` can never be produced, so the hierarchy and issue behavior it drives
@@ -653,11 +651,28 @@ Infants are indexed by batch index in a plain mapping, so when two infants are
 anchored on the same page only the last one is bound and the other stays
 unparented.
 
-`apply_cover_nudge` gates a page-only heuristic that pushes a front or back
-cover page onto the next parent, and is switched off when the infants being
-walked are not pages. The check compares `page.pageType` — a `(str, float)`
-tuple — against `PageType` members, which never holds, so the nudge does not
-currently fire in either sweep.
+#### The cover nudge
+
+A parent is anchored on its title page, but a volume or issue is scanned as
+front cover → … → title page → … → back cover. The pages around a boundary
+therefore lie outside the anchor range of the parent they belong to: the front
+cover of the next volume is walked while the previous volume is still current.
+`apply_cover_nudge` moves the boundary onto the covers themselves. It is a
+page-only heuristic and is switched off for the issue-to-volume sweep.
+
+The two cover types are opposites, so they act at opposite moments in the walk:
+
+| Page type | Switches | Effect |
+|---|---|---|
+| `FrontCover` | before the page is attached | the cover opens the next parent and is bound to it |
+| `BackCover` | after the page is attached | the cover closes the current parent and stays with it |
+
+A nudge is applied only while the current parent's own anchor page is strictly
+behind the walked page. After a nudge that anchor lies ahead, which is what
+keeps the common boundary — a back cover immediately followed by the next
+volume's front cover — from switching twice and skipping a parent entirely. The
+same guard leaves a parent anchored on a cover page in possession of it. A nudge
+at the last parent is a no-op.
 
 The walk also assumes `MetakatIO.elements` lists pages in ascending
 `batch_index`; unlike `process()`, `bind()` filters that list without re-sorting
@@ -697,8 +712,7 @@ contracts, and are documented so a change can be scoped against them.
 | ProArc integration | Only a record with exactly one `volume`-model object is used. Multi-object records, `title` and `unit` objects, and any issue-level guidance are ignored, and such a batch silently takes the vision-only branch. |
 | Periodical path | No production label configuration in this repository maps a detector label to `PeriodicalVolumePartNumber` or `PeriodicalVolumeDateIssued`, so the `periodical` hierarchy and the consolidation it drives are reachable but not exercised by a real run. |
 | Monograph batches | Without a ProArc record, nothing consolidates `monograph` volumes: every title page carrying a `Title` detection yields its own volume. |
-| Cover nudge | The front/back-cover heuristic in `bind_infants` compares a `(str, float)` tuple against `PageType` members and is therefore inert. |
-| `DateIssued` | The first detection processed wins; later ones are discarded without a confidence comparison and without recording their geometry. |
+| Cover nudge | The heuristic depends on `page_type` having classified the covers, and recognises only `FrontCover` and `BackCover` — not `Cover`, `Jacket`, or `FrontJacket`. A run of consecutive back covers switches at the first of them, so the rest are attributed to the next parent; a run of front covers is handled correctly. |
 | Title-page grouping | `filter_title_pages` is called with `min_distance=1`, at which its grouping can never merge two distinct pages. |
 | Anchor collisions | `bind_infants` keeps one infant per batch index, so two infants anchored on the same page leave one unparented. |
 | Input pairing | Image and ALTO path lists are filtered and sorted independently; a selected title page that has only one of the two mappings shifts the pairing for the rest of the batch. |
