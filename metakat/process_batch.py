@@ -29,6 +29,7 @@ from metakat.engine_config import (
     prepare_engine_config,
     require_config_mapping,
 )
+from metakat.io_parsers.parser_proarc_json import parse_proarc_json
 from metakat.logging_utils import redacted_for_logging
 
 from metakat.schemas.base_objects import (
@@ -234,7 +235,7 @@ def init_io(batch_dir: str,
             proarc_data: Optional[Mapping[str, Any]] = None,
             batch_id: UUID = uuid4(),
             ordered_image_filenames: Optional[List] = None,
-            allowed_image_extensions: Optional[Set] = None) -> Tuple[MetakatIO, ProarcIO]:
+            allowed_image_extensions: Optional[Set] = None) -> Tuple[MetakatIO, Optional[ProarcIO]]:
     if allowed_image_extensions is None:
         allowed_image_extensions = {'.jpg', '.jpeg', '.png', '.tif', '.tiff'}
     if metakat_data is not None:
@@ -243,7 +244,12 @@ def init_io(batch_dir: str,
         metakat_io = MetakatIO(batch_id=batch_id)
 
     if proarc_data is not None:
-        proarc_io = ProarcIO.model_validate(proarc_data)
+        # parse_proarc_json is the gate for every ProArc input: validating
+        # into ProarcIO directly would skip the pid-to-id derivation and the
+        # MODS parsing that ProarcIO consumers expect. It reads best effort
+        # and returns None when nothing usable came out, so the engines are
+        # never handed a package that offers nothing.
+        proarc_io = parse_proarc_json(proarc_data)
     else:
         proarc_io = None
 

@@ -393,11 +393,53 @@ envelope existed. The two shapes are unambiguous: a ProArc JSON identifies
 itself with its own required `type` and `objects` keys and never has an
 envelope key. The one exception is an empty object, which stays an empty
 envelope — a ProArc JSON always carries its required keys, so `{}` cannot be
-one. The fallback only chooses the container; the document itself is still
-validated against `ProarcIO`, so a meta file that is neither shape fails there.
+one. The fallback only chooses the container; what the document then has to be
+is covered by [Reading ProArc input](#reading-proarc-input).
 
 The worker merges `engine_config_override` into `job.engine_definition`, then
 resolves paths against the downloaded engine directory. Any relative path,
 absolute path, or symlink that resolves outside that directory raises
 `ValueError`, causing the job to finish in the error state. The worker does
 not support command-line-style `--set` assignments.
+
+## Reading ProArc input
+
+`parse_proarc_json` in `metakat/io_parsers/parser_proarc_json.py` is the single
+gate for every ProArc document entering the pipeline, whether it arrives through
+the worker meta file or the `--proarc-json` argument. Nothing validates a ProArc
+document into the `ProarcIO` model directly: that would skip the two steps every
+consumer of `ProarcIO` expects to have happened already — deriving each object's
+`id` from its `pid`, and parsing its MODS `metadata` into the catalog fields.
+An object that skipped them has a null `id` and no catalog values, which fails
+later and further away, inside whichever engine first tries to use it.
+
+Reading is best effort and never raises. A ProArc document that cannot be read
+must not stop a batch: processing always runs, at worst without ProArc support.
+The parser returns either a package with something in it or `None` — never an
+empty package, so no engine is handed a record that offers nothing.
+
+An object is **usable** when its `pid` yields a valid `UUID`. That identity is
+the minimum needed to place a record in the hierarchy at all, so a record
+without it is dropped rather than partially read. The outcomes are:
+
+| Input | Outcome |
+|---|---|
+| The document fails `ProarcIO` validation | Warning that reading cannot be attempted; `None` |
+| An object's `pid` carries no valid UUID | Warning naming the pid; that object is dropped |
+| Some objects dropped, others kept | Warning with the kept/total counts; package of the kept ones |
+| An object's MODS cannot be parsed | Warning naming the object; it is kept with its identity and no catalog fields |
+| No object survives, or the document has none | Warning that nothing could be read; `None` |
+
+A `pid` that does not match the `^uuid:` pattern is a document-level validation
+error rather than a per-record one, because the pattern is enforced by
+`ProarcIO` itself. Only a `pid` that has the prefix but no real UUID after it is
+handled per record.
+
+The same function backs the standalone parser, which writes the parsed package
+as JSON and exits non-zero when nothing usable could be read:
+
+```bash
+python -m metakat.io_parsers.parser_proarc_json \
+  --package-info-file /data/packageInfo.json \
+  --output-file /data/proarc.json
+```
