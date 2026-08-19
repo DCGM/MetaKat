@@ -467,6 +467,8 @@ exactly one `MetakatVolume`:
    elsewhere in the batch from pooling with them.
 2. **Match each group against the record.** A candidate is *relevant* when any
    of its comparable fields matches any of the record's values for that field.
+   When a group has no relevant candidate, the whole group is used instead —
+   see [ProArc as bonus information](#proarc-as-bonus-information).
 3. **Merge each group independently** into one volume.
 4. **Pick the winning group** by comparing the tuple
    `(has_title, detection_count)`, where `has_title` is whether the merge
@@ -482,6 +484,28 @@ exactly one `MetakatVolume`:
 When there are no candidate volumes at all, an empty group is still processed,
 so the batch always ends with exactly one volume — carrying the record's
 identity but no evidence.
+
+#### ProArc as bonus information
+
+A ProArc record settles how many volumes the batch has and supplies the
+winning volume's identity, but it must never cost the batch evidence it would
+otherwise have kept. Matching against it therefore only ever narrows a group;
+it cannot empty one. When no candidate in a group is relevant, the group's own
+candidates are merged instead.
+
+This matters because a record with nothing to match against is ordinary rather
+than exotic. [Reading ProArc input](../README.md#reading-proarc-input) keeps an
+object whose MODS could not be parsed, with its identity and no catalog fields
+at all, and an index-aligned column can consist entirely of `null`
+placeholders. A record can also simply describe a different book than the one
+the detector read. Without the fallback each of those cases replaced every
+detected volume with one carrying an id and nothing else, leaving the batch
+worse off than if no ProArc record had been supplied.
+
+The engine tolerates every ProArc state the IO guards permit. It never fails
+because of ProArc content: a document that offers nothing usable is either
+rejected before it arrives, or degrades to the same result the vision-only
+branch would have produced.
 
 #### Comparable fields
 
