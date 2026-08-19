@@ -57,12 +57,14 @@ def test_manufacture_origin_info_kept_separate_from_publication():
     <mods:originInfo eventType="manufacture">
       <mods:place><mods:placeTerm type="text">Brno</mods:placeTerm></mods:place>
       <mods:publisher>Tiskarna XY</mods:publisher>
+      <mods:edition>Manufacture-only edition</mods:edition>
     </mods:originInfo>
     """)
     result = parse_mods(xml)
     assert result["placeTerm"] == ["Praha"]
     assert result["dateIssued"] == ["1964"]
     assert result["publisher"] == ["Academia"]
+    assert result["edition"] == [None]
     assert result["manufacturePublisher"] == ["Tiskarna XY"]
     assert result["manufacturePlaceTerm"] == ["Brno"]
 
@@ -76,6 +78,7 @@ def test_multi_era_origin_info_stays_index_aligned_with_none_for_missing_values(
     </mods:originInfo>
     <mods:originInfo eventType="publication">
       <mods:dateIssued>2008-</mods:dateIssued>
+      <mods:edition>New series</mods:edition>
     </mods:originInfo>
     <mods:originInfo>
       <mods:issuance>continuing</mods:issuance>
@@ -85,6 +88,7 @@ def test_multi_era_origin_info_stays_index_aligned_with_none_for_missing_values(
     assert result["publisher"] == ["Academia", None]
     assert result["placeTerm"] == ["Praha", None]
     assert result["dateIssued"] == ["1964-19xx", "2008-"]
+    assert result["edition"] == [None, "New series"]
 
 
 def test_series_name_and_number_from_related_item():

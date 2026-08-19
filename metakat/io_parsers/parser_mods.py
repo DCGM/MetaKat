@@ -127,8 +127,8 @@ def _place_text(origin: ET.Element) -> Optional[str]:
 
 def _parse_origin_info(mods: ET.Element) -> Dict[str, object]:
     # One entry per publication-era originInfo block, index-aligned across the
-    # three lists (e.g. Estetika has 5 publisher/place/date eras from 1964-2008).
-    publisher, place, date_issued = [], [], []
+    # four lists (e.g. Estetika has 5 publisher/place/date/edition eras from 1964-2008).
+    publisher, place, date_issued, edition = [], [], [], []
     manufacture_publisher, manufacture_place = [], []
 
     for origin in mods.findall("mods:originInfo", NS):
@@ -145,19 +145,19 @@ def _parse_origin_info(mods: ET.Element) -> Dict[str, object]:
         pub_value = _clean(origin.findtext("mods:publisher", namespaces=NS))
         place_value = _place_text(origin)
         date_value = _clean(origin.findtext("mods:dateIssued", namespaces=NS))
-        if pub_value is None and place_value is None and date_value is None:
+        edition_value = _clean(origin.findtext("mods:edition", namespaces=NS))
+        if pub_value is None and place_value is None and date_value is None and edition_value is None:
             continue
 
         publisher.append(pub_value)
         place.append(place_value)
         date_issued.append(date_value)
-
-    edition = _clean(mods.findtext("mods:originInfo/mods:edition", namespaces=NS))
+        edition.append(edition_value)
 
     return {
         "placeTerm": place or None,
         "dateIssued": date_issued or None,
-        "edition": edition,
+        "edition": edition or None,
         "publisher": publisher or None,
         "manufacturePublisher": _dedup(manufacture_publisher),
         "manufacturePlaceTerm": _dedup(manufacture_place),
@@ -167,8 +167,9 @@ def _parse_origin_info(mods: ET.Element) -> Dict[str, object]:
 def parse_mods(xml_text: str) -> Dict[str, object]:
     """Parse a single MODS record (optionally wrapped in modsCollection) into a flat
     dict, with keys named after the matching fields on MetakatTitle/MetakatVolume/
-    MetakatIssue. publisher/placeTerm/dateIssued are index-aligned lists, one entry
-    per publication-era originInfo block (None where a block is missing a value).
+    MetakatIssue. publisher/placeTerm/dateIssued/edition are index-aligned lists,
+    one entry per publication-era originInfo block (None where a block is missing
+    a value).
     """
     result: Dict[str, object] = {field: None for field in FIELD_NAMES}
 
