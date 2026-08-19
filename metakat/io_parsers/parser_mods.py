@@ -52,6 +52,16 @@ def _dedup(values: List[str]) -> Optional[List[str]]:
     return list(dict.fromkeys(values)) or None
 
 
+def _dedup_rows(rows: List[tuple]) -> List[tuple]:
+    """Drop exact-duplicate rows while keeping the remaining rows aligned by index."""
+    return list(dict.fromkeys(rows))
+
+
+def _columns(rows: List[tuple], width: int) -> List[Optional[List[Optional[str]]]]:
+    """Unzip deduped rows into `width` index-aligned columns, each None if empty."""
+    return [[row[i] for row in rows] or None for i in range(width)]
+
+
 def _find_mods_element(root: ET.Element) -> Optional[ET.Element]:
     mods = root.find("mods:mods", NS)
     if mods is not None:
@@ -81,8 +91,9 @@ def _parse_title_info(mods: ET.Element) -> Dict[str, Optional[str]]:
 
 
 def _parse_series(mods: ET.Element) -> Dict[str, Optional[List[str]]]:
-    # One entry per series relatedItem, index-aligned across the two lists.
-    series_name, series_number = [], []
+    # One row per series relatedItem, deduped as a whole so the two columns
+    # stay index-aligned (a partial duplicate row wouldn't cancel out cleanly).
+    rows = []
     for related in mods.findall("mods:relatedItem", NS):
         if related.get("type") != "series":
             continue
@@ -93,9 +104,10 @@ def _parse_series(mods: ET.Element) -> Dict[str, Optional[List[str]]]:
         number = _clean(title_info.findtext("mods:partNumber", namespaces=NS))
         if name is None and number is None:
             continue
-        series_name.append(name)
-        series_number.append(number)
-    return {"seriesName": series_name or None, "seriesNumber": series_number or None}
+        rows.append((name, number))
+
+    series_name, series_number = _columns(_dedup_rows(rows), width=2)
+    return {"seriesName": series_name, "seriesNumber": series_number}
 
 
 def _parse_names(mods: ET.Element) -> Dict[str, Optional[List[str]]]:
@@ -127,19 +139,18 @@ def _place_text(origin: ET.Element) -> Optional[str]:
 
 
 def _parse_origin_info(mods: ET.Element) -> Dict[str, object]:
-    # One entry per originInfo block, index-aligned within each event type
-    # (e.g. Estetika has 5 publisher/place/date/edition eras from 1964-2008).
-    publisher, place, date_issued, edition = [], [], [], []
-    manufacture_publisher, manufacture_place = [], []
+    # One row per originInfo block, split by event type. Each group is deduped as
+    # whole rows (e.g. Estetika has 5 distinct publisher/place/date/edition eras
+    # from 1964-2008) so the columns within a group stay index-aligned.
+    publication_rows, manufacture_rows = [], []
 
     for origin in mods.findall("mods:originInfo", NS):
         if origin.get("eventType") == "manufacture":
-            manufacture_pub_value = _clean(origin.findtext("mods:publisher", namespaces=NS))
-            manufacture_place_value = _place_text(origin)
-            if manufacture_pub_value is None and manufacture_place_value is None:
+            pub_value = _clean(origin.findtext("mods:publisher", namespaces=NS))
+            place_value = _place_text(origin)
+            if pub_value is None and place_value is None:
                 continue
-            manufacture_publisher.append(manufacture_pub_value)
-            manufacture_place.append(manufacture_place_value)
+            manufacture_rows.append((pub_value, place_value))
             continue
 
         pub_value = _clean(origin.findtext("mods:publisher", namespaces=NS))
@@ -148,19 +159,18 @@ def _parse_origin_info(mods: ET.Element) -> Dict[str, object]:
         edition_value = _clean(origin.findtext("mods:edition", namespaces=NS))
         if pub_value is None and place_value is None and date_value is None and edition_value is None:
             continue
+        publication_rows.append((pub_value, place_value, date_value, edition_value))
 
-        publisher.append(pub_value)
-        place.append(place_value)
-        date_issued.append(date_value)
-        edition.append(edition_value)
+    publisher, place, date_issued, edition = _columns(_dedup_rows(publication_rows), width=4)
+    manufacture_publisher, manufacture_place = _columns(_dedup_rows(manufacture_rows), width=2)
 
     return {
-        "placeTerm": place or None,
-        "dateIssued": date_issued or None,
-        "edition": edition or None,
-        "publisher": publisher or None,
-        "manufacturePublisher": manufacture_publisher or None,
-        "manufacturePlaceTerm": manufacture_place or None,
+        "placeTerm": place,
+        "dateIssued": date_issued,
+        "edition": edition,
+        "publisher": publisher,
+        "manufacturePublisher": manufacture_publisher,
+        "manufacturePlaceTerm": manufacture_place,
     }
 
 
@@ -171,7 +181,8 @@ def parse_mods(xml_text: str) -> Dict[str, object]:
     one entry per publication-era originInfo block; manufacturePublisher/
     manufacturePlaceTerm the same over manufacture-type blocks; seriesName/
     seriesNumber the same over series relatedItems. None where a block is missing
-    a particular value.
+    a particular value; an exact-duplicate row (all fields equal) is dropped as a
+    whole so the remaining entries stay aligned.
     """
     result: Dict[str, object] = {field: None for field in FIELD_NAMES}
 

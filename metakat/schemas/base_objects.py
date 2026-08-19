@@ -274,7 +274,9 @@ class ObjectItem(BaseModel):
     # the same, index-aligned with each other, but over eventType="manufacture"
     # blocks - a separate index space from the publication-era lists above.
     # seriesName/seriesNumber are likewise index-aligned with each other, one
-    # entry per series relatedItem.
+    # entry per series relatedItem. Within each aligned group, an exact-duplicate
+    # row (all fields equal) is dropped as a whole rather than deduping columns
+    # independently, which would break the alignment.
     title: Optional[str] = None
     subTitle: Optional[str] = None
     partName: Optional[str] = None
