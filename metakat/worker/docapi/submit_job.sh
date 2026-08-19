@@ -1,14 +1,14 @@
 #!/bin/bash
-# The DocAPI client key is deployment-specific and must never be committed.
-# Keep it in .docapi_client_key beside this script, one line, nothing else.
+# The DocAPI user key is deployment-specific and must never be committed.
+# Keep it in .docapi_user_key beside this script, one line, nothing else.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-KEY_FILE="$SCRIPT_DIR/.docapi_client_key"
+KEY_FILE="$SCRIPT_DIR/.docapi_user_key"
 
 if [ ! -r "$KEY_FILE" ]; then
     echo "submit_job.sh: cannot read $KEY_FILE" >&2
-    echo "Create it containing only the DocAPI client key, then: chmod 600 $KEY_FILE" >&2
+    echo "Create it containing only the DocAPI user key, then: chmod 600 $KEY_FILE" >&2
     exit 1
 fi
 
