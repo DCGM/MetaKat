@@ -9,7 +9,7 @@ from collections import defaultdict
 from natsort import natsorted
 
 from page_annotator.examples.annotator_api import AnnotatorApi
-from metakat.tools.mods_helper import page_type_classes
+from metakat.page_type.datasets_from_mods.mods_helper import page_type_classes
 
 
 def parse_args():

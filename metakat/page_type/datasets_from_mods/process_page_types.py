@@ -15,7 +15,7 @@ from multiprocessing_logging import install_mp_handler
 import cv2
 import numpy as np
 
-from metakat.tools.mods_helper import get_page_type_from_page_mods, get_year_from_doc_mods, \
+from metakat.page_type.datasets_from_mods.mods_helper import get_page_type_from_page_mods, get_year_from_doc_mods, \
     get_number_from_number_mods, get_periodic_frequency_from_doc_mods
 
 logger = logging.getLogger(__name__)
