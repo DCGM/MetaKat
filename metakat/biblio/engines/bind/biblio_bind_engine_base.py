@@ -350,12 +350,19 @@ class BiblioBindEngineBase(BiblioBindEngine):
     # split into groups of neighbouring title pages (a normal book usually
     # has one title-page detection, sometimes a couple of adjacent ones -
     # e.g. half-title + title page - but unrelated candidates elsewhere in
-    # the batch must not be pooled together with them). Each group is
-    # independently matched against the catalog record and merged the same
-    # way; the group whose merge actually produced a title wins (a titleless
-    # group is never picked over one that has a title, regardless of
-    # detection counts), and ties between title-bearing groups go to
-    # whichever gathered more field-level detections as relevant evidence.
+    # the batch must not be pooled together with them).
+    #
+    # Proarc's one job here is judging which of those groups describes the
+    # book: the group corroborating more of the catalog record wins. It never
+    # contributes content. Everything written to the MetakatIO comes from the
+    # winning group's own detections - the record's values are compared
+    # against them and then discarded, never copied out - and the record does
+    # not get to say which of those detections may be written either, so a
+    # whole group is merged rather than the subset that happened to match.
+    # Title precedence outranks the record's opinion: a group whose merge
+    # produced a title always beats one that did not. Remaining ties go to
+    # whichever group gathered more field-level detections.
+    #
     # Candidate MetakatIssue elements are dropped outright, since a lone
     # volume object implies no issue-level structure.
     def resolve_single_proarc_volume(
@@ -374,41 +381,27 @@ class BiblioBindEngineBase(BiblioBindEngine):
         )
 
         volume_id = proarc_volume.id
-        best_relevant: List[MetakatVolume] = []
         best_group: List[MetakatVolume] = []
         best_merged: Optional[MetakatVolume] = None
-        best_detection_count = -1
-        best_has_title = False
+        best_rank = None
 
         for group in groups:
-            relevant = [c for c in group if self._volume_matches_proarc(c, proarc_volume)]
-            if not relevant:
-                # Proarc is bonus information: it settles how many volumes
-                # there are and supplies this one's identity, but it must
-                # never cost the batch evidence it would otherwise have kept.
-                # A record can easily have nothing to match against - an
-                # unreadable MODS leaves an object with identity only, and an
-                # index-aligned column can be all placeholders - and a record
-                # that does carry values may still match nothing here. Falling
-                # back to the group's own detections keeps the volume count
-                # and id proarc gives us without merging an empty volume over
-                # a perfectly good title.
-                relevant = group
-            merged = self._merge_volumes(relevant, volume_id, anchor_page_id=None)
-            detection_count = self._count_detections(relevant)
-            has_title = merged.title is not None
-
-            is_better = best_merged is None or (has_title, detection_count) > (best_has_title, best_detection_count)
-            if is_better:
-                best_relevant, best_group, best_merged = relevant, group, merged
-                best_detection_count, best_has_title = detection_count, has_title
+            merged = self._merge_volumes(group, volume_id, anchor_page_id=None)
+            rank = (
+                merged.title is not None,
+                self._count_proarc_matches(group, proarc_volume),
+                self._count_detections(group),
+            )
+            if best_merged is None or rank > best_rank:
+                best_group, best_merged, best_rank = group, merged, rank
 
         logger.info(
-            "Winning group: %d relevant volume candidate(s), %d overall detection(s), title=%s",
-            len(best_relevant), best_detection_count, best_has_title,
+            "Winning group: %d volume candidate(s), title=%s, %d proarc field(s) "
+            "corroborated, %d overall detection(s)",
+            len(best_group), best_rank[0], best_rank[1], best_rank[2],
         )
 
-        best_merged.page_id = self._pick_anchor_page_id(best_relevant, best_group, title_pages, pages)
+        best_merged.page_id = self._pick_anchor_page_id(best_group, title_pages, pages)
 
         other_elements = [
             el for el in metakat_elements
@@ -444,46 +437,67 @@ class BiblioBindEngineBase(BiblioBindEngine):
         return count
 
     @staticmethod
-    def _volume_matches_proarc(volume: MetakatVolume, proarc_volume: ObjectItem) -> bool:
+    def _field_matches_proarc(
+        volume: MetakatVolume,
+        field_name: str,
+        proarc_values: Optional[List[Optional[str]]],
+    ) -> bool:
+        candidate_value = getattr(volume, field_name)
+        if not candidate_value or not proarc_values:
+            return False
+        candidate_texts = (
+            [candidate_value[0]]
+            if isinstance(candidate_value, tuple)
+            else [item[0] for item in candidate_value]
+        )
+        for candidate_text in candidate_texts:
+            for proarc_text in proarc_values:
+                # A proarc catalog field is a column of an index-aligned
+                # group, so it holds None wherever the source block had no
+                # value for it. Those placeholders keep the columns lined
+                # up; they are not text to compare against.
+                if not proarc_text:
+                    continue
+                if _text_similarity(candidate_text, proarc_text) >= _PROARC_TEXT_SIMILARITY_THRESHOLD:
+                    return True
+        return False
+
+    # How much of the catalog record this group corroborates, as a count of
+    # comparable fields any of its candidates agrees with. This is the whole
+    # of proarc's influence: it ranks the groups and nothing else. The
+    # record's values are read here only to be compared, never carried into
+    # the result, and a field failing to match costs the group nothing beyond
+    # this score - it does not exclude the detection from the merge.
+    @classmethod
+    def _count_proarc_matches(
+        cls,
+        volumes: List[MetakatVolume],
+        proarc_volume: ObjectItem,
+    ) -> int:
+        matched = 0
         for field_name in _PROARC_VOLUME_SINGLE_FIELDS + _PROARC_VOLUME_LIST_FIELDS:
-            candidate_value = getattr(volume, field_name)
-            if not candidate_value:
-                continue
             proarc_values = getattr(proarc_volume, field_name)
             if not proarc_values:
                 continue
-            candidate_texts = (
-                [candidate_value[0]]
-                if isinstance(candidate_value, tuple)
-                else [item[0] for item in candidate_value]
-            )
-            for candidate_text in candidate_texts:
-                for proarc_text in proarc_values:
-                    # A proarc catalog field is a column of an index-aligned
-                    # group, so it holds None wherever the source block had no
-                    # value for it. Those placeholders keep the columns lined
-                    # up; they are not text to compare against.
-                    if not proarc_text:
-                        continue
-                    if _text_similarity(candidate_text, proarc_text) >= _PROARC_TEXT_SIMILARITY_THRESHOLD:
-                        return True
-        return False
+            if any(
+                cls._field_matches_proarc(volume, field_name, proarc_values)
+                for volume in volumes
+            ):
+                matched += 1
+        return matched
 
     @staticmethod
     def _pick_anchor_page_id(
-        relevant: List[MetakatVolume],
         group: List[MetakatVolume],
         title_pages: List[MetakatPage],
         pages: List[MetakatPage],
     ) -> Optional[UUID]:
         best = None
-        for volume in relevant:
+        for volume in group:
             if volume.title is not None and (best is None or volume.title[1] > best.title[1]):
                 best = volume
         if best is not None:
             return best.page_id
-        if relevant:
-            return relevant[0].page_id
         if group:
             return group[0].page_id
         if title_pages:
