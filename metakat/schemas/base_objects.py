@@ -270,7 +270,9 @@ class ObjectItem(BaseModel):
     # publication-era originInfo block and stay index-aligned with each other
     # (None where a block is missing that particular value) - richer than the
     # singular Metakat fields, since a MODS record (e.g. a periodical title) can
-    # carry several publisher eras.
+    # carry several publisher eras. manufacturePublisher/manufacturePlaceTerm are
+    # the same, index-aligned with each other, but over eventType="manufacture"
+    # blocks - a separate index space from the publication-era lists above.
     title: Optional[str] = None
     subTitle: Optional[str] = None
     partName: Optional[str] = None
