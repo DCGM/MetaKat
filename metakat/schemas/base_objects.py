@@ -279,6 +279,13 @@ class ObjectItem(BaseModel):
     # Within each aligned group, an exact-duplicate row (all fields equal) is
     # dropped as a whole rather than deduping columns independently, which would
     # break the alignment.
+
+    # Not present in the raw packageInfo.json; parse_proarc_json fills it in
+    # from pid (which is always "uuid:<uuid>") once validation has confirmed
+    # pid's shape, so downstream code gets a ready-to-use UUID instead of
+    # every consumer re-parsing pid itself.
+    id: Optional[UUID] = None
+
     title: Optional[List[str]] = None
     subTitle: Optional[List[str]] = None
     partName: Optional[List[str]] = None

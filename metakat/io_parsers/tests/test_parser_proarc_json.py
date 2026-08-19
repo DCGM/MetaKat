@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from metakat.io_parsers.parser_proarc_json import parse_proarc_json
 from metakat.schemas.base_objects import ProarcIO
 
@@ -15,11 +17,12 @@ def _mods(title=None, part_number=None, date_issued=None):
 
 
 def test_returns_proarc_io_with_parsed_fields_filled_in():
+    title_uuid, volume_uuid = uuid4(), uuid4()
     data = {
         "type": "periodical",
         "objects": [
-            {"pid": "uuid:1", "model": "title", "metadata": _mods(title="Estetika")},
-            {"pid": "uuid:2", "model": "volume", "metadata": _mods(part_number="38", date_issued="2002")},
+            {"pid": f"uuid:{title_uuid}", "model": "title", "metadata": _mods(title="Estetika")},
+            {"pid": f"uuid:{volume_uuid}", "model": "volume", "metadata": _mods(part_number="38", date_issued="2002")},
         ],
     }
     package = parse_proarc_json(data)
@@ -28,22 +31,26 @@ def test_returns_proarc_io_with_parsed_fields_filled_in():
     assert package.type == "periodical"
 
     title_obj, volume_obj = package.objects
-    assert title_obj.pid == "uuid:1"
+    assert title_obj.pid == f"uuid:{title_uuid}"
+    assert title_obj.id == title_uuid
     assert title_obj.title == ["Estetika"]
 
-    assert volume_obj.pid == "uuid:2"
+    assert volume_obj.pid == f"uuid:{volume_uuid}"
+    assert volume_obj.id == volume_uuid
     assert volume_obj.partNumber == ["38"]
     assert volume_obj.dateIssued == ["2002"]
 
 
 def test_raw_metadata_string_is_preserved_alongside_parsed_fields():
+    object_uuid = uuid4()
     data = {
         "type": "monograph",
         "objects": [
-            {"pid": "uuid:1", "model": "volume", "metadata": _mods(title="Some Book")},
+            {"pid": f"uuid:{object_uuid}", "model": "volume", "metadata": _mods(title="Some Book")},
         ],
     }
     package = parse_proarc_json(data)
     obj = package.objects[0]
+    assert obj.id == object_uuid
     assert obj.title == ["Some Book"]
     assert "<mods:title>Some Book</mods:title>" in obj.metadata

@@ -5,19 +5,30 @@ import sys
 import time
 from pathlib import Path
 from typing import Union
+from uuid import UUID
 
 from metakat.io_parsers.parser_mods import parse_mods
 from metakat.schemas.base_objects import ProarcIO
 
 logger = logging.getLogger(__name__)
 
+_PID_PREFIX = "uuid:"
+
+
+def _pid_to_uuid(pid: str) -> UUID:
+    # Pid is validated (StringConstraints pattern=r"^uuid:.*") to always
+    # carry this prefix before the UUID itself.
+    return UUID(pid[len(_PID_PREFIX):])
+
 
 def parse_proarc_json(data: dict) -> ProarcIO:
     """Validate a ProArc packageInfo.json dict into ProarcIO, with each object's
-    parsed fields (see parser_mods.parse_mods) filled in from its MODS metadata.
+    id derived from its pid and its parsed fields (see parser_mods.parse_mods)
+    filled in from its MODS metadata.
     """
     package = ProarcIO.model_validate(data)
     for obj in package.objects:
+        obj.id = _pid_to_uuid(obj.pid)
         parsed = parse_mods(obj.metadata)
         for key, value in parsed.items():
             setattr(obj, key, value)

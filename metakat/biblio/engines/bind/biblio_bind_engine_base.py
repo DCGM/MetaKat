@@ -22,8 +22,14 @@ logger = logging.getLogger(__name__)
 # vision-detected volume candidate against the catalog record's own values.
 # "Single" fields are stored as one (text, confidence, detection_id) tuple on
 # the candidate; "list" fields are stored as a list of such tuples.
+# partNumber/partName are deliberately excluded: a candidate can only ever
+# have them set via PartNumber/PartName or PeriodicalVolume* detections, all
+# three of which imply a MULTIPART or PERIODICAL volume - a single proarc
+# volume object is neither, so a candidate carrying them reflects a stray
+# detection, not evidence about this volume, and must not influence matching
+# or the merged result.
 _PROARC_VOLUME_SINGLE_FIELDS = (
-    "partNumber", "partName", "dateIssued", "title", "subTitle", "edition", "placeTerm",
+    "dateIssued", "title", "subTitle", "edition", "placeTerm",
 )
 _PROARC_VOLUME_LIST_FIELDS = (
     "publisher", "manufacturePublisher", "manufacturePlaceTerm", "author", "illustrator",
@@ -125,17 +131,25 @@ class BiblioBindEngineBase(BiblioBindEngine):
         metakat_elements, detection_id_to_detection_bbox, detection_id_to_page_id = self.get_volume_issue_from_alignment(
             alignment_pages, alignment_page_key_to_metakat_page)
         logger.info(f"Created {len(metakat_elements)} MetaKatVolume and MetaKatIssue elements from detections")
-        logger.info(f"Creating MetaKatTitle element, and filtering MetaKatVolume elements")
-        page_id_to_batch_index = {p.id: p.batch_index for p in metakat_io.elements if p.type == DocumentType.PAGE.value}
+
         proarc_volume = self._single_proarc_volume(proarc_io)
         if proarc_volume is not None:
+            # Proarc says the whole batch is exactly one catalogued volume
+            # object and no title object - there is nothing left for the
+            # vision-only pipeline to resolve, so finalize_periodical_volumes
+            # (settles PERIODICAL volume duplicates) and get_title (builds a
+            # title from a PERIODICAL/MULTIPART volume) are skipped outright
+            # rather than run as a no-op.
             logger.info("Proarc reports a single volume-model object; resolving to exactly one MetakatVolume")
             metakat_elements = self.resolve_single_proarc_volume(metakat_elements, proarc_volume, title_pages, pages)
         else:
+            logger.info(f"Creating MetaKatTitle element, and filtering MetaKatVolume elements")
+            page_id_to_batch_index = {p.id: p.batch_index for p in metakat_io.elements if p.type == DocumentType.PAGE.value}
             metakat_elements = self.finalize_periodical_volumes(metakat_elements, page_id_to_batch_index)
-        title_element = self.get_title(metakat_elements)
-        if title_element is not None:
-            metakat_elements = [title_element] + metakat_elements
+            title_element = self.get_title(metakat_elements)
+            if title_element is not None:
+                metakat_elements = [title_element] + metakat_elements
+
         logger.info(f"Adding {len(metakat_elements)} MetaKat elements to MetaKatIO")
         metakat_io.elements = metakat_elements + metakat_io.elements
 
@@ -297,14 +311,18 @@ class BiblioBindEngineBase(BiblioBindEngine):
     # A proarc record telling us the whole batch is a single catalogued
     # volume is ground truth on volume *count*, so instead of letting
     # finalize_periodical_volumes group detections into however many
-    # volumes the vision heuristic guessed at, every detected volume
-    # candidate is checked against the catalog record's own field values:
-    # a candidate is kept as evidence only if at least one of its detected
-    # fields overlaps with the matching proarc field (proarc is treated as
-    # an upper bound on the volume's bibliographic info), and all kept
-    # candidates are merged into exactly one MetakatVolume. Candidate
-    # MetakatIssue elements are dropped outright, since a lone volume
-    # object implies no issue-level structure.
+    # volumes the vision heuristic guessed at, candidate volumes are first
+    # split into groups of neighbouring title pages (a normal book usually
+    # has one title-page detection, sometimes a couple of adjacent ones -
+    # e.g. half-title + title page - but unrelated candidates elsewhere in
+    # the batch must not be pooled together with them). Each group is
+    # independently matched against the catalog record and merged the same
+    # way; the group whose merge actually produced a title wins (a titleless
+    # group is never picked over one that has a title, regardless of
+    # detection counts), and ties between title-bearing groups go to
+    # whichever gathered more field-level detections as relevant evidence.
+    # Candidate MetakatIssue elements are dropped outright, since a lone
+    # volume object implies no issue-level structure.
     def resolve_single_proarc_volume(
         self,
         metakat_elements: List[MetakatElement],
@@ -313,20 +331,70 @@ class BiblioBindEngineBase(BiblioBindEngine):
         pages: List[MetakatPage],
     ) -> List[MetakatElement]:
         candidates = [el for el in metakat_elements if el.type == DocumentType.VOLUME.value]
-        relevant = [c for c in candidates if self._volume_matches_proarc(c, proarc_volume)]
+        page_id_to_batch_index = {p.id: p.batch_index for p in pages}
+        groups = self._group_neighbouring_volumes(candidates, page_id_to_batch_index) or [[]]
         logger.info(
-            "Keeping %d of %d detected volume candidate(s) whose fields overlap with the proarc record",
-            len(relevant), len(candidates),
+            "Proarc single-volume resolution: %d candidate(s) split into %d neighbouring-page group(s)",
+            len(candidates), len(groups),
         )
 
-        anchor_page_id = self._pick_anchor_page_id(relevant, title_pages, pages)
-        merged_volume = self._merge_volumes(relevant, anchor_page_id)
+        volume_id = proarc_volume.id
+        best_relevant: List[MetakatVolume] = []
+        best_group: List[MetakatVolume] = []
+        best_merged: Optional[MetakatVolume] = None
+        best_detection_count = -1
+        best_has_title = False
+
+        for group in groups:
+            relevant = [c for c in group if self._volume_matches_proarc(c, proarc_volume)]
+            merged = self._merge_volumes(relevant, volume_id, anchor_page_id=None)
+            detection_count = self._count_detections(relevant)
+            has_title = merged.title is not None
+
+            is_better = best_merged is None or (has_title, detection_count) > (best_has_title, best_detection_count)
+            if is_better:
+                best_relevant, best_group, best_merged = relevant, group, merged
+                best_detection_count, best_has_title = detection_count, has_title
+
+        logger.info(
+            "Winning group: %d relevant volume candidate(s), %d overall detection(s), title=%s",
+            len(best_relevant), best_detection_count, best_has_title,
+        )
+
+        best_merged.page_id = self._pick_anchor_page_id(best_relevant, best_group, title_pages, pages)
 
         other_elements = [
             el for el in metakat_elements
             if el.type not in (DocumentType.VOLUME.value, DocumentType.ISSUE.value)
         ]
-        return [merged_volume] + other_elements
+        return [best_merged] + other_elements
+
+    @staticmethod
+    def _group_neighbouring_volumes(
+        candidates: List[MetakatVolume],
+        page_id_to_batch_index: dict,
+    ) -> List[List[MetakatVolume]]:
+        sorted_candidates = sorted(candidates, key=lambda c: page_id_to_batch_index[c.page_id])
+        groups: List[List[MetakatVolume]] = []
+        previous_batch_index = None
+        for candidate in sorted_candidates:
+            batch_index = page_id_to_batch_index[candidate.page_id]
+            if previous_batch_index is None or batch_index - previous_batch_index > 1:
+                groups.append([])
+            groups[-1].append(candidate)
+            previous_batch_index = batch_index
+        return groups
+
+    @staticmethod
+    def _count_detections(volumes: List[MetakatVolume]) -> int:
+        count = 0
+        for volume in volumes:
+            for field_name in _PROARC_VOLUME_SINGLE_FIELDS:
+                if getattr(volume, field_name) is not None:
+                    count += 1
+            for field_name in _PROARC_VOLUME_LIST_FIELDS:
+                count += len(getattr(volume, field_name) or [])
+        return count
 
     @staticmethod
     def _volume_matches_proarc(volume: MetakatVolume, proarc_volume: ObjectItem) -> bool:
@@ -351,6 +419,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
     @staticmethod
     def _pick_anchor_page_id(
         relevant: List[MetakatVolume],
+        group: List[MetakatVolume],
         title_pages: List[MetakatPage],
         pages: List[MetakatPage],
     ) -> Optional[UUID]:
@@ -362,6 +431,8 @@ class BiblioBindEngineBase(BiblioBindEngine):
             return best.page_id
         if relevant:
             return relevant[0].page_id
+        if group:
+            return group[0].page_id
         if title_pages:
             return title_pages[0].id
         if pages:
@@ -369,14 +440,20 @@ class BiblioBindEngineBase(BiblioBindEngine):
         return None
 
     @staticmethod
-    def _merge_volumes(volumes: List[MetakatVolume], anchor_page_id: Optional[UUID]) -> MetakatVolume:
-        merged = MetakatVolume(id=uuid4(), page_id=anchor_page_id, hierarchy=HierarchyType.MONOGRAPH)
+    def _merge_volumes(
+        volumes: List[MetakatVolume],
+        volume_id: UUID,
+        anchor_page_id: Optional[UUID],
+    ) -> MetakatVolume:
+        # hierarchy is always MONOGRAPH: partNumber/partName (the only
+        # signals that would suggest otherwise) are excluded from
+        # _PROARC_VOLUME_SINGLE_FIELDS above, so no candidate's hierarchy is
+        # consulted here - every candidate is equally valid evidence for the
+        # one volume proarc says exists. id is the proarc record's own pid,
+        # not a freshly generated one, since this MetakatVolume *is* that
+        # catalogued object.
+        merged = MetakatVolume(id=volume_id, page_id=anchor_page_id, hierarchy=HierarchyType.MONOGRAPH)
         for volume in volumes:
-            if volume.hierarchy == HierarchyType.PERIODICAL:
-                merged.hierarchy = HierarchyType.PERIODICAL
-            elif volume.hierarchy == HierarchyType.MULTIPART and merged.hierarchy != HierarchyType.PERIODICAL:
-                merged.hierarchy = HierarchyType.MULTIPART
-
             for field_name in _PROARC_VOLUME_SINGLE_FIELDS:
                 candidate_value = getattr(volume, field_name)
                 if candidate_value is None:

@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from text_geometry_aligner import (
     AlignmentPage,
@@ -202,7 +202,11 @@ def test_referenced_detection_ids_includes_kept_evidence(metakat_page):
 
 
 def _proarc_volume(**fields):
-    return ObjectItem(pid="uuid:test-volume", model=ObjectModel.volume, metadata="<mods/>", **fields)
+    # id mirrors what parse_proarc_json derives from pid in real usage -
+    # tests build ObjectItem directly, bypassing that parsing step.
+    pid = fields.pop("pid", f"uuid:{uuid4()}")
+    object_id = fields.pop("id", UUID(pid[len("uuid:"):]))
+    return ObjectItem(pid=pid, id=object_id, model=ObjectModel.volume, metadata="<mods/>", **fields)
 
 
 def test_single_proarc_volume_detects_lone_volume_object():
@@ -243,6 +247,27 @@ def test_volume_matches_proarc_rejects_unrelated_candidate():
     proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"], dateIssued=["1853"])
     candidate = MetakatVolume(id=uuid4(), title=("Advertisement", 0.9, uuid4()))
     assert not BiblioBindEngineBase._volume_matches_proarc(candidate, proarc_volume)
+
+
+def test_resolve_single_proarc_volume_uses_the_proarc_pid_as_the_volume_id(metakat_page):
+    binder = _binder({})
+    record_uuid = uuid4()
+    proarc_volume = _proarc_volume(
+        pid=f"uuid:{record_uuid}",
+        title=["Kytice z pověstí národních"],
+    )
+    candidate = MetakatVolume(
+        id=uuid4(),
+        page_id=metakat_page.id,
+        title=("Kytice z povesti narodnich", 0.9, uuid4()),
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [candidate], proarc_volume, title_pages=[metakat_page], pages=[metakat_page],
+    )
+
+    assert len(result) == 1
+    assert result[0].id == record_uuid
 
 
 def test_resolve_single_proarc_volume_discards_unrelated_candidates_and_merges_relevant_ones(metakat_page):
@@ -308,6 +333,107 @@ def test_resolve_single_proarc_volume_falls_back_to_empty_volume_when_nothing_ma
     volume = result[0]
     assert volume.title is None
     assert volume.page_id == metakat_page.id
+
+
+def test_resolve_single_proarc_volume_ignores_part_fields_and_forces_monograph_hierarchy(metakat_page):
+    # partNumber/partName only ever come from PartNumber/PartName or
+    # PeriodicalVolume* detections, all implying MULTIPART/PERIODICAL - none
+    # of which apply once proarc says there's exactly one plain volume
+    # object. They must not survive into the merged result, and the result's
+    # hierarchy must stay MONOGRAPH regardless of what a candidate reported.
+    binder = _binder({})
+    proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"])
+    candidate = MetakatVolume(
+        id=uuid4(),
+        page_id=metakat_page.id,
+        hierarchy=HierarchyType.PERIODICAL,
+        title=("Kytice z povesti narodnich", 0.9, uuid4()),
+        partNumber=("2", 0.9, uuid4()),
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [candidate], proarc_volume, title_pages=[metakat_page], pages=[metakat_page],
+    )
+
+    assert len(result) == 1
+    volume = result[0]
+    assert volume.hierarchy == HierarchyType.MONOGRAPH
+    assert volume.partNumber is None
+    assert volume.title[0] == "Kytice z povesti narodnich"
+
+
+def test_resolve_single_proarc_volume_keeps_only_the_winning_neighbouring_group():
+    # A titleless group must lose to a title-bearing group even if the
+    # titleless group also has real proarc-matching evidence, and its
+    # evidence must not leak into the final merged volume.
+    binder = _binder({})
+    batch_id = uuid4()
+    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
+    proarc_volume = _proarc_volume(
+        title=["Kytice z pověstí národních"],
+        publisher=["Storch"],
+    )
+
+    # Group A: pages 0-1 (adjacent) - has the matching title.
+    group_a_1 = MetakatVolume(
+        id=uuid4(), page_id=pages[0].id,
+        title=("Kytice z povesti narodnich", 0.9, uuid4()),
+    )
+    group_a_2 = MetakatVolume(
+        id=uuid4(), page_id=pages[1].id,
+        subTitle=("nejaky podtitulek", 0.5, uuid4()),
+    )
+    # Group B: page 5, more than one page away from group A - matches on
+    # publisher but has no title of its own.
+    group_b = MetakatVolume(
+        id=uuid4(), page_id=pages[5].id,
+        publisher=[("Storch", 0.99, uuid4())],
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [group_a_1, group_a_2, group_b], proarc_volume, title_pages=pages, pages=pages,
+    )
+
+    assert len(result) == 1
+    volume = result[0]
+    assert volume.title[0] == "Kytice z povesti narodnich"
+    assert volume.page_id == pages[0].id
+    assert volume.publisher is None
+
+
+def test_resolve_single_proarc_volume_detection_count_breaks_ties_between_titled_groups():
+    # Two separate (non-neighbouring) groups both produce a title match;
+    # the one with more overall relevant detections must win, even though
+    # its title detection has lower confidence than the other group's.
+    binder = _binder({})
+    batch_id = uuid4()
+    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
+    proarc_volume = _proarc_volume(
+        title=["Kytice z pověstí národních"],
+        dateIssued=["1853"],
+        placeTerm=["Praha"],
+    )
+
+    group_a = MetakatVolume(
+        id=uuid4(), page_id=pages[0].id,
+        title=("Kytice z povesti narodnich", 0.6, uuid4()),
+    )
+    group_b = MetakatVolume(
+        id=uuid4(), page_id=pages[5].id,
+        title=("Kytice z povesti narodnich", 0.5, uuid4()),
+        dateIssued=("1853", 0.9, uuid4()),
+        placeTerm=("Praha", 0.9, uuid4()),
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [group_a, group_b], proarc_volume, title_pages=pages, pages=pages,
+    )
+
+    assert len(result) == 1
+    volume = result[0]
+    assert volume.page_id == pages[5].id
+    assert volume.dateIssued is not None
+    assert volume.placeTerm is not None
 
 
 def test_bind_attaches_periodical_issues_to_the_volume_they_belong_to():
