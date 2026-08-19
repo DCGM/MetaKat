@@ -273,6 +273,8 @@ class ObjectItem(BaseModel):
     # carry several publisher eras. manufacturePublisher/manufacturePlaceTerm are
     # the same, index-aligned with each other, but over eventType="manufacture"
     # blocks - a separate index space from the publication-era lists above.
+    # seriesName/seriesNumber are likewise index-aligned with each other, one
+    # entry per series relatedItem.
     title: Optional[str] = None
     subTitle: Optional[str] = None
     partName: Optional[str] = None

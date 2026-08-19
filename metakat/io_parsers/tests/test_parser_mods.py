@@ -120,6 +120,25 @@ def test_series_name_and_number_from_related_item():
     assert result["seriesNumber"] == ["12"]
 
 
+def test_multiple_series_stay_index_aligned_with_none_for_missing_values():
+    xml = _wrap("""
+    <mods:relatedItem type="series">
+      <mods:titleInfo>
+        <mods:title>Edice XY</mods:title>
+        <mods:partNumber>12</mods:partNumber>
+      </mods:titleInfo>
+    </mods:relatedItem>
+    <mods:relatedItem type="series">
+      <mods:titleInfo>
+        <mods:partNumber>5</mods:partNumber>
+      </mods:titleInfo>
+    </mods:relatedItem>
+    """)
+    result = parse_mods(xml)
+    assert result["seriesName"] == ["Edice XY", None]
+    assert result["seriesNumber"] == ["12", "5"]
+
+
 def test_placeholder_values_are_skipped():
     xml = _wrap("""
     <mods:originInfo eventType="publication">

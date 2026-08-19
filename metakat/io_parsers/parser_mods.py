@@ -81,6 +81,7 @@ def _parse_title_info(mods: ET.Element) -> Dict[str, Optional[str]]:
 
 
 def _parse_series(mods: ET.Element) -> Dict[str, Optional[List[str]]]:
+    # One entry per series relatedItem, index-aligned across the two lists.
     series_name, series_number = [], []
     for related in mods.findall("mods:relatedItem", NS):
         if related.get("type") != "series":
@@ -89,12 +90,12 @@ def _parse_series(mods: ET.Element) -> Dict[str, Optional[List[str]]]:
         if title_info is None:
             continue
         name = _clean(title_info.findtext("mods:title", namespaces=NS))
-        if name:
-            series_name.append(name)
         number = _clean(title_info.findtext("mods:partNumber", namespaces=NS))
-        if number:
-            series_number.append(number)
-    return {"seriesName": _dedup(series_name), "seriesNumber": _dedup(series_number)}
+        if name is None and number is None:
+            continue
+        series_name.append(name)
+        series_number.append(number)
+    return {"seriesName": series_name or None, "seriesNumber": series_number or None}
 
 
 def _parse_names(mods: ET.Element) -> Dict[str, Optional[List[str]]]:
@@ -167,8 +168,10 @@ def parse_mods(xml_text: str) -> Dict[str, object]:
     """Parse a single MODS record (optionally wrapped in modsCollection) into a flat
     dict, with keys named after the matching fields on MetakatTitle/MetakatVolume/
     MetakatIssue. publisher/placeTerm/dateIssued/edition are index-aligned lists,
-    one entry per publication-era originInfo block (None where a block is missing
-    a value).
+    one entry per publication-era originInfo block; manufacturePublisher/
+    manufacturePlaceTerm the same over manufacture-type blocks; seriesName/
+    seriesNumber the same over series relatedItems. None where a block is missing
+    a particular value.
     """
     result: Dict[str, object] = {field: None for field in FIELD_NAMES}
 
