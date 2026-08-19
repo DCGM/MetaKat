@@ -590,7 +590,36 @@ def test_chapter_page_number_parser_normalizes_extraction_values(evidence):
         number = parse(rejected)
         assert number.normalized_text() is None
         assert number.output_text() == rejected
-    assert title_similarity("1. Úvod", "ÚVOD") > 0.7
+
+
+def test_title_similarity_looks_for_the_toc_entry_inside_the_heading():
+    # title_similarity(candidate, reference): the TOC entry is the reference,
+    # the destination heading the uncertain reading tested against it. A
+    # heading carrying more than the TOC entry - a chapter number set into the
+    # heading, a running head, a subtitle - still matches, because the shorter
+    # reference is looked for inside it.
+    assert title_similarity("1. ÚVOD", "Úvod") == 1.0
+    assert title_similarity("Kapitola 1: Úvod", "Úvod") == 1.0
+    assert title_similarity("ÚVOD", "Úvod") == 1.0
+
+
+def test_title_similarity_rejects_a_one_character_heading():
+    # Regression test: the shorter side used to be located inside the longer
+    # one whichever it was, so a one-character heading detection scored a
+    # perfect match against any TOC entry containing that character and could
+    # satisfy the similarity threshold outright.
+    for fragment in ("U", "o", "d"):
+        assert title_similarity(fragment, "Úvod do problematiky") < 0.2
+
+
+def test_a_chapter_number_only_in_the_toc_entry_costs_the_match():
+    # The reverse direction gets no substring licence, so a number the TOC
+    # entry carries and the heading does not now counts against the match.
+    # 0.667 is below the 0.7 default threshold: this pairing used to align and
+    # no longer does. Extraction keeps part numbers in ChapterBase.part_number
+    # rather than in the title, so this is the leaked-number case rather than
+    # the normal one.
+    assert title_similarity("ÚVOD", "1. Úvod") == pytest.approx(2 / 3, abs=1e-3)
 
 
 def test_alignment_preserves_raw_toc_evidence(
@@ -885,7 +914,10 @@ def test_many_to_many_non_anchor_resolution_is_global_and_monotonic(
 
     with mock.patch(
         TITLE_SIMILARITY,
-        side_effect=lambda first, second: scores[(first, second)],
+        # title_similarity is called (candidate, reference) - the destination
+        # heading first, the TOC entry it is tested against second - while
+        # these tables read naturally keyed (entry, destination).
+        side_effect=lambda candidate, reference: scores[(reference, candidate)],
     ):
         result = engine.process(
             pages=_pages(10),
@@ -998,7 +1030,10 @@ def test_ordered_assignment_maximizes_anchor_count_before_similarity(
 
     with mock.patch(
         TITLE_SIMILARITY,
-        side_effect=lambda first, second: scores[(first, second)],
+        # title_similarity is called (candidate, reference) - the destination
+        # heading first, the TOC entry it is tested against second - while
+        # these tables read naturally keyed (entry, destination).
+        side_effect=lambda candidate, reference: scores[(reference, candidate)],
     ):
         selected = engine._assign_titles(
             entries,
@@ -1034,7 +1069,10 @@ def test_ordered_assignment_follows_destination_y_order(fuzzy_engine, evidence):
 
     with mock.patch(
         TITLE_SIMILARITY,
-        side_effect=lambda first, second: scores[(first, second)],
+        # title_similarity is called (candidate, reference) - the destination
+        # heading first, the TOC entry it is tested against second - while
+        # these tables read naturally keyed (entry, destination).
+        side_effect=lambda candidate, reference: scores[(reference, candidate)],
     ):
         selected = engine._assign_titles(
             entries,
@@ -2172,7 +2210,10 @@ def test_title_fallback_globally_maximizes_monotonic_matches(
 
     with mock.patch(
         TITLE_SIMILARITY,
-        side_effect=lambda first, second: scores[(first, second)],
+        # title_similarity is called (candidate, reference) - the destination
+        # heading first, the TOC entry it is tested against second - while
+        # these tables read naturally keyed (entry, destination).
+        side_effect=lambda candidate, reference: scores[(reference, candidate)],
     ):
         result = engine.process(
             pages=_pages(4),
@@ -2209,7 +2250,10 @@ def test_title_fallback_global_assignment_enforces_monotonicity(
 
     with mock.patch(
         TITLE_SIMILARITY,
-        side_effect=lambda first, second: scores[(first, second)],
+        # title_similarity is called (candidate, reference) - the destination
+        # heading first, the TOC entry it is tested against second - while
+        # these tables read naturally keyed (entry, destination).
+        side_effect=lambda candidate, reference: scores[(reference, candidate)],
     ):
         result = engine.process(
             pages=_pages(4),
@@ -2245,7 +2289,10 @@ def test_unordered_title_fallback_does_not_enforce_monotonicity(
 
     with mock.patch(
         TITLE_SIMILARITY,
-        side_effect=lambda first, second: scores[(first, second)],
+        # title_similarity is called (candidate, reference) - the destination
+        # heading first, the TOC entry it is tested against second - while
+        # these tables read naturally keyed (entry, destination).
+        side_effect=lambda candidate, reference: scores[(reference, candidate)],
     ):
         result = engine.process(
             pages=_pages(4),

@@ -1640,11 +1640,34 @@ corresponding `ChapterResult` unchanged.
 ##### Title similarity
 
 Titles are lowercased, Unicode-decomposed, stripped of combining accents,
-punctuation-normalized, and whitespace-collapsed. Similarity is
-`1 - distance / shorter_length`, where distance is the minimum Levenshtein
-distance between the shorter normalized title and any substring of the longer
-one. Extra text at the beginning or end of the longer title is therefore not
-penalized like a full-string comparison.
+punctuation-normalized, and whitespace-collapsed. Comparison is then
+**asymmetric**: `title_similarity(candidate, reference)` treats the TOC entry
+as the reference — what the document says the chapter is called — and the
+destination-page heading as the uncertain reading tested against it.
+
+| Case | Comparison |
+|---|---|
+| The TOC entry is **shorter** than the heading | It is looked for anywhere inside the heading: `1 - substring_levenshtein_distance(entry, heading) / len(entry)` |
+| The TOC entry is **longer or equal** | The two are compared whole: `1 - levenshtein_distance(heading, entry) / len(entry)` |
+
+The first case is what the licence is for: a destination heading often carries
+more than its TOC entry — a running head, a subtitle, a chapter number set into
+the heading — and that surrounding text should not be penalized. A heading
+`1. ÚVOD` matches a TOC entry `Úvod` exactly.
+
+The second case gets no such licence, which is what keeps a stray heading
+detection out. Locating whichever title happened to be shorter inside the other
+meant a one-character heading scored a perfect `1.0` against any TOC entry
+containing that character — enough on its own to satisfy
+`minimum_title_substring_similarity` and win an alignment. Compared whole, `U`
+against `Úvod do problematiky` scores `0.05`.
+
+The asymmetry has one cost worth knowing: text the **TOC entry** carries and
+the heading does not now counts against the match. A TOC entry `1. Úvod`
+against a heading `ÚVOD` scores `0.667`, below the `0.7` default, where it
+previously matched at `1.0`. Extraction keeps chapter numbers in
+`ChapterBase.part_number` rather than in the title, so this affects entries
+whose number leaked into the title text rather than well-formed ones.
 
 ##### Anchor candidates
 
