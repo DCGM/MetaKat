@@ -372,8 +372,8 @@ worker logs a warning at startup rather than refusing to run.
 ### Worker metadata envelope
 
 The DocAPI worker treats `job.engine_definition` as the base pipeline mapping.
-When `meta_file` is present, it must be a JSON object containing only these
-optional object-or-null values:
+When `meta_file` is present, it must be a JSON object. Each of these three keys
+is optional and either an object or null:
 
 ```json
 {
@@ -382,6 +382,19 @@ optional object-or-null values:
   "engine_config_override": null
 }
 ```
+
+An absent key and an explicitly null one mean the same thing: nothing is passed
+to the pipeline for it. Every key that is present and non-null is passed on. A
+key outside the three is an error.
+
+A meta file carrying **none** of the three keys is read as a plain ProArc JSON
+and used as `proarc_json`, which is how the file was supplied before the
+envelope existed. The two shapes are unambiguous: a ProArc JSON identifies
+itself with its own required `type` and `objects` keys and never has an
+envelope key. The one exception is an empty object, which stays an empty
+envelope — a ProArc JSON always carries its required keys, so `{}` cannot be
+one. The fallback only chooses the container; the document itself is still
+validated against `ProarcIO`, so a meta file that is neither shape fails there.
 
 The worker merges `engine_config_override` into `job.engine_definition`, then
 resolves paths against the downloaded engine directory. Any relative path,
