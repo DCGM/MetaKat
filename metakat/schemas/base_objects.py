@@ -264,10 +264,13 @@ class ObjectItem(BaseModel):
     model: ObjectModel
     metadata: str
 
-    # Not present in the raw packageInfo.json; parse_proarc_json fills it in
-    # from pid (which is always "uuid:<uuid>") once validation has confirmed
-    # pid's shape, so downstream code gets a ready-to-use UUID instead of
-    # every consumer re-parsing pid itself.
+    # Not present in the raw packageInfo.json; parse_proarc_json derives it
+    # from pid (which is always "uuid:<uuid>") and puts it into the document
+    # it validates, so downstream code gets a ready-to-use UUID instead of
+    # every consumer re-parsing pid itself. It is optional only because the
+    # raw packageInfo.json being validated does not carry it; a package that
+    # came out of parse_proarc_json has it set on every object, since an
+    # object whose pid yields no UUID makes the whole document unusable.
     id: Optional[UUID] = None
 
     # Values parsed out of `metadata` (MODS XML) by parser_mods.parse_mods.
@@ -285,24 +288,33 @@ class ObjectItem(BaseModel):
     # Within each aligned group, an exact-duplicate row (all fields equal) is
     # dropped as a whole rather than deduping columns independently, which would
     # break the alignment.
-    title: Optional[List[str]] = None
-    subTitle: Optional[List[str]] = None
-    partName: Optional[List[str]] = None
-    partNumber: Optional[List[str]] = None
-    dateIssued: Optional[List[str]] = None
-    edition: Optional[List[str]] = None
-    placeTerm: Optional[List[str]] = None
-    publisher: Optional[List[str]] = None
-    manufacturePublisher: Optional[List[str]] = None
-    manufacturePlaceTerm: Optional[List[str]] = None
+    #
+    # Keeping a group aligned means a block that has no value for one of its
+    # fields still occupies its index there, as None - so these lists are
+    # List[Optional[str]], not List[str]. A record with a titleInfo carrying
+    # only a title and another carrying only a partNumber parses to
+    # title=["Kytice", None] and partNumber=[None, "2"]. Only the six
+    # role-derived name fields below are plain List[str]: they are a set of
+    # names rather than a column of an aligned group, so they never hold a
+    # placeholder.
+    title: Optional[List[Optional[str]]] = None
+    subTitle: Optional[List[Optional[str]]] = None
+    partName: Optional[List[Optional[str]]] = None
+    partNumber: Optional[List[Optional[str]]] = None
+    dateIssued: Optional[List[Optional[str]]] = None
+    edition: Optional[List[Optional[str]]] = None
+    placeTerm: Optional[List[Optional[str]]] = None
+    publisher: Optional[List[Optional[str]]] = None
+    manufacturePublisher: Optional[List[Optional[str]]] = None
+    manufacturePlaceTerm: Optional[List[Optional[str]]] = None
+    seriesName: Optional[List[Optional[str]]] = None
+    seriesNumber: Optional[List[Optional[str]]] = None
     author: Optional[List[str]] = None
     illustrator: Optional[List[str]] = None
     photographer: Optional[List[str]] = None
     translator: Optional[List[str]] = None
     editor: Optional[List[str]] = None
     redaktor: Optional[List[str]] = None
-    seriesName: Optional[List[str]] = None
-    seriesNumber: Optional[List[str]] = None
 
 class ProarcIO(BaseModel):
     model_config = ConfigDict(extra="forbid")  # additionalProperties: false
