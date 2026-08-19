@@ -468,13 +468,24 @@ exactly one `MetakatVolume`:
 2. **Merge each group independently** into one volume, using every candidate in
    it. The record does not select which detections take part.
 3. **Score each group against the record** by counting how many comparable
-   fields any of its candidates corroborates.
+   fields any of its candidates corroborates, and whether the catalog
+   recognises a title the group detected.
 4. **Pick the winning group** by comparing the tuple
-   `(has_title, proarc_match_count, detection_count)`. Tuple comparison is
-   lexicographic, so a group whose merge produced a title always beats a
-   titleless one; among those, the group corroborating more of the record wins;
-   and if the record cannot separate them, the larger field-level detection
-   count does.
+   `(title_recognised, proarc_match_count, has_title, detection_count)`,
+   lexicographically:
+
+   | Rank | Key | Meaning |
+   |---:|---|---|
+   | 1 | `title_recognised` | The record recognises a title this group detected, at `0.6` similarity |
+   | 2 | `proarc_match_count` | How many comparable fields the group corroborates, at `0.7` each |
+   | 3 | `has_title` | The merge produced a title, whatever the record thinks of it |
+   | 4 | `detection_count` | Field-level detections gathered across the group |
+
+   A recognised title leads because it is the strongest single sign that a
+   group is the book; overall corroboration resolves conflicts behind it,
+   which is why the title bar can afford to be the loosest of the three
+   similarity thresholds. Keys 3 and 4 carry no ProArc input and decide alone
+   when the record corroborates nothing.
 5. **Assign the anchor page** and return `[merged volume] + elements that are
    neither a volume nor an issue`. Every candidate issue is dropped, since a
    lone volume object implies no issue-level structure.
@@ -587,6 +598,32 @@ similarity = 1 - substring_levenshtein_distance(shorter, longer) / len(shorter)
 
 Matching a substring rather than the whole string lets a detected title match a
 catalog title that carries extra subtitle or statement-of-responsibility text.
+It is not directional — whichever value is shorter is the one located inside
+the other — so it works whether the detector or the catalog holds the fuller
+string.
+
+Substring matching only applies while the shorter value is at least **four
+characters**. Below that it degenerates: every single character occurs inside
+almost any value, so a one-character OCR fragment would score a perfect `1.0`
+against a whole catalog title, clearing all three thresholds and able to take a
+field from a correctly read one. Shorter values are compared whole instead:
+
+```text
+similarity = 1 - levenshtein_distance(shorter, longer) / len(longer)
+```
+
+An exact match still scores `1.0` at any length, so a year or an edition number
+matches its own counterpart; what it no longer does is match a value that
+merely contains it. The four-character floor keeps a year locating inside a
+fuller date while ruling out shorter fragments.
+
+The resulting score is read against three different bars, loosest to strictest:
+
+| Bar | Used for | Why this strictness |
+|---:|---|---|
+| `0.6` | Does the catalog recognise a title this group detected — ranking key 1 | Only decides which group is looked at first, and conflicts behind it are resolved by overall corroboration, so a rough OCR reading costs nothing |
+| `0.7` | Does a field corroborate the record — ranking key 2 | Enough agreement to help identify the book |
+| `0.8` | Which detection of a single-value field is written | A stronger claim than helping identify the book: this one decides output |
 
 #### Merging
 
