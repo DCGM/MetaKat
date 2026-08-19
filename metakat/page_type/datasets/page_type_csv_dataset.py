@@ -7,7 +7,7 @@ from collections import Counter
 from pathlib import Path
 
 from metakat.page_type.datasets.page_type_dataset import PageTypeDataset
-from metakat.tools.mods_helper import page_type_classes
+from metakat.page_type.datasets_from_mods.mods_helper import page_type_classes
 
 logger = logging.getLogger(__name__)
 
