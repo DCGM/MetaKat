@@ -491,17 +491,41 @@ else is MetaKat's.
 | Decided by the ProArc record | Decided by the detections |
 |---|---|
 | That the batch holds exactly one volume | Which text, confidence, and geometry every field carries |
-| Which group of neighbouring title pages wins | Which candidate wins a contested field, by confidence |
-| The volume's `id`, taken from the record's `pid` | Whether a field is present at all |
+| Which group of neighbouring title pages wins | Whether a field is present at all |
+| Which of several detections of one single-value field is kept | Which detection wins when the record corroborates none of them |
+| The volume's `id`, taken from the record's `pid` | Everything in a list-valued field |
 
 No catalog value is ever written to `MetakatIO`. The record's values are read
 only to be compared against detections and are then discarded; every value in
 the merged volume is a detection tuple from the winning group, with its own
-detection UUID and geometry. The record also does not gate which detections may
-be written: a whole group is merged, not the subset that happened to match, so
-a field the record disagrees with is still written when the detector saw it.
-Within a group, a contested field goes to the highest-confidence detection —
-the record gets no vote.
+text, confidence, detection UUID, and geometry. The record also does not gate
+which detections may be written: a whole group is merged, not the subset that
+happened to match, so a field the record disagrees with is still written when
+the detector saw it.
+
+#### Choosing between detections of one field
+
+A group can detect the same field more than once — several title pages, or
+several readings on one page. A single-value field in the output schema holds
+one of them, so that competition has to be settled, and this is the only place
+the record influences content.
+
+A detection whose text reaches `0.8` similarity to one of the record's values
+for that field wins outright, **without its confidence being consulted**. The
+catalog is better placed than the detector's confidence to say which of two
+readings is the real title, and a confident misreading is exactly what it can
+see through. Confidence decides only among equally corroborated detections, and
+among all of them when the record corroborates none — which is also what
+happens when the record has no value for that field at all.
+
+The `0.8` bar is deliberately stricter than the `0.7` used for
+[scoring a group](#text-matching): resembling the record closely enough to help
+identify the book is a weaker claim than being the reading that should be
+written. A detection at, say, `0.75` therefore counts towards its group's score
+while leaving the confident reading in place.
+
+None of this applies to list-valued fields. They keep every detection, so there
+is no competition to settle and the record has no say.
 
 This also means a record that corroborates nothing costs the batch nothing.
 That state is ordinary rather than exotic:
@@ -566,20 +590,21 @@ catalog title that carries extra subtitle or statement-of-responsibility text.
 
 #### Merging
 
-`_merge_volumes` builds one `MetakatVolume` from the relevant candidates:
+`_merge_volumes` builds one `MetakatVolume` from every candidate in the winning
+group:
 
 | Property | Rule |
 |---|---|
 | `id` | The ProArc record's own `pid`, as the `UUID` that `parse_proarc_json` puts on `ObjectItem.id`. This element *is* that catalogued object, so it does not get a fresh UUID. |
 | `hierarchy` | Always `monograph`. No candidate's own hierarchy is consulted, because the only signals that would suggest otherwise are the excluded part fields. |
-| Single-value fields | The candidate value with the highest confidence. |
+| Single-value fields | The candidate value the record corroborates at `0.8` or better; otherwise the highest-confidence one. See [Choosing between detections of one field](#choosing-between-detections-of-one-field). |
 | List-valued fields | Union in candidate order, skipping tuples already present. Since every detection carries its own UUID, identical text detected on two pages is kept twice. |
 | `page_id` | Assigned separately, see below. |
 
-The anchor page is chosen by `_pick_anchor_page_id` in this order: the relevant
-candidate with the highest-confidence title; otherwise the first relevant
-candidate; otherwise the first member of the winning group; otherwise the first
-title page; otherwise the first page; otherwise `None`.
+The anchor page is chosen by `_pick_anchor_page_id` in this order: the group
+member with the highest-confidence title; otherwise the first member of the
+group; otherwise the first title page; otherwise the first page; otherwise
+`None`.
 
 ### Periodical volume consolidation
 
