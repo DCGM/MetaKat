@@ -382,6 +382,18 @@ class BiblioBindEngineBase(BiblioBindEngine):
 
         for group in groups:
             relevant = [c for c in group if self._volume_matches_proarc(c, proarc_volume)]
+            if not relevant:
+                # Proarc is bonus information: it settles how many volumes
+                # there are and supplies this one's identity, but it must
+                # never cost the batch evidence it would otherwise have kept.
+                # A record can easily have nothing to match against - an
+                # unreadable MODS leaves an object with identity only, and an
+                # index-aligned column can be all placeholders - and a record
+                # that does carry values may still match nothing here. Falling
+                # back to the group's own detections keeps the volume count
+                # and id proarc gives us without merging an empty volume over
+                # a perfectly good title.
+                relevant = group
             merged = self._merge_volumes(relevant, volume_id, anchor_page_id=None)
             detection_count = self._count_detections(relevant)
             has_title = merged.title is not None

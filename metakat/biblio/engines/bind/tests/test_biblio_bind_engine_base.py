@@ -329,7 +329,11 @@ def test_resolve_single_proarc_volume_discards_unrelated_candidates_and_merges_r
     assert volume.publisher == [matching_volume_more_evidence.publisher[0]]
 
 
-def test_resolve_single_proarc_volume_falls_back_to_empty_volume_when_nothing_matches(metakat_page):
+def test_resolve_single_proarc_volume_keeps_detections_when_nothing_matches(metakat_page):
+    # Proarc is bonus information: it settles the volume count and supplies the
+    # id, but must never cost the batch evidence it would otherwise have kept.
+    # This used to merge an empty volume over the detections, so a record that
+    # matched nothing left the batch worse off than no proarc record at all.
     binder = _binder({})
     proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"])
     unrelated_volume = MetakatVolume(
@@ -347,8 +351,49 @@ def test_resolve_single_proarc_volume_falls_back_to_empty_volume_when_nothing_ma
 
     assert len(result) == 1
     volume = result[0]
-    assert volume.title is None
+    assert volume.title == unrelated_volume.title
+    assert volume.id == proarc_volume.id
     assert volume.page_id == metakat_page.id
+
+
+def test_resolve_single_proarc_volume_keeps_detections_when_the_record_is_bare(metakat_page):
+    # The state the IO guards make ordinary: an object whose MODS could not be
+    # read keeps its identity and has no catalog field to match against.
+    binder = _binder({})
+    proarc_volume = _proarc_volume()
+    candidate = MetakatVolume(
+        id=uuid4(),
+        page_id=metakat_page.id,
+        title=("Kytice z povesti narodnich", 0.9, uuid4()),
+        author=[("Erben", 0.8, uuid4())],
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [candidate], proarc_volume, title_pages=[metakat_page], pages=[metakat_page],
+    )
+
+    volume = result[0]
+    assert volume.title == candidate.title
+    assert volume.author == candidate.author
+    assert volume.id == proarc_volume.id
+
+
+def test_resolve_single_proarc_volume_ignores_aligned_placeholders_when_matching(metakat_page):
+    # An index-aligned column can be nothing but placeholders, which offers no
+    # more to match against than an absent field does.
+    binder = _binder({})
+    proarc_volume = _proarc_volume(title=[None, None])
+    candidate = MetakatVolume(
+        id=uuid4(),
+        page_id=metakat_page.id,
+        title=("Kytice z povesti narodnich", 0.9, uuid4()),
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [candidate], proarc_volume, title_pages=[metakat_page], pages=[metakat_page],
+    )
+
+    assert result[0].title == candidate.title
 
 
 def test_resolve_single_proarc_volume_ignores_part_fields_and_forces_monograph_hierarchy(metakat_page):
