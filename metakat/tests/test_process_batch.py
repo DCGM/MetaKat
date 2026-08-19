@@ -102,3 +102,55 @@ def test_process_batch_runs_page_number_first():
         )
 
     assert order == ["page_number", "page_type", "biblio", "chapter"]
+
+
+_GOOD_MODS = (
+    '<mods xmlns="http://www.loc.gov/mods/v3">'
+    "<titleInfo><title>Kytice</title></titleInfo></mods>"
+)
+
+
+def _proarc_package(pid, metadata=_GOOD_MODS):
+    return {
+        "type": "monograph",
+        "objects": [{"pid": pid, "model": "volume", "metadata": metadata}],
+    }
+
+
+def test_init_io_reads_proarc_through_the_parser():
+    # init_io must not validate into ProarcIO directly: that skips both the
+    # pid-to-id derivation and the MODS parsing that every ProarcIO consumer
+    # expects to have happened, leaving the engines an object with a null id.
+    object_uuid = uuid4()
+
+    _, proarc_io = process_batch_module.init_io(
+        batch_dir="batch",
+        proarc_data=_proarc_package(f"uuid:{object_uuid}"),
+        ordered_image_filenames=[],
+    )
+
+    assert proarc_io is not None
+    assert proarc_io.objects[0].id == object_uuid
+    assert proarc_io.objects[0].title == ["Kytice"]
+
+
+def test_init_io_yields_no_proarc_when_nothing_could_be_read():
+    # An unreadable ProArc document leaves the pipeline running without one,
+    # rather than raising or handing the engines a package offering nothing.
+    _, proarc_io = process_batch_module.init_io(
+        batch_dir="batch",
+        proarc_data={"not": "a proarc json"},
+        ordered_image_filenames=[],
+    )
+
+    assert proarc_io is None
+
+
+def test_init_io_yields_no_proarc_when_the_only_record_is_unusable():
+    _, proarc_io = process_batch_module.init_io(
+        batch_dir="batch",
+        proarc_data=_proarc_package("uuid:not-a-uuid"),
+        ordered_image_filenames=[],
+    )
+
+    assert proarc_io is None
