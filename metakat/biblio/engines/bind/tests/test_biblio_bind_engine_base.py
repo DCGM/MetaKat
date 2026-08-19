@@ -11,6 +11,7 @@ from text_geometry_aligner import (
 from metakat.biblio.engines.bind.biblio_bind_engine_base import (
     BiblioBindEngineBase,
     PeriodicalMetakatVolumeBag,
+    _text_similarity,
 )
 from metakat.schemas.base_objects import (
     BiblioType,
@@ -314,11 +315,9 @@ def test_resolve_single_proarc_volume_uses_the_proarc_pid_as_the_volume_id(metak
 
 def test_resolve_single_proarc_volume_merges_the_whole_winning_group(metakat_page):
     # Proarc ranks groups; it does not filter within one. Every candidate in
-    # the winning group contributes, and which detection wins a field is
-    # decided by MetaKat confidence alone - here the highest-confidence title
-    # takes the field even though the record corroborates a different one. The
-    # stray issue candidate is dropped outright, since a lone volume object
-    # implies no issue-level structure.
+    # the winning group contributes, including one whose fields the record says
+    # nothing about. The stray issue candidate is dropped outright, since a
+    # lone volume object implies no issue-level structure.
     binder = _binder({})
     proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"], dateIssued=["1853"])
     corroborated_title = MetakatVolume(
@@ -332,15 +331,10 @@ def test_resolve_single_proarc_volume_merges_the_whole_winning_group(metakat_pag
         dateIssued=("1853", 0.7, uuid4()),
         publisher=[("Storch", 0.6, uuid4())],
     )
-    most_confident_title = MetakatVolume(
-        id=uuid4(),
-        page_id=metakat_page.id,
-        title=("Some other book", 0.99, uuid4()),
-    )
     stray_issue = MetakatIssue(id=uuid4(), page_id=metakat_page.id)
 
     result = binder.resolve_single_proarc_volume(
-        [corroborated_title, more_evidence, most_confident_title, stray_issue],
+        [corroborated_title, more_evidence, stray_issue],
         proarc_volume,
         title_pages=[metakat_page],
         pages=[metakat_page],
@@ -349,9 +343,108 @@ def test_resolve_single_proarc_volume_merges_the_whole_winning_group(metakat_pag
     assert len(result) == 1
     volume = result[0]
     assert volume.type == DocumentType.VOLUME.value
-    assert volume.title == most_confident_title.title
+    assert volume.title == corroborated_title.title
     assert volume.dateIssued[0] == "1853"
     assert volume.publisher == [more_evidence.publisher[0]]
+
+
+def test_corroborated_detection_beats_a_more_confident_one(metakat_page):
+    # The schema holds one title, so a group that detected two has to drop one.
+    # The record settles that competition without regard to confidence: a
+    # confident misread is exactly what the catalog can see through.
+    binder = _binder({})
+    proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"])
+    corroborated = MetakatVolume(
+        id=uuid4(),
+        page_id=metakat_page.id,
+        title=("Kytice z povesti narodnich", 0.5, uuid4()),
+    )
+    more_confident = MetakatVolume(
+        id=uuid4(),
+        page_id=metakat_page.id,
+        title=("Some other book", 0.99, uuid4()),
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [corroborated, more_confident],
+        proarc_volume,
+        title_pages=[metakat_page],
+        pages=[metakat_page],
+    )
+
+    # The detection is kept whole - its own text, confidence and detection id.
+    assert result[0].title == corroborated.title
+
+
+def test_confidence_decides_when_the_record_corroborates_neither(metakat_page):
+    binder = _binder({})
+    proarc_volume = _proarc_volume(title=["Something entirely different"])
+    quiet = MetakatVolume(
+        id=uuid4(), page_id=metakat_page.id, title=("First reading", 0.5, uuid4())
+    )
+    confident = MetakatVolume(
+        id=uuid4(), page_id=metakat_page.id, title=("Second reading", 0.99, uuid4())
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [quiet, confident], proarc_volume, title_pages=[metakat_page], pages=[metakat_page],
+    )
+
+    assert result[0].title == confident.title
+
+
+def test_a_loose_resemblance_does_not_override_confidence(metakat_page):
+    # The two thresholds are deliberately different. This pair scores 0.75:
+    # close enough to count as corroboration when judging which group is the
+    # book, not close enough to overrule a confident reading of the title.
+    binder = _binder({})
+    proarc_volume = _proarc_volume(title=["Kytice basni"])
+    loosely_similar = MetakatVolume(
+        id=uuid4(), page_id=metakat_page.id, title=("Kxtxce basnx", 0.5, uuid4())
+    )
+    confident = MetakatVolume(
+        id=uuid4(), page_id=metakat_page.id, title=("Some other book", 0.99, uuid4())
+    )
+
+    assert 0.7 <= _text_similarity("Kytice basni", "Kxtxce basnx") < 0.8
+    assert BiblioBindEngineBase._count_proarc_matches(
+        [loosely_similar], proarc_volume
+    ) == 1
+
+    result = binder.resolve_single_proarc_volume(
+        [loosely_similar, confident],
+        proarc_volume,
+        title_pages=[metakat_page],
+        pages=[metakat_page],
+    )
+
+    assert result[0].title == confident.title
+
+
+def test_list_fields_keep_every_detection_regardless_of_the_record(metakat_page):
+    # The preference exists only where the schema forces a single value. A
+    # list field has no competition to settle, so nothing is dropped and the
+    # record has no say at all.
+    binder = _binder({})
+    proarc_volume = _proarc_volume(publisher=["Storch"])
+    corroborated = MetakatVolume(
+        id=uuid4(), page_id=metakat_page.id,
+        title=("Kytice", 0.9, uuid4()),
+        publisher=[("Storch", 0.4, uuid4())],
+    )
+    unrelated = MetakatVolume(
+        id=uuid4(), page_id=metakat_page.id,
+        publisher=[("Some other publisher", 0.99, uuid4())],
+    )
+
+    result = binder.resolve_single_proarc_volume(
+        [corroborated, unrelated], proarc_volume, title_pages=[metakat_page], pages=[metakat_page],
+    )
+
+    assert result[0].publisher == [
+        corroborated.publisher[0],
+        unrelated.publisher[0],
+    ]
 
 
 def test_resolve_single_proarc_volume_picks_the_group_the_record_corroborates():

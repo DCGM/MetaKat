@@ -35,7 +35,14 @@ _PROARC_VOLUME_LIST_FIELDS = (
     "publisher", "manufacturePublisher", "manufacturePlaceTerm", "author", "illustrator",
     "photographer", "translator", "editor", "seriesName", "seriesNumber",
 )
+# How close a candidate value has to be to one of the record's values to count
+# as corroborating it when scoring a group.
 _PROARC_TEXT_SIMILARITY_THRESHOLD = 0.7
+# The stricter bar for preferring one detection over another within a group,
+# where the schema forces a single value per field. Deliberately higher than
+# the scoring threshold: agreeing well enough to help identify the book is a
+# weaker claim than being the reading that should be written.
+_PROARC_PREFERRED_VALUE_SIMILARITY = 0.8
 
 
 def _normalize_text(text: str) -> str:
@@ -74,6 +81,22 @@ def _text_similarity(first: str, second: str) -> float:
     )
     distance = _substring_levenshtein_distance(target, source)
     return 1.0 - distance / len(target)
+
+
+def _best_text_similarity(
+    text: str,
+    proarc_values: Optional[List[Optional[str]]],
+) -> float:
+    # An index-aligned column holds None wherever its source block had no
+    # value for the field; those placeholders are not text to compare against.
+    return max(
+        (
+            _text_similarity(text, proarc_text)
+            for proarc_text in (proarc_values or [])
+            if proarc_text
+        ),
+        default=0.0,
+    )
 
 
 def _tuple_texts_match(
@@ -386,7 +409,9 @@ class BiblioBindEngineBase(BiblioBindEngine):
         best_rank = None
 
         for group in groups:
-            merged = self._merge_volumes(group, volume_id, anchor_page_id=None)
+            merged = self._merge_volumes(
+                group, volume_id, anchor_page_id=None, proarc_volume=proarc_volume
+            )
             rank = (
                 merged.title is not None,
                 self._count_proarc_matches(group, proarc_volume),
@@ -450,17 +475,11 @@ class BiblioBindEngineBase(BiblioBindEngine):
             if isinstance(candidate_value, tuple)
             else [item[0] for item in candidate_value]
         )
-        for candidate_text in candidate_texts:
-            for proarc_text in proarc_values:
-                # A proarc catalog field is a column of an index-aligned
-                # group, so it holds None wherever the source block had no
-                # value for it. Those placeholders keep the columns lined
-                # up; they are not text to compare against.
-                if not proarc_text:
-                    continue
-                if _text_similarity(candidate_text, proarc_text) >= _PROARC_TEXT_SIMILARITY_THRESHOLD:
-                    return True
-        return False
+        return any(
+            _best_text_similarity(candidate_text, proarc_values)
+            >= _PROARC_TEXT_SIMILARITY_THRESHOLD
+            for candidate_text in candidate_texts
+        )
 
     # How much of the catalog record this group corroborates, as a count of
     # comparable fields any of its candidates agrees with. This is the whole
@@ -506,11 +525,46 @@ class BiblioBindEngineBase(BiblioBindEngine):
             return pages[0].id
         return None
 
+    # Which of several detections of one single-value field to keep. The
+    # output schema holds a single value per field, so a group that detected
+    # the same field more than once has to drop all but one - this decides
+    # only that competition, and nothing else.
+    #
+    # A detection the record corroborates closely wins outright, without its
+    # confidence being consulted: the point is to keep the reading the catalog
+    # agrees with rather than the loudest one, and a confident misread of a
+    # title is exactly what the record is able to see through. Confidence
+    # decides only among equally corroborated detections, and among all of
+    # them when the record corroborates none. The value written is still the
+    # detection's own text, confidence and geometry - the record's own string
+    # is never copied in.
     @staticmethod
+    def _pick_single_field_value(
+        values: List[Tuple[str, float, UUID]],
+        proarc_values: Optional[List[Optional[str]]],
+    ) -> Tuple[str, float, UUID]:
+        similarity_by_value = {
+            value[2]: _best_text_similarity(value[0], proarc_values)
+            for value in values
+        }
+        corroborated = [
+            value for value in values
+            if similarity_by_value[value[2]] >= _PROARC_PREFERRED_VALUE_SIMILARITY
+        ]
+        if corroborated:
+            return max(
+                corroborated,
+                key=lambda value: (similarity_by_value[value[2]], value[1]),
+            )
+        return max(values, key=lambda value: value[1])
+
+    @classmethod
     def _merge_volumes(
+        cls,
         volumes: List[MetakatVolume],
         volume_id: UUID,
         anchor_page_id: Optional[UUID],
+        proarc_volume: Optional[ObjectItem] = None,
     ) -> MetakatVolume:
         # hierarchy is always MONOGRAPH: partNumber/partName (the only
         # signals that would suggest otherwise) are excluded from
@@ -520,15 +574,20 @@ class BiblioBindEngineBase(BiblioBindEngine):
         # not a freshly generated one, since this MetakatVolume *is* that
         # catalogued object.
         merged = MetakatVolume(id=volume_id, page_id=anchor_page_id, hierarchy=HierarchyType.MONOGRAPH)
-        for volume in volumes:
-            for field_name in _PROARC_VOLUME_SINGLE_FIELDS:
-                candidate_value = getattr(volume, field_name)
-                if candidate_value is None:
-                    continue
-                current_value = getattr(merged, field_name)
-                if current_value is None or current_value[1] < candidate_value[1]:
-                    setattr(merged, field_name, candidate_value)
+        for field_name in _PROARC_VOLUME_SINGLE_FIELDS:
+            values = [
+                value
+                for value in (getattr(volume, field_name) for volume in volumes)
+                if value is not None
+            ]
+            if not values:
+                continue
+            proarc_values = (
+                getattr(proarc_volume, field_name) if proarc_volume is not None else None
+            )
+            setattr(merged, field_name, cls._pick_single_field_value(values, proarc_values))
 
+        for volume in volumes:
             for field_name in _PROARC_VOLUME_LIST_FIELDS:
                 candidate_value = getattr(volume, field_name)
                 if not candidate_value:
