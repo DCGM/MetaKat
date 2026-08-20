@@ -34,7 +34,8 @@ Chapter processing deliberately has two boundaries:
    resolved destination page keys.
 2. The **[bind engine](#available-bind-implementation)** projects that result into the existing `MetakatIO`. It
    groups pages by their lowest document container, converts page keys into
-   `pageIndex` values, creates detection UUIDs, and fills missing chapter ends.
+   `pageIndex` values, and creates detection UUIDs. It resolves nothing of its
+   own.
 
 The core engine may implement chapter extraction in any way. The bind engine
 depends only on the [core interface and result model](#chapter-core-engine-contract).
@@ -74,15 +75,12 @@ The method returns:
 ```python
 TocResult(
     chapters: tuple[ChapterResult, ...],
-    toc_monotonicity_score: float | None = None,
 )
 ```
 
-`chapters` contains the hierarchy roots. `toc_monotonicity_score` reports how
-strongly the parsed TOC page-number sequence supports monotonic TOC order. It
-must be in `[0, 1]`, or `None` when the core cannot determine a meaningful
-score. The binder decides independently whether that evidence is sufficient
-for binder-specific inference.
+`chapters` contains the hierarchy roots. A core engine reports no other
+result: how it judged its own TOC evidence, and what it did with that
+judgement, stays inside the engine.
 
 One core chapter is represented by:
 
@@ -109,7 +107,7 @@ ChapterResult(
 | `page_number` | Optional parsed destination-page reference from the TOC page. It retains the original OCR evidence as well as the normalized values supplied by the TOC-producing engine. It is not the physical number detected on the destination page. |
 | `title_destination_page` | Optional title evidence found on the resolved destination page. |
 | `page_start_key` | Input image stem of the resolved first page, or `None` when unresolved. |
-| `page_end_key` | Input image stem of an explicitly resolved last page, or `None` for the binder to consider generic end inference. |
+| `page_end_key` | Input image stem of the resolved last page, whether read from an explicit TOC range or inferred by the engine, or `None` when the engine resolved no end. |
 | `children` | Nested chapter hierarchy of arbitrary depth. |
 
 An unresolved chapter may still be returned with TOC evidence and children;
@@ -494,15 +492,11 @@ process(
 ```python
 TocResult(
     chapters: tuple[ChapterResult, ...],
-    toc_monotonicity_score: float | None = None,
 )
 ```
 
-`toc_monotonicity_score` is the stage implementation's score in `[0, 1]`, or
-`None` when it cannot evaluate TOC-number monotonicity. It describes the TOC
-and is independent of whether an implementation was configured to enforce
-TOC monotonic-order constraints. `chapters` contains the top-level aligned
-entries of the logical TOC. Each aligned TOC entry is represented as:
+`chapters` contains the top-level aligned entries of the logical TOC. Each
+aligned TOC entry is represented as:
 
 ```python
 ChapterResult(ChapterBase):
@@ -516,7 +510,7 @@ ChapterResult(ChapterBase):
 |---|---|
 | `title_destination_page` | Optional title evidence detected on the resolved destination page. This remains distinct from the TOC-page `title` inherited from `ChapterBase`. |
 | `page_start_key` | `ChapterPageInput.page_key` of the resolved first destination page, or `None` when the chapter was not aligned. |
-| `page_end_key` | `ChapterPageInput.page_key` of an explicitly resolved final destination page, or `None` when no explicit end was resolved. |
+| `page_end_key` | `ChapterPageInput.page_key` of the resolved final destination page, whether read from an explicit TOC range or inferred by the stage, or `None` when no end was resolved. |
 | `children` | Nested aligned chapter results. This overrides `ChapterBase.children` so the recursive elements are `ChapterResult` objects. |
 
 The fields inherited by `ChapterResult`, including `page_number`, retain the
@@ -614,12 +608,13 @@ configurations under `page_analysis`, `extraction`, and `alignment`:
         "toc_monotonic_order_constraints": "auto",
         "minimum_toc_number_monotonicity_ratio": 0.9,
         "use_anchors": true,
-        "solver_time_limit_seconds": null
+        "solver_time_limit_seconds": null,
+        "infer_chapter_ends": true,
+        "minimum_toc_monotonicity_score_for_end_inference": 0.9
       }
     },
     "bind": {
-      "name": "chapter_bind_engine_base",
-      "minimum_toc_monotonicity_score_for_end_inference": 0.9
+      "name": "chapter_bind_engine_base"
     }
   }
 }
@@ -1579,7 +1574,9 @@ all three added fields as `None` for every entry.
   "toc_monotonic_order_constraints": "auto",
   "minimum_toc_number_monotonicity_ratio": 0.9,
   "use_anchors": true,
-  "solver_time_limit_seconds": null
+  "solver_time_limit_seconds": null,
+  "infer_chapter_ends": true,
+  "minimum_toc_monotonicity_score_for_end_inference": 0.9
 }
 ```
 
@@ -1589,10 +1586,15 @@ non-negative integer; `toc_monotonic_order_constraints` must be `"auto"`,
 `"yes"`, or `"no"`; and `minimum_toc_number_monotonicity_ratio` must be in
 `[0, 1]`. `use_anchors` must be a boolean. `solver_time_limit_seconds` must be
 `null` or a positive finite number. `null` imposes no solver time limit and is
-the default.
+the default. `infer_chapter_ends` must be a boolean, and
+`minimum_toc_monotonicity_score_for_end_inference` must be `null` or in
+`[0, 1]`; both are described under
+[Chapter end inference](#chapter-end-inference).
 
-The engine always calculates `TocResult.toc_monotonicity_score` from parsed TOC
-start-page values in flattened TOC order. Values are grouped by numeral system,
+The engine always calculates an internal TOC monotonicity score from parsed TOC
+start-page values in flattened TOC order. The score is not reported in
+`TocResult`; it is evidence the engine keeps to itself and uses for the two
+independent decisions below. Values are grouped by numeral system,
 so a transition from Roman front matter to Arabic main matter is not treated as
 a decrease. Groups containing fewer than two parsed values do not provide
 comparable evidence and are excluded. Within every remaining group, the engine
@@ -1613,7 +1615,8 @@ disables them. `"auto"` enables them when the score is at least
 `minimum_toc_number_monotonicity_ratio`. When the score is `None`, auto mode
 also enables TOC monotonic-order constraints because there is no evidence of
 non-monotonicity. The forced modes never replace or otherwise falsify the
-reported score.
+calculated score, so they do not change what
+[Chapter end inference](#chapter-end-inference) sees.
 
 Alignment flattens the reference hierarchy in pre-order, performs all matching
 on that flat sequence, and reconstructs the original hierarchy afterward.
@@ -1922,8 +1925,8 @@ anchor.
    distance from the expected end position is within
    `maximum_destination_page_position_offset_from_expected`.
 3. If the selected pool is empty or the fallback winner exceeds that maximum
-   distance, `page_end_key` remains `None` for the binder's
-   [generic end-page inference](#generic-end-page-inference).
+   distance, `page_end_key` is left for
+   [chapter end inference](#chapter-end-inference) to fill.
 
 When there is no following anchor, only the resolved start position provides
 a bound. The following table is the complete tie-breaking order within the
@@ -1938,6 +1941,42 @@ higher-ranked value ties:
 This ranking applies identically to the exact-number and positional-fallback
 candidate pools. It does not depend on physical-page-number evidence input
 order.
+
+##### Chapter end inference
+
+An entry that reached this point with a resolved start but no `page_end_key`
+is given an inferred end. This is alignment's last decision, deliberately: it
+runs on the complete entry set, *before* the
+[pipeline wrapper](#pipeline-wrapper-orchestration) prunes titleless entries,
+so a number-only TOC entry still terminates the chapter preceding it even
+though the entry itself is discarded moments later.
+
+Inference is attempted only when `infer_chapter_ends` is `true` **and** the
+monotonicity gate passes:
+
+| `minimum_toc_monotonicity_score_for_end_inference` | Behaviour |
+|---|---|
+| a number in `[0, 1]` | Infer only when the calculated score is present and at least this value. A missing or lower score leaves every implicit end unresolved. |
+| `null` | Always infer, including when the score is `None`. |
+
+The gate depends on the calculated TOC evidence alone, not on whether
+`toc_monotonic_order_constraints` enforced monotonic order.
+
+When the gate passes, each entry lacking an end and having a resolved start is
+filled by walking the pre-order entry sequence:
+
+1. find the next entry later in pre-order whose depth is less than or equal to
+   the entry's depth and whose start is resolved;
+2. set the end to `max(entry start, that entry's start - 1)`;
+3. if no such entry exists, set the end to the last page of the document.
+
+Positions are indices into the complete ordered page sequence, selected TOC
+pages included, so every position between two starts maps back to a page.
+
+Children never terminate their parent because they have greater depth. Several
+entries starting on the same page each receive an end no earlier than their
+start. An explicit range end is never overwritten, and an entry without a
+resolved start keeps both ends unset.
 
 ##### Reconstructing the result tree
 
@@ -2056,14 +2095,12 @@ modified copy.
 
 ```json
 {
-  "name": "chapter_bind_engine_base",
-  "minimum_toc_monotonicity_score_for_end_inference": 0.9
+  "name": "chapter_bind_engine_base"
 }
 ```
 
-`minimum_toc_monotonicity_score_for_end_inference` must be in `[0, 1]`. It is
-the binder's independent trust threshold for generic end-page inference; it
-does not configure matching in the core engine.
+The binder has no settings of its own. It performs no matching, resolution, or
+inference; every such decision belongs to the core engine it invokes.
 
 #### Per-document processing
 
@@ -2110,7 +2147,7 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 | `parent_id` | Parent chapter UUID, or the enclosing issue/volume UUID for a root. |
 | `pageIndexToc` | `pageIndex` of `toc_page_key`; may be `None`. |
 | `pageIndexStart` | `pageIndex` of `page_start_key`; `None` when unresolved or unavailable. |
-| `pageIndexEnd` | Explicit range end when resolved, otherwise [generic binder inference](#generic-end-page-inference). |
+| `pageIndexEnd` | `pageIndex` of `page_end_key`; `None` when unresolved or unavailable. |
 | `title` | Title evidence detected on the TOC page. |
 | `title_destination_page` | Independently stored title evidence from the destination page. It is not copied into `title`. |
 | `partNumber` | Part-number evidence detected on the TOC page. |
@@ -2120,10 +2157,8 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 Page keys are translated through the image-stem mapping for the processed
 document. An unknown TOC or evidence page key is an error. Unknown start/end
 keys and pages without `pageIndex` are logged. A missing start index remains
-unset. A missing end index starts unset but may subsequently be filled by
-[generic end-page inference](#generic-end-page-inference) when the start index
-is known; a valid explicit end
-can remain present even when the start is missing.
+unset, and so does a missing end index; the binder resolves no end of its own.
+A valid end can remain present even when the start is missing.
 
 Each non-null evidence field becomes `(text, confidence, detection_uuid)`.
 The binder creates a new detection UUID, writes its `(x, y, width, height)` to
@@ -2131,27 +2166,10 @@ The binder creates a new detection UUID, writes its `(x, y, width, height)` to
 `detection_to_page_mapping`. The same chapter can therefore retain separate
 TOC-title, destination-title, part-number, and page-number geometries.
 
-#### Generic end-page inference
-
-For each core result, the binder performs generic end-page inference only when
-`TocResult.toc_monotonicity_score` is present and greater than or equal to
-`minimum_toc_monotonicity_score_for_end_inference`. A missing or lower score
-leaves every implicit `pageIndexEnd` unresolved. This decision depends on the
-reported TOC evidence, not on the core engine's TOC monotonic-order mode.
-
-When the score is trusted, the binder fills a missing `pageIndexEnd` only when
-`pageIndexStart` is known:
-
-1. find the next chapter later in pre-order binding traversal whose depth is
-   less than or equal to the chapter's depth and whose start is known;
-2. set the end to `max(chapter start, next start - 1)`;
-3. if no such chapter exists, set the end to
-   `max(chapter start, largest pageIndex in the complete document group)`.
-
-Children do not terminate their parent because they have greater depth.
-Multiple chapters starting on the same page receive an end no earlier than
-their start. An explicit range end from the core is never overwritten. A chapter without a resolved start remains in `MetakatIO` with both start and
-end unset.
+A chapter without a resolved start remains in `MetakatIO` with both start and
+end unset. Deciding where a chapter ends belongs to the core engine, which sees
+the complete entry set; the registered core resolves ends under
+[Chapter end inference](#chapter-end-inference).
 
 For each processed document group, the new chapter elements are inserted
 immediately after their enclosing issue, leaf volume, or synthetic orphan
@@ -2164,10 +2182,11 @@ relative order.
 
 The available implementations log high-level stage inputs, timings, selected TOC
 blocks, selected anchors, non-anchor bounds and expected offsets, chosen title
-matches, unresolved reasons, range-end decisions, document grouping, and final
+matches, unresolved reasons, range-end decisions, the number of inferred
+chapter ends or the reason none were inferred, document grouping, and final
 binding counts at `INFO` or `WARNING`. Candidate pages, extraction units,
-anchor options, individual title candidates, and bound fields are available at
-`DEBUG`.
+anchor options, individual title candidates, every individually inferred
+chapter end, and bound fields are available at `DEBUG`.
 
 Unified alignment logs candidate totals by evidence type, CP-SAT model size,
 every optimized and fixed objective value, elapsed solver time, and one final

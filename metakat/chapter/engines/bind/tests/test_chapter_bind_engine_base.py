@@ -5,7 +5,6 @@ from uuid import uuid4
 
 import pytest
 
-from metakat.chapter.engines.bind.chapter_bind_engine import ChapterBindEngine
 from metakat.chapter.engines.bind.chapter_bind_engine_base import (
     ChapterBindEngineBase,
 )
@@ -56,90 +55,6 @@ def _messages(caplog):
         for record in caplog.records
         if record.name.startswith(BIND_LOGGER)
     )
-
-
-@pytest.mark.parametrize("invalid", (-0.1, 1.1, "0.9", True, None))
-def test_end_inference_score_threshold_must_be_within_unit_interval(invalid):
-    def initialize(instance, config, core_config):
-        instance.config = config
-
-    with mock.patch.object(ChapterBindEngine, "__init__", initialize):
-        with pytest.raises(
-            ValueError,
-            match="minimum_toc_monotonicity_score_for_end_inference",
-        ):
-            ChapterBindEngineBase(
-                {
-                    "name": "chapter_bind_engine_base",
-                    "minimum_toc_monotonicity_score_for_end_inference": invalid,
-                },
-                {},
-            )
-
-
-@pytest.mark.parametrize("score", (None, 0.5))
-def test_insufficient_monotonicity_leaves_implicit_ends_unresolved(
-    bind_engine,
-    evidence,
-    score,
-):
-    volume_id = uuid4()
-    pages = _pages(10, volume_id)
-    result = TocResult(
-        chapters=(
-            ChapterResult(
-                toc_page_key="page-0",
-                title=evidence("Late", "page-0"),
-                page_start_key="page-8",
-            ),
-            ChapterResult(
-                toc_page_key="page-0",
-                title=evidence("Early", "page-0"),
-                page_start_key="page-4",
-            ),
-        ),
-        toc_monotonicity_score=score,
-    )
-
-    elements, _, _ = bind_engine.extract_metakat_elements_from_pipeline(
-        result,
-        {f"page-{index}": page for index, page in enumerate(pages)},
-        pages,
-        container_id=volume_id,
-    )
-
-    chapters = [element for element in elements if element.type == "chapter"]
-    assert tuple(chapter.pageIndexStart for chapter in chapters) == (8, 4)
-    assert all(chapter.pageIndexEnd is None for chapter in chapters)
-
-
-def test_bind_end_inference_uses_its_configured_score_threshold(
-    bind_engine,
-    evidence,
-):
-    volume_id = uuid4()
-    pages = _pages(10, volume_id)
-    result = TocResult(
-        chapters=(
-            ChapterResult(
-                toc_page_key="page-0",
-                title=evidence("Chapter", "page-0"),
-                page_start_key="page-8",
-            ),
-        ),
-        toc_monotonicity_score=0.5,
-    )
-    bind_engine.minimum_toc_monotonicity_score_for_end_inference = 0.5
-
-    elements, _, _ = bind_engine.extract_metakat_elements_from_pipeline(
-        result,
-        {f"page-{index}": page for index, page in enumerate(pages)},
-        pages,
-        container_id=volume_id,
-    )
-
-    chapter = next(element for element in elements if element.type == "chapter")
-    assert chapter.pageIndexEnd == 9
 
 
 def test_process_passes_existing_page_numbers_to_core(bind_engine):
@@ -366,9 +281,9 @@ def test_leaf_volumes_keep_chapter_parents_and_ends_separate(
                     toc_page_key="page",
                     title=evidence("Chapter", "page"),
                     page_start_key="page",
+                    page_end_key="page",
                 ),
             ),
-            toc_monotonicity_score=1.0,
         )
 
     bind_engine.core_engine = types.SimpleNamespace(
@@ -530,7 +445,7 @@ def test_duplicate_page_stems_are_rejected_only_within_a_document(bind_engine):
     bind_engine.core_engine.process.assert_not_called()
 
 
-def test_missing_inputs_do_not_remove_pages_from_end_resolution(
+def test_pages_without_alto_are_not_passed_to_the_core(
     bind_engine,
     evidence,
 ):
@@ -572,7 +487,6 @@ def test_missing_inputs_do_not_remove_pages_from_end_resolution(
                         page_start_key="first",
                     ),
                 ),
-                toc_monotonicity_score=1.0,
             )
         )
     )
@@ -584,10 +498,7 @@ def test_missing_inputs_do_not_remove_pages_from_end_resolution(
         ["/batch/first.xml"],
         page_numbers=None,
     )
-    chapter = next(
-        element for element in result.elements if element.type == "chapter"
-    )
-    assert chapter.pageIndexEnd == 10
+    assert any(element.type == "chapter" for element in result.elements)
 
 
 def test_page_with_parent_cycle_is_ignored(bind_engine, caplog):
@@ -654,16 +565,17 @@ def test_recursive_result_binds_schema_and_detection_provenance(
                 ),
                 title_destination_page=evidence("CHAPTER", "destination"),
                 page_start_key="destination",
+                page_end_key="last",
                 children=(
                     ChapterResult(
                         toc_page_key="toc",
                         title=evidence("Child", "toc", y=50),
                         page_start_key="last",
+                        page_end_key="last",
                     ),
                 ),
             ),
         ),
-        toc_monotonicity_score=1.0,
     )
     page_by_key = {
         "toc": pages[0],
@@ -675,7 +587,6 @@ def test_recursive_result_binds_schema_and_detection_provenance(
         bind_engine.extract_metakat_elements_from_pipeline(
             result,
             page_by_key,
-            pages,
             container_id=volume_id,
         )
     )
@@ -722,7 +633,6 @@ def test_explicit_container_parents_all_chapter_roots(bind_engine, evidence):
     elements, _, _ = bind_engine.extract_metakat_elements_from_pipeline(
         result,
         {"page": page},
-        [page],
         container_id=container_id,
     )
 
@@ -761,7 +671,6 @@ def test_titleless_chapter_uses_destination_title_evidence(bind_engine, evidence
         bind_engine.extract_metakat_elements_from_pipeline(
             result,
             {"page": page},
-            [page],
             container_id=volume_id,
         )
     )

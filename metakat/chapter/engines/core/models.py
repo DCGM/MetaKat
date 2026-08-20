@@ -121,18 +121,3 @@ class ChapterResult(ChapterBase):
 @dataclass(frozen=True)
 class TocResult:
     chapters: tuple[ChapterResult, ...]
-    toc_monotonicity_score: float | None = None
-
-    def __post_init__(self) -> None:
-        score = self.toc_monotonicity_score
-        if (
-            score is not None
-            and (
-                isinstance(score, bool)
-                or not isinstance(score, (int, float))
-                or not 0 <= score <= 1
-            )
-        ):
-            raise ValueError(
-                "toc_monotonicity_score must be None or a number within [0, 1]"
-            )

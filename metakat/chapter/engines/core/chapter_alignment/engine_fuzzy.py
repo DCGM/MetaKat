@@ -139,6 +139,28 @@ class ChapterAlignmentEngineFuzzy:
         if not isinstance(use_anchors, bool):
             raise ValueError("use_anchors must be a boolean")
         self.use_anchors = use_anchors
+        infer_chapter_ends = self.config.get("infer_chapter_ends", True)
+        if not isinstance(infer_chapter_ends, bool):
+            raise ValueError("infer_chapter_ends must be a boolean")
+        self.infer_chapter_ends = infer_chapter_ends
+        minimum_end_inference_score = self.config.get(
+            "minimum_toc_monotonicity_score_for_end_inference",
+            0.9,
+        )
+        if minimum_end_inference_score is not None and (
+            isinstance(minimum_end_inference_score, bool)
+            or not isinstance(minimum_end_inference_score, (int, float))
+            or not 0 <= minimum_end_inference_score <= 1
+        ):
+            raise ValueError(
+                "minimum_toc_monotonicity_score_for_end_inference must be "
+                "null or a number within [0, 1]"
+            )
+        self.minimum_toc_monotonicity_score_for_end_inference = (
+            None
+            if minimum_end_inference_score is None
+            else float(minimum_end_inference_score)
+        )
         solver_time_limit_seconds = self.config.get(
             "solver_time_limit_seconds",
             None,
@@ -412,6 +434,13 @@ class ChapterAlignmentEngineFuzzy:
                 page_end_key=page_end_key,
             )
 
+        inferred_ends = self._infer_chapter_ends(
+            reference_toc,
+            resolved_by_identity,
+            all_ordered_pages,
+            toc_monotonicity_score,
+        )
+
         def rebuild(entry: ChapterBase) -> ChapterResult:
             return replace(
                 resolved_by_identity[id(entry)],
@@ -422,7 +451,8 @@ class ChapterAlignmentEngineFuzzy:
         logger.info(
             "Chapter alignment retained %d anchor(s), assigned destination "
             "titles to %d titleless entry/entries, and returned %d root "
-            "chapter(s); resolved_starts=%d, unresolved_starts=%d",
+            "chapter(s); resolved_starts=%d, unresolved_starts=%d, "
+            "inferred_ends=%d",
             len(anchors),
             titleless_entries_with_destination_titles,
             len(chapters),
@@ -434,11 +464,97 @@ class ChapterAlignmentEngineFuzzy:
                 chapter.page_start_key is None
                 for chapter in resolved_by_identity.values()
             ),
+            inferred_ends,
         )
-        return TocResult(
-            chapters=chapters,
-            toc_monotonicity_score=toc_monotonicity_score,
-        )
+        return TocResult(chapters=chapters)
+
+    def _infer_chapter_ends(
+        self,
+        reference_toc: TocBase,
+        resolved_by_identity: dict[int, ChapterResult],
+        ordered_pages: Sequence[ChapterPageInput],
+        toc_monotonicity_score: float | None,
+    ) -> int:
+        """Fill implicit chapter ends from the following entry of equal or
+        smaller depth.
+
+        This runs before the pipeline wrapper prunes titleless entries, so a
+        number-only TOC entry still terminates the chapter preceding it.
+        """
+        minimum_score = self.minimum_toc_monotonicity_score_for_end_inference
+        if not self.infer_chapter_ends:
+            logger.info(
+                "Leaving implicit chapter ends unresolved because "
+                "infer_chapter_ends is disabled"
+            )
+            return 0
+        if minimum_score is not None and (
+            toc_monotonicity_score is None
+            or toc_monotonicity_score < minimum_score
+        ):
+            logger.info(
+                "Leaving implicit chapter ends unresolved because TOC "
+                "monotonicity score=%s is missing or below required "
+                "score=%.3f",
+                toc_monotonicity_score,
+                minimum_score,
+            )
+            return 0
+
+        entries: list[tuple[ChapterBase, int]] = []
+
+        def visit(entry: ChapterBase, depth: int) -> None:
+            entries.append((entry, depth))
+            for child in entry.children:
+                visit(child, depth + 1)
+
+        for root in reference_toc.chapters:
+            visit(root, 0)
+
+        # Index into the complete ordered document, selected TOC pages
+        # included, so that every position between two chapter starts maps
+        # back to a page.
+        index_by_key = {
+            page.page_key: index
+            for index, page in enumerate(ordered_pages)
+        }
+
+        def start_index(entry: ChapterBase) -> int | None:
+            page_key = resolved_by_identity[id(entry)].page_start_key
+            return None if page_key is None else index_by_key.get(page_key)
+
+        inferred_count = 0
+        for position, (entry, depth) in enumerate(entries):
+            resolved = resolved_by_identity[id(entry)]
+            chapter_start = start_index(entry)
+            if resolved.page_end_key is not None or chapter_start is None:
+                continue
+            end_index = None
+            for candidate, candidate_depth in entries[position + 1:]:
+                if candidate_depth > depth:
+                    continue
+                candidate_start = start_index(candidate)
+                if candidate_start is None:
+                    continue
+                end_index = max(chapter_start, candidate_start - 1)
+                break
+            if end_index is None:
+                end_index = len(ordered_pages) - 1
+            end_key = ordered_pages[end_index].page_key
+            resolved_by_identity[id(entry)] = replace(
+                resolved,
+                page_end_key=end_key,
+            )
+            inferred_count += 1
+            logger.debug(
+                "Inferred chapter end: title=%r, start=%r, end=%r, depth=%d",
+                _entry_title(entry),
+                resolved.page_start_key,
+                end_key,
+                depth,
+            )
+        logger.info("Inferred %d implicit chapter end(s)", inferred_count)
+        return inferred_count
 
     def _resolve_toc_monotonic_order_constraints(
         self,
