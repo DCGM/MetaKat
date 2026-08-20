@@ -109,6 +109,32 @@ def test_use_anchors_must_be_boolean(fuzzy_engine, invalid):
         fuzzy_engine(use_anchors=invalid)
 
 
+@pytest.mark.parametrize("invalid", (None, 0, 1, "yes", [], {}))
+def test_infer_chapter_ends_must_be_boolean(fuzzy_engine, invalid):
+    with pytest.raises(
+        ValueError,
+        match="infer_chapter_ends must be a boolean",
+    ):
+        fuzzy_engine(infer_chapter_ends=invalid)
+
+
+@pytest.mark.parametrize("invalid", (-0.1, 1.1, "0.9", True, []))
+def test_end_inference_score_must_be_null_or_within_unit_interval(
+    fuzzy_engine,
+    invalid,
+):
+    with pytest.raises(
+        ValueError,
+        match=(
+            "minimum_toc_monotonicity_score_for_end_inference must be null "
+            "or a number within"
+        ),
+    ):
+        fuzzy_engine(
+            minimum_toc_monotonicity_score_for_end_inference=invalid
+        )
+
+
 @pytest.mark.parametrize(
     "invalid",
     (0, -1, float("inf"), float("nan"), True, "60"),
@@ -204,14 +230,13 @@ def test_auto_mode_disables_constraints_for_nonmonotonic_toc(
         destination_page_numbers=page_numbers({8: "20", 4: "10"}),
     )
 
-    assert result.toc_monotonicity_score == 0.5
     assert tuple(chapter.page_start_key for chapter in result.chapters) == (
         "page-8",
         "page-4",
     )
 
 
-def test_yes_mode_forces_constraints_without_changing_reported_score(
+def test_yes_mode_forces_constraints_on_nonmonotonic_toc(
     fuzzy_engine,
     evidence,
     toc_page_number_fields,
@@ -242,7 +267,6 @@ def test_yes_mode_forces_constraints_without_changing_reported_score(
         destination_page_numbers=page_numbers({8: "20", 4: "10"}),
     )
 
-    assert result.toc_monotonicity_score == 0.5
     assert result.chapters[0].page_start_key == "page-8"
     assert result.chapters[1].page_start_key is None
 
@@ -282,7 +306,6 @@ def test_unordered_mode_retains_nonmonotonic_anchor_candidates(
         "page-8",
         "page-4",
     )
-    assert result.toc_monotonicity_score == 1.0
 
 
 def test_unordered_exact_match_ignores_anchor_bounds(
@@ -1185,7 +1208,6 @@ def test_unique_page_number_aligns_without_destination_titles(
     chapter = result.chapters[0]
     assert chapter.page_start_key == "page-3"
     assert chapter.title_destination_page is None
-    assert result.toc_monotonicity_score is None
 
 
 # Subsumes the former test_unique_page_number_resolves_non_anchor_when_title_
@@ -2048,6 +2070,280 @@ def test_descending_range_uses_start_as_single_number_anchor(
     assert chapter.page_end_key is None
     assert chapter.page_number.output_text() == "24"
 
+def test_end_inference_infers_from_the_following_entry_and_document_end(
+    fuzzy_engine,
+    evidence,
+    toc_page_number_fields,
+    page_numbers,
+):
+    engine = fuzzy_engine()
+    reference = TocBase(
+        (
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("First", "toc"),
+                **toc_page_number_fields("3", "toc"),
+            ),
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("Second", "toc"),
+                **toc_page_number_fields("6", "toc"),
+            ),
+        )
+    )
+
+    result = engine.process(
+        pages=_pages(8),
+        destination_page_numbers=page_numbers({3: "3", 6: "6"}),
+        reference_toc=reference,
+        destination_chapters=(
+            DestinationChapterEvidence(evidence("First", "page-3")),
+            DestinationChapterEvidence(evidence("Second", "page-6")),
+        ),
+    )
+
+    first, second = result.chapters
+    assert (first.page_start_key, first.page_end_key) == ("page-3", "page-5")
+    assert (second.page_start_key, second.page_end_key) == ("page-6", "page-7")
+
+
+def test_disabled_end_inference_leaves_implicit_ends_unresolved(
+    fuzzy_engine,
+    evidence,
+    toc_page_number_fields,
+    page_numbers,
+    caplog,
+):
+    engine = fuzzy_engine(infer_chapter_ends=False)
+    reference = TocBase(
+        (
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("First", "toc"),
+                **toc_page_number_fields("3", "toc"),
+            ),
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("Second", "toc"),
+                **toc_page_number_fields("6", "toc"),
+            ),
+        )
+    )
+
+    with caplog.at_level(logging.INFO, logger=ALIGNMENT_LOGGER):
+        result = engine.process(
+            pages=_pages(8),
+            destination_page_numbers=page_numbers({3: "3", 6: "6"}),
+            reference_toc=reference,
+            destination_chapters=(
+                DestinationChapterEvidence(evidence("First", "page-3")),
+                DestinationChapterEvidence(evidence("Second", "page-6")),
+            ),
+        )
+
+    assert all(chapter.page_end_key is None for chapter in result.chapters)
+    assert "infer_chapter_ends is disabled" in _log_output(caplog)
+
+
+def test_end_inference_requires_the_configured_monotonicity_score(
+    fuzzy_engine,
+    evidence,
+    toc_page_number_fields,
+    page_numbers,
+    caplog,
+):
+    engine = fuzzy_engine()
+    reference = TocBase(
+        (
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("Late", "toc"),
+                **toc_page_number_fields("20", "toc"),
+            ),
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("Early", "toc"),
+                **toc_page_number_fields("10", "toc"),
+            ),
+        )
+    )
+
+    with caplog.at_level(logging.INFO, logger=ALIGNMENT_LOGGER):
+        result = engine.process(
+            pages=_pages(10),
+            destination_page_numbers=page_numbers({8: "20", 4: "10"}),
+            reference_toc=reference,
+            destination_chapters=(
+                DestinationChapterEvidence(evidence("Late", "page-8")),
+                DestinationChapterEvidence(evidence("Early", "page-4")),
+            ),
+        )
+
+    assert all(chapter.page_end_key is None for chapter in result.chapters)
+    assert "monotonicity score=0.5 is missing or below" in _log_output(caplog)
+
+
+def test_null_end_inference_threshold_infers_without_a_usable_score(
+    fuzzy_engine,
+    evidence,
+    toc_page_number_fields,
+    page_numbers,
+):
+    reference = TocBase(
+        (
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("Only chapter", "toc"),
+                **toc_page_number_fields("10", "toc"),
+            ),
+        )
+    )
+    arguments = {
+        "pages": _pages(5),
+        "destination_page_numbers": page_numbers({3: "10"}),
+        "reference_toc": reference,
+        "destination_chapters": (
+            DestinationChapterEvidence(evidence("Only chapter", "page-3")),
+        ),
+    }
+
+    # A single TOC number yields no comparable sequence and therefore no score.
+    assert fuzzy_engine().process(**arguments).chapters[0].page_end_key is None
+
+    engine = fuzzy_engine(
+        minimum_toc_monotonicity_score_for_end_inference=None
+    )
+
+    assert engine.process(**arguments).chapters[0].page_end_key == "page-4"
+
+
+def test_end_inference_stops_a_parent_at_a_following_entry_not_its_child(
+    fuzzy_engine,
+    evidence,
+    toc_page_number_fields,
+    page_numbers,
+):
+    engine = fuzzy_engine()
+    reference = TocBase(
+        (
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("First", "toc"),
+                **toc_page_number_fields("2", "toc"),
+                children=(
+                    ChapterBase(
+                        toc_page_key="toc",
+                        title=evidence("Sub", "toc"),
+                        **toc_page_number_fields("4", "toc"),
+                    ),
+                ),
+            ),
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("Second", "toc"),
+                **toc_page_number_fields("7", "toc"),
+            ),
+        )
+    )
+
+    result = engine.process(
+        pages=_pages(9),
+        destination_page_numbers=page_numbers({2: "2", 4: "4", 7: "7"}),
+        reference_toc=reference,
+        destination_chapters=(
+            DestinationChapterEvidence(evidence("First", "page-2")),
+            DestinationChapterEvidence(evidence("Sub", "page-4")),
+            DestinationChapterEvidence(evidence("Second", "page-7")),
+        ),
+    )
+
+    first, second = result.chapters
+    child = first.children[0]
+    # The child has greater depth, so it cannot terminate its parent.
+    assert first.page_end_key == "page-6"
+    assert child.page_end_key == "page-6"
+    assert second.page_end_key == "page-8"
+
+
+def test_end_inference_never_overwrites_an_explicit_range_end(
+    fuzzy_engine,
+    evidence,
+    toc_page_number_fields,
+    page_numbers,
+):
+    engine = fuzzy_engine()
+    reference = TocBase(
+        (
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("Range chapter", "toc"),
+                **toc_page_number_fields("2–3", "toc"),
+            ),
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("Later chapter", "toc"),
+                **toc_page_number_fields("8", "toc"),
+            ),
+        )
+    )
+
+    result = engine.process(
+        pages=_pages(10),
+        destination_page_numbers=page_numbers({2: "2", 3: "3", 8: "8"}),
+        reference_toc=reference,
+        destination_chapters=(
+            DestinationChapterEvidence(evidence("Range chapter", "page-2")),
+            DestinationChapterEvidence(evidence("Later chapter", "page-8")),
+        ),
+    )
+
+    assert result.chapters[0].page_end_key == "page-3"
+
+
+def test_titleless_entry_terminates_the_chapter_before_it(
+    fuzzy_engine,
+    evidence,
+    toc_page_number_fields,
+    page_numbers,
+):
+    """The wrapper prunes number-only entries, so only alignment can use them."""
+    engine = fuzzy_engine()
+    reference = TocBase(
+        (
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("First", "toc"),
+                **toc_page_number_fields("2", "toc"),
+            ),
+            ChapterBase(
+                toc_page_key="toc",
+                title=None,
+                **toc_page_number_fields("5", "toc"),
+            ),
+            ChapterBase(
+                toc_page_key="toc",
+                title=evidence("Second", "toc"),
+                **toc_page_number_fields("8", "toc"),
+            ),
+        )
+    )
+
+    result = engine.process(
+        pages=_pages(10),
+        destination_page_numbers=page_numbers({2: "2", 5: "5", 8: "8"}),
+        reference_toc=reference,
+        destination_chapters=(
+            DestinationChapterEvidence(evidence("First", "page-2")),
+            DestinationChapterEvidence(evidence("Second", "page-8")),
+        ),
+    )
+
+    first, titleless, second = result.chapters
+    assert titleless.title is None
+    assert titleless.page_start_key == "page-5"
+    # Without the number-only entry the first chapter would run to page-7.
+    assert first.page_end_key == "page-4"
+    assert second.page_end_key == "page-9"
 
 def test_titleless_unique_number_resolves_without_destination_title(
     fuzzy_engine,

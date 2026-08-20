@@ -49,12 +49,6 @@ def pipeline_inputs(tmp_path):
     return _build
 
 
-@pytest.mark.parametrize("invalid", (-0.1, 1.1, "0.9", True))
-def test_toc_result_monotonicity_score_must_be_within_unit_interval(invalid):
-    with pytest.raises(ValueError, match="toc_monotonicity_score"):
-        TocResult((), toc_monotonicity_score=invalid)
-
-
 def test_wrapper_prunes_titleless_results_and_splices_children(evidence, caplog):
     child = ChapterResult(
         toc_page_key="toc",
@@ -79,14 +73,10 @@ def test_wrapper_prunes_titleless_results_and_splices_children(evidence, caplog)
 
     with caplog.at_level(logging.INFO, logger=PIPELINE_LOGGER):
         result = ChapterPipelineCoreEngine._prune_titleless_chapters(
-            TocResult(
-                (titleless, destination_titled),
-                toc_monotonicity_score=0.75,
-            )
+            TocResult((titleless, destination_titled))
         )
 
     assert result.chapters == (child, destination_titled)
-    assert result.toc_monotonicity_score == 0.75
     assert "Pruned 1 titleless chapter entry" in _messages(caplog)
 
 
