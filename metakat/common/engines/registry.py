@@ -6,8 +6,9 @@ does not pay for the optional dependencies that engine pulls in.
 
 Each registry entry records the third-party modules its implementation needs.
 That lets the pipeline verify availability before any page is processed and
-report a missing dependency together with the extra that provides it, instead
-of surfacing a bare ModuleNotFoundError from an arbitrary import line.
+report a missing dependency together with both ways of supplying it, the extra
+that provides it or a manual install at the pinned versions, instead of
+surfacing a bare ModuleNotFoundError from an arbitrary import line.
 """
 
 from collections.abc import Mapping
@@ -73,9 +74,16 @@ def _require_available(entry: EngineEntry, label: str, name: str) -> None:
 
     modules = ", ".join(f"'{module_name}'" for module_name in missing)
     dependency = "dependency" if len(missing) == 1 else "dependencies"
-    message = f"{label} '{name}' requires the missing optional {dependency} {modules}"
+    message = f"{label} '{name}' requires the missing optional {dependency} {modules}."
     if entry.extra is not None:
-        message += f'. Install with: pip install -e ".[{entry.extra}]"'
+        message += f' Install with: pip install -e ".[{entry.extra}]".'
+    package = "package" if len(missing) == 1 else "packages"
+    version = "version" if len(missing) == 1 else "versions"
+    message += (
+        f" The {package} can also be installed directly, in which case use the"
+        f" {version} pinned in pyproject.toml: this check only verifies that a"
+        " module is importable, not that its version is the one MetaKat expects."
+    )
     raise ImportError(message)
 
 

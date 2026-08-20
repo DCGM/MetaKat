@@ -320,7 +320,7 @@ retain the detection produced first by YOLO. Same-class detections are
 unaffected, each label may occur in only one group, and an omitted or empty
 setting disables the deduplication.
 
-This engine requires the `ultralytics` package, supplied by the `yolo`
+This engine requires the `ultralytics` package, supplied by the `inference`
 installation extra. The requirement is checked before any page is read.
 
 ## Available bind implementation

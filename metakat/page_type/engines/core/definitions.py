@@ -17,7 +17,7 @@ page_type_core_engines = {
         module='metakat.page_type.engines.core.page_type_core_engine_vit',
         attribute='PageTypeCoreEngineViT',
         requires=('torch', 'transformers'),
-        extra='torch',
+        extra='inference',
     ),
 }
 

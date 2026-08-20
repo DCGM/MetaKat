@@ -17,50 +17,67 @@ dependencies = [
     "PyYAML==6.0.3",
     "natsort==8.4.0",
     "Pillow==12.3.0",
-    "numpy==1.26.4",
-    "opencv-python==4.8.0.76",
-    "ortools==9.14.6206",
-    "text-geometry-aligner",
 ]
 
 [project.optional-dependencies]
-# Deep-learning runtime for torch/HuggingFace model inference.
+# Interactive PDF output (--output-metakat-pdf): the base install plus the
+# renderer, and nothing else. metakat/tools/create_interactive_pdf.py reaches
+# only the schemas and the document grouping helper, so a processed batch can
+# be rendered without any engine or model runtime present.
+pdf = ["PyMuPDF==1.27.2.3"]
+
+# The deep-learning runtime, declared once and shared by [inference] and
+# [train], which both need it. This is an internal grouping rather than a tier
+# to install on its own: nothing is usable with it alone, and no engine reports
+# it as the extra to install.
 torch = [
     "torch==2.4.1",
     "torchvision==0.19.1",
     "transformers==4.42.4",
 ]
 
-# YOLO detection (metakat/common/engines/engine_yolo.py).
+# Everything the processing pipeline needs on top of the base IO layer: the
+# detector, the OCR geometry aligner, and the numeric and solver libraries the
+# engines are built from.
+#
+# This is deliberately one tier rather than one per engine. These are
+# general-purpose building blocks -- array handling, image decoding, geometry
+# alignment, constraint solving -- that any current or future engine may reach
+# for, so installing the pipeline does not mean tracking which engine needs
+# which library.
+#
 # ultralytics depends on torch, so this tier is never lighter than [torch].
-yolo = [
+inference = [
     "metakat[torch]",
     "ultralytics==8.4.70",
+    "numpy==1.26.4",
+    "opencv-python==4.8.0.76",
+    "ortools==9.14.6206",
+    "text-geometry-aligner",
 ]
 
-# Interactive PDF output (--output-metakat-pdf).
-pdf = ["PyMuPDF==1.27.2.3"]
+# metakat/worker/docapi is a thin wrapper around the pipeline: the engines it
+# runs, the PDF exporter it writes when STORE_METAKAT_PDF is set, and the
+# DocAPI client it polls for jobs.
+#
+# doc-api's own worker extra keeps the API service's stack -- SQLAlchemy,
+# asyncpg, alembic, uvicorn -- out of the install.
+worker = [
+    "metakat[inference,pdf]",
+    "doc-api[worker]",
+]
 
-# Training and evaluation for metakat/page_type/nets.
+# Training and evaluation for metakat/page_type/nets, and the dataset builders
+# under metakat/page_type/datasets and datasets_from_mods. Those read and
+# transform page images directly rather than through an engine, so they name
+# numpy and OpenCV themselves instead of inheriting them from [inference].
 train = [
     "metakat[torch]",
     "accelerate==1.14.0",
     "scikit-learn==1.3.2",
     "safe-gpu==2.0.0",
-]
-
-# Everything needed to actually run metakat/worker/docapi: every engine a job
-# may select, the PDF exporter, and the DocAPI layer the worker talks to.
-#
-#   yolo   page_number, biblio and the chapter stages; brings torch with it,
-#          which is also what page_type's ViT engine needs
-#   pdf    the interactive PDF the worker writes when STORE_METAKAT_PDF is set
-#
-# doc-api's own worker extra keeps the API service's stack -- SQLAlchemy,
-# asyncpg, alembic, uvicorn -- out of the install.
-worker = [
-    "metakat[yolo,pdf]",
-    "doc-api[worker]",
+    "numpy==1.26.4",
+    "opencv-python==4.8.0.76",
 ]
 
 dev = [

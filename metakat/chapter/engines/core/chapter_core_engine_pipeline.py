@@ -45,8 +45,8 @@ _STAGE_ENGINES = {
                 ".engine_yolo_alto"
             ),
             attribute="ChapterPageAnalysisEngineYOLOALTO",
-            requires=("ultralytics",),
-            extra="yolo",
+            requires=("ultralytics", "text_geometry_aligner"),
+            extra="inference",
         ),
     },
     "extraction": {
@@ -56,8 +56,8 @@ _STAGE_ENGINES = {
                 ".engine_yolo_alto"
             ),
             attribute="ChapterExtractionEngineYOLOALTO",
-            requires=("ultralytics",),
-            extra="yolo",
+            requires=("ultralytics", "text_geometry_aligner"),
+            extra="inference",
         ),
     },
     "alignment": {
@@ -66,6 +66,8 @@ _STAGE_ENGINES = {
                 "metakat.chapter.engines.core.chapter_alignment.engine_fuzzy"
             ),
             attribute="ChapterAlignmentEngineFuzzy",
+            requires=("ortools",),
+            extra="inference",
         ),
     },
 }

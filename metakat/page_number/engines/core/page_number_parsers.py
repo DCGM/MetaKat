@@ -4,8 +4,16 @@ import logging
 import re
 import unicodedata
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
-from text_geometry_aligner import AlignmentRegion
+# Annotation-only import. text_geometry_aligner ships with the [inference]
+# tier, but this module is reached by every `import metakat.process_batch`,
+# including on installs that carry no engine. Keeping it off the runtime
+# path lets those installs import the pipeline, so a missing engine
+# dependency is reported by the engine preflight, naming the extra that
+# supplies it, instead of failing here with a bare ImportError.
+if TYPE_CHECKING:
+    from text_geometry_aligner import AlignmentRegion
 
 from metakat.common.models import BoundingBox
 from metakat.page_number.engines.core.models import (

@@ -1,9 +1,18 @@
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from typing import Any, List
+from typing import Any, List, TYPE_CHECKING
 
-from text_geometry_aligner import AlignmentPage
+# Annotation-only import. text_geometry_aligner ships with the [inference]
+# tier, but this module is reached by every `import metakat.process_batch`,
+# including on installs that carry no engine. Keeping it off the runtime
+# path lets those installs import the pipeline, so a missing engine
+# dependency is reported by the engine preflight, naming the extra that
+# supplies it, instead of failing here with a bare ImportError.
+if TYPE_CHECKING:
+    from text_geometry_aligner import AlignmentPage
 
 from metakat.schemas.base_objects import BiblioType
 from metakat.engine_config import require_config_mapping, require_engine_name

@@ -18,8 +18,8 @@ page_number_core_engines = {
     "page_number_core_engine_yolo": EngineEntry(
         module="metakat.page_number.engines.core.page_number_core_engine_yolo",
         attribute="PageNumberCoreEngineYOLO",
-        requires=("ultralytics",),
-        extra="yolo",
+        requires=("ultralytics", "text_geometry_aligner"),
+        extra="inference",
     ),
 }
 

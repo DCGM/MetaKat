@@ -52,57 +52,99 @@ flowchart TD
 
 ## Installation
 
-MetaKat requires Python 3.12 or newer. Runtime versions are pinned to a
-known-good set rather than left to the resolver; upgrading them is a deliberate,
-wholesale change rather than something that happens on a fresh install.
+MetaKat requires Python 3.12 or newer, and installs in modes rather than as one
+package. The base install carries the schemas, the pipeline configuration
+handling and the IO layer, but no engine; each extra adds one capability on top
+of it, so an environment installs only the tiers it uses.
 
-Two dependencies are git submodules rather than published packages, so they are
-installed from the checkout. Install all three in one command, so that the
-declarations naming `text-geometry-aligner` and `doc-api` are satisfied locally
-instead of being looked for on an index:
+| Extra | Adds | Use for |
+| --- | --- | --- |
+| *(none)* | pydantic, PyYAML, Pillow, natsort | consumers that only read or write `MetakatIO` |
+| `pdf` | PyMuPDF | rendering an interactive PDF, with no engine present |
+| `inference` | ultralytics, text-geometry-aligner, numpy, OpenCV, OR-Tools, and the torch runtime | running the pipeline through `process_batch` |
+| `worker` | `inference`, `pdf`, and the DocAPI client layer | running `metakat/worker/docapi` |
+| `train` | accelerate, scikit-learn, safe-gpu, numpy, OpenCV, and the torch runtime | training and evaluation in `metakat/page_type/nets` |
+| `dev` | pytest, pytest-cov | running the test suite |
+| `all` | `worker`, `train`, `dev` | a full development machine |
+
+Engine implementations are imported only when a pipeline selects them, so a
+tier left uninstalled costs nothing at run time. A component whose dependencies
+are absent is reported before any page is read, naming the missing module and
+the extra that provides it.
+
+`inference` is one tier for the whole pipeline rather than one per engine. What
+it carries beyond the detector — array handling, image decoding, OCR geometry
+alignment, constraint solving — are general-purpose building blocks that any
+engine may reach for, so selecting a pipeline does not mean tracking which
+engine needs which library. Every engine reports `inference` as the extra to
+install, so a missing dependency never sends someone to a narrower install that
+the next configured engine would immediately outgrow.
+
+The torch runtime — torch, torchvision and transformers — comes with
+`inference` and with `train`, both of which need it. `pyproject.toml` groups it
+separately so the two share one declaration; that grouping is an implementation
+detail of the tiers above and is not meant to be installed on its own.
+
+`pdf` is the base install plus the renderer and nothing else: the exporter
+reaches only the schemas and the document grouping helper, so a processed batch
+can be rendered where no engine and no model runtime are installed. `train`
+names numpy and OpenCV itself, because the dataset builders under
+`metakat/page_type` read page images directly rather than through an engine.
+
+The `worker` extra is the complete set needed to process a job: every engine a
+job may select, plus the PDF exporter the worker writes when
+`STORE_METAKAT_PDF` is set. `doc-api` is requested through its own `worker`
+extra, which keeps the API service's database and ASGI stack out of the
+installation.
+
+Each command below installs into an active virtual environment on Python 3.12:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+```
+
+Two of the declared dependencies are git submodules rather than published
+packages: `text-geometry-aligner`, which `inference` needs, and `doc-api`,
+which `worker` needs. A tier naming either one has to find it in the checkout
+rather than on an index, so `inference`, `worker` and `all` need this first:
 
 ```bash
 git submodule update --init --recursive
 
 pip install -e libs/text-geometry-aligner \
-            -e libs/DocAPI \
-            -e ".[all]"
+            -e libs/DocAPI
 ```
 
-Editable installs place a pointer to the checkout rather than a copy, so edits
-take effect without reinstalling, and no `PYTHONPATH` is needed.
-
-### Installation modes
-
-The base install carries the schemas, the pipeline configuration handling and
-the IO layer, but no engine. Engine implementations are imported only when a
-pipeline selects them, so an environment installs only the tiers it uses. A
-component whose dependencies are absent is reported before any page is read,
-naming the missing module and the extra that provides it.
-
-| Extra | Adds | Use for |
-| --- | --- | --- |
-| *(none)* | schemas, configuration, IO | consumers that only read or write `MetakatIO` |
-| `torch` | torch, torchvision, transformers | the `page_type` ViT engine |
-| `yolo` | ultralytics, and `torch` with it | `page_number`, `biblio`, and the `chapter` page-analysis and extraction stages |
-| `pdf` | PyMuPDF | interactive PDF output |
-| `worker` | `yolo`, `pdf`, and the DocAPI client layer | running `metakat/worker/docapi` |
-| `train` | accelerate, scikit-learn, safe-gpu, and `torch` | training and evaluation in `metakat/page_type/nets` |
-| `dev` | pytest, pytest-cov | running the test suite |
-| `all` | `worker`, `train`, `dev` | a full development machine |
-
-`ultralytics` depends on torch, so `yolo` is never lighter than `torch`. The
-`worker` extra is the complete set needed to process a job: every engine a job
-may select, plus the PDF exporter the worker writes when `STORE_METAKAT_PDF` is
-set. `doc-api` is requested through its own `worker` extra, which keeps the API
-service's database and ASGI stack out of the installation.
+The base install and `pdf` name neither submodule and work from a plain
+checkout. With any prerequisite in place, install the tier itself:
 
 ```bash
-pip install -e ".[worker]"    # a worker deployment
-pip install -e ".[train]"     # a training machine, no DocAPI, no PDF export
-pip install -e ".[yolo,pdf]"  # the pipeline through process_batch, no worker
-pip install -e ".[dev]"       # the tests that need no model runtime
+pip install -e "."             # read or write MetakatIO, nothing else
+pip install -e ".[pdf]"        # render an interactive PDF, no engine present
+pip install -e ".[inference]"  # the pipeline through process_batch
+pip install -e ".[worker]"     # the DocAPI worker in metakat/worker/docapi
+pip install -e ".[train]"      # training and evaluation in metakat/page_type/nets
+pip install -e ".[dev]"        # the test suite
+pip install -e ".[all]"        # a full development machine
 ```
+
+### Developing MetaKat
+
+Runtime versions are pinned to a known-good set rather than left to the
+resolver, so upgrading them is a deliberate, wholesale change rather than
+something that happens on a fresh install.
+
+Working on MetaKat itself means the full tier and an editable install of the
+package under development:
+
+```bash
+pip install -e ".[all]"
+```
+
+An editable install places a pointer to the checkout rather than a copy, so
+edits take effect without reinstalling, and no `PYTHONPATH` is needed. The two
+submodules above are installed the same way for the same reason.
 
 ## Tests
 
@@ -269,8 +311,11 @@ python -m metakat.tools.create_interactive_pdf \
 a MetaKat JSON describing it — typically the `--output-metakat-json` of an
 earlier `process_batch` run. All three are required here, because there is
 nothing to render without them. Both paths call the same exporter, so rendering
-a processed batch produces the PDF that processing would have written. Either
-path needs the `pdf` extra.
+a processed batch produces the PDF that processing would have written.
+
+Rendering needs only the `pdf` extra. The exporter reaches the schemas and the
+document grouping helper and nothing else, so an install that carries no engine
+and no model runtime can still render a batch another machine processed.
 
 ### What the render offers
 

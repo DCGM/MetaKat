@@ -16,8 +16,8 @@ biblio_core_engines = {
     'biblio_core_engine_yolo': EngineEntry(
         module='metakat.biblio.engines.core.biblio_core_engine_yolo',
         attribute='BiblioCoreEngineYOLO',
-        requires=('ultralytics',),
-        extra='yolo',
+        requires=('ultralytics', 'text_geometry_aligner'),
+        extra='inference',
     ),
 }
 
