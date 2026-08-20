@@ -961,9 +961,24 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Create an interactive PDF from MetaKat JSON and images"
     )
-    parser.add_argument("--batch-dir", type=str, required=True)
-    parser.add_argument("--metakat-json", type=str, required=True)
-    parser.add_argument("--output-metakat-pdf", type=str, required=True)
+    parser.add_argument(
+        "--batch-dir",
+        type=str,
+        required=True,
+        help="Path to the batch directory processed by process_batch",
+    )
+    parser.add_argument(
+        "--metakat-json",
+        type=str,
+        required=True,
+        help="Path to input Metakat JSON file",
+    )
+    parser.add_argument(
+        "--output-metakat-pdf",
+        type=str,
+        required=True,
+        help="Path to output interactive MetaKat PDF file",
+    )
     return parser.parse_args()
 
 

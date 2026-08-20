@@ -245,8 +245,50 @@ private, signing, encryption, or SSH keys.
 
 ## Interactive PDF metadata
 
-When `output_metakat_pdf` or `--output-metakat-pdf` is provided, the generated
-PDF uses compact chapter outline labels in this order:
+The interactive PDF is a visual, clickable view of what the pipeline found: the
+batch images themselves, with the metadata drawn on top of the page it was read
+from. It is produced in two interchangeable ways.
+
+During processing, when `output_metakat_pdf` or `--output-metakat-pdf` is given
+to `process_batch`, the PDF is written alongside the resulting MetaKat JSON.
+
+Afterwards, `metakat/tools/create_interactive_pdf.py` renders an already
+processed batch on its own, without running any engine. It takes the same three
+input/output arguments, under the same names `process_batch` uses for them, so a
+finished batch directory and the MetaKat JSON that batch produced are all that
+is needed:
+
+```bash
+python -m metakat.tools.create_interactive_pdf \
+  --batch-dir /data/batch \
+  --metakat-json /data/result/metakat.json \
+  --output-metakat-pdf /data/result/metakat.pdf
+```
+
+`--batch-dir` is the same page batch the pipeline read, and `--metakat-json` is
+a MetaKat JSON describing it — typically the `--output-metakat-json` of an
+earlier `process_batch` run. All three are required here, because there is
+nothing to render without them. Both paths call the same exporter, so rendering
+a processed batch produces the PDF that processing would have written. Either
+path needs the `pdf` extra.
+
+### What the render offers
+
+- one PDF page per MetaKat page, in batch order, built from the batch image, so
+  every annotation sits over the page region it was detected in;
+- a PDF outline of the documents and their chapters, for navigation;
+- clickable rectangles that move between a TOC entry and the chapter it points
+  to, in both directions;
+- sticky notes carrying the recognized page number, page type, and
+  bibliographic values;
+- a bounding box drawn over every detection the pipeline recorded.
+
+The PDF is written atomically, through a temporary file in the destination
+directory, so an interrupted render leaves no partial output in place.
+
+### Outline
+
+The chapter outline uses compact labels in this order:
 
 ```text
 part number | TOC title | page number
@@ -256,10 +298,14 @@ Missing values are omitted. The destination title replaces the TOC title only
 when the TOC title is unavailable. Document-level outline entries use
 `monograph | title`, or `monograph` when the title is unavailable.
 
+### Links
+
 The clickable rectangle over a detected TOC entry carries the complete chapter
 description and opens the resolved destination page. When destination-title
 geometry is available on that page, the title rectangle carries the same
 description, links back to the TOC entry, and has a visible sticky note.
+
+### Annotations
 
 The PDF also adds visible sticky notes for:
 
@@ -268,6 +314,10 @@ The PDF also adds visible sticky notes for:
 - the complete bibliographic information for each issue or volume, in the
   upper-left corner of the first page classified as `TitlePage`;
 - each page type, in the upper-right corner of the page.
+
+Every detection with a resolvable page and bounding box is additionally outlined
+by a translucent red rectangle, which shows the geometry the values were read
+from even where no note is attached.
 
 Geometry-specific annotations are omitted when their detection-to-page or
 bounding-box mapping is unavailable. Sticky-note contents are standard PDF
