@@ -65,6 +65,20 @@ class PageType(str, enum.Enum):
     TABLE_OF_CONTENTS = "TableOfContents"
     TITLE_PAGE = "TitlePage"
 
+class FormType(str, enum.Enum):
+    """Physical form of the original, MODS <physicalDescription><form>.
+
+    Only the marcform axis is covered here, since it is the one a model can
+    decide from the scan. The DMF does not enumerate the values inline, it
+    defers to MARC 008/23 and 007, and an RDA record additionally carries
+    media- and carrier-type forms (fields 337/338, e.g. "bez media",
+    "svazek") that come from the catalogue rather than the image. Extend
+    this enum once the metadata team confirms which 008/23 values they want.
+    """
+    PRINT = "print"
+    MANUSCRIPT = "manuscript"
+
+
 class BiblioType(str, enum.Enum):
     TITLE = "Title"
     SUBTITLE = "Subtitle"
@@ -145,6 +159,7 @@ class MetakatBibliographic(MetakatBaseModel):
     publisher: Optional[List[Tuple[str, float, UUID]]] = None
     placeTerm: Optional[List[Tuple[str, float, UUID]]] = None
     dateIssued: Optional[List[Tuple[str, float, UUID]]] = None
+    copyrightDate: Optional[List[Tuple[str, float, UUID]]] = None
 
     manufacturePublisher: Optional[List[Tuple[str, float, UUID]]] = None
     manufacturePlaceTerm: Optional[List[Tuple[str, float, UUID]]] = None
@@ -160,6 +175,15 @@ class MetakatBibliographic(MetakatBaseModel):
     seriesName: Optional[List[Tuple[str, float, UUID]]] = None
     seriesPartNumber: Optional[List[Tuple[str, float, UUID]]] = None
     seriesPartName: Optional[List[Tuple[str, float, UUID]]] = None
+
+    # Classifier outputs rather than detected text spans, so they carry a
+    # confidence but no detection UUID - the same shape MetakatPage already
+    # uses for pageType and side. `language` is a list because a document
+    # legitimately has several (the periodical records in the sample
+    # packages carry both "cze" and "pol"); `form` is singular because the
+    # marcform axis admits one answer per document.
+    language: Optional[List[Tuple[str, float]]] = None  # iso639-2b codes
+    form: Optional[Tuple[FormType, float]] = None
 
 
 class MetakatTitle(MetakatBibliographic):
