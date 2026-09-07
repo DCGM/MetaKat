@@ -226,35 +226,50 @@ class MetakatPage(MetakatBaseModel):
     altoDim: Optional[MetakatPageDimensions] = None
 
 
-class MetakatChapter(MetakatBaseModel):
-    type: Literal["chapter"] = "chapter"
+class MetakatInternalPart(MetakatBaseModel):
+    """Shared field set for the two internal-part levels.
+
+    MODS describes a chapter and an article with the same <mods> element -
+    the DMF calls both a "vnitrni cast" and gives them a single table, so the
+    divergence between the two classes was a MetaKat artifact rather than
+    something the standard asks for.
+
+    This is a separate base from MetakatBibliographic rather than an extension
+    of it because an internal part has no <originInfo> whatsoever: it inherits
+    its imprint from the issue or volume carrying it. Publisher, place, dates,
+    edition and the manufacture trio are all inapplicable here, which is
+    thirteen of the bibliographic base's fields.
+
+    pageIndex* stay scalar ints - they are computed positions in the scan
+    order, not detected values, so unlike the text fields they cannot repeat.
+    """
+
     id: UUID
     parent_id: UUID
+
     pageIndexToc: Optional[int] = None
     pageIndexStart: Optional[int] = None
     pageIndexEnd: Optional[int] = None
-    title: Optional[Tuple[str, float, UUID]] = None
-    title_destination_page: Optional[Tuple[str, float, UUID]] = None
-    subTitle: Optional[Tuple[str, float, UUID]] = None
-    partNumber: Optional[Tuple[str, float, UUID]] = None
-    pageNumber: Optional[Tuple[str, float, UUID]] = None
 
+    title: Optional[List[Tuple[str, float, UUID]]] = None
+    title_destination_page: Optional[List[Tuple[str, float, UUID]]] = None
+    subTitle: Optional[List[Tuple[str, float, UUID]]] = None
+    partNumber: Optional[List[Tuple[str, float, UUID]]] = None
 
-class MetakatArticle(MetakatBaseModel):
-    type: Literal["article"] = "article"
-    id: UUID
-    parent_id: UUID
-    pageIndexToc: Optional[int] = None
-    pageIndexStart: Optional[int] = None
-    pageIndexEnd: Optional[int] = None
-    title: Optional[Tuple[str, float, UUID]] = None
-    title_destination_page: Optional[Tuple[str, float, UUID]] = None
-    subTitle: Optional[Tuple[str, float, UUID]] = None
+    pageNumber: Optional[List[Tuple[str, float, UUID]]] = None
 
-    abstract: Optional[Tuple[str, float, UUID]] = None
-    keywords: Optional[Tuple[str, float, UUID]] = None
+    abstract: Optional[List[Tuple[str, float, UUID]]] = None
+    keywords: Optional[List[Tuple[str, float, UUID]]] = None
 
     author: Optional[List[Tuple[str, float, UUID]]] = None
+
+
+class MetakatChapter(MetakatInternalPart):
+    type: Literal["chapter"] = "chapter"
+
+
+class MetakatArticle(MetakatInternalPart):
+    type: Literal["article"] = "article"
 
 
 MetakatElement = Annotated[
