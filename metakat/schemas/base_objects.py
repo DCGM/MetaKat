@@ -110,35 +110,27 @@ class MetakatPageDimensions(MetakatBaseModel):
     height: Annotated[float, Field(gt=0, allow_inf_nan=False)]
 
 
-class MetakatTitle(MetakatBaseModel):
-    type: Literal["title"] = "title"
-    hierarchy: Optional[HierarchyType] = None
-    id: UUID
-    page_id: Optional[UUID] = None
-    title: Optional[List[Tuple[str, float, UUID]]] = None
-    subTitle: Optional[List[Tuple[str, float, UUID]]] = None
+class MetakatBibliographic(MetakatBaseModel):
+    """Shared field set for the four bibliographic levels.
 
-    frequency: Optional[List[Tuple[str, float, UUID]]] = None
+    MODS has a single <mods> element for every level: a title, a volume, an
+    issue and a supplement are not different schemas, they are the same element
+    distinguished by its ID and <genre>. The NDK DMF tables for the four levels
+    differ almost entirely in which children are *mandatory*, not in which
+    children exist. This base mirrors that - every field is declared once here,
+    and the four subclasses below add nothing but their `type` discriminator.
 
-    statementOfResponsibility: Optional[List[Tuple[str, float, UUID]]] = None
+    A field being available at a level therefore does not mean it is meaningful
+    there. A periodical volume legitimately fills little beyond partNumber and
+    dateIssued, and `frequency` only ever applies to a periodical title or its
+    supplement. Which fields apply where is documented in the field inventory
+    artifact and is deliberately not enforced here.
+    """
 
-    @field_validator("hierarchy")
-    @classmethod
-    def check_valid_hierarchy(cls, v):
-        if v is not None and v not in {
-            HierarchyType.MULTIPART,
-            HierarchyType.PERIODICAL,
-        }:
-            raise ValueError("Only 'multipart' or 'periodical' are allowed")
-        return v
-
-
-class MetakatVolume(MetakatBaseModel):
-    type: Literal["volume"] = "volume"
-    hierarchy: Optional[HierarchyType] = None
     id: UUID
     parent_id: Optional[UUID] = None
     page_id: Optional[UUID] = None
+    hierarchy: Optional[HierarchyType] = None
 
     partNumber: Optional[List[Tuple[str, float, UUID]]] = None
     partName: Optional[List[Tuple[str, float, UUID]]] = None
@@ -146,6 +138,7 @@ class MetakatVolume(MetakatBaseModel):
     title: Optional[List[Tuple[str, float, UUID]]] = None
     subTitle: Optional[List[Tuple[str, float, UUID]]] = None
     edition: Optional[List[Tuple[str, float, UUID]]] = None
+    frequency: Optional[List[Tuple[str, float, UUID]]] = None
 
     statementOfResponsibility: Optional[List[Tuple[str, float, UUID]]] = None
 
@@ -162,36 +155,37 @@ class MetakatVolume(MetakatBaseModel):
     photographer: Optional[List[Tuple[str, float, UUID]]] = None
     translator: Optional[List[Tuple[str, float, UUID]]] = None
     editor: Optional[List[Tuple[str, float, UUID]]] = None
+    redaktor: Optional[List[Tuple[str, float, UUID]]] = None
 
     seriesName: Optional[List[Tuple[str, float, UUID]]] = None
     seriesPartNumber: Optional[List[Tuple[str, float, UUID]]] = None
     seriesPartName: Optional[List[Tuple[str, float, UUID]]] = None
 
 
-class MetakatIssue(MetakatBaseModel):
+class MetakatTitle(MetakatBibliographic):
+    type: Literal["title"] = "title"
+
+    @field_validator("hierarchy")
+    @classmethod
+    def check_valid_hierarchy(cls, v):
+        if v is not None and v not in {
+            HierarchyType.MULTIPART,
+            HierarchyType.PERIODICAL,
+        }:
+            raise ValueError("Only 'multipart' or 'periodical' are allowed")
+        return v
+
+
+class MetakatVolume(MetakatBibliographic):
+    type: Literal["volume"] = "volume"
+
+
+class MetakatIssue(MetakatBibliographic):
     type: Literal["issue"] = "issue"
-    id: UUID
-    parent_id: Optional[UUID] = None
-    page_id: Optional[UUID] = None
 
-    partName: Optional[List[Tuple[str, float, UUID]]] = None
-    partNumber: Optional[List[Tuple[str, float, UUID]]] = None
 
-    title: Optional[List[Tuple[str, float, UUID]]] = None
-    subTitle: Optional[List[Tuple[str, float, UUID]]] = None
-    edition: Optional[List[Tuple[str, float, UUID]]] = None
-
-    statementOfResponsibility: Optional[List[Tuple[str, float, UUID]]] = None
-
-    publisher: Optional[List[Tuple[str, float, UUID]]] = None
-    placeTerm: Optional[List[Tuple[str, float, UUID]]] = None
-    dateIssued: Optional[List[Tuple[str, float, UUID]]] = None
-
-    manufacturePublisher: Optional[List[Tuple[str, float, UUID]]] = None
-    manufacturePlaceTerm: Optional[List[Tuple[str, float, UUID]]] = None
-    manufactureDateIssued: Optional[List[Tuple[str, float, UUID]]] = None
-
-    redaktor: Optional[List[Tuple[str, float, UUID]]] = None
+class MetakatSupplement(MetakatBibliographic):
+    type: Literal["supplement"] = "supplement"
 
 
 class MetakatPage(MetakatBaseModel):
@@ -206,25 +200,6 @@ class MetakatPage(MetakatBaseModel):
     side: Optional[Tuple[PageSideType, float]] = None
     imageDim: Optional[MetakatPageDimensions] = None
     altoDim: Optional[MetakatPageDimensions] = None
-
-
-class MetakatSupplement(MetakatBaseModel):
-    type: Literal["supplement"] = "supplement"
-    id: UUID
-    parent_id: Optional[UUID] = None
-    page_id: Optional[UUID] = None
-
-    partName: Optional[List[Tuple[str, float, UUID]]] = None
-    partNumber: Optional[List[Tuple[str, float, UUID]]] = None
-
-    title: Optional[List[Tuple[str, float, UUID]]] = None
-    subTitle: Optional[List[Tuple[str, float, UUID]]] = None
-
-    publisher: Optional[List[Tuple[str, float, UUID]]] = None
-    placeTerm: Optional[List[Tuple[str, float, UUID]]] = None
-    dateIssued: Optional[List[Tuple[str, float, UUID]]] = None
-
-    author: Optional[List[Tuple[str, float, UUID]]] = None
 
 
 class MetakatChapter(MetakatBaseModel):
