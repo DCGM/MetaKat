@@ -115,8 +115,12 @@ class MetakatTitle(MetakatBaseModel):
     hierarchy: Optional[HierarchyType] = None
     id: UUID
     page_id: Optional[UUID] = None
-    title: Optional[Tuple[str, float, UUID]] = None
-    subTitle: Optional[Tuple[str, float, UUID]] = None
+    title: Optional[List[Tuple[str, float, UUID]]] = None
+    subTitle: Optional[List[Tuple[str, float, UUID]]] = None
+
+    frequency: Optional[List[Tuple[str, float, UUID]]] = None
+
+    statementOfResponsibility: Optional[List[Tuple[str, float, UUID]]] = None
 
     @field_validator("hierarchy")
     @classmethod
@@ -128,46 +132,67 @@ class MetakatTitle(MetakatBaseModel):
             raise ValueError("Only 'multipart' or 'periodical' are allowed")
         return v
 
+
 class MetakatVolume(MetakatBaseModel):
     type: Literal["volume"] = "volume"
     hierarchy: Optional[HierarchyType] = None
     id: UUID
     parent_id: Optional[UUID] = None
     page_id: Optional[UUID] = None
-    partNumber: Optional[Tuple[str, float, UUID]] = None
-    partName: Optional[Tuple[str, float, UUID]] = None
-    dateIssued: Optional[Tuple[str, float, UUID]] = None
-    startDate: Optional[str] = None
-    endDate: Optional[str] = None
-    title: Optional[Tuple[str, float, UUID]] = None
-    subTitle: Optional[Tuple[str, float, UUID]] = None
-    edition: Optional[Tuple[str, float, UUID]] = None
-    placeTerm: Optional[Tuple[str, float, UUID]] = None
+
+    partNumber: Optional[List[Tuple[str, float, UUID]]] = None
+    partName: Optional[List[Tuple[str, float, UUID]]] = None
+
+    title: Optional[List[Tuple[str, float, UUID]]] = None
+    subTitle: Optional[List[Tuple[str, float, UUID]]] = None
+    edition: Optional[List[Tuple[str, float, UUID]]] = None
+
+    statementOfResponsibility: Optional[List[Tuple[str, float, UUID]]] = None
+
     publisher: Optional[List[Tuple[str, float, UUID]]] = None
+    placeTerm: Optional[List[Tuple[str, float, UUID]]] = None
+    dateIssued: Optional[List[Tuple[str, float, UUID]]] = None
+
     manufacturePublisher: Optional[List[Tuple[str, float, UUID]]] = None
     manufacturePlaceTerm: Optional[List[Tuple[str, float, UUID]]] = None
+    manufactureDateIssued: Optional[List[Tuple[str, float, UUID]]] = None
+
     author: Optional[List[Tuple[str, float, UUID]]] = None
     illustrator: Optional[List[Tuple[str, float, UUID]]] = None
     photographer: Optional[List[Tuple[str, float, UUID]]] = None
     translator: Optional[List[Tuple[str, float, UUID]]] = None
     editor: Optional[List[Tuple[str, float, UUID]]] = None
+
     seriesName: Optional[List[Tuple[str, float, UUID]]] = None
-    seriesNumber: Optional[List[Tuple[str, float, UUID]]] = None
+    seriesPartNumber: Optional[List[Tuple[str, float, UUID]]] = None
+    seriesPartName: Optional[List[Tuple[str, float, UUID]]] = None
+
 
 class MetakatIssue(MetakatBaseModel):
     type: Literal["issue"] = "issue"
     id: UUID
     parent_id: Optional[UUID] = None
     page_id: Optional[UUID] = None
-    partNumber: Optional[Tuple[str, float, UUID]] = None
-    dateIssued: Optional[Tuple[str, float, UUID]] = None
-    title: Optional[Tuple[str, float, UUID]] = None
-    subTitle: Optional[Tuple[str, float, UUID]] = None
-    placeTerm: Optional[Tuple[str, float, UUID]] = None
+
+    partName: Optional[List[Tuple[str, float, UUID]]] = None
+    partNumber: Optional[List[Tuple[str, float, UUID]]] = None
+
+    title: Optional[List[Tuple[str, float, UUID]]] = None
+    subTitle: Optional[List[Tuple[str, float, UUID]]] = None
+    edition: Optional[List[Tuple[str, float, UUID]]] = None
+
+    statementOfResponsibility: Optional[List[Tuple[str, float, UUID]]] = None
+
     publisher: Optional[List[Tuple[str, float, UUID]]] = None
+    placeTerm: Optional[List[Tuple[str, float, UUID]]] = None
+    dateIssued: Optional[List[Tuple[str, float, UUID]]] = None
+
     manufacturePublisher: Optional[List[Tuple[str, float, UUID]]] = None
     manufacturePlaceTerm: Optional[List[Tuple[str, float, UUID]]] = None
+    manufactureDateIssued: Optional[List[Tuple[str, float, UUID]]] = None
+
     redaktor: Optional[List[Tuple[str, float, UUID]]] = None
+
 
 class MetakatPage(MetakatBaseModel):
     type: Literal["page"] = "page"
@@ -182,17 +207,25 @@ class MetakatPage(MetakatBaseModel):
     imageDim: Optional[MetakatPageDimensions] = None
     altoDim: Optional[MetakatPageDimensions] = None
 
+
 class MetakatSupplement(MetakatBaseModel):
     type: Literal["supplement"] = "supplement"
     id: UUID
     parent_id: Optional[UUID] = None
-    title: Optional[Tuple[str, float, UUID]] = None
-    subTitle: Optional[Tuple[str, float, UUID]] = None
-    partNumber: Optional[Tuple[str, float, UUID]] = None
-    dateIssued: Optional[Tuple[str, float, UUID]] = None
-    author: Optional[List[Tuple[str, float, UUID]]] = None
+    page_id: Optional[UUID] = None
+
+    partName: Optional[List[Tuple[str, float, UUID]]] = None
+    partNumber: Optional[List[Tuple[str, float, UUID]]] = None
+
+    title: Optional[List[Tuple[str, float, UUID]]] = None
+    subTitle: Optional[List[Tuple[str, float, UUID]]] = None
+
     publisher: Optional[List[Tuple[str, float, UUID]]] = None
-    placeTerm: Optional[Tuple[str, float, UUID]] = None
+    placeTerm: Optional[List[Tuple[str, float, UUID]]] = None
+    dateIssued: Optional[List[Tuple[str, float, UUID]]] = None
+
+    author: Optional[List[Tuple[str, float, UUID]]] = None
+
 
 class MetakatChapter(MetakatBaseModel):
     type: Literal["chapter"] = "chapter"
@@ -207,16 +240,23 @@ class MetakatChapter(MetakatBaseModel):
     partNumber: Optional[Tuple[str, float, UUID]] = None
     pageNumber: Optional[Tuple[str, float, UUID]] = None
 
+
 class MetakatArticle(MetakatBaseModel):
     type: Literal["article"] = "article"
     id: UUID
     parent_id: UUID
+    pageIndexToc: Optional[int] = None
     pageIndexStart: Optional[int] = None
     pageIndexEnd: Optional[int] = None
     title: Optional[Tuple[str, float, UUID]] = None
-    author: Optional[List[Tuple[str, float, UUID]]] = None
+    title_destination_page: Optional[Tuple[str, float, UUID]] = None
+    subTitle: Optional[Tuple[str, float, UUID]] = None
+
     abstract: Optional[Tuple[str, float, UUID]] = None
     keywords: Optional[Tuple[str, float, UUID]] = None
+
+    author: Optional[List[Tuple[str, float, UUID]]] = None
+
 
 MetakatElement = Annotated[
     Union[
