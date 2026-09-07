@@ -79,6 +79,21 @@ class FormType(str, enum.Enum):
     MANUSCRIPT = "manuscript"
 
 
+class ArticleGenre(str, enum.Enum):
+    """Specialisation of an internal part, MODS <genre type="...">article.
+
+    The type attribute carries the specialisation while the element value
+    stays "article", so <genre type="review">article</genre> is a review.
+    These four are the values the metadata mapping names; the DMF defers the
+    complete vocabulary to Pravidla pro popis periodik v8.7, so extend this
+    once that list is confirmed.
+    """
+    REVIEW = "review"
+    INTERVIEW = "interview"
+    COVER = "cover"
+    TABLE_OF_CONTENTS = "tableOfContents"
+
+
 class BiblioType(str, enum.Enum):
     TITLE = "Title"
     SUBTITLE = "Subtitle"
@@ -256,12 +271,22 @@ class MetakatInternalPart(MetakatBaseModel):
     subTitle: Optional[List[Tuple[str, float, UUID]]] = None
     partNumber: Optional[List[Tuple[str, float, UUID]]] = None
 
-    pageNumber: Optional[List[Tuple[str, float, UUID]]] = None
+    # Printed pagination, MODS <part type="pageNumber">: the DMF pairs
+    # detail/number with extent/start and extent/end, so an internal part
+    # carries a printed *range* rather than a single number. The scan-order
+    # counterpart is pageIndexStart/pageIndexEnd above.
+    pageNumberStart: Optional[List[Tuple[str, float, UUID]]] = None
+    pageNumberEnd: Optional[List[Tuple[str, float, UUID]]] = None
 
     abstract: Optional[List[Tuple[str, float, UUID]]] = None
     keywords: Optional[List[Tuple[str, float, UUID]]] = None
 
     author: Optional[List[Tuple[str, float, UUID]]] = None
+
+    # Classifier output, so a confidence but no detection UUID. Lives on the
+    # shared base because both internal-part kinds serialise to <genre>, but
+    # in practice only articles carry a meaningful specialisation.
+    articleGenre: Optional[Tuple[ArticleGenre, float]] = None
 
 
 class MetakatChapter(MetakatInternalPart):
