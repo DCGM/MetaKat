@@ -1,7 +1,8 @@
 import enum
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator, StringConstraints
-from typing import Optional, Tuple, List, Union, Dict, Annotated, Literal
+from pydantic import (BaseModel, Field, ConfigDict, field_validator, StringConstraints,
+                      model_serializer, model_validator)
+from typing import Optional, Tuple, List, Union, Dict, Annotated, Literal, Any
 from uuid import UUID
 
 # MetaKat
@@ -140,6 +141,70 @@ class MetakatBaseModel(BaseModel):
     model_config = ConfigDict(use_enum_values=True)
 
 
+# Positional order of Value on the wire. Module level rather than a class
+# attribute because pydantic turns leading-underscore class attributes into
+# private attrs, which are not iterable.
+_VALUE_SEQ = ("text", "confidence", "detection_id", "lang", "lang_confidence")
+
+
+class Value(MetakatBaseModel):
+    """One extracted value: the text, how sure we are, and where it came from.
+
+    Serialises as a positional array rather than an object, so the exported
+    JSON keeps the shape it has always had - ["Kytice", 0.9, "<uuid>"] - and
+    every file written before this class existed still loads. `lang` is
+    appended as a fourth element *only* when it is set, so values without a
+    language are byte-identical to the previous format and consumers reading
+    value[0..2] are unaffected.
+
+    Language belongs to the MODS container rather than to the value: NDK tags
+    <titleInfo lang="eng" type="translated">, covering title, subTitle,
+    partNumber and partName together. Recording it per value is the evidence
+    from which those blocks get reconstructed when the grouping overlay
+    lands - matching on lang recovers the parallel-title groups - not a claim
+    that the value owns the language.
+
+    The same append-if-set rule is how the array grows again later; the value
+    id the grouping overlay needs becomes a fifth element on the same terms.
+    """
+
+    text: str
+    confidence: float
+    detection_id: UUID
+    lang: Optional[str] = None  # iso639-2b
+    lang_confidence: Optional[float] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_sequence(cls, v: Any) -> Any:
+        if isinstance(v, (list, tuple)):
+            return dict(zip(_VALUE_SEQ, v))
+        return v
+
+    @model_serializer
+    def _as_sequence(self) -> list:
+        out: list = [self.text, self.confidence, str(self.detection_id)]
+        if self.lang is not None:
+            out.append(self.lang)
+            if self.lang_confidence is not None:
+                out.append(self.lang_confidence)
+        return out
+
+    def __getitem__(self, i):
+        """Transitional: keeps existing positional access working."""
+        return (self.text, self.confidence, self.detection_id)[i]
+
+    def __iter__(self):
+        """Transitional: keeps `text, confidence, detection_id = value` working.
+
+        Overrides BaseModel.__iter__, which yields (field_name, value) pairs -
+        five of them here, so unpacking into three would fail. Callers wanting
+        the fields should use attribute access; `dict(value)` is no longer
+        meaningful, and model_dump() returns the positional array.
+        """
+        return iter((self.text, self.confidence, self.detection_id))
+
+
 class MetakatPageDimensions(MetakatBaseModel):
     width: Annotated[float, Field(gt=0, allow_inf_nan=False)]
     height: Annotated[float, Field(gt=0, allow_inf_nan=False)]
@@ -168,14 +233,14 @@ class MetakatAgents(MetakatBaseModel):
     internal part has one.
     """
 
-    author: Optional[List[Tuple[str, float, UUID]]] = None
-    illustrator: Optional[List[Tuple[str, float, UUID]]] = None
-    photographer: Optional[List[Tuple[str, float, UUID]]] = None
-    translator: Optional[List[Tuple[str, float, UUID]]] = None
-    editor: Optional[List[Tuple[str, float, UUID]]] = None
-    redaktor: Optional[List[Tuple[str, float, UUID]]] = None
-    affiliation: Optional[List[Tuple[str, float, UUID]]] = None
-    email: Optional[List[Tuple[str, float, UUID]]] = None
+    author: Optional[List[Value]] = None
+    illustrator: Optional[List[Value]] = None
+    photographer: Optional[List[Value]] = None
+    translator: Optional[List[Value]] = None
+    editor: Optional[List[Value]] = None
+    redaktor: Optional[List[Value]] = None
+    affiliation: Optional[List[Value]] = None
+    email: Optional[List[Value]] = None
 
 
 class _MetakatBibliographicFields(MetakatBaseModel):
@@ -193,28 +258,28 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     page_id: Optional[UUID] = None
     hierarchy: Optional[HierarchyType] = None
 
-    partNumber: Optional[List[Tuple[str, float, UUID]]] = None
-    partName: Optional[List[Tuple[str, float, UUID]]] = None
+    partNumber: Optional[List[Value]] = None
+    partName: Optional[List[Value]] = None
 
-    title: Optional[List[Tuple[str, float, UUID]]] = None
-    subTitle: Optional[List[Tuple[str, float, UUID]]] = None
-    edition: Optional[List[Tuple[str, float, UUID]]] = None
-    frequency: Optional[List[Tuple[str, float, UUID]]] = None
+    title: Optional[List[Value]] = None
+    subTitle: Optional[List[Value]] = None
+    edition: Optional[List[Value]] = None
+    frequency: Optional[List[Value]] = None
 
-    statementOfResponsibility: Optional[List[Tuple[str, float, UUID]]] = None
+    statementOfResponsibility: Optional[List[Value]] = None
 
-    publisher: Optional[List[Tuple[str, float, UUID]]] = None
-    placeTerm: Optional[List[Tuple[str, float, UUID]]] = None
-    dateIssued: Optional[List[Tuple[str, float, UUID]]] = None
-    copyrightDate: Optional[List[Tuple[str, float, UUID]]] = None
+    publisher: Optional[List[Value]] = None
+    placeTerm: Optional[List[Value]] = None
+    dateIssued: Optional[List[Value]] = None
+    copyrightDate: Optional[List[Value]] = None
 
-    manufacturePublisher: Optional[List[Tuple[str, float, UUID]]] = None
-    manufacturePlaceTerm: Optional[List[Tuple[str, float, UUID]]] = None
-    manufactureDateIssued: Optional[List[Tuple[str, float, UUID]]] = None
+    manufacturePublisher: Optional[List[Value]] = None
+    manufacturePlaceTerm: Optional[List[Value]] = None
+    manufactureDateIssued: Optional[List[Value]] = None
 
-    seriesName: Optional[List[Tuple[str, float, UUID]]] = None
-    seriesPartNumber: Optional[List[Tuple[str, float, UUID]]] = None
-    seriesPartName: Optional[List[Tuple[str, float, UUID]]] = None
+    seriesName: Optional[List[Value]] = None
+    seriesPartNumber: Optional[List[Value]] = None
+    seriesPartName: Optional[List[Value]] = None
 
     # Classifier outputs rather than detected text spans, so they carry a
     # confidence but no detection UUID - the same shape MetakatPage already
@@ -277,7 +342,7 @@ class MetakatPage(MetakatBaseModel):
     batch_index: int
     parent_id: Optional[UUID] = None
     pageIndex: Optional[int] = None
-    pageNumber: Optional[Tuple[str, float, UUID]] = None
+    pageNumber: Optional[Value] = None
     pageType: Optional[Tuple[PageType, float]] = None
     side: Optional[Tuple[PageSideType, float]] = None
     imageDim: Optional[MetakatPageDimensions] = None
@@ -298,28 +363,28 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     pageIndexStart: Optional[int] = None
     pageIndexEnd: Optional[int] = None
 
-    title: Optional[List[Tuple[str, float, UUID]]] = None
-    subTitle: Optional[List[Tuple[str, float, UUID]]] = None
-    partNumber: Optional[List[Tuple[str, float, UUID]]] = None
+    title: Optional[List[Value]] = None
+    subTitle: Optional[List[Value]] = None
+    partNumber: Optional[List[Value]] = None
 
     # Printed pagination, MODS <part type="pageNumber">: the DMF pairs
     # detail/number with extent/start and extent/end, so an internal part
     # carries a printed *range* rather than a single number. The scan-order
     # counterpart is pageIndexStart/pageIndexEnd above.
-    pageNumberStart: Optional[List[Tuple[str, float, UUID]]] = None
-    pageNumberEnd: Optional[List[Tuple[str, float, UUID]]] = None
+    pageNumberStart: Optional[List[Value]] = None
+    pageNumberEnd: Optional[List[Value]] = None
 
-    titleDestinationPage: Optional[List[Tuple[str, float, UUID]]] = None
-    subTitleDestinationPage: Optional[List[Tuple[str, float, UUID]]] = None
-    abstract: Optional[List[Tuple[str, float, UUID]]] = None
-    keywords: Optional[List[Tuple[str, float, UUID]]] = None
+    titleDestinationPage: Optional[List[Value]] = None
+    subTitleDestinationPage: Optional[List[Value]] = None
+    abstract: Optional[List[Value]] = None
+    keywords: Optional[List[Value]] = None
 
     # Denormalised from the parent. An internal part has no <originInfo>, so
     # this serialises to the *parent's* originInfo, never the part's - the
     # binder corroborates the parent issue's date with it, or promotes it
     # when the parent has none. Recording it here keeps the evidence that
     # this part's own page carried the date.
-    dateIssued: Optional[List[Tuple[str, float, UUID]]] = None
+    dateIssued: Optional[List[Value]] = None
 
     # The reviewed work, MODS <relatedItem> holding its own <titleInfo>,
     # <name> and <originInfo>. Kept out of MetakatAgents even though one of
@@ -328,9 +393,9 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     # example keeps place, publisher and year together in a single
     # <publisher> element - identifying someone else's book, not cataloguing
     # it - and because a review header prints it as one line.
-    reviewedWorkTitle: Optional[List[Tuple[str, float, UUID]]] = None
-    reviewedWorkAuthor: Optional[List[Tuple[str, float, UUID]]] = None
-    reviewedWorkImprint: Optional[List[Tuple[str, float, UUID]]] = None
+    reviewedWorkTitle: Optional[List[Value]] = None
+    reviewedWorkAuthor: Optional[List[Value]] = None
+    reviewedWorkImprint: Optional[List[Value]] = None
 
     # Classifier outputs, so a confidence but no detection UUID. Both live on
     # the shared base because either internal-part kind serialises them, but
