@@ -15,15 +15,18 @@ class DocumentType(str, enum.Enum):
     CHAPTER = "chapter"
     ARTICLE = "article"
 
+
 class HierarchyType(str, enum.Enum):
     MULTIPART = "multipart"
     MONOGRAPH = "monograph"
     PERIODICAL = "periodical"
 
+
 class PageSideType(str, enum.Enum):
     LEFT = "left"
     RIGHT = "right"
-    SINGLE_PAGE = "single_page"
+    SINGLE = "single"
+
 
 class PageType(str, enum.Enum):
     ABSTRACT = "Abstract"
@@ -64,6 +67,7 @@ class PageType(str, enum.Enum):
     TABLE = "Table"
     TABLE_OF_CONTENTS = "TableOfContents"
     TITLE_PAGE = "TitlePage"
+
 
 class FormType(str, enum.Enum):
     """Physical form of the original, MODS <physicalDescription><form>.
@@ -118,6 +122,7 @@ class BiblioType(str, enum.Enum):
     PERIODICAL_ISSUE_PART_NUMBER = "PeriodicalIssuePartNumber"
     PERIODICAL_ISSUE_DATE_ISSUED = "PeriodicalIssueDateIssued"
 
+
 class ChapterType(str, enum.Enum):
     PAGE_NUMBER = "PageNumber"
     LEVEL_1_TITLE = "Level1Title"
@@ -125,6 +130,7 @@ class ChapterType(str, enum.Enum):
     SUBTITLE = "Subtitle"
     PART_NUMBER = "PartNumber"
     DESTINATION_TITLE = "DestinationTitle"
+
 
 class PageNumberType(str, enum.Enum):
     PAGE_NUMBER = "PageNumber"
@@ -139,40 +145,21 @@ class MetakatPageDimensions(MetakatBaseModel):
     height: Annotated[float, Field(gt=0, allow_inf_nan=False)]
 
 
-class MetakatAgents(MetakatBaseModel):
-    """MODS <name> and its children, shared by both document hierarchies.
+class MetakatBibliographic(MetakatBaseModel):
+    """Shared field set for the four bibliographic levels.
 
-    A name in MODS is one structure - <namePart> plus a <role>/<roleTerm> -
-    and it appears identically at every level. The DMF places no role
-    vocabulary restriction anywhere, so a title, a volume, an issue, a
-    supplement, a chapter and an article may all carry any of these roles.
-    MetaKat encodes the role in the field name instead of a roleTerm, which
-    is why there is one field per role rather than one agent field.
+    MODS has a single <mods> element for every level: a title, a volume, an
+    issue and a supplement are not different schemas, they are the same element
+    distinguished by its ID and <genre>. The NDK DMF tables for the four levels
+    differ almost entirely in which children are *mandatory*, not in which
+    children exist. This base mirrors that - every field is declared once here,
+    and the four subclasses below add nothing but their `type` discriminator.
 
-    `affiliation` belongs here rather than on either document base because it
-    is a <name> child. Note it describes *one* agent and repeats within that
-    agent, so which affiliation goes with which name is not expressible while
-    these are parallel flat lists - it is the clearest case for the grouping
-    overlay.
-    """
-
-    author: Optional[List[Tuple[str, float, UUID]]] = None
-    illustrator: Optional[List[Tuple[str, float, UUID]]] = None
-    photographer: Optional[List[Tuple[str, float, UUID]]] = None
-    translator: Optional[List[Tuple[str, float, UUID]]] = None
-    editor: Optional[List[Tuple[str, float, UUID]]] = None
-    redaktor: Optional[List[Tuple[str, float, UUID]]] = None
-    affiliation: Optional[List[Tuple[str, float, UUID]]] = None
-
-
-class _MetakatBibliographicFields(MetakatBaseModel):
-    """Everything on a bibliographic record except the MODS <name> block.
-
-    Split out purely for field order. Pydantic collects fields in reverse MRO,
-    so the base listed *first* in a class statement contributes its fields
-    *last*; combining as MetakatBibliographic(MetakatAgents, <this>) therefore
-    serialises the agents after the rest. Not meant to be referenced directly
-    - use MetakatBibliographic, which is the complete model.
+    A field being available at a level therefore does not mean it is meaningful
+    there. A periodical volume legitimately fills little beyond partNumber and
+    dateIssued, and `frequency` only ever applies to a periodical title or its
+    supplement. Which fields apply where is documented in the field inventory
+    artifact and is deliberately not enforced here.
     """
 
     id: UUID
@@ -199,6 +186,15 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     manufacturePlaceTerm: Optional[List[Tuple[str, float, UUID]]] = None
     manufactureDateIssued: Optional[List[Tuple[str, float, UUID]]] = None
 
+    author: Optional[List[Tuple[str, float, UUID]]] = None
+    illustrator: Optional[List[Tuple[str, float, UUID]]] = None
+    photographer: Optional[List[Tuple[str, float, UUID]]] = None
+    translator: Optional[List[Tuple[str, float, UUID]]] = None
+    editor: Optional[List[Tuple[str, float, UUID]]] = None
+    redaktor: Optional[List[Tuple[str, float, UUID]]] = None
+    affiliation: Optional[List[Tuple[str, float, UUID]]] = None
+    email: Optional[List[Tuple[str, float, UUID]]] = None
+
     seriesName: Optional[List[Tuple[str, float, UUID]]] = None
     seriesPartNumber: Optional[List[Tuple[str, float, UUID]]] = None
     seriesPartName: Optional[List[Tuple[str, float, UUID]]] = None
@@ -211,24 +207,6 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     # marcform axis admits one answer per document.
     language: Optional[List[Tuple[str, float]]] = None  # iso639-2b codes
     form: Optional[Tuple[FormType, float]] = None
-
-
-class MetakatBibliographic(MetakatAgents, _MetakatBibliographicFields):
-    """Shared field set for the four bibliographic levels.
-
-    MODS has a single <mods> element for every level: a title, a volume, an
-    issue and a supplement are not different schemas, they are the same element
-    distinguished by its ID and <genre>. The NDK DMF tables for the four levels
-    differ almost entirely in which children are *mandatory*, not in which
-    children exist. This base mirrors that - every field is declared once, and
-    the four subclasses below add nothing but their `type` discriminator.
-
-    A field being available at a level therefore does not mean it is meaningful
-    there. A periodical volume legitimately fills little beyond partNumber and
-    dateIssued, and `frequency` only ever applies to a periodical title or its
-    supplement. Which fields apply where is documented in the field inventory
-    artifact and is deliberately not enforced here.
-    """
 
 
 class MetakatTitle(MetakatBibliographic):
@@ -271,42 +249,7 @@ class MetakatPage(MetakatBaseModel):
     altoDim: Optional[MetakatPageDimensions] = None
 
 
-class _MetakatInternalPartFields(MetakatBaseModel):
-    """Everything on an internal part except the MODS <name> block.
-
-    Split out purely for field order - see _MetakatBibliographicFields. Use
-    MetakatInternalPart, which is the complete model.
-    """
-
-    id: UUID
-    parent_id: UUID
-
-    pageIndexToc: Optional[int] = None
-    pageIndexStart: Optional[int] = None
-    pageIndexEnd: Optional[int] = None
-
-    title: Optional[List[Tuple[str, float, UUID]]] = None
-    title_destination_page: Optional[List[Tuple[str, float, UUID]]] = None
-    subTitle: Optional[List[Tuple[str, float, UUID]]] = None
-    partNumber: Optional[List[Tuple[str, float, UUID]]] = None
-
-    # Printed pagination, MODS <part type="pageNumber">: the DMF pairs
-    # detail/number with extent/start and extent/end, so an internal part
-    # carries a printed *range* rather than a single number. The scan-order
-    # counterpart is pageIndexStart/pageIndexEnd above.
-    pageNumberStart: Optional[List[Tuple[str, float, UUID]]] = None
-    pageNumberEnd: Optional[List[Tuple[str, float, UUID]]] = None
-
-    abstract: Optional[List[Tuple[str, float, UUID]]] = None
-    keywords: Optional[List[Tuple[str, float, UUID]]] = None
-
-    # Classifier output, so a confidence but no detection UUID. Lives on the
-    # shared base because both internal-part kinds serialise to <genre>, but
-    # in practice only articles carry a meaningful specialisation.
-    articleGenre: Optional[Tuple[ArticleGenre, float]] = None
-
-
-class MetakatInternalPart(MetakatAgents, _MetakatInternalPartFields):
+class MetakatInternalPart(MetakatBaseModel):
     """Shared field set for the two internal-part levels.
 
     MODS describes a chapter and an article with the same <mods> element -
@@ -318,13 +261,52 @@ class MetakatInternalPart(MetakatAgents, _MetakatInternalPartFields):
     of it because an internal part has no <originInfo> whatsoever: it inherits
     its imprint from the issue or volume carrying it. Publisher, place, dates,
     edition and the manufacture trio are all inapplicable here, which is
-    thirteen of the bibliographic base's fields. The MODS <name> block is the
-    part the two hierarchies genuinely do share, which is why MetakatAgents is
-    mixed into both.
+    thirteen of the bibliographic base's fields.
 
     pageIndex* stay scalar ints - they are computed positions in the scan
     order, not detected values, so unlike the text fields they cannot repeat.
     """
+
+    id: UUID
+    parent_id: UUID
+
+    pageIndexToc: Optional[int] = None
+    pageIndexStart: Optional[int] = None
+    pageIndexEnd: Optional[int] = None
+
+    title: Optional[List[Tuple[str, float, UUID]]] = None
+    subTitle: Optional[List[Tuple[str, float, UUID]]] = None
+    partNumber: Optional[List[Tuple[str, float, UUID]]] = None
+
+    # Printed pagination, MODS <part type="pageNumber">: the DMF pairs
+    # detail/number with extent/start and extent/end, so an internal part
+    # carries a printed *range* rather than a single number. The scan-order
+    # counterpart is pageIndexStart/pageIndexEnd above.
+    pageNumberStart: Optional[List[Tuple[str, float, UUID]]] = None
+    pageNumberEnd: Optional[List[Tuple[str, float, UUID]]] = None
+
+    titleDestinationPage: Optional[List[Tuple[str, float, UUID]]] = None
+    subTitleDestinationPage: Optional[List[Tuple[str, float, UUID]]] = None
+    reviewedWorkImprint: Optional[List[Tuple[str, float, UUID]]] = None
+    abstract: Optional[List[Tuple[str, float, UUID]]] = None
+    keywords: Optional[List[Tuple[str, float, UUID]]] = None
+    dateIssued: Optional[List[Tuple[str, float, UUID]]] = None
+
+    author: Optional[List[Tuple[str, float, UUID]]] = None
+    reviewedWorkAuthor: Optional[List[Tuple[str, float, UUID]]] = None
+    illustrator: Optional[List[Tuple[str, float, UUID]]] = None
+    photographer: Optional[List[Tuple[str, float, UUID]]] = None
+    translator: Optional[List[Tuple[str, float, UUID]]] = None
+    editor: Optional[List[Tuple[str, float, UUID]]] = None
+    redaktor: Optional[List[Tuple[str, float, UUID]]] = None
+    affiliation: Optional[List[Tuple[str, float, UUID]]] = None
+    email: Optional[List[Tuple[str, float, UUID]]] = None
+
+    # Classifier output, so a confidence but no detection UUID. Lives on the
+    # shared base because both internal-part kinds serialise to <genre>, but
+    # in practice only articles carry a meaningful specialisation.
+    language: Optional[List[Tuple[str, float]]] = None  # iso639-2b codes
+    articleGenre: Optional[Tuple[ArticleGenre, float]] = None
 
 
 class MetakatChapter(MetakatInternalPart):
