@@ -321,9 +321,14 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     # this part's own page carried the date.
     dateIssued: Optional[List[Tuple[str, float, UUID]]] = None
 
-    # The reviewed work, MODS <relatedItem>. Kept out of MetakatAgents even
-    # though one of them is a name: these describe a *different* work, and
-    # only an internal part ever has them.
+    # The reviewed work, MODS <relatedItem> holding its own <titleInfo>,
+    # <name> and <originInfo>. Kept out of MetakatAgents even though one of
+    # them is a name: these describe a *different* work, and only an internal
+    # part ever has them. Imprint stays one field because the mapping's own
+    # example keeps place, publisher and year together in a single
+    # <publisher> element - identifying someone else's book, not cataloguing
+    # it - and because a review header prints it as one line.
+    reviewedWorkTitle: Optional[List[Tuple[str, float, UUID]]] = None
     reviewedWorkAuthor: Optional[List[Tuple[str, float, UUID]]] = None
     reviewedWorkImprint: Optional[List[Tuple[str, float, UUID]]] = None
 
