@@ -364,6 +364,25 @@ Týká se to názvu, podnázvu a pořadového čísla kapitoly. To sice MetaKat 
 čtou pouze v obsahu, protože číslo vytištěné na vlastní straně části je vedeno
 u záznamu strany.
 
-**7. Chybí něco?** Pole v tabulkách v kapitole 2 jsou to, co považujeme zároveň
+**7. Má MetaKat vracet rovnou MODS?** Schéma je proti MODS namapované pole po
+poli — sloupec „Uloženo v MODS jako“ v tabulkách v kapitole 2 je v podstatě celý
+ten převod. Napsat převodník oběma směry je proto v tuto chvíli přímočaré a
+otevírá to dvě možnosti:
+
+   - **vracet vedle vlastního JSON rovnou MODS**, aby si převod nemusel psát
+     každý konzument sám;
+   - **doplňovat MODS, který už existuje**. To je scénář ProArc: balíček
+     katalogizační záznam v MODS už nese a MetaKat by do něj přidal, co přečetl
+     ze skenů.
+
+K rozhodnutí:
+
+   - stojí archivu MODS na výstupu za to, nebo si převod raději nechá u sebe?
+   - u doplňování: co má přednost, když se katalogizační záznam a čtení ze skenu
+     liší? Má MetaKat existující hodnoty přepisovat, doplňovat jen to, co
+     v záznamu chybí, nebo neshody pouze hlásit?
+   - v jaké verzi MODS — viz otázka 1.
+
+**8. Chybí něco?** Pole v tabulkách v kapitole 2 jsou to, co považujeme zároveň
 za užitečné a za čitelné ze skenu. Pokud archivu chybí něco dalšího, teď je
 vhodná chvíle to říct.
