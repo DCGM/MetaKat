@@ -432,9 +432,27 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     id: UUID
     parent_id: UUID
 
+    # Scan index of the table-of-contents entry. A pointer, not a range, so
+    # it stays scalar.
     pageIndexToc: Optional[int] = None
-    pageIndexStart: Optional[int] = None
-    pageIndexEnd: Optional[int] = None
+
+    # Scan-order ranges, MODS <part type="pageIndex">. Lists because a part
+    # printed in two non-contiguous runs has two of them, exactly as the
+    # printed side does - MODS repeats the whole <part> either way.
+    #
+    # pageIndexStart[i] pairs with pageIndexEnd[i]; that is the only
+    # alignment claimed. No correspondence is expressed between an index run
+    # and a printed run, because MODS expresses none either: the pageIndex
+    # and pageNumber <part> elements are siblings with nothing linking a
+    # particular one of the first to a particular one of the second.
+    #
+    # These stay plain ints rather than Values: they are computed from the
+    # scan order, not detected, so they have no text, no confidence and no
+    # detection id - which also means they cannot be members of a pageRange
+    # group. That group pairs the printed side, where each endpoint is a
+    # detection in its own right.
+    pageIndexStart: Optional[List[int]] = None
+    pageIndexEnd: Optional[List[int]] = None
 
     title: Optional[List[Value]] = None
     subTitle: Optional[List[Value]] = None
