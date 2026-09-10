@@ -97,9 +97,6 @@ Uvnitř každé sady platí, že dostupnost pole na dané úrovni neznamená, ž
 dává smysl. Ročník periodika legitimně vyplní sotva víc než `partNumber` a
 `dateIssued`. Které pole kam patří, zachycují tabulky v příloze.
 
-Jeden důsledek stojí za zmínku: sdílení sady zpřístupňuje všechny role na všech
-úrovních, což odpovídá DMF a řeší rozejití popsané v kapitole 1.
-
 ---
 
 ## 5. Co hodnota nese a na které straně byla přečtena
