@@ -317,6 +317,25 @@ V MetaKat tomu odpovídají tři pole; skupina `reviewedWork` je váže dohromad
 Nakladatelské údaje tedy zůstávají v jednom poli, nerozdělené na místo,
 nakladatele a rok. Je to tak zamýšleno?
 
-**6. Chybí něco?** Pole v tabulkách v kapitole 2 jsou to, co považujeme zároveň
+**6. Dvojí zápis názvu: dvě pole, nebo klíč u hodnoty?** Kapitola 2 popisuje
+současné řešení — název přečtený na úvodní straně je v `title`, název přečtený
+v obsahu v `titleTocPage`, totéž u podnázvu, a skupina `titleInfo` obě čtení
+sváže. Druhá možnost je mít jen `title` a `subTitle` a doplnit hodnotě další
+klíč, který řekne, odkud pochází:
+
+```json
+{"text": "Počátky písma", "confidence": 0.95, "lang": "ces", "id": "…", "source": "destinationPage"}
+{"text": "Počátky písma", "confidence": 0.80, "lang": "ces", "id": "…", "source": "tocPage"}
+```
+
+Pro dvě pole mluví, že je rozdíl vidět už v seznamu polí a že konzument, kterého
+obsah nezajímá, prostě čte `title`. Pro klíč u hodnoty mluví, že nerozmnožuje
+pole — přípona `TocPage` by jinak musela přibýt u všeho, co lze přečíst na obou
+stranách — a že lépe odpovídá tomu, že jde o jednu informaci přečtenou dvakrát.
+
+Rozhodnutí se netýká jen názvu a podnázvu, ale i `partNumberTocPage` a čísel
+stran, takže je lepší je udělat najednou.
+
+**7. Chybí něco?** Pole v tabulkách v kapitole 2 jsou to, co považujeme zároveň
 za užitečné a za čitelné ze skenu. Pokud archivu chybí něco dalšího, teď je
 vhodná chvíle to říct.
