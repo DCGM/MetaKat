@@ -151,7 +151,7 @@ Typ pojmenovává kontejnerový element MODS, do kterého by členové patřili,
 události na jednom titulním listu jsou dvě skupiny `originInfoPublication`;
 autor se svou afiliací a e-mailem je jedna skupina `agent`.
 
-Tři vlastnosti jsou záměrné:
+Dvě vlastnosti jsou záměrné:
 
 **Skupina obsahuje, nevykládá.** Typ říká, do kterého kontejneru členové patří,
 a nic dalšího. Skupina `titleInfo`, která drží název přečtený v obsahu a týž
@@ -162,11 +162,6 @@ název, je věc čtenáře.
 záznam bez jediné skupiny je platný — subelementy se zopakují uvnitř jednoho
 kontejneru. Částečné seskupení, kdy jsou svázáni dva nakladatelé ze tří, je
 normální stav.
-
-**Žádná skupina pro `<subject>`.** Vázala by termíny jednoho bloku klíčových
-slov, jenže jazyk u jednotlivé hodnoty je odděluje sám: v testovací sadě dává
-všech 45 záznamů, které nesou několik bloků názvů, abstraktů či klíčových slov,
-každému bloku odlišný jazyk a žádný se neopakuje.
 
 ---
 
