@@ -137,6 +137,45 @@ class PageNumberType(str, enum.Enum):
     PAGE_NUMBER = "PageNumber"
 
 
+class GroupType(str, enum.Enum):
+    """What a group of detections jointly describes.
+
+    A flat field list cannot say that *this* place belongs to *that*
+    publisher. MODS says it by repeating the whole container - "zopakuje se
+    cely <originInfo> tak, aby se neztratily vzajemne vazby mezi subelementy"
+    - so these types are named after the containers, and a group is the set
+    of detections that would sit inside one of them.
+
+    The type is meant to be read, not derived: a consumer should know what a
+    group is about without inspecting which fields its members came from.
+
+    All types are declared once and available on both hierarchies, in the
+    same way fields are; SERIES only occurs on a volume and REVIEWED_WORK
+    only on an internal part, but nothing enforces that.
+    """
+
+    # --- MODS containers -------------------------------------------------
+    TITLE = "title"                  # titleInfo: title, subTitle, partNumber, partName
+    PUBLICATION = "publication"      # originInfo: placeTerm, publisher, dateIssued, edition
+    MANUFACTURE = "manufacture"      # originInfo eventType="manufacture"
+    AGENT = "agent"                  # name: one person, their affiliation and email
+    SERIES = "series"                # relatedItem type="series": the three series fields
+    SUBJECT = "subject"              # subject: the topics of one keyword block
+    PAGE_RANGE = "pageRange"         # part type="pageNumber": printed start and end
+    REVIEWED_WORK = "reviewedWork"   # relatedItem: the reviewed title, author and imprint
+
+    # --- not a container -------------------------------------------------
+    SAME_VALUE = "sameValue"
+    """One piece of information read in more than one place.
+
+    A chapter title found both in the table of contents and on the chapter's
+    own opening page is not two titles - it is one title with two pieces of
+    evidence, and it collapses to a single MODS element. Unlike every type
+    above, this does not describe a container; it says the members are
+    interchangeable readings of the same thing.
+    """
+
+
 class MetakatBaseModel(BaseModel):
     model_config = ConfigDict(use_enum_values=True)
 
@@ -203,6 +242,27 @@ class Value(MetakatBaseModel):
         meaningful, and model_dump() returns the positional array.
         """
         return iter((self.text, self.confidence, self.detection_id))
+
+
+class MetakatGroup(MetakatBaseModel):
+    """Detections that belong together, named by what they jointly describe.
+
+    Members are detection ids - the third element of a Value - so a group
+    needs no identifier space of its own. That holds even for values that did
+    not come from a detector: detection_id is mandatory on every Value, so
+    catalogue-derived or hand-entered values can be grouped on the same terms.
+
+    Grouping is enrichment, never a precondition. The DMF permits both
+    serialisations: subelements repeated inside one container when the
+    bindings are unknown, or the whole container repeated when they are. So a
+    producer that cannot work out the groupings emits none and still writes
+    valid MODS; a producer that can emits groups and writes a more precise
+    record. Partial grouping - two of three publishers grouped - is a normal
+    state, not a broken one.
+    """
+
+    type: GroupType
+    members: List[UUID]
 
 
 class MetakatPageDimensions(MetakatBaseModel):
@@ -306,7 +366,13 @@ class MetakatBibliographic(MetakatAgents, _MetakatBibliographicFields):
     dateIssued, and `frequency` only ever applies to a periodical title or its
     supplement. Which fields apply where is documented in the field inventory
     artifact and is deliberately not enforced here.
+
+    `groups` is declared here rather than on either base so that it
+    serialises after the agents: fields declared in a subclass body come
+    after every inherited field.
     """
+
+    groups: Optional[List[MetakatGroup]] = None
 
 
 class MetakatTitle(MetakatBibliographic):
@@ -422,7 +488,13 @@ class MetakatInternalPart(MetakatAgents, _MetakatInternalPartFields):
 
     pageIndex* stay scalar ints - they are computed positions in the scan
     order, not detected values, so unlike the text fields they cannot repeat.
+
+    `groups` is declared here rather than on either base so that it
+    serialises after the agents: fields declared in a subclass body come
+    after every inherited field.
     """
+
+    groups: Optional[List[MetakatGroup]] = None
 
 
 class MetakatChapter(MetakatInternalPart):
