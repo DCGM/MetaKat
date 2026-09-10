@@ -95,9 +95,7 @@ polí. Sloučením by téměř polovina zůstala trvale prázdná.
 
 Uvnitř každé sady platí, že dostupnost pole na dané úrovni neznamená, že tam
 dává smysl. Ročník periodika legitimně vyplní sotva víc než `partNumber` a
-`dateIssued`. Které pole kam patří, zachycují tabulky v příloze — a **záměrně to
-zatím není v kódu nijak vynucováno**; ty tabulky jsou zadáním, ze kterého by se
-taková kontrola teprve psala.
+`dateIssued`. Které pole kam patří, zachycují tabulky v příloze.
 
 Jeden důsledek stojí za zmínku: sdílení sady zpřístupňuje všechny role na všech
 úrovních, což odpovídá DMF a řeší rozejití popsané v kapitole 1.
