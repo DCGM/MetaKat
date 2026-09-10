@@ -72,10 +72,26 @@ nedůslednost, kdy `publisher` už seznamem byl, zatímco `placeTerm`, `dateIssu
 a `edition` byly jednotlivé hodnoty — schéma uneslo tři nakladatele, ale jen
 jedno místo.
 
-**Hodnota může nést jazyk, ve kterém je zapsána.** To potřebují souběžné titulní
-listy a dvojjazyčné abstrakty: u českého článku s anglickým abstraktem a
-anglickým souběžným názvem dnes nelze rozlišit, který řetězec je který. V
-testovací sadě nese 36 ze 116 záznamů dva nebo tři jazyky napříč názvy,
+**Hodnota se zapisuje jako slovník.** Dosud to byla trojice, ve které si čtenář
+musel pamatovat, co která pozice znamená:
+
+```json
+["Kytice", 0.94, "3f2a…"]
+```
+
+Nově je to slovník se čtyřmi pojmenovanými klíči:
+
+```json
+{"text": "Kytice", "confidence": 0.94, "lang": "ces", "id": "3f2a…"}
+```
+
+`text` je přečtený řetězec, `confidence` jistota, `id` identifikátor této
+hodnoty — právě ten uvádějí skupiny v kapitole 3 mezi svými členy.
+
+Klíč `lang` je nový a nese jazyk, ve kterém je hodnota zapsána. To potřebují
+souběžné titulní listy a dvojjazyčné abstrakty: u českého článku s anglickým
+abstraktem a anglickým souběžným názvem dnes nelze rozlišit, který řetězec je
+který. V testovací sadě nese 36 ze 116 záznamů dva nebo tři jazyky napříč názvy,
 abstrakty a klíčovými slovy. Odděleně od toho obě sady získaly **pole**
 `language` — `<language><languageTerm>`, tedy jazyk, ve kterém je dokument nebo
 vnitřní část napsána.
@@ -289,14 +305,13 @@ knihy v jednom elementu `<publisher>`, tedy tak, jak to tiskne záhlaví recenze
 </mods:relatedItem>
 ```
 
-V MetaKat tomu odpovídají tři pole. Každá hodnota nese text, jistotu a
-identifikátor detekce; skupina `reviewedWork` je váže dohromady:
+V MetaKat tomu odpovídají tři pole; skupina `reviewedWork` je váže dohromady:
 
 ```json
-"reviewedWorkTitle":   [["Being single in Georgian England : families, households, and the unmarried", 0.94, "…"]],
-"reviewedWorkAuthor":  [["Amy Harris", 0.91, "…"]],
-"reviewedWorkImprint": [["Oxford : Oxford University Press, 2023", 0.88, "…"]],
-"groups": [{"type": "reviewedWork", "members": ["…", "…", "…"]}]
+"reviewedWorkTitle":   [{"text": "Being single in Georgian England : families, households, and the unmarried", "confidence": 0.94, "lang": "eng", "id": "a1…"}],
+"reviewedWorkAuthor":  [{"text": "Amy Harris", "confidence": 0.91, "lang": null, "id": "b2…"}],
+"reviewedWorkImprint": [{"text": "Oxford : Oxford University Press, 2023", "confidence": 0.88, "lang": null, "id": "c3…"}],
+"groups": [{"type": "reviewedWork", "members": ["a1…", "b2…", "c3…"]}]
 ```
 
 Nakladatelské údaje tedy zůstávají v jednom poli, nerozdělené na místo,
