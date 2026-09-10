@@ -147,14 +147,18 @@ class GroupType(str, enum.Enum):
     of detections that would sit inside one of them.
 
     The type is meant to be read, not derived: a consumer should know what a
-    group is about without inspecting which fields its members came from.
+    group is about without inspecting which fields its members came from. It
+    says no more than that. A group is a plain container of detections, and
+    what to do with them is the reader's decision - a TITLE group holding a
+    title read from the table of contents and the same title read from the
+    chapter's opening page simply holds both, and the reader decides they are
+    one title. The schema does not assert the identity.
 
     All types are declared once and available on both hierarchies, in the
     same way fields are; SERIES only occurs on a volume and REVIEWED_WORK
     only on an internal part, but nothing enforces that.
     """
 
-    # --- MODS containers -------------------------------------------------
     TITLE = "title"                  # titleInfo: title, subTitle, partNumber, partName
     PUBLICATION = "publication"      # originInfo: placeTerm, publisher, dateIssued, edition
     MANUFACTURE = "manufacture"      # originInfo eventType="manufacture"
@@ -163,17 +167,6 @@ class GroupType(str, enum.Enum):
     SUBJECT = "subject"              # subject: the topics of one keyword block
     PAGE_RANGE = "pageRange"         # part type="pageNumber": printed start and end
     REVIEWED_WORK = "reviewedWork"   # relatedItem: the reviewed title, author and imprint
-
-    # --- not a container -------------------------------------------------
-    SAME_VALUE = "sameValue"
-    """One piece of information read in more than one place.
-
-    A chapter title found both in the table of contents and on the chapter's
-    own opening page is not two titles - it is one title with two pieces of
-    evidence, and it collapses to a single MODS element. Unlike every type
-    above, this does not describe a container; it says the members are
-    interchangeable readings of the same thing.
-    """
 
 
 class MetakatBaseModel(BaseModel):
