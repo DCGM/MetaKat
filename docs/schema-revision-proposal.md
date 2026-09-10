@@ -2,78 +2,43 @@
 
 ## K čemu tento dokument slouží
 
-Je to podklad pro rozhodnutí, ne plán implementace. Popisuje, jak by se
-metadatový model, který MetaKat produkuje, změnil oproti stavu na větvi `main`,
-a proč je každá změna navržena.
+Je to podklad pro rozhodnutí, ne plán implementace. Popisuje, jak by se metadatový model, který MetaKat produkuje, změnil oproti stavu na větvi `main`, a proč je každá změna navržena.
 
-**Nic z toho není uzavřené.** Smyslem sepsání je nechat si model potvrdit — nebo
-opravit — dřív, než se proti němu přepíše okolní kód. Kapitola 4 shrnuje otázky,
-na které potřebujeme odpověď z archivní strany; zbytek je kontext k nim.
+**Nic z toho není uzavřené.** Smyslem sepsání je nechat si model potvrdit — nebo opravit — dřív, než se proti němu přepíše okolní kód. Kapitola 4 shrnuje otázky, na které potřebujeme odpověď z archivní strany; zbytek je kontext k nim.
 
-Zkratkou „DMF“ se dále rozumí *Definice metadatových formátů* — DMF pro
-digitalizaci monografických dokumentů v. 2.3 a DMF pro digitalizaci periodik
-v. 2.2 — a „mapováním“ tabulka `metada_mapping.xlsx`. „Testovací sadou“ se
-rozumí 116 ručně opravených záznamů článků, což je náhodný vzorek z KNAV; čísla,
-která se na ni dále odvolávají, popisují tento vzorek.
+Zkratkou „DMF“ se dále rozumí *Definice metadatových formátů* — DMF pro digitalizaci monografických dokumentů v. 2.3 a DMF pro digitalizaci periodik v. 2.2 — a „mapováním“ tabulka `metada_mapping.xlsx`. „Testovací sadou“ se rozumí 116 ručně opravených záznamů článků, což je náhodný vzorek z KNAV; čísla, která se na ni dále odvolávají, popisují tento vzorek.
 
-Názvy polí, elementů MODS a hodnot řízených slovníků zůstávají v celém dokumentu
-v původní podobě, protože odkazují na konkrétní pole v MetaKat, respektive na
-konkrétní elementy MODS.
+Názvy polí, elementů MODS a hodnot řízených slovníků zůstávají v celém dokumentu v původní podobě, protože odkazují na konkrétní pole v MetaKat, respektive na konkrétní elementy MODS.
 
 ---
 
 ## 1. Výchozí stav a jeho nedostatky
 
-Na větvi `main` popisuje MetaKat dokument sedmi samostatnými třídami: titul,
-svazek, číslo, strana, příloha, kapitola, článek. Každá z nich má vlastní plochý
-seznam polí a tři vlastnosti tohoto uspořádání jsou to, co návrh řeší.
+Na větvi `main` popisuje MetaKat dokument sedmi samostatnými třídami: titul, svazek, číslo, strana, příloha, kapitola, článek. Každá z nich má vlastní plochý seznam polí a tři vlastnosti tohoto uspořádání jsou to, co návrh řeší.
 
-**Pole nese jednu hodnotu.** Titulní list se dvěma nakladateli, nebo kniha
-vytištěná v Praze *i* v Brně, o jeden údaj nutně přijde.
+**Pole nese jednu hodnotu.** Titulní list se dvěma nakladateli, nebo kniha vytištěná v Praze *i* v Brně, o jeden údaj nutně přijde.
 
-**Hodnoty, které patří k sobě, nejsou propojené.** Z „Praha : Odeon, 1902“ a
-„Brno : Barvič, 1908“ se stanou čtyři nesouvisející položky — dvě místa, dva
-nakladatelé, dvě data v oddělených seznamech — a nikde není zaznamenáno, které
-místo patří ke kterému nakladateli.
+**Hodnoty, které patří k sobě, nejsou propojené.** Z „Praha : Odeon, 1902“ a „Brno : Barvič, 1908“ se stanou čtyři nesouvisející položky — dvě místa, dva nakladatelé, dvě data v oddělených seznamech — a nikde není zaznamenáno, které místo patří ke kterému nakladateli.
 
-**Úrovně se od sebe vzdálily.** Svazek mohl mít ilustrátora a fotografa, ale ne
-redaktora; číslo mělo redaktora a nic dalšího; příloha jen autora. Nic z toho
-nevychází ze standardu — DMF žádné omezení rolí na jednotlivých úrovních
-nestanoví.
+**Úrovně se od sebe vzdálily.** Svazek mohl mít ilustrátora a fotografa, ale ne redaktora; číslo mělo redaktora a nic dalšího; příloha jen autora. Nic z toho nevychází ze standardu — DMF žádné omezení rolí na jednotlivých úrovních nestanoví.
 
 ---
 
 ## 2. Nové uspořádání: dvě základní třídy
 
-Čtyři bibliografické úrovně — titul, svazek, číslo, příloha — mají nyní společnou
-sadu polí, a kapitola s článkem druhou.
+Čtyři bibliografické úrovně — titul, svazek, číslo, příloha — mají nyní společnou sadu polí, a kapitola s článkem druhou.
 
-Vychází to z toho, že **MODS má pro každou úroveň jeden a tentýž element**.
-Titul, svazek, číslo a příloha nejsou různé typy záznamu: je to týž element
-`<mods>`, rozlišený svým `ID` a hodnotou `<genre>`. Tabulky DMF se pro jednotlivé
-úrovně liší téměř výhradně v tom, které elementy jsou *povinné*, nikoli v tom,
-které vůbec existují. Sedm rozbíhajících se tříd byl vynález MetaKat.
+Vychází to z toho, že **MODS má pro každou úroveň jeden a tentýž element**. Titul, svazek, číslo a příloha nejsou různé typy záznamu: je to týž element `<mods>`, rozlišený svým `ID` a hodnotou `<genre>`. Tabulky DMF se pro jednotlivé úrovně liší téměř výhradně v tom, které elementy jsou *povinné*, nikoli v tom, které vůbec existují. Sedm rozbíhajících se tříd byl vynález MetaKat.
 
-Obě sady přitom zůstávají oddělené z věcného důvodu: **vnitřní část nemá
-`<originInfo>` vůbec.** Kapitola ani článek se nevydávají samostatně,
-nakladatelské údaje přebírají od svazku či čísla, které je nese. Nakladatel,
-místo, všechna data, vydání, periodicita i trojice údajů o tisku jsou tam tedy
-nepoužitelné — třináct polí. Sloučením by téměř polovina zůstala trvale prázdná.
+Obě sady přitom zůstávají oddělené z věcného důvodu: **vnitřní část nemá `<originInfo>` vůbec.** Kapitola ani článek se nevydávají samostatně, nakladatelské údaje přebírají od svazku či čísla, které je nese. Nakladatel, místo, všechna data, vydání, periodicita i trojice údajů o tisku jsou tam tedy nepoužitelné — třináct polí. Sloučením by téměř polovina zůstala trvale prázdná.
 
-Uvnitř každé sady platí, že dostupnost pole na dané úrovni neznamená, že tam
-dává smysl. Ročník periodika legitimně vyplní sotva víc než `partNumber` a
-`dateIssued`; sloupec „Úrovně“ v tabulkách níže říká, kde pole dává smysl.
+Uvnitř každé sady platí, že dostupnost pole na dané úrovni neznamená, že tam dává smysl. Ročník periodika legitimně vyplní sotva víc než `partNumber` a `dateIssued`; sloupec „Úrovně“ v tabulkách níže říká, kde pole dává smysl.
 
 ### Dvě drobnější změny
 
-**Z každého pole se stal seznam.** Záznam s jedním nakladatelem nese
-jednoprvkový seznam, titulní list se dvěma nese oba. Tím se zároveň odstranila
-nedůslednost, kdy `publisher` už seznamem byl, zatímco `placeTerm`, `dateIssued`
-a `edition` byly jednotlivé hodnoty — schéma uneslo tři nakladatele, ale jen
-jedno místo.
+**Z každého pole se stal seznam.** Záznam s jedním nakladatelem nese jednoprvkový seznam, titulní list se dvěma nese oba. Tím se zároveň odstranila nedůslednost, kdy `publisher` už seznamem byl, zatímco `placeTerm`, `dateIssued` a `edition` byly jednotlivé hodnoty — schéma uneslo tři nakladatele, ale jen jedno místo.
 
-**Hodnota se zapisuje jako slovník.** Dosud to byla trojice, ve které si čtenář
-musel pamatovat, co která pozice znamená:
+**Hodnota se zapisuje jako slovník.** Dosud to byla trojice, ve které si čtenář musel pamatovat, co která pozice znamená:
 
 ```json
 ["Kytice", 0.94, "3f2a…"]
@@ -85,29 +50,18 @@ Nově je to slovník se čtyřmi pojmenovanými klíči:
 {"text": "Kytice", "confidence": 0.94, "lang": "ces", "id": "3f2a…"}
 ```
 
-`text` je přečtený řetězec, `confidence` jistota, `id` identifikátor této
-hodnoty — právě ten uvádějí skupiny v kapitole 3 mezi svými členy.
+`text` je přečtený řetězec, `confidence` jistota, `id` identifikátor této hodnoty — právě ten uvádějí skupiny v kapitole 3 mezi svými členy.
 
-Klíč `lang` je nový a nese jazyk, ve kterém je hodnota zapsána. To potřebují
-souběžné titulní listy a dvojjazyčné abstrakty: u českého článku s anglickým
-abstraktem a anglickým souběžným názvem dnes nelze rozlišit, který řetězec je
-který. V testovací sadě nese 36 ze 116 záznamů dva nebo tři jazyky napříč názvy,
-abstrakty a klíčovými slovy. Odděleně od toho obě sady získaly **pole**
-`language` — `<language><languageTerm>`, tedy jazyk, ve kterém je dokument nebo
-vnitřní část napsána.
+Klíč `lang` je nový a nese jazyk, ve kterém je hodnota zapsána. To potřebují souběžné titulní listy a dvojjazyčné abstrakty: u českého článku s anglickým abstraktem a anglickým souběžným názvem dnes nelze rozlišit, který řetězec je který. V testovací sadě nese 36 ze 116 záznamů dva nebo tři jazyky napříč názvy, abstrakty a klíčovými slovy. Odděleně od toho obě sady získaly **pole** `language` — `<language><languageTerm>`, tedy jazyk, ve kterém je dokument nebo vnitřní část napsána.
 
 ### Na které straně byla hodnota přečtena
 
-Kapitolu a článek popisují dvě strany a čtou se odděleně: vlastní úvodní strana
-části a záznam v obsahu, který na část odkazuje. Názvy polí to nyní říkají:
+Kapitolu a článek popisují dvě strany a čtou se odděleně: vlastní úvodní strana části a záznam v obsahu, který na část odkazuje. Názvy polí to nyní říkají:
 
 - **bez přípony** — přečteno na vlastní úvodní straně části;
-- **`TocPage`** — přečteno v záznamu v obsahu, včetně čísla strany, které záznam
-  uvádí.
+- **`TocPage`** — přečteno v záznamu v obsahu, včetně čísla strany, které záznam uvádí.
 
-Obě strany se mohou lišit a schéma netvrdí, že se shodují. Kapitola vedená v
-obsahu jako „Počátky písma“ a nadepsaná na vlastní straně „I. Počátky písma“ si
-podrží obě čtení.
+Obě strany se mohou lišit a schéma netvrdí, že se shodují. Kapitola vedená v obsahu jako „Počátky písma“ a nadepsaná na vlastní straně „I. Počátky písma“ si podrží obě čtení.
 
 ### Bibliografické úrovně
 
@@ -150,8 +104,7 @@ Pole sdílená úrovněmi **titul**, **svazek**, **číslo** a **příloha**.
 
 ### Kapitoly a články
 
-Pole sdílená **kapitolou** a **článkem**. Nejdřív pole z vlastní úvodní strany,
-pak pole ze strany obsahu.
+Pole sdílená **kapitolou** a **článkem**. Nejdřív pole z vlastní úvodní strany, pak pole ze strany obsahu.
 
 | Pole | Druh | Uloženo v MODS jako | Poznámka |
 |---|---|---|---|
@@ -187,11 +140,7 @@ pak pole ze strany obsahu.
 
 ### Vědomě vynechané
 
-Do tabulek výše se dostalo jen to, co lze přečíst ze skenu. Signatury, URN:NBN,
-věcné třídění, čísla národních autorit i údaje o metadatovém záznamu v
-katalogizačních záznamech převažují, ale vznikají v katalogu nebo v procesu
-digitalizace. Následující přehled je uveden proto, aby jejich nepřítomnost
-nevypadala jako opomenutí.
+Do tabulek výše se dostalo jen to, co lze přečíst ze skenu. Signatury, URN:NBN, věcné třídění, čísla národních autorit i údaje o metadatovém záznamu v katalogizačních záznamech převažují, ale vznikají v katalogu nebo v procesu digitalizace. Následující přehled je uveden proto, aby jejich nepřítomnost nevypadala jako opomenutí.
 
 | Vynecháno | Důvod |
 |---|---|
@@ -217,16 +166,14 @@ nevypadala jako opomenutí.
 
 ## 3. Vázání detekcí do skupin
 
-Že hodnoty patří k sobě, říká v MODS kontejnerový element. Je to vlastní pravidlo
-DMF, uvedené v popisu elementu `<originInfo>`:
+Že hodnoty patří k sobě, říká v MODS kontejnerový element. Je to vlastní pravidlo DMF, uvedené v popisu elementu `<originInfo>`:
 
 > …v případě, že je v jednom poli 260/264 uvedeno opakované podpole $a nebo $b,
 > je možné příslušné subelementy opakovat v rámci jednoho `<originInfo>` nebo se
 > **zopakuje celý `<originInfo>` tak, aby se neztratily vzájemné vazby mezi
 > subelementy** (např. mezi konkrétním místem vydání a vydavatelem).
 
-Každý záznam proto nese seznam skupin. Skupina má typ a seznam identifikátorů,
-nic víc:
+Každý záznam proto nese seznam skupin. Skupina má typ a seznam identifikátorů, nic víc:
 
 ```
 type: titleInfo | originInfoPublication | originInfoManufacture
@@ -234,79 +181,42 @@ type: titleInfo | originInfoPublication | originInfoManufacture
 members: [identifikátory hodnot, které patří k sobě]
 ```
 
-Typ pojmenovává kontejnerový element MODS, do kterého by členové patřili, takže
-čtenář ví, o co ve skupině jde, aniž by ji musel rozebírat. Dvě vydavatelské
-události na jednom titulním listu jsou dvě skupiny `originInfoPublication`;
-autor se svou afiliací a e-mailem je jedna skupina `agent`.
+Typ pojmenovává kontejnerový element MODS, do kterého by členové patřili, takže čtenář ví, o co ve skupině jde, aniž by ji musel rozebírat. Dvě vydavatelské události na jednom titulním listu jsou dvě skupiny `originInfoPublication`; autor se svou afiliací a e-mailem je jedna skupina `agent`.
 
 Dvě vlastnosti jsou záměrné:
 
-**Skupina obsahuje, nevykládá.** Typ říká, do kterého kontejneru členové patří,
-a nic dalšího. Skupina `titleInfo`, která drží název přečtený v obsahu a týž
-název přečtený na úvodní straně, prostě drží oba; rozhodnout, že jde o jeden
-název, je věc čtenáře.
+**Skupina obsahuje, nevykládá.** Typ říká, do kterého kontejneru členové patří, a nic dalšího. Skupina `titleInfo`, která drží název přečtený v obsahu a týž název přečtený na úvodní straně, prostě drží oba; rozhodnout, že jde o jeden název, je věc čtenáře.
 
-**Seskupení není nikdy podmínkou.** Protože DMF připouští obě varianty zápisu,
-záznam bez jediné skupiny je platný — subelementy se zopakují uvnitř jednoho
-kontejneru. Částečné seskupení, kdy jsou svázáni dva nakladatelé ze tří, je
-normální stav.
+**Seskupení není nikdy podmínkou.** Protože DMF připouští obě varianty zápisu, záznam bez jediné skupiny je platný — subelementy se zopakují uvnitř jednoho kontejneru. Částečné seskupení, kdy jsou svázáni dva nakladatelé ze tří, je normální stav.
 
 ---
 
 ## 4. Otázky k projednání
 
-Body, ve kterých návrh stojí na předpokladu, který by měla archivní strana
-potvrdit nebo opravit.
+Body, ve kterých návrh stojí na předpokladu, který by měla archivní strana potvrdit nebo opravit.
 
-**1. MODS 3.6, nebo 3.8.** Balíčky, které dnes MetaKat vidí, jsou v MODS 3.6,
-ale DMF monografie 2.2 / periodika 2.1 (prosinec 2024) přechází na 3.8 a jedna
-ze změn dopadá přímo na nakladatelské údaje: `<originInfo><publisher>` je
-nahrazen `<originInfo><agent><namePart>`. ProArc stále vydává 3.6. Na kterou
-verzi má MetaKat mířit a existuje termín, do kdy musí být výstup v 3.8?
+**1. MODS 3.6, nebo 3.8.** Balíčky, které dnes MetaKat vidí, jsou v MODS 3.6, ale DMF monografie 2.2 / periodika 2.1 (prosinec 2024) přechází na 3.8 a jedna ze změn dopadá přímo na nakladatelské údaje: `<originInfo><publisher>` je nahrazen `<originInfo><agent><namePart>`. ProArc stále vydává 3.6. Na kterou verzi má MetaKat mířit a existuje termín, do kdy musí být výstup v 3.8?
 
-**2. Odvozené údaje: chceme je, a jak je zapisovat?** Vedle údajů, které se ze
-strany opisují, umí MetaKat z textu odvozovat i údaje jiného druhu — jazyk,
-písmo, žánr, tematické zařazení a podobně. Nejsou to přepsané řetězce, ale
-zatřídění, a dají se dělat na různé úrovni podrobnosti: pro stranu, pro vnitřní
-část, pro číslo i pro svazek.
+**2. Odvozené údaje: chceme je, a jak je zapisovat?** Vedle údajů, které se ze strany opisují, umí MetaKat z textu odvozovat i údaje jiného druhu — jazyk, písmo, žánr, tematické zařazení a podobně. Nejsou to přepsané řetězce, ale zatřídění, a dají se dělat na různé úrovni podrobnosti: pro stranu, pro vnitřní část, pro číslo i pro svazek.
 
-V návrhu jsou zatím tři, protože jen k nim se zatím našel odpovídající element
-MODS:
+V návrhu jsou zatím tři, protože jen k nim se zatím našel odpovídající element MODS:
 
-   - `language` (`language/languageTerm`) — jazyk dokumentu nebo vnitřní části;
-   - `form` (`physicalDescription/form`) — zatím `print`, `manuscript`; DMF
-     hodnoty nevyjmenovává a odkazuje na pole 008/23 MARC 21;
-   - `articleGenre` (`genre @type`) — `review`, `interview`, `cover`,
-     `tableOfContents`; těmto čtyřem odpovídají v mapování položky „typ článku –
-     recenze / rozhovor / obálka / obsah“, úplný výčet DMF odkazuje do Pravidel
-     pro popis periodik v. 8.7.
+- `language` (`language/languageTerm`) — jazyk dokumentu nebo vnitřní části;
+- `form` (`physicalDescription/form`) — zatím `print`, `manuscript`; DMF hodnoty nevyjmenovává a odkazuje na pole 008/23 MARC 21;
+- `articleGenre` (`genre @type`) — `review`, `interview`, `cover`, `tableOfContents`; těmto čtyřem odpovídají v mapování položky „typ článku – recenze / rozhovor / obálka / obsah“, úplný výčet DMF odkazuje do Pravidel pro popis periodik v. 8.7.
 
-Ty tři jsou ale jen to, co se podařilo namapovat, ne výčet toho, co by MetaKat
-uměl dodat. Otázka je proto širší:
+Ty tři jsou ale jen to, co se podařilo namapovat, ne výčet toho, co by MetaKat uměl dodat. Otázka je proto širší:
 
-   - stojí archivu tento druh údajů za to, a u kterých z nich?
-   - na jaké úrovni je chtít — strana, vnitřní část, číslo, svazek, titul?
-   - jak je zapisovat? Dnes nesou jen hodnotu a jistotu, protože se nevážou na
-     konkrétní místo na stránce: nemají text ani identifikátor, a tedy ani
-     způsob, jak je zařadit do skupiny;
-   - které řízené slovníky použít tam, kde je standard předepisuje, a co s tím,
-     na co v MODS element není?
+- stojí archivu tento druh údajů za to, a u kterých z nich?
+- na jaké úrovni je chtít — strana, vnitřní část, číslo, svazek, titul?
+- jak je zapisovat? Dnes nesou jen hodnotu a jistotu, protože se nevážou na konkrétní místo na stránce: nemají text ani identifikátor, a tedy ani způsob, jak je zařadit do skupiny;
+- které řízené slovníky použít tam, kde je standard předepisuje, a co s tím, na co v MODS element není?
 
-**3. Datum u článku.** Vnitřní část nemá `<originInfo>`, datum vydání článku
-tedy patří číslu, které jej nese. Přesto bývá vytištěné na vlastní straně
-článku. V testovací sadě je vyplněné u 72 ze 116 záznamů. Návrh datum ponechává
-u článku jako doklad o extrakci a zapisuje je do rodičovského záznamu. Je to
-přijatelné, nebo se má zapisovat výhradně k rodiči?
+**3. Datum u článku.** Vnitřní část nemá `<originInfo>`, datum vydání článku tedy patří číslu, které jej nese. Přesto bývá vytištěné na vlastní straně článku. V testovací sadě je vyplněné u 72 ze 116 záznamů. Návrh datum ponechává u článku jako doklad o extrakci a zapisuje je do rodičovského záznamu. Je to přijatelné, nebo se má zapisovat výhradně k rodiči?
 
-**4. E-mailové adresy.** Adresa korespondujícího autora bývá vytištěná a jde ji
-získat, ale MODS pro kontaktní údaje u jmen element nemá — `<name>` připouští
-`namePart`, `displayForm`, `affiliation`, `role`, `description`,
-`nameIdentifier`, `alternativeName`, `etal` a nic jiného. Má ji MetaKat vést
-jako pole, které se nikdy neexportuje, nebo ji vypustit?
+**4. E-mailové adresy.** Adresa korespondujícího autora bývá vytištěná a jde ji získat, ale MODS pro kontaktní údaje u jmen element nemá — `<name>` připouští `namePart`, `displayForm`, `affiliation`, `role`, `description`, `nameIdentifier`, `alternativeName`, `etal` a nic jiného. Má ji MetaKat vést jako pole, které se nikdy neexportuje, nebo ji vypustit?
 
-**5. Nakladatelské údaje recenzovaného díla.** Mapování drží u položky
-„recenzované dílo“ (úroveň `MODS_ART`) místo, nakladatele i rok recenzované
-knihy v jednom elementu `<publisher>`, tedy tak, jak to tiskne záhlaví recenze:
+**5. Nakladatelské údaje recenzovaného díla.** Mapování drží u položky „recenzované dílo“ (úroveň `MODS_ART`) místo, nakladatele i rok recenzované knihy v jednom elementu `<publisher>`, tedy tak, jak to tiskne záhlaví recenze:
 
 ```xml
 <mods:relatedItem>
@@ -332,56 +242,30 @@ V MetaKat tomu odpovídají tři pole; skupina `reviewedWork` je váže dohromad
 "groups": [{"type": "reviewedWork", "members": ["a1…", "b2…", "c3…"]}]
 ```
 
-Nakladatelské údaje tedy zůstávají v jednom poli, nerozdělené na místo,
-nakladatele a rok. Je to tak zamýšleno?
+Nakladatelské údaje tedy zůstávají v jednom poli, nerozdělené na místo, nakladatele a rok. Je to tak zamýšleno?
 
-**6. Dvojí zápis názvu: dvě pole, nebo klíč u hodnoty?** Kapitola 2 popisuje
-současné řešení — název přečtený na úvodní straně je v `title`, název přečtený
-v obsahu v `titleTocPage`, totéž u podnázvu, a skupina `titleInfo` obě čtení
-sváže. Druhá možnost je mít jen `title` a `subTitle` a doplnit hodnotě další
-klíč, který řekne, odkud pochází:
+**6. Dvojí zápis názvu: dvě pole, nebo klíč u hodnoty?** Kapitola 2 popisuje současné řešení — název přečtený na úvodní straně je v `title`, název přečtený v obsahu v `titleTocPage`, totéž u podnázvu, a skupina `titleInfo` obě čtení sváže. Druhá možnost je mít jen `title` a `subTitle` a doplnit hodnotě další klíč, který řekne, odkud pochází:
 
 ```json
 {"text": "Počátky písma", "confidence": 0.95, "lang": "ces", "id": "…", "source": "destinationPage"}
 {"text": "Počátky písma", "confidence": 0.80, "lang": "ces", "id": "…", "source": "tocPage"}
 ```
 
-Pro dvě pole mluví, že je rozdíl vidět už v seznamu polí a že konzument, kterého
-obsah nezajímá, prostě čte `title`. Pro klíč u hodnoty mluví, že nerozmnožuje
-pole — přípona `TocPage` by jinak musela přibýt u všeho, co lze přečíst na obou
-stranách — a že lépe odpovídá tomu, že jde o jednu informaci přečtenou dvakrát.
+Pro dvě pole mluví, že je rozdíl vidět už v seznamu polí a že konzument, kterého obsah nezajímá, prostě čte `title`. Pro klíč u hodnoty mluví, že nerozmnožuje pole — přípona `TocPage` by jinak musela přibýt u všeho, co lze přečíst na obou stranách — a že lépe odpovídá tomu, že jde o jednu informaci přečtenou dvakrát.
 
-Klíč `source` v ukázce je přitom nejspíš zbytečný. `id` hodnoty se mapuje na
-stranu, na které byla detekována (`detection_to_page_mapping`), a
-`pageIndexTocPage` říká, která strana nese záznam v obsahu — z čeho hodnota
-pochází, se tedy dá zjistit i bez toho, aby se to u ní zapisovalo. Varianta
-s jedním polem tak ve skutečnosti nepotřebuje žádný nový klíč, jen mapování,
-které už v datech je.
+Klíč `source` v ukázce je přitom nejspíš zbytečný. `id` hodnoty se mapuje na stranu, na které byla detekována (`detection_to_page_mapping`), a `pageIndexTocPage` říká, která strana nese záznam v obsahu — z čeho hodnota pochází, se tedy dá zjistit i bez toho, aby se to u ní zapisovalo. Varianta s jedním polem tak ve skutečnosti nepotřebuje žádný nový klíč, jen mapování, které už v datech je.
 
-Týká se to názvu, podnázvu a pořadového čísla kapitoly. To sice MetaKat dnes
-čte jen z obsahu, ale bývá vytištěné i na úvodní straně části a časem se odtud
-číst má, takže dvojice vznikne i tam. Čísel stran se rozhodnutí netýká — ty se
-čtou pouze v obsahu, protože číslo vytištěné na vlastní straně části je vedeno
-u záznamu strany.
+Týká se to názvu, podnázvu a pořadového čísla kapitoly. To sice MetaKat dnes čte jen z obsahu, ale bývá vytištěné i na úvodní straně části a časem se odtud číst má, takže dvojice vznikne i tam. Čísel stran se rozhodnutí netýká — ty se čtou pouze v obsahu, protože číslo vytištěné na vlastní straně části je vedeno u záznamu strany.
 
-**7. Má MetaKat vracet rovnou MODS?** Schéma je proti MODS namapované pole po
-poli — sloupec „Uloženo v MODS jako“ v tabulkách v kapitole 2 je v podstatě celý
-ten převod. Napsat převodník oběma směry je proto v tuto chvíli přímočaré a
-otevírá to dvě možnosti:
+**7. Má MetaKat vracet rovnou MODS?** Schéma je proti MODS namapované pole po poli — sloupec „Uloženo v MODS jako“ v tabulkách v kapitole 2 je v podstatě celý ten převod. Napsat převodník oběma směry je proto v tuto chvíli přímočaré a otevírá to dvě možnosti:
 
-   - **vracet vedle vlastního JSON rovnou MODS**, aby si převod nemusel psát
-     každý konzument sám;
-   - **doplňovat MODS, který už existuje**. To je scénář ProArc: balíček
-     katalogizační záznam v MODS už nese a MetaKat by do něj přidal, co přečetl
-     ze skenů.
+- **vracet vedle vlastního JSON rovnou MODS**, aby si převod nemusel psát každý konzument sám;
+- **doplňovat MODS, který už existuje**. To je scénář ProArc: balíček katalogizační záznam v MODS už nese a MetaKat by do něj přidal, co přečetl ze skenů.
 
 K rozhodnutí:
 
-   - stojí archivu MODS na výstupu za to, nebo si převod raději nechá u sebe?
-   - u doplňování: co má přednost, když se katalogizační záznam a čtení ze skenu
-     liší? Má MetaKat existující hodnoty přepisovat, doplňovat jen to, co
-     v záznamu chybí, nebo neshody pouze hlásit?
-   - v jaké verzi MODS — viz otázka 1.
+- stojí archivu MODS na výstupu za to, nebo si převod raději nechá u sebe?
+- u doplňování: co má přednost, když se katalogizační záznam a čtení ze skenu liší? Má MetaKat existující hodnoty přepisovat, doplňovat jen to, co v záznamu chybí, nebo neshody pouze hlásit?
+- v jaké verzi MODS — viz otázka 1.
 
-**8. Chybí něco?** Pole v tabulkách v kapitole 2 jsou to, co považujeme zároveň
-za užitečné a za čitelné ze skenu.
+**8. Chybí něco?** Pole v tabulkách v kapitole 2 jsou to, co považujeme zároveň za užitečné a za čitelné ze skenu.
