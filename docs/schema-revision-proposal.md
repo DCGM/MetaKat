@@ -186,14 +186,7 @@ ze změn dopadá přímo na nakladatelské údaje: `<originInfo><publisher>` je
 nahrazen `<originInfo><agent><namePart>`. ProArc stále vydává 3.6. Na kterou
 verzi má MetaKat mířit a existuje termín, do kdy musí být výstup v 3.8?
 
-**2. Tiskař na úrovni čísla a název pole.** Řádek 17 mapování přiřazuje tiskaře
-k `MODS_ISSUE`, ale tabulka DMF pro číslo uvádí u `originInfo` jen subelementy
-vydavatelské události. Očekává se u čísla blok `manufacture`? Odděleně: pole se
-dnes jmenuje `manufactureDateIssued`, přitom se zapisuje jako
-`<dateOther type="manufacture">` — název `manufactureDate` by odpovídal
-standardu a přejmenovat je teď levné.
-
-**3. Dva řízené slovníky, které se nepodařilo uzavřít.**
+**2. Dva řízené slovníky, které se nepodařilo uzavřít.**
    - `form` (`physicalDescription/form`) dnes připouští jen `print` a
      `manuscript`. DMF hodnoty nevyjmenovává a odkazuje na pole 008/23 MARC 21.
      Které z těch hodnot má MetaKat umět vyprodukovat?
@@ -202,29 +195,29 @@ standardu a přejmenovat je teď levné.
      výčet DMF odkazuje do Pravidel pro popis periodik v. 8.7. Které hodnoty
      mají smysl?
 
-**4. Datum u článku.** Vnitřní část nemá `<originInfo>`, datum vydání článku
+**3. Datum u článku.** Vnitřní část nemá `<originInfo>`, datum vydání článku
 tedy patří číslu, které jej nese. Přesto je vytištěné na vlastní straně článku a
 je vyplněné u 72 ze 116 referenčních záznamů. Návrh je ponechává u článku jako
 doklad o extrakci a zapisuje je do rodičovského záznamu. Je to přijatelné, nebo
 se má zapisovat výhradně k rodiči?
 
-**5. E-mailové adresy.** Adresa korespondujícího autora bývá vytištěná a jde ji
+**4. E-mailové adresy.** Adresa korespondujícího autora bývá vytištěná a jde ji
 získat, ale MODS pro kontaktní údaje u jmen element nemá — `<name>` připouští
 `namePart`, `displayForm`, `affiliation`, `role`, `description`,
 `nameIdentifier`, `alternativeName`, `etal` a nic jiného. Má ji MetaKat vést
 jako pole, které se nikdy neexportuje, nebo ji vypustit?
 
-**6. Nakladatelské údaje recenzovaného díla.** Řádek 30 mapování drží místo,
+**5. Nakladatelské údaje recenzovaného díla.** Řádek 30 mapování drží místo,
 nakladatele i rok recenzované knihy v jednom elementu `<publisher>`, tedy tak,
 jak to tiskne záhlaví recenze. MetaKat to přebírá jedním polem místo tří. Je to
 tak zamýšleno?
 
-**7. Čísla stran vytištěná v obsahu.** Číslo strany ze záznamu v obsahu se vede
+**6. Čísla stran vytištěná v obsahu.** Číslo strany ze záznamu v obsahu se vede
 u kapitoly či článku a zapisuje se do jeho vlastního `<part type="pageNumber">` —
 MODS zaznamenává, jaké to číslo je, ne kde bylo přečteno. Je to zamýšlené
 zacházení?
 
-**8. Chybí něco?** Níže uvedená pole jsou to, co považujeme zároveň za užitečné a
+**7. Chybí něco?** Níže uvedená pole jsou to, co považujeme zároveň za užitečné a
 za čitelné ze skenu. Pokud archivu chybí něco dalšího, teď je vhodná chvíle to
 říct.
 
@@ -284,12 +277,12 @@ vynucováno není nic.
 | `copyrightDate` | titul, svazek, příloha | `originInfo/copyrightDate` | **Nové.** „© 1967“ na rubu titulního listu — často jediné datum, které kniha tiskne. |
 | `manufacturePublisher` | vše | `originInfo @eventType="manufacture"/publisher` |  |
 | `manufacturePlaceTerm` | vše | `originInfo @eventType="manufacture"/place/placeTerm` |  |
-| `manufactureDateIssued` | vše | `originInfo @eventType="manufacture"/dateOther` | **Nové.** K názvu pole viz otázka 2. |
+| `manufactureDate` | vše | `originInfo @eventType="manufacture"/dateOther` | **Nové.** Zapisuje se jako `<dateOther type="manufacture">`, proto ten název. |
 | `seriesName` | svazek | `relatedItem @type="series"/titleInfo/title` |  |
 | `seriesPartNumber` | svazek | `relatedItem @type="series"/titleInfo/partNumber` |  |
 | `seriesPartName` | svazek | `relatedItem @type="series"/titleInfo/partName` | **Nové.** Z pole 830 $p, název podřady. |
 | `language` | vše | `language/languageTerm @type="code"` | **Nové.** Kód `iso639-2b`. Jazyk, ve kterém je dokument napsán. |
-| `form` | vše | `physicalDescription/form @authority="marcform"` | **Nové.** Zatím `print` / `manuscript`. Viz otázka 3. |
+| `form` | vše | `physicalDescription/form @authority="marcform"` | **Nové.** Zatím `print` / `manuscript`. Viz otázka 2. |
 | `author` | vše | `name` + `role/roleTerm` `aut` |  |
 | `illustrator` | vše | `name` + `role/roleTerm` `ill` |  |
 | `photographer` | vše | `name` + `role/roleTerm` `pht` |  |
@@ -297,7 +290,7 @@ vynucováno není nic.
 | `editor` | vše | `name` + `role/roleTerm` `edt` |  |
 | `redaktor` | vše | `name` + `role/roleTerm` |  |
 | `affiliation` | vše | `name/affiliation` | **Nové.** Instituce, ke které se jmenovaná osoba hlásí. |
-| `email` | vše | **žádný** | **Nové.** V MODS pro tento údaj element neexistuje. Viz otázka 5. |
+| `email` | vše | **žádný** | **Nové.** V MODS pro tento údaj element neexistuje. Viz otázka 4. |
 | `groups` | vše | — | Seskupení detekcí — viz kapitola 6. |
 
 ## Příloha B — kapitoly a články
@@ -315,12 +308,12 @@ vlastní úvodní strany, pak pole ze strany obsahu.
 | `subTitle` | obě | `titleInfo/subTitle` | DMF sem výslovně připouští i perex. |
 | `abstract` | obě | `abstract` | Seznam — souběžný český a anglický abstrakt je běžný. |
 | `keywords` | obě | `subject/topic` | Seznam — jedna položka na každý vytištěný termín. |
-| `dateIssued` | článek | `originInfo/dateIssued` **rodiče** | **Nové.** Viz otázka 4. |
+| `dateIssued` | článek | `originInfo/dateIssued` **rodiče** | **Nové.** Viz otázka 3. |
 | `reviewedWorkTitle` | článek | `relatedItem/titleInfo/title` | **Nové.** Recenzované dílo. |
 | `reviewedWorkAuthor` | článek | `relatedItem/name/namePart` | **Nové.** |
-| `reviewedWorkImprint` | článek | `relatedItem/originInfo/publisher` | **Nové.** Místo, nakladatel a rok jako jeden vytištěný řádek. Viz otázka 6. |
+| `reviewedWorkImprint` | článek | `relatedItem/originInfo/publisher` | **Nové.** Místo, nakladatel a rok jako jeden vytištěný řádek. Viz otázka 5. |
 | `language` | obě | `language/languageTerm @type="code"` | **Nové.** Jazyk, ve kterém je vnitřní část napsána. |
-| `articleGenre` | článek | `genre @type=…` | **Nové.** `review`, `interview`, `cover`, `tableOfContents`. Viz otázka 3. |
+| `articleGenre` | článek | `genre @type=…` | **Nové.** `review`, `interview`, `cover`, `tableOfContents`. Viz otázka 2. |
 | `pageIndexTocPage` | obě | — | Který sken nese záznam v obsahu. |
 | `titleTocPage` | obě | `titleInfo/title` | Tentýž název tak, jak je přečten **v záznamu v obsahu**. |
 | `subTitleTocPage` | obě | `titleInfo/subTitle` |  |

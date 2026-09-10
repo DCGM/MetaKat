@@ -352,7 +352,8 @@ class _MetakatBibliographicFields(MetakatBaseModel):
 
     manufacturePublisher: Optional[List[Value]] = None
     manufacturePlaceTerm: Optional[List[Value]] = None
-    manufactureDateIssued: Optional[List[Value]] = None
+    # <dateOther type="manufacture">, not a dateIssued - hence the name.
+    manufactureDate: Optional[List[Value]] = None
 
     seriesName: Optional[List[Value]] = None
     seriesPartNumber: Optional[List[Value]] = None
