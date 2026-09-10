@@ -384,5 +384,4 @@ K rozhodnutí:
    - v jaké verzi MODS — viz otázka 1.
 
 **8. Chybí něco?** Pole v tabulkách v kapitole 2 jsou to, co považujeme zároveň
-za užitečné a za čitelné ze skenu. Pokud archivu chybí něco dalšího, teď je
-vhodná chvíle to říct.
+za užitečné a za čitelné ze skenu.
