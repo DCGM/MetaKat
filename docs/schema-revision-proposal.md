@@ -196,10 +196,11 @@ smysl, aby je MetaKat produkoval. Zatím navrhované hodnoty:
      Pravidel pro popis periodik v. 8.7.
 
 **3. Datum u článku.** Vnitřní část nemá `<originInfo>`, datum vydání článku
-tedy patří číslu, které jej nese. Přesto je vytištěné na vlastní straně článku a
-je vyplněné u 72 ze 116 referenčních záznamů. Návrh je ponechává u článku jako
-doklad o extrakci a zapisuje je do rodičovského záznamu. Je to přijatelné, nebo
-se má zapisovat výhradně k rodiči?
+tedy patří číslu, které jej nese. Přesto bývá vytištěné na vlastní straně článku:
+vyplněné je u 72 ze 116 záznamů testovací sady, což je vzorek náhodně vybraný z
+článků z KNAV, takže to číslo popisuje tento vzorek, ne fondy obecně. Návrh
+datum ponechává u článku jako doklad o extrakci a zapisuje je do rodičovského
+záznamu. Je to přijatelné, nebo se má zapisovat výhradně k rodiči?
 
 **4. E-mailové adresy.** Adresa korespondujícího autora bývá vytištěná a jde ji
 získat, ale MODS pro kontaktní údaje u jmen element nemá — `<name>` připouští
