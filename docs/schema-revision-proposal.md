@@ -186,14 +186,14 @@ ze změn dopadá přímo na nakladatelské údaje: `<originInfo><publisher>` je
 nahrazen `<originInfo><agent><namePart>`. ProArc stále vydává 3.6. Na kterou
 verzi má MetaKat mířit a existuje termín, do kdy musí být výstup v 3.8?
 
-**2. Dva řízené slovníky, které se nepodařilo uzavřít.**
-   - `form` (`physicalDescription/form`) dnes připouští jen `print` a
-     `manuscript`. DMF hodnoty nevyjmenovává a odkazuje na pole 008/23 MARC 21.
-     Které z těch hodnot má MetaKat umět vyprodukovat?
-   - `articleGenre` (`genre @type`) dnes připouští `review`, `interview`,
-     `cover` a `tableOfContents` — čtyři hodnoty, které uvádí mapování. Úplný
-     výčet DMF odkazuje do Pravidel pro popis periodik v. 8.7. Které hodnoty
-     mají smysl?
+**2. Pole `form` a `articleGenre`.** U obou je potřeba probrat, zda má vůbec
+smysl, aby je MetaKat produkoval. Zatím navrhované hodnoty:
+
+   - `form` (`physicalDescription/form`) — `print`, `manuscript`. DMF hodnoty
+     nevyjmenovává a odkazuje na pole 008/23 MARC 21.
+   - `articleGenre` (`genre @type`) — `review`, `interview`, `cover`,
+     `tableOfContents`; tyto čtyři uvádí mapování. Úplný výčet DMF odkazuje do
+     Pravidel pro popis periodik v. 8.7.
 
 **3. Datum u článku.** Vnitřní část nemá `<originInfo>`, datum vydání článku
 tedy patří číslu, které jej nese. Přesto je vytištěné na vlastní straně článku a
