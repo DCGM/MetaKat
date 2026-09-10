@@ -333,6 +333,13 @@ obsah nezajímá, prostě čte `title`. Pro klíč u hodnoty mluví, že nerozmn
 pole — přípona `TocPage` by jinak musela přibýt u všeho, co lze přečíst na obou
 stranách — a že lépe odpovídá tomu, že jde o jednu informaci přečtenou dvakrát.
 
+Klíč `source` v ukázce je přitom nejspíš zbytečný. `id` hodnoty se mapuje na
+stranu, na které byla detekována (`detection_to_page_mapping`), a
+`pageIndexTocPage` říká, která strana nese záznam v obsahu — z čeho hodnota
+pochází, se tedy dá zjistit i bez toho, aby se to u ní zapisovalo. Varianta
+s jedním polem tak ve skutečnosti nepotřebuje žádný nový klíč, jen mapování,
+které už v datech je.
+
 Rozhodnutí se netýká jen názvu a podnázvu, ale i `partNumberTocPage` a čísel
 stran, takže je lepší je udělat najednou.
 
