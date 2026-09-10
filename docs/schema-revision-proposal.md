@@ -192,8 +192,9 @@ smysl, aby je MetaKat produkoval. Zatím navrhované hodnoty:
    - `form` (`physicalDescription/form`) — `print`, `manuscript`. DMF hodnoty
      nevyjmenovává a odkazuje na pole 008/23 MARC 21.
    - `articleGenre` (`genre @type`) — `review`, `interview`, `cover`,
-     `tableOfContents`; tyto čtyři uvádí mapování. Úplný výčet DMF odkazuje do
-     Pravidel pro popis periodik v. 8.7.
+     `tableOfContents`; těmto čtyřem odpovídají v mapování položky „typ článku –
+     recenze / rozhovor / obálka / obsah“. Úplný výčet DMF odkazuje do Pravidel
+     pro popis periodik v. 8.7.
 
 **3. Datum u článku.** Vnitřní část nemá `<originInfo>`, datum vydání článku
 tedy patří číslu, které jej nese. Přesto bývá vytištěné na vlastní straně
@@ -207,10 +208,10 @@ získat, ale MODS pro kontaktní údaje u jmen element nemá — `<name>` připo
 `nameIdentifier`, `alternativeName`, `etal` a nic jiného. Má ji MetaKat vést
 jako pole, které se nikdy neexportuje, nebo ji vypustit?
 
-**5. Nakladatelské údaje recenzovaného díla.** Řádek 30 mapování drží místo,
-nakladatele i rok recenzované knihy v jednom elementu `<publisher>`, tedy tak,
-jak to tiskne záhlaví recenze. MetaKat to přebírá jedním polem místo tří. Je to
-tak zamýšleno?
+**5. Nakladatelské údaje recenzovaného díla.** Mapování drží u položky
+„recenzované dílo“ (úroveň `MODS_ART`) místo, nakladatele i rok recenzované
+knihy v jednom elementu `<publisher>`, tedy tak, jak to tiskne záhlaví recenze.
+MetaKat to přebírá jedním polem místo tří. Je to tak zamýšleno?
 
 **6. Čísla stran vytištěná v obsahu.** Číslo strany ze záznamu v obsahu se vede
 u kapitoly či článku a zapisuje se do jeho vlastního `<part type="pageNumber">` —
