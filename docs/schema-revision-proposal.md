@@ -213,15 +213,7 @@ jako pole, které se nikdy neexportuje, nebo ji vypustit?
 knihy v jednom elementu `<publisher>`, tedy tak, jak to tiskne záhlaví recenze.
 MetaKat to přebírá jedním polem místo tří. Je to tak zamýšleno?
 
-**6. Odkud brát číslo strany, na které kapitola nebo článek začíná.** MetaKat
-má k dispozici dva údaje. Jednak číslo vytištěné v obsahu vpravo u záznamu.
-Jednak ví, na kterém skenu část skutečně začíná, a číslo vytištěné na té straně
-vede u záznamu strany. Obojí se může lišit — obsahy mívají chyby a číslování
-nemusí sedět. Do `<part type="pageNumber">` vnitřní části se dnes zapisuje číslo
-z obsahu. Má to tak zůstat, nebo má mít přednost číslo vytištěné na straně, kde
-část skutečně začíná?
-
-**7. Chybí něco?** Níže uvedená pole jsou to, co považujeme zároveň za užitečné a
+**6. Chybí něco?** Níže uvedená pole jsou to, co považujeme zároveň za užitečné a
 za čitelné ze skenu. Pokud archivu chybí něco dalšího, teď je vhodná chvíle to
 říct.
 
