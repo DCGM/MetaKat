@@ -264,15 +264,33 @@ ze změn dopadá přímo na nakladatelské údaje: `<originInfo><publisher>` je
 nahrazen `<originInfo><agent><namePart>`. ProArc stále vydává 3.6. Na kterou
 verzi má MetaKat mířit a existuje termín, do kdy musí být výstup v 3.8?
 
-**2. Pole `form` a `articleGenre`.** U obou je potřeba probrat, zda má vůbec
-smysl, aby je MetaKat produkoval. Zatím navrhované hodnoty:
+**2. Odvozené údaje: chceme je, a jak je zapisovat?** Vedle údajů, které se ze
+strany opisují, umí MetaKat z textu odvozovat i údaje jiného druhu — jazyk,
+písmo, žánr, tematické zařazení a podobně. Nejsou to přepsané řetězce, ale
+zatřídění, a dají se dělat na různé úrovni podrobnosti: pro stranu, pro vnitřní
+část, pro číslo i pro svazek.
 
-   - `form` (`physicalDescription/form`) — `print`, `manuscript`. DMF hodnoty
-     nevyjmenovává a odkazuje na pole 008/23 MARC 21.
+V návrhu jsou zatím tři, protože jen k nim se zatím našel odpovídající element
+MODS:
+
+   - `language` (`language/languageTerm`) — jazyk dokumentu nebo vnitřní části;
+   - `form` (`physicalDescription/form`) — zatím `print`, `manuscript`; DMF
+     hodnoty nevyjmenovává a odkazuje na pole 008/23 MARC 21;
    - `articleGenre` (`genre @type`) — `review`, `interview`, `cover`,
      `tableOfContents`; těmto čtyřem odpovídají v mapování položky „typ článku –
-     recenze / rozhovor / obálka / obsah“. Úplný výčet DMF odkazuje do Pravidel
+     recenze / rozhovor / obálka / obsah“, úplný výčet DMF odkazuje do Pravidel
      pro popis periodik v. 8.7.
+
+Ty tři jsou ale jen to, co se podařilo namapovat, ne výčet toho, co by MetaKat
+uměl dodat. Otázka je proto širší:
+
+   - stojí archivu tento druh údajů za to, a u kterých z nich?
+   - na jaké úrovni je chtít — strana, vnitřní část, číslo, svazek, titul?
+   - jak je zapisovat? Dnes nesou jen hodnotu a jistotu, protože se nevážou na
+     konkrétní místo na stránce: nemají text ani identifikátor, a tedy ani
+     způsob, jak je zařadit do skupiny;
+   - které řízené slovníky použít tam, kde je standard předepisuje, a co s tím,
+     na co v MODS element není?
 
 **3. Datum u článku.** Vnitřní část nemá `<originInfo>`, datum vydání článku
 tedy patří číslu, které jej nese. Přesto bývá vytištěné na vlastní straně
