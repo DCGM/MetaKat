@@ -340,8 +340,10 @@ pochází, se tedy dá zjistit i bez toho, aby se to u ní zapisovalo. Varianta
 s jedním polem tak ve skutečnosti nepotřebuje žádný nový klíč, jen mapování,
 které už v datech je.
 
-Rozhodnutí se netýká jen názvu a podnázvu, ale i `partNumberTocPage` a čísel
-stran, takže je lepší je udělat najednou.
+Týká se to jen názvu a podnázvu. Čísla stran se čtou pouze v obsahu, protože
+číslo vytištěné na vlastní straně části je vedeno u záznamu strany, takže tam
+žádná dvojice není. U `partNumberTocPage` je to podobné: pořadové číslo kapitoly
+bývá vytištěné i na její úvodní straně, ale odtud se dnes nečte.
 
 **7. Chybí něco?** Pole v tabulkách v kapitole 2 jsou to, co považujeme zároveň
 za užitečné a za čitelné ze skenu. Pokud archivu chybí něco dalšího, teď je
