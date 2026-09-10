@@ -1,8 +1,7 @@
 import enum
 
-from pydantic import (BaseModel, Field, ConfigDict, field_validator, StringConstraints,
-                      model_serializer, model_validator)
-from typing import Optional, Tuple, List, Union, Dict, Annotated, Literal, Any
+from pydantic import BaseModel, Field, ConfigDict, field_validator, StringConstraints
+from typing import Optional, Tuple, List, Union, Dict, Annotated, Literal
 from uuid import UUID
 
 # MetaKat
@@ -191,83 +190,41 @@ class MetakatBaseModel(BaseModel):
     model_config = ConfigDict(use_enum_values=True)
 
 
-# Positional order of Value on the wire. Module level rather than a class
-# attribute because pydantic turns leading-underscore class attributes into
-# private attrs, which are not iterable.
-_VALUE_SEQ = ("text", "confidence", "detection_id", "lang", "lang_confidence")
-
-
 class Value(MetakatBaseModel):
-    """One extracted value: the text, how sure we are, and where it came from.
+    """One extracted value: the text, how sure we are of it, and its identity.
 
-    Serialises as a positional array rather than an object, so the exported
-    JSON keeps the shape it has always had - ["Kytice", 0.9, "<uuid>"] - and
-    every file written before this class existed still loads. `lang` is
-    appended as a fourth element *only* when it is set, so values without a
-    language are byte-identical to the previous format and consumers reading
-    value[0..2] are unaffected.
+    A plain model with no custom serialisation - it exports as an object with
+    these four keys and is validated back from one, and code reads the fields
+    by name.
 
-    Language belongs to the MODS container rather than to the value: NDK tags
-    <titleInfo lang="eng" type="translated">, covering title, subTitle,
-    partNumber and partName together. Recording it per value is the evidence
-    from which those blocks get reconstructed when the grouping overlay
-    lands - matching on lang recovers the parallel-title groups - not a claim
-    that the value owns the language.
+    `lang` is the language the text is written in. MODS itself tags the
+    container rather than the value - <titleInfo lang="eng" type="translated">
+    covers title, subTitle, partNumber and partName together - so recording it
+    here is what lets those blocks be told apart, most obviously a title and
+    its parallel translation.
 
-    The same append-if-set rule is how the array grows again later; the value
-    id the grouping overlay needs becomes a fifth element on the same terms.
+    `id` identifies this value, and is what a MetakatGroup lists as a member.
     """
 
     text: str
     confidence: float
-    detection_id: UUID
     lang: Optional[str] = None  # iso639-2b
-    lang_confidence: Optional[float] = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _accept_sequence(cls, v: Any) -> Any:
-        if isinstance(v, (list, tuple)):
-            return dict(zip(_VALUE_SEQ, v))
-        return v
-
-    @model_serializer
-    def _as_sequence(self) -> list:
-        out: list = [self.text, self.confidence, str(self.detection_id)]
-        if self.lang is not None:
-            out.append(self.lang)
-            if self.lang_confidence is not None:
-                out.append(self.lang_confidence)
-        return out
-
-    def __getitem__(self, i):
-        """Transitional: keeps existing positional access working."""
-        return (self.text, self.confidence, self.detection_id)[i]
-
-    def __iter__(self):
-        """Transitional: keeps `text, confidence, detection_id = value` working.
-
-        Overrides BaseModel.__iter__, which yields (field_name, value) pairs -
-        five of them here, so unpacking into three would fail. Callers wanting
-        the fields should use attribute access; `dict(value)` is no longer
-        meaningful, and model_dump() returns the positional array.
-        """
-        return iter((self.text, self.confidence, self.detection_id))
+    id: UUID
 
 
 class MetakatGroup(MetakatBaseModel):
     """Detections that belong together, named by what they jointly describe.
 
     A member is the id of the thing it identifies, so a group needs no
-    identifier space of its own: for a Value that is its detection_id, for a
+    identifier space of its own: for a Value that is its `id`, for a
     pageIndexStart or pageIndexEnd entry the id carried beside the scan
     index. Every member resolves to a value on this element - never to
     another element - so reading a group means scanning this element's own
     fields and nothing else.
 
-    That holds for values no detector produced: detection_id is mandatory on
-    every Value, so catalogue-derived or hand-entered values are grouped on
-    the same terms.
+    That holds for values no detector produced: `id` is mandatory on every
+    Value, so catalogue-derived or hand-entered values are grouped on the
+    same terms.
 
     Grouping is enrichment, never a precondition. The DMF permits both
     serialisations: subelements repeated inside one container when the
@@ -474,8 +431,8 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     # match alone can establish them.
     #
     # Each entry is (scan index, id of this entry). The id identifies the
-    # entry itself, in the same way a Value's detection_id identifies that
-    # value - it is not the id of the page and not a detection, since nothing
+    # entry itself, in the same way a Value's `id` identifies that value -
+    # it is not the id of the page and not a detection, since nothing
     # detects a scan position. Mint one per entry when writing.
     #
     # Having an id lets a run join a pageRange group alongside the
