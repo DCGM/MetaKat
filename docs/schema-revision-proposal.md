@@ -12,7 +12,9 @@ na které potřebujeme odpověď z archivní strany; zbytek je kontext k nim.
 
 Zkratkou „DMF“ se dále rozumí *Definice metadatových formátů* — DMF pro
 digitalizaci monografických dokumentů v. 2.3 a DMF pro digitalizaci periodik
-v. 2.2 — a „mapováním“ tabulka `metada_mapping.xlsx`.
+v. 2.2 — a „mapováním“ tabulka `metada_mapping.xlsx`. „Testovací sadou“ se
+rozumí 116 ručně opravených záznamů článků, což je náhodný vzorek z KNAV; čísla,
+která se na ni dále odvolávají, popisují tento vzorek.
 
 Názvy polí, elementů MODS a hodnot řízených slovníků zůstávají v celém dokumentu
 v původní podobě, protože odkazují na konkrétní pole v MetaKat, respektive na
@@ -103,19 +105,19 @@ dává smysl. Ročník periodika legitimně vyplní sotva víc než `partNumber`
 
 **Jazyk.** Hodnota může nést jazyk, ve kterém je zapsána. To potřebují souběžné
 titulní listy a dvojjazyčné abstrakty: u českého článku s anglickým abstraktem a
-anglickým souběžným názvem dnes nelze rozlišit, který řetězec je který. V datové
-sadě 116 článků nese 36 záznamů dva nebo tři jazyky napříč názvy, abstrakty a
-klíčovými slovy.
+anglickým souběžným názvem dnes nelze rozlišit, který řetězec je který. V
+testovací sadě nese 36 ze 116 záznamů dva nebo tři jazyky napříč názvy,
+abstrakty a klíčovými slovy.
 
 Jde o údaj **u jednotlivé hodnoty**. Samotný MODS značkuje kontejner —
 `<titleInfo lang="eng" type="translated">` platí pro `title`, `subTitle`,
-`partNumber` i `partName` dohromady — takže zápis u hodnoty je podkladem, ze
-kterého se ty bloky rekonstruují, ne tvrzením, že jazyk patří hodnotě.
+`partNumber` i `partName` dohromady.
 
 Odděleně od toho obě hierarchie získaly **pole** `language`, což je něco jiného:
 `<language><languageTerm>`, tedy jazyk, ve kterém je dokument nebo vnitřní část
-napsána. Z jazyků u jednotlivých hodnot ho odvodit nelze — u 29 z 63 článkových
-záznamů se jazyk prvního názvu liší od jazyka abstraktu.
+napsána. Z jazyků u jednotlivých hodnot ho odvodit nelze — v testovací sadě se
+u 29 z 63 záznamů, které mají název i abstrakt, jazyk prvního názvu od jazyka
+abstraktu liší.
 
 **Na které straně byla hodnota přečtena.** Kapitolu a článek popisují dvě strany
 a čtou se odděleně: záznam v obsahu, který na část odkazuje, a vlastní úvodní
@@ -164,9 +166,9 @@ kontejneru. Částečné seskupení, kdy jsou svázáni dva nakladatelé ze tř�
 normální stav.
 
 **Žádná skupina pro `<subject>`.** Vázala by termíny jednoho bloku klíčových
-slov, jenže jazyk u jednotlivé hodnoty je odděluje sám: ze 116 článkových
-záznamů dává všech 45, které nesou několik bloků názvů, abstraktů či klíčových
-slov, každému bloku odlišný jazyk a žádný se neopakuje.
+slov, jenže jazyk u jednotlivé hodnoty je odděluje sám: v testovací sadě dává
+všech 45 záznamů, které nesou několik bloků názvů, abstraktů či klíčových slov,
+každému bloku odlišný jazyk a žádný se neopakuje.
 
 ---
 
@@ -193,9 +195,9 @@ smysl, aby je MetaKat produkoval. Zatím navrhované hodnoty:
 
 **3. Datum u článku.** Vnitřní část nemá `<originInfo>`, datum vydání článku
 tedy patří číslu, které jej nese. Přesto bývá vytištěné na vlastní straně
-článku. V testovací sadě, což je náhodný vzorek článků z KNAV, je vyplněné u 72
-ze 116 záznamů. Návrh datum ponechává u článku jako doklad o extrakci a zapisuje
-je do rodičovského záznamu. Je to přijatelné, nebo se má zapisovat výhradně k rodiči?
+článku. V testovací sadě je vyplněné u 72 ze 116 záznamů. Návrh datum ponechává
+u článku jako doklad o extrakci a zapisuje je do rodičovského záznamu. Je to
+přijatelné, nebo se má zapisovat výhradně k rodiči?
 
 **4. E-mailové adresy.** Adresa korespondujícího autora bývá vytištěná a jde ji
 získat, ale MODS pro kontaktní údaje u jmen element nemá — `<name>` připouští
