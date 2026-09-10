@@ -1,335 +1,338 @@
-# Proposed revision of the MetaKat metadata schema
+# Návrh úpravy metadatového schématu MetaKat
 
-## What this is
+## K čemu tento dokument slouží
 
-Background for a decision, not an implementation plan. It describes how the
-metadata model MetaKat produces would change from what is on `main` today, and
-why each change is proposed.
+Je to podklad pro rozhodnutí, ne plán implementace. Popisuje, jak by se
+metadatový model, který MetaKat produkuje, změnil oproti stavu na větvi `main`,
+a proč je každá změna navržena.
 
-**Nothing here is settled.** The point of writing it down is to get the model
-confirmed — or corrected — before any of the surrounding code is reimplemented
-against it. Section 7 lists the questions that need an answer from the archive
-side; everything else is context for those questions.
+**Nic z toho není uzavřené.** Smyslem sepsání je nechat si model potvrdit — nebo
+opravit — dřív, než se proti němu přepíše okolní kód. Kapitola 7 shrnuje otázky,
+na které potřebujeme odpověď z archivní strany; zbytek je kontext k nim.
 
-Throughout, "DMF" means *Definice metadatových formátů* — DMF pro digitalizaci
-monografických dokumentů v. 2.3 and DMF pro digitalizaci periodik v. 2.2 — and
-"the mapping" means the `metada_mapping.xlsx` spreadsheet.
+Zkratkou „DMF“ se dále rozumí *Definice metadatových formátů* — DMF pro
+digitalizaci monografických dokumentů v. 2.3 a DMF pro digitalizaci periodik
+v. 2.2 — a „mapováním“ tabulka `metada_mapping.xlsx`.
 
----
-
-## 1. Where we start
-
-On `main`, MetaKat describes a document with seven independent classes: title,
-volume, issue, page, supplement, chapter, article. Each carries its own flat
-list of fields, and three properties of that arrangement are what this proposal
-addresses.
-
-**A field holds one value.** A title page listing two publishers, or a book
-printed in Praha *and* Brno, has to lose one of them.
-
-**Values that belong together are not connected.** "Praha : Odeon, 1902" and
-"Brno : Barvič, 1908" become four unrelated entries — three places, two
-publishers, two dates in separate lists — with nothing recording which place
-goes with which publisher.
-
-**The levels drifted apart.** A volume could have an illustrator and a
-photographer but no *redaktor*; an issue had a *redaktor* and nothing else; a
-supplement had only an author. None of that comes from the standard — the DMF
-places no role restriction on any level.
+Názvy polí, elementů MODS a hodnot řízených slovníků zůstávají v celém dokumentu
+v původní podobě, protože odkazují na konkrétní pole v MetaKat, respektive na
+konkrétní elementy MODS.
 
 ---
 
-## 2. Three principles behind the change
+## 1. Výchozí stav
 
-**MODS has one element for every level.** A title, a volume, an issue and a
-supplement are not different record types: they are the same `<mods>` element,
-distinguished by its `ID` and its `<genre>`. The DMF's per-level tables differ
-almost entirely in which children are *mandatory*, not in which children exist.
-Seven divergent classes were a MetaKat invention.
+Na větvi `main` popisuje MetaKat dokument sedmi samostatnými třídami: titul,
+svazek, číslo, strana, příloha, kapitola, článek. Každá z nich má vlastní plochý
+seznam polí a tři vlastnosti tohoto uspořádání jsou to, co návrh řeší.
 
-**The container is what carries the binding.** This is the DMF's own rule, in
-its description of `<originInfo>`:
+**Pole nese jednu hodnotu.** Titulní list se dvěma nakladateli, nebo kniha
+vytištěná v Praze *i* v Brně, o jeden údaj nutně přijde.
+
+**Hodnoty, které patří k sobě, nejsou propojené.** Z „Praha : Odeon, 1902“ a
+„Brno : Barvič, 1908“ se stanou čtyři nesouvisející položky — dvě místa, dva
+nakladatelé, dvě data v oddělených seznamech — a nikde není zaznamenáno, které
+místo patří ke kterému nakladateli.
+
+**Úrovně se od sebe vzdálily.** Svazek mohl mít ilustrátora a fotografa, ale ne
+redaktora; číslo mělo redaktora a nic dalšího; příloha jen autora. Nic z toho
+nevychází ze standardu — DMF žádné omezení rolí na jednotlivých úrovních
+nestanoví.
+
+---
+
+## 2. Tři principy, ze kterých návrh vychází
+
+**MODS má pro každou úroveň jeden a tentýž element.** Titul, svazek, číslo a
+příloha nejsou různé typy záznamu: je to týž element `<mods>`, rozlišený svým
+`ID` a hodnotou `<genre>`. Tabulky DMF se pro jednotlivé úrovně liší téměř
+výhradně v tom, které elementy jsou *povinné*, nikoli v tom, které vůbec
+existují. Sedm rozbíhajících se tříd byl vynález MetaKat.
+
+**Vazby nese kontejnerový element.** To je vlastní pravidlo DMF, uvedené v popisu
+elementu `<originInfo>`:
 
 > …v případě, že je v jednom poli 260/264 uvedeno opakované podpole $a nebo $b,
 > je možné příslušné subelementy opakovat v rámci jednoho `<originInfo>` nebo se
 > **zopakuje celý `<originInfo>` tak, aby se neztratily vzájemné vazby mezi
 > subelementy** (např. mezi konkrétním místem vydání a vydavatelem).
 
-Both serialisations are permitted, which matters: a record that cannot work out
-the bindings repeats the subelements inside one container and is still valid;
-one that can repeats the whole container and is more precise.
+Přípustné jsou obě varianty zápisu, což je podstatné: záznam, u kterého se vazby
+určit nepodařilo, opakuje subelementy uvnitř jednoho kontejneru a je stále
+platný; záznam, u kterého se určit podařilo, opakuje celý kontejner a je
+přesnější.
 
-**Only what can be read from a scan.** MetaKat extracts from images. Signatures,
-URN:NBN, Konspekt and czenas headings, UDC, authority-file numbers and the whole
-of `<recordInfo>` dominate the catalogue records but originate in the catalogue
-or the digitisation workflow, so none of them is a candidate. Section 8 lists
-what was excluded on this ground.
-
----
-
-## 3. Every value may repeat
-
-Each field became a list. A record with one publisher holds a one-item list; a
-title page with two holds both.
-
-This also removed an inconsistency: `publisher` was already a list while
-`placeTerm`, `dateIssued` and `edition` were single values, so the schema could
-hold three publishers but only one place — the very relationship the DMF asks to
-be preserved was impossible to record.
+**Jen to, co lze přečíst ze skenu.** MetaKat získává údaje z obrazu. Signatury,
+URN:NBN, věcné třídění Konspekt a czenas, MDT, čísla národních autorit i celý
+`<recordInfo>` v katalogizačních záznamech převažují, ale vznikají v katalogu
+nebo v procesu digitalizace, takže o ně tu nejde. Kapitola 8 uvádí, co bylo z
+tohoto důvodu vynecháno.
 
 ---
 
-## 4. One shared field set per hierarchy
+## 3. Každá hodnota se může opakovat
 
-The four bibliographic levels — title, volume, issue, supplement — now share one
-field set, and chapter and article share another.
+Z každého pole se stal seznam. Záznam s jedním nakladatelem nese jednoprvkový
+seznam, titulní list se dvěma nese oba.
 
-The two sets stay apart for a substantive reason: **an internal part has no
-`<originInfo>` at all.** A chapter or an article inherits its imprint from the
-volume or issue carrying it, so publisher, place, all the dates, edition,
-frequency and the manufacture trio are inapplicable there — thirteen fields.
-Merging the two would leave nearly half of them permanently empty.
-
-Within each set, a field being available at a level does not mean it is
-meaningful there. A periodical volume legitimately fills little beyond
-`partNumber` and `dateIssued`. Which fields apply where is recorded in the
-tables in the appendix, and is deliberately *not* enforced in code yet — those
-tables are the specification such rules would be written from.
-
-One consequence worth flagging: sharing the field set makes every role available
-at every level, which is what the DMF describes, and resolves the drift
-described in section 1.
+Tím se zároveň odstranila nedůslednost: `publisher` už seznamem byl, zatímco
+`placeTerm`, `dateIssued` a `edition` byly jednotlivé hodnoty. Schéma tedy
+uneslo tři nakladatele, ale jen jedno místo — právě ten vztah, o jehož zachování
+DMF žádá, nešlo zaznamenat.
 
 ---
 
-## 5. What each value now carries, and where it was read
+## 4. Jedna společná sada polí pro každou hierarchii
 
-**Language.** A value may carry the language it is written in. This is what
-parallel title pages and bilingual abstracts need: a Czech article with an
-English abstract and an English parallel title currently gives no way to tell
-which string is which. In the 116-record article dataset, 36 records carry two
-or three languages across their titles, abstracts and keywords.
+Čtyři bibliografické úrovně — titul, svazek, číslo, příloha — mají nyní společnou
+sadu polí, a kapitola s článkem druhou.
 
-Note this is *per value*. MODS itself tags the container — `<titleInfo lang="eng"
-type="translated">` covers title, subTitle, partNumber and partName together —
-so recording it per value is the evidence from which those blocks are
-reconstructed, not a claim that the value owns the language.
+Obě sady zůstávají oddělené z věcného důvodu: **vnitřní část nemá `<originInfo>`
+vůbec.** Kapitola ani článek se nevydávají samostatně, nakladatelské údaje
+přebírají od svazku či čísla, které je nese. Nakladatel, místo, všechna data,
+vydání, periodicita i trojice údajů o tisku jsou tam tedy nepoužitelné — třináct
+polí. Sloučením by téměř polovina zůstala trvale prázdná.
 
-Separately, both hierarchies gained a `language` **field**, which is a different
-thing: `<language><languageTerm>`, the language the document or part is *written*
-in. It cannot be derived from the per-value languages — in 29 of 63 article
-records the first title's language differs from the abstract's.
+Uvnitř každé sady platí, že dostupnost pole na dané úrovni neznamená, že tam
+dává smysl. Ročník periodika legitimně vyplní sotva víc než `partNumber` a
+`dateIssued`. Které pole kam patří, zachycují tabulky v příloze — a **záměrně to
+zatím není v kódu nijak vynucováno**; ty tabulky jsou zadáním, ze kterého by se
+taková kontrola teprve psala.
 
-**Which page a value was read on.** A chapter or article is described by two
-pages, and they are read separately: the table-of-contents entry that points at
-it, and the part's own opening page. The field names now say which:
-
-- **no suffix** — read on the part's own destination page;
-- **`TocPage`** — read in the table-of-contents entry, including the page number
-  printed on the right of that entry.
-
-The old names had this backwards: `title`, `subTitle`, `partNumber` and
-`pageNumber` were all filled from the TOC while the destination reading carried
-the explicit suffix.
-
-The two sides may disagree, and the schema does not assert that they agree. A
-chapter listed in the TOC as „Počátky písma“ and headed „I. Počátky písma“ on
-its own page keeps both readings.
+Jeden důsledek stojí za zmínku: sdílení sady zpřístupňuje všechny role na všech
+úrovních, což odpovídá DMF a řeší rozejití popsané v kapitole 1.
 
 ---
 
-## 6. Recording which values belong together
+## 5. Co hodnota nese a na které straně byla přečtena
 
-Each record carries a list of groups. A group has a type and a list of
-identifiers, and nothing else:
+**Jazyk.** Hodnota může nést jazyk, ve kterém je zapsána. To potřebují souběžné
+titulní listy a dvojjazyčné abstrakty: u českého článku s anglickým abstraktem a
+anglickým souběžným názvem dnes nelze rozlišit, který řetězec je který. V datové
+sadě 116 článků nese 36 záznamů dva nebo tři jazyky napříč názvy, abstrakty a
+klíčovými slovy.
+
+Jde o údaj **u jednotlivé hodnoty**. Samotný MODS značkuje kontejner —
+`<titleInfo lang="eng" type="translated">` platí pro `title`, `subTitle`,
+`partNumber` i `partName` dohromady — takže zápis u hodnoty je podkladem, ze
+kterého se ty bloky rekonstruují, ne tvrzením, že jazyk patří hodnotě.
+
+Odděleně od toho obě hierarchie získaly **pole** `language`, což je něco jiného:
+`<language><languageTerm>`, tedy jazyk, ve kterém je dokument nebo vnitřní část
+napsána. Z jazyků u jednotlivých hodnot ho odvodit nelze — u 29 z 63 článkových
+záznamů se jazyk prvního názvu liší od jazyka abstraktu.
+
+**Na které straně byla hodnota přečtena.** Kapitolu a článek popisují dvě strany
+a čtou se odděleně: záznam v obsahu, který na část odkazuje, a vlastní úvodní
+strana části. Názvy polí to nyní říkají:
+
+- **bez přípony** — přečteno na vlastní úvodní straně části;
+- **`TocPage`** — přečteno v záznamu v obsahu, včetně čísla strany vytištěného
+  vpravo u toho záznamu.
+
+Původní pojmenování to mělo obráceně: `title`, `subTitle`, `partNumber` i
+`pageNumber` se plnily z obsahu, zatímco výslovnou příponu nesl údaj z úvodní
+strany.
+
+Obě strany se mohou lišit a schéma netvrdí, že se shodují. Kapitola vedená v
+obsahu jako „Počátky písma“ a nadepsaná na vlastní straně „I. Počátky písma“ si
+podrží obě čtení.
+
+---
+
+## 6. Zaznamenání toho, které hodnoty patří k sobě
+
+Každý záznam nese seznam skupin. Skupina má typ a seznam identifikátorů, nic
+víc:
 
 ```
 type: titleInfo | originInfoPublication | originInfoManufacture
     | agent | series | reviewedWork | pageRange
-members: [ids of the values that belong together]
+members: [identifikátory hodnot, které patří k sobě]
 ```
 
-The type names the MODS container the members would sit inside, so a reader
-knows what a group is about without inspecting it. Two publication events on one
-title page become two `originInfoPublication` groups; an author with their
-affiliation and e-mail becomes one `agent` group.
+Typ pojmenovává kontejnerový element MODS, do kterého by členové patřili, takže
+čtenář ví, o co ve skupině jde, aniž by ji musel rozebírat. Dvě vydavatelské
+události na jednom titulním listu jsou dvě skupiny `originInfoPublication`;
+autor se svou afiliací a e-mailem je jedna skupina `agent`.
 
-Three properties are deliberate:
+Tři vlastnosti jsou záměrné:
 
-**A group contains, it does not interpret.** The type says which container the
-members belong in and no more. A `titleInfo` group holding a title read from the
-TOC and the same title read from the opening page simply holds both; deciding
-they are one title is the reader's job.
+**Skupina obsahuje, nevykládá.** Typ říká, do kterého kontejneru členové patří,
+a nic dalšího. Skupina `titleInfo`, která drží název přečtený v obsahu a týž
+název přečtený na úvodní straně, prostě drží oba; rozhodnout, že jde o jeden
+název, je věc čtenáře.
 
-**Grouping is never required.** Because the DMF permits both serialisations, a
-record with no groups is still valid — the subelements are repeated inside one
-container. Partial grouping, two of three publishers grouped, is a normal state.
+**Seskupení není nikdy podmínkou.** Protože DMF připouští obě varianty zápisu,
+záznam bez jediné skupiny je platný — subelementy se zopakují uvnitř jednoho
+kontejneru. Částečné seskupení, kdy jsou svázáni dva nakladatelé ze tří, je
+normální stav.
 
-**No group for `<subject>`.** It would bind the topics of one keyword block, but
-the per-value language already separates them: of the 116 article records, all
-45 that carry several title, abstract or keyword blocks give every block a
-distinct language, and none repeats one.
+**Žádná skupina pro `<subject>`.** Vázala by termíny jednoho bloku klíčových
+slov, jenže jazyk u jednotlivé hodnoty je odděluje sám: ze 116 článkových
+záznamů dává všech 45, které nesou několik bloků názvů, abstraktů či klíčových
+slov, každému bloku odlišný jazyk a žádný se neopakuje.
 
 ---
 
-## 7. Questions for the meeting
+## 7. Otázky k projednání
 
-These are the points where the proposal rests on an assumption that the archive
-side should confirm or correct.
+Body, ve kterých návrh stojí na předpokladu, který by měla archivní strana
+potvrdit nebo opravit.
 
-**1. MODS 3.6 or 3.8.** The packages MetaKat sees today are MODS 3.6, but DMF
-monografie 2.2 / periodika 2.1 (December 2024) moved the standard to 3.8, and
-one change lands directly on the imprint: `<originInfo><publisher>` is replaced
-by `<originInfo><agent><namePart>`. ProArc still emits 3.6. Which should MetaKat
-target, and is there a date by which output must be 3.8?
+**1. MODS 3.6, nebo 3.8.** Balíčky, které dnes MetaKat vidí, jsou v MODS 3.6,
+ale DMF monografie 2.2 / periodika 2.1 (prosinec 2024) přechází na 3.8 a jedna
+ze změn dopadá přímo na nakladatelské údaje: `<originInfo><publisher>` je
+nahrazen `<originInfo><agent><namePart>`. ProArc stále vydává 3.6. Na kterou
+verzi má MetaKat mířit a existuje termín, do kdy musí být výstup v 3.8?
 
-**2. Printer at issue level, and the name of the field.** The mapping's row 17
-assigns *tiskař* to `MODS_ISSUE`, but the DMF's issue table lists only
-publication-era children of `originInfo`. Is a manufacture block expected on an
-issue? Separately, the field is currently called `manufactureDateIssued` while
-it serialises to `<dateOther type="manufacture">` — `manufactureDate` would match
-the standard, and renaming now is cheap.
+**2. Tiskař na úrovni čísla a název pole.** Řádek 17 mapování přiřazuje tiskaře
+k `MODS_ISSUE`, ale tabulka DMF pro číslo uvádí u `originInfo` jen subelementy
+vydavatelské události. Očekává se u čísla blok `manufacture`? Odděleně: pole se
+dnes jmenuje `manufactureDateIssued`, přitom se zapisuje jako
+`<dateOther type="manufacture">` — název `manufactureDate` by odpovídal
+standardu a přejmenovat je teď levné.
 
-**3. Two controlled vocabularies we could not close.**
-   - `form` (`physicalDescription/form`) currently admits only *print* and
-     *manuscript*. The DMF does not enumerate the values, deferring to MARC
-     008/23. Which of those values should MetaKat be able to produce?
-   - `articleGenre` (`genre @type`) currently admits *review*, *interview*,
-     *cover*, *tableOfContents* — the four the mapping names. The DMF defers the
-     full list to Pravidla pro popis periodik v. 8.7. Which values matter?
+**3. Dva řízené slovníky, které se nepodařilo uzavřít.**
+   - `form` (`physicalDescription/form`) dnes připouští jen `print` a
+     `manuscript`. DMF hodnoty nevyjmenovává a odkazuje na pole 008/23 MARC 21.
+     Které z těch hodnot má MetaKat umět vyprodukovat?
+   - `articleGenre` (`genre @type`) dnes připouští `review`, `interview`,
+     `cover` a `tableOfContents` — čtyři hodnoty, které uvádí mapování. Úplný
+     výčet DMF odkazuje do Pravidel pro popis periodik v. 8.7. Které hodnoty
+     mají smysl?
 
-**4. The date on an article.** An internal part has no `<originInfo>`, so an
-article's date of issue belongs to the issue carrying it. It is nevertheless
-printed on the article's own page and is present in 72 of 116 ground-truth
-records. The proposal keeps it on the article as extraction evidence and
-serialises it to the parent. Is that acceptable, or should it be written only to
-the parent?
+**4. Datum u článku.** Vnitřní část nemá `<originInfo>`, datum vydání článku
+tedy patří číslu, které jej nese. Přesto je vytištěné na vlastní straně článku a
+je vyplněné u 72 ze 116 referenčních záznamů. Návrh je ponechává u článku jako
+doklad o extrakci a zapisuje je do rodičovského záznamu. Je to přijatelné, nebo
+se má zapisovat výhradně k rodiči?
 
-**5. E-mail addresses.** A corresponding author's address is printed and
-extractable, but MODS models no contact data for names — `<name>` admits
+**5. E-mailové adresy.** Adresa korespondujícího autora bývá vytištěná a jde ji
+získat, ale MODS pro kontaktní údaje u jmen element nemá — `<name>` připouští
 `namePart`, `displayForm`, `affiliation`, `role`, `description`,
-`nameIdentifier`, `alternativeName`, `etal` and nothing else. Should MetaKat
-record it as a field that never exports, or drop it?
+`nameIdentifier`, `alternativeName`, `etal` a nic jiného. Má ji MetaKat vést
+jako pole, které se nikdy neexportuje, nebo ji vypustit?
 
-**6. The imprint of a reviewed work.** The mapping's row 30 keeps place,
-publisher and year of the reviewed book in a single `<publisher>` element, which
-is how a review header prints it. MetaKat follows that with one field rather
-than three. Confirm that is what is wanted.
+**6. Nakladatelské údaje recenzovaného díla.** Řádek 30 mapování drží místo,
+nakladatele i rok recenzované knihy v jednom elementu `<publisher>`, tedy tak,
+jak to tiskne záhlaví recenze. MetaKat to přebírá jedním polem místo tří. Je to
+tak zamýšleno?
 
-**7. Page ranges printed in the TOC.** The page number in a TOC entry is
-recorded on the chapter or article and serialises to that part's own
-`<part type="pageNumber">` — MODS records what the number is, not where it was
-read. Confirm that is the intended treatment.
+**7. Čísla stran vytištěná v obsahu.** Číslo strany ze záznamu v obsahu se vede
+u kapitoly či článku a zapisuje se do jeho vlastního `<part type="pageNumber">` —
+MODS zaznamenává, jaké to číslo je, ne kde bylo přečteno. Je to zamýšlené
+zacházení?
 
-**8. Anything missing.** The fields below are what we judged both useful and
-readable from a scan. If something an archive needs is absent, this is the
-moment to say so.
+**8. Chybí něco?** Níže uvedená pole jsou to, co považujeme zároveň za užitečné a
+za čitelné ze skenu. Pokud archivu chybí něco dalšího, teď je vhodná chvíle to
+říct.
 
 ---
 
-## 8. Deliberately excluded
+## 8. Vědomě vynechané
 
-Everything in the DMF that cannot come off a scan, listed so the omission reads
-as a decision rather than an oversight.
+Vše z DMF, co ze skenu získat nelze, uvedené proto, aby to nevypadalo jako
+opomenutí.
 
-| Excluded | Because |
+| Vynecháno | Důvod |
 |---|---|
-| `identifier` — uuid, urnnbn, ccnb, oclc, sysno, barcode | Minted by the workflow or assigned by the catalogue. Only ISBN and ISSN are printed on the object, and both are proposed additions. |
-| `location` — physicalLocation, shelfLocator, url | Sigla and call number: a property of the copy, not of the edition. |
-| `recordInfo` — all children | Metadata about the metadata record. |
-| `classification` (Konspekt, UDC), `subject @authority="czenas"` | Controlled vocabularies applied by a cataloguer. Printed keywords are a different thing and are in scope. |
-| `name/nameIdentifier` | National authority number. The printed name is in scope; its authority id is not. |
-| `placeTerm @type="code"` (marccountry) | The "xr" form. In the sample corpus every repeated place is a code-plus-text pair for one place, never two places. |
-| `issuance`, `typeOfResource` | Determined by the document hierarchy, not by reading the page. |
-| `nonSort` | Zero occurrences in 143 sample records; Czech and Polish have no articles. |
-| A general `note` | Of 76 notes in the sample, 26 are the statement of responsibility (now its own field), 13 are language, 4 restate page types, and the remaining 25 are cataloguer commentary spanning a whole run that no single page contains. |
+| `identifier` — `uuid`, `urnnbn`, `ccnb`, `oclc`, `sysno`, `barcode` | Vzniká v procesu digitalizace nebo je přiděluje katalog. Na dokumentu jsou vytištěny jen ISBN a ISSN, obojí je mezi navrhovanými doplňky. |
+| `location` — `physicalLocation`, `shelfLocator`, `url` | Sigla a signatura: vlastnost konkrétního exempláře, ne vydání. |
+| `recordInfo` — všechny subelementy | Metadata o metadatovém záznamu. |
+| `classification` (Konspekt, MDT), `subject @authority="czenas"` | Řízené slovníky, které přiděluje katalogizátor. Vytištěná klíčová slova jsou něco jiného a v záběru jsou. |
+| `name/nameIdentifier` | Číslo národní autority. Vytištěné jméno v záběru je, jeho autoritní identifikátor ne. |
+| `placeTerm @type="code"` (`marccountry`) | Tvar „xr“. Ve vzorku je každé opakované `place` dvojicí kód a text pro jedno místo, nikdy ne dvě místa. |
+| `issuance`, `typeOfResource` | Vyplývá z hierarchie dokumentu, ne ze čtení strany. |
+| `nonSort` | Ve 143 vzorových záznamech nula výskytů; čeština ani polština člen nemají. |
+| Obecná `note` | Ze 76 poznámek ve vzorku je 26 údaj o odpovědnosti (nyní vlastní pole), 13 jazykových, 4 opakují typ strany a zbylých 25 jsou komentáře katalogizátora k celé řadě, které žádná jednotlivá strana neobsahuje. |
 
 ---
 
-## 9. Still proposed, not yet added
+## 9. Zatím jen navržené
 
-| Field | MODS | Why |
+| Pole | MODS | Proč |
 |---|---|---|
-| `isbn`, `issn` | `identifier @type` | Printed in the impressum or as a barcode, and format-validatable. |
-| `extent` | `physicalDescription/extent` | „176 stran.“ Read from the impressum or derived from the page count. |
-| `level` | — | Nesting depth of a chapter. Needed to represent a TOC division such as „Část I: Starověk“, which the logical structure map can only express as a parent chapter. |
+| `isbn`, `issn` | `identifier @type` | Vytištěno v tiráži nebo jako čárový kód a lze ověřit kontrolní číslicí. |
+| `extent` | `physicalDescription/extent` | „176 stran.“ Přečteno z tiráže, nebo dopočítáno z počtu stran. |
+| `level` | — | Hloubka zanoření kapitoly. Potřebná k zachycení oddílu obsahu typu „Část I: Starověk“, který logická strukturální mapa umí vyjádřit jen jako nadřazenou kapitolu. |
 
 ---
 
-## Appendix A — bibliographic levels
+## Příloha A — bibliografické úrovně
 
-Fields shared by **title (T)**, **volume (V)**, **issue (I)** and
-**supplement (S)**, in declaration order. "Levels" says where the field is
-meaningful, not where it is permitted — nothing is enforced.
+Pole sdílená úrovněmi **titul**, **svazek**, **číslo** a **příloha**, v pořadí
+deklarace. Sloupec „Úrovně“ říká, kde pole dává smysl, ne kde je povoleno —
+vynucováno není nic.
 
-| Field | Levels | Stored in MODS as | Note |
+| Pole | Úrovně | Uloženo v MODS jako | Poznámka |
 |---|---|---|---|
-| `id` | all | — | MetaKat identity. |
-| `parent_id` | V I S | — | Title is the root. A supplement hangs off a volume or an issue. |
-| `page_id` | all | — | Which page the record was anchored to. MetaKat only. |
-| `hierarchy` | T V | — | multipart / monograph / periodical. Not MODS. |
-| `partNumber` | all | `titleInfo/partNumber` | Volume number, issue number, part of a multipart set. |
-| `partName` | all | `titleInfo/partName` | Yearbooks, special and thematic issues. |
-| `title` | all | `titleInfo/title` | A periodical *volume* has none — its `titleInfo` admits only `partNumber`. |
-| `subTitle` | all | `titleInfo/subTitle` |  |
-| `edition` | T V | `originInfo/edition` | A supplement’s `originInfo` omits it; at issue level a mutation goes through a repeated `titleInfo` instead. |
-| `frequency` | T S | `originInfo/frequency` | A periodical title, or a supplement issued as its own series. |
-| `statementOfResponsibility` | all | `note @type="statement of responsibility"` | **New.** The verbatim printed line, e.g. „sepsal Vincenc Blahouš“. |
-| `publisher` | all | `originInfo/publisher` (3.6) / `originInfo/agent/namePart` (3.8) |  |
-| `placeTerm` | all | `originInfo/place/placeTerm @type="text"` |  |
-| `dateIssued` | all | `originInfo/dateIssued` |  |
-| `copyrightDate` | T V S | `originInfo/copyrightDate` | **New.** „© 1967“ on the verso — often the only date a book prints. |
-| `manufacturePublisher` | all | `originInfo @eventType="manufacture"/publisher` |  |
-| `manufacturePlaceTerm` | all | `originInfo @eventType="manufacture"/place/placeTerm` |  |
-| `manufactureDateIssued` | all | `originInfo @eventType="manufacture"/dateOther` | **New.** See open question 2 on the name. |
-| `seriesName` | V | `relatedItem @type="series"/titleInfo/title` |  |
-| `seriesPartNumber` | V | `relatedItem @type="series"/titleInfo/partNumber` |  |
-| `seriesPartName` | V | `relatedItem @type="series"/titleInfo/partName` | **New.** From 830 $p, naming a subseries. |
-| `language` | all | `language/languageTerm @type="code"` | **New.** iso639-2b. The language the document is written in. |
-| `form` | all | `physicalDescription/form @authority="marcform"` | **New.** print / manuscript. See open question 3. |
-| `author` | all | `name` + `role/roleTerm` "aut" |  |
-| `illustrator` | all | `name` + `role/roleTerm` "ill" |  |
-| `photographer` | all | `name` + `role/roleTerm` "pht" |  |
-| `translator` | all | `name` + `role/roleTerm` "trl" |  |
-| `editor` | all | `name` + `role/roleTerm` "edt" |  |
-| `redaktor` | all | `name` + `role/roleTerm` |  |
-| `affiliation` | all | `name/affiliation` | **New.** The institution a named person belongs to. |
-| `email` | all | **none** | **New.** No MODS element exists. See open question 5. |
-| `groups` | all | — | Detection groupings — see section 6. |
+| `id` | vše | — | Identita záznamu v MetaKat. |
+| `parent_id` | svazek, číslo, příloha | — | Titul je kořen. Příloha visí na svazku nebo na čísle. |
+| `page_id` | vše | — | Strana, ke které je záznam ukotven. Pouze MetaKat. |
+| `hierarchy` | titul, svazek | — | `multipart` / `monograph` / `periodical`. Není v MODS. |
+| `partNumber` | vše | `titleInfo/partNumber` | Číslo svazku, číslo výtisku, číslo části vícesvazkové monografie. |
+| `partName` | vše | `titleInfo/partName` | U ročenek, speciálních a tematických čísel. |
+| `title` | vše | `titleInfo/title` | Ročník periodika vlastní název nemá — jeho `titleInfo` připouští jen `partNumber`. |
+| `subTitle` | vše | `titleInfo/subTitle` |  |
+| `edition` | titul, svazek | `originInfo/edition` | V `originInfo` přílohy DMF tento element neuvádí; na úrovni čísla se mutační vydání řeší opakovaným `titleInfo`. |
+| `frequency` | titul, příloha | `originInfo/frequency` | Vlastnost vydávání: titul periodika, nebo příloha vycházející jako samostatná řada. |
+| `statementOfResponsibility` | vše | `note @type="statement of responsibility"` | **Nové.** Údaj o odpovědnosti doslova tak, jak je vytištěn, např. „sepsal Vincenc Blahouš“. |
+| `publisher` | vše | `originInfo/publisher` (3.6) / `originInfo/agent/namePart` (3.8) |  |
+| `placeTerm` | vše | `originInfo/place/placeTerm @type="text"` |  |
+| `dateIssued` | vše | `originInfo/dateIssued` |  |
+| `copyrightDate` | titul, svazek, příloha | `originInfo/copyrightDate` | **Nové.** „© 1967“ na rubu titulního listu — často jediné datum, které kniha tiskne. |
+| `manufacturePublisher` | vše | `originInfo @eventType="manufacture"/publisher` |  |
+| `manufacturePlaceTerm` | vše | `originInfo @eventType="manufacture"/place/placeTerm` |  |
+| `manufactureDateIssued` | vše | `originInfo @eventType="manufacture"/dateOther` | **Nové.** K názvu pole viz otázka 2. |
+| `seriesName` | svazek | `relatedItem @type="series"/titleInfo/title` |  |
+| `seriesPartNumber` | svazek | `relatedItem @type="series"/titleInfo/partNumber` |  |
+| `seriesPartName` | svazek | `relatedItem @type="series"/titleInfo/partName` | **Nové.** Z pole 830 $p, název podřady. |
+| `language` | vše | `language/languageTerm @type="code"` | **Nové.** Kód `iso639-2b`. Jazyk, ve kterém je dokument napsán. |
+| `form` | vše | `physicalDescription/form @authority="marcform"` | **Nové.** Zatím `print` / `manuscript`. Viz otázka 3. |
+| `author` | vše | `name` + `role/roleTerm` `aut` |  |
+| `illustrator` | vše | `name` + `role/roleTerm` `ill` |  |
+| `photographer` | vše | `name` + `role/roleTerm` `pht` |  |
+| `translator` | vše | `name` + `role/roleTerm` `trl` |  |
+| `editor` | vše | `name` + `role/roleTerm` `edt` |  |
+| `redaktor` | vše | `name` + `role/roleTerm` |  |
+| `affiliation` | vše | `name/affiliation` | **Nové.** Instituce, ke které se jmenovaná osoba hlásí. |
+| `email` | vše | **žádný** | **Nové.** V MODS pro tento údaj element neexistuje. Viz otázka 5. |
+| `groups` | vše | — | Seskupení detekcí — viz kapitola 6. |
 
-## Appendix B — chapters and articles
+## Příloha B — kapitoly a články
 
-Fields shared by **chapter (C)** and **article (A)**, in declaration order.
-Destination-page fields first, then table-of-contents fields.
+Pole sdílená **kapitolou** a **článkem**, v pořadí deklarace. Nejdřív pole z
+vlastní úvodní strany, pak pole ze strany obsahu.
 
-| Field | Kinds | Stored in MODS as | Note |
+| Pole | Druh | Uloženo v MODS jako | Poznámka |
 |---|---|---|---|
-| `id` | both | — | MetaKat identity. |
-| `parent_id` | both | — | A volume, an issue, or another chapter. |
-| `pageIndexStart` | both | `part @type="pageIndex"/extent/start` | Which scans the part occupies. A list — a part continued on later pages has several runs. |
-| `pageIndexEnd` | both | `part @type="pageIndex"/extent/end` |  |
-| `title` | both | `titleInfo/title` | Read on the part’s **own opening page**. |
-| `subTitle` | both | `titleInfo/subTitle` | The DMF admits a perex here. |
-| `abstract` | both | `abstract` | A list — parallel Czech and English abstracts are normal. |
-| `keywords` | both | `subject/topic` | A list — one entry per printed term. |
-| `dateIssued` | A | *parent’s* `originInfo/dateIssued` | **New.** See open question 4. |
-| `reviewedWorkTitle` | A | `relatedItem/titleInfo/title` | **New.** The book under review. |
-| `reviewedWorkAuthor` | A | `relatedItem/name/namePart` | **New.** |
-| `reviewedWorkImprint` | A | `relatedItem/originInfo/publisher` | **New.** Place, publisher and year as one printed line. See open question 6. |
-| `language` | both | `language/languageTerm @type="code"` | **New.** The language the part is written in. |
-| `articleGenre` | A | `genre @type=...` | **New.** review, interview, cover, tableOfContents. See open question 3. |
-| `pageIndexTocPage` | both | — | Which scan carries the table-of-contents entry. |
-| `titleTocPage` | both | `titleInfo/title` | The same title as read **in the TOC entry**. |
-| `subTitleTocPage` | both | `titleInfo/subTitle` |  |
-| `partNumberTocPage` | both | `titleInfo/partNumber` | The chapter number (I., XI., 5.), kept out of the title. |
-| `pageNumberStartTocPage` | both | `part @type="pageNumber"/extent/start` | The page number printed in the entry, usually on the right. |
-| `pageNumberEndTocPage` | both | `part @type="pageNumber"/extent/end` | When the entry gives a range. |
-| `author` | both | `name` + `role/roleTerm` "aut" |  |
-| `illustrator` | both | `name` + `role/roleTerm` "ill" |  |
-| `photographer` | both | `name` + `role/roleTerm` "pht" |  |
-| `translator` | both | `name` + `role/roleTerm` "trl" |  |
-| `editor` | both | `name` + `role/roleTerm` "edt" |  |
-| `redaktor` | both | `name` + `role/roleTerm` |  |
-| `affiliation` | both | `name/affiliation` | **New.** |
-| `email` | both | **none** | **New.** No MODS element exists. |
-| `groups` | both | — | Detection groupings — see section 6. |
+| `id` | obě | — | Identita záznamu v MetaKat. |
+| `parent_id` | obě | — | Svazek, číslo, nebo jiná kapitola. |
+| `pageIndexStart` | obě | `part @type="pageIndex"/extent/start` | Které skeny vnitřní část zabírá. Seznam — část pokračující na dalších stranách má úseků víc. |
+| `pageIndexEnd` | obě | `part @type="pageIndex"/extent/end` |  |
+| `title` | obě | `titleInfo/title` | Přečteno na **vlastní úvodní straně** vnitřní části. |
+| `subTitle` | obě | `titleInfo/subTitle` | DMF sem výslovně připouští i perex. |
+| `abstract` | obě | `abstract` | Seznam — souběžný český a anglický abstrakt je běžný. |
+| `keywords` | obě | `subject/topic` | Seznam — jedna položka na každý vytištěný termín. |
+| `dateIssued` | článek | `originInfo/dateIssued` **rodiče** | **Nové.** Viz otázka 4. |
+| `reviewedWorkTitle` | článek | `relatedItem/titleInfo/title` | **Nové.** Recenzované dílo. |
+| `reviewedWorkAuthor` | článek | `relatedItem/name/namePart` | **Nové.** |
+| `reviewedWorkImprint` | článek | `relatedItem/originInfo/publisher` | **Nové.** Místo, nakladatel a rok jako jeden vytištěný řádek. Viz otázka 6. |
+| `language` | obě | `language/languageTerm @type="code"` | **Nové.** Jazyk, ve kterém je vnitřní část napsána. |
+| `articleGenre` | článek | `genre @type=…` | **Nové.** `review`, `interview`, `cover`, `tableOfContents`. Viz otázka 3. |
+| `pageIndexTocPage` | obě | — | Který sken nese záznam v obsahu. |
+| `titleTocPage` | obě | `titleInfo/title` | Tentýž název tak, jak je přečten **v záznamu v obsahu**. |
+| `subTitleTocPage` | obě | `titleInfo/subTitle` |  |
+| `partNumberTocPage` | obě | `titleInfo/partNumber` | Pořadové číslo kapitoly (I., XI., 5.), do názvu se neuvádí. |
+| `pageNumberStartTocPage` | obě | `part @type="pageNumber"/extent/start` | Číslo strany vytištěné v záznamu v obsahu, obvykle vpravo. |
+| `pageNumberEndTocPage` | obě | `part @type="pageNumber"/extent/end` | Pokud záznam uvádí rozsah. |
+| `author` | obě | `name` + `role/roleTerm` `aut` |  |
+| `illustrator` | obě | `name` + `role/roleTerm` `ill` |  |
+| `photographer` | obě | `name` + `role/roleTerm` `pht` |  |
+| `translator` | obě | `name` + `role/roleTerm` `trl` |  |
+| `editor` | obě | `name` + `role/roleTerm` `edt` |  |
+| `redaktor` | obě | `name` + `role/roleTerm` |  |
+| `affiliation` | obě | `name/affiliation` | **Nové.** |
+| `email` | obě | **žádný** | **Nové.** V MODS pro tento údaj element neexistuje. |
+| `groups` | obě | — | Seskupení detekcí — viz kapitola 6. |
