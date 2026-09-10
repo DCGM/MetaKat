@@ -170,8 +170,8 @@ class GroupType(str, enum.Enum):
     REVIEWED_WORK = "reviewedWork"   # <relatedItem>: reviewed title, author and imprint
 
     # One run of an internal part: the pageNumberStartTocPage and
-    # pageNumberEndTocPage that bound it, and optionally the MetakatPage ids
-    # of the pageIndexStart and pageIndexEnd covering the same run.
+    # pageNumberEndTocPage that bound it, and optionally the pageIndexStart
+    # and pageIndexEnd entries covering the same run.
     #
     # Earns its place when a part is printed in two non-contiguous runs -
     # pages 3-4, continued on 12-13 - where the parallel lists alone cannot
@@ -258,17 +258,16 @@ class Value(MetakatBaseModel):
 class MetakatGroup(MetakatBaseModel):
     """Detections that belong together, named by what they jointly describe.
 
-    Members are usually detection ids - the third element of a Value - so a
-    group needs no identifier space of its own. That holds even for values
-    that did not come from a detector: detection_id is mandatory on every
-    Value, so catalogue-derived or hand-entered values can be grouped on the
-    same terms.
+    A member is the id of the thing it identifies, so a group needs no
+    identifier space of its own: for a Value that is its detection_id, for a
+    pageIndexStart or pageIndexEnd entry the id carried beside the scan
+    index. Every member resolves to a value on this element - never to
+    another element - so reading a group means scanning this element's own
+    fields and nothing else.
 
-    The one exception is a PAGE_RANGE group, which may also carry the
-    MetakatPage ids paired with pageIndexStart and pageIndexEnd - nothing
-    detects a scan position, so those entries reference the page record
-    instead. A member id is therefore resolved by looking for it among the
-    element's Values first and its page references second.
+    That holds for values no detector produced: detection_id is mandatory on
+    every Value, so catalogue-derived or hand-entered values are grouped on
+    the same terms.
 
     Grouping is enrichment, never a precondition. The DMF permits both
     serialisations: subelements repeated inside one container when the
@@ -473,16 +472,20 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     # not necessarily derived from matching a printed page number, a title
     # match alone can establish them.
     #
-    # Each entry is (scan index, MetakatPage id). The id is what lets a run
-    # join a pageRange group alongside the TOC-printed endpoints, so a
-    # continued article can say that scans 11-30 are the run printed as
-    # 7-31 - a correspondence MODS does not express, since its pageIndex and
-    # pageNumber <part> elements are unlinked siblings. It also makes the
-    # page record directly reachable: the number printed on the part's own
-    # opening page is read there rather than duplicated here.
+    # Each entry is (scan index, id of this entry). The id identifies the
+    # entry itself, in the same way a Value's detection_id identifies that
+    # value - it is not the id of the page and not a detection, since nothing
+    # detects a scan position. Mint one per entry when writing.
     #
-    # Note this is a page id, not a detection id - nothing detects a scan
-    # position. A one-page part repeats the same id in start and end.
+    # Having an id lets a run join a pageRange group alongside the
+    # TOC-printed endpoints, so a continued article can state that scans
+    # 11-30 are the run printed as 7-31 - a correspondence MODS does not
+    # express, its pageIndex and pageNumber <part> elements being unlinked
+    # siblings.
+    #
+    # To reach the page itself, match the scan index against
+    # MetakatPage.pageIndex; the number printed on the part's own opening
+    # page is read there rather than duplicated here.
     pageIndexStart: Optional[List[Tuple[int, UUID]]] = None
     pageIndexEnd: Optional[List[Tuple[int, UUID]]] = None
 
