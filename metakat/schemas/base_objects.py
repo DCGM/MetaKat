@@ -169,13 +169,15 @@ class GroupType(str, enum.Enum):
     SERIES = "series"                # <relatedItem type="series">: the three series fields
     REVIEWED_WORK = "reviewedWork"   # <relatedItem>: reviewed title, author and imprint
 
-    # <part type="pageNumber">: one printed range, pairing a
-    # pageNumberStartTocPage with its pageNumberEndTocPage. Only earns its
-    # place when an internal part is printed in two non-contiguous runs -
-    # pages 3-4, continued on 12-13 - where the start and end lists alone
-    # cannot say which start pairs with which end. Common in periodicals;
-    # the DMF notes that for monographs "deleni oddilu se bezne
-    # nepredpoklada".
+    # One run of an internal part: the pageNumberStartTocPage and
+    # pageNumberEndTocPage that bound it, and optionally the MetakatPage ids
+    # of the pageIndexStart and pageIndexEnd covering the same run.
+    #
+    # Earns its place when a part is printed in two non-contiguous runs -
+    # pages 3-4, continued on 12-13 - where the parallel lists alone cannot
+    # say which start pairs with which end, nor which scan run corresponds
+    # to which printed run. Common in periodicals; the DMF notes that for
+    # monographs "deleni oddilu se bezne nepredpoklada".
     PAGE_RANGE = "pageRange"
 
     # There is deliberately no group for <subject>. Its purpose would be to
@@ -256,10 +258,17 @@ class Value(MetakatBaseModel):
 class MetakatGroup(MetakatBaseModel):
     """Detections that belong together, named by what they jointly describe.
 
-    Members are detection ids - the third element of a Value - so a group
-    needs no identifier space of its own. That holds even for values that did
-    not come from a detector: detection_id is mandatory on every Value, so
-    catalogue-derived or hand-entered values can be grouped on the same terms.
+    Members are usually detection ids - the third element of a Value - so a
+    group needs no identifier space of its own. That holds even for values
+    that did not come from a detector: detection_id is mandatory on every
+    Value, so catalogue-derived or hand-entered values can be grouped on the
+    same terms.
+
+    The one exception is a PAGE_RANGE group, which may also carry the
+    MetakatPage ids paired with pageIndexStart and pageIndexEnd - nothing
+    detects a scan position, so those entries reference the page record
+    instead. A member id is therefore resolved by looking for it among the
+    element's Values first and its page references second.
 
     Grouping is enrichment, never a precondition. The DMF permits both
     serialisations: subelements repeated inside one container when the
@@ -462,16 +471,20 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     #
     # These identify the pages of interest belonging to this part; they are
     # not necessarily derived from matching a printed page number, a title
-    # match alone can establish them. The printed number of any of those
-    # pages is read from the corresponding MetakatPage record rather than
-    # duplicated here.
+    # match alone can establish them.
     #
-    # pageIndexStart[i] pairs with pageIndexEnd[i]; that is the only
-    # alignment claimed. They stay plain ints because they are computed from
-    # the scan order, not detected - no text, no confidence, no detection id,
-    # and so no membership in a pageRange group.
-    pageIndexStart: Optional[List[int]] = None
-    pageIndexEnd: Optional[List[int]] = None
+    # Each entry is (scan index, MetakatPage id). The id is what lets a run
+    # join a pageRange group alongside the TOC-printed endpoints, so a
+    # continued article can say that scans 11-30 are the run printed as
+    # 7-31 - a correspondence MODS does not express, since its pageIndex and
+    # pageNumber <part> elements are unlinked siblings. It also makes the
+    # page record directly reachable: the number printed on the part's own
+    # opening page is read there rather than duplicated here.
+    #
+    # Note this is a page id, not a detection id - nothing detects a scan
+    # position. A one-page part repeats the same id in start and end.
+    pageIndexStart: Optional[List[Tuple[int, UUID]]] = None
+    pageIndexEnd: Optional[List[Tuple[int, UUID]]] = None
 
     title: Optional[List[Value]] = None
     subTitle: Optional[List[Value]] = None
