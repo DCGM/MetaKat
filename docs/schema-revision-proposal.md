@@ -210,8 +210,35 @@ jako pole, které se nikdy neexportuje, nebo ji vypustit?
 
 **5. Nakladatelské údaje recenzovaného díla.** Mapování drží u položky
 „recenzované dílo“ (úroveň `MODS_ART`) místo, nakladatele i rok recenzované
-knihy v jednom elementu `<publisher>`, tedy tak, jak to tiskne záhlaví recenze.
-MetaKat to přebírá jedním polem místo tří. Je to tak zamýšleno?
+knihy v jednom elementu `<publisher>`, tedy tak, jak to tiskne záhlaví recenze:
+
+```xml
+<mods:relatedItem>
+  <mods:name type="personal">
+    <mods:namePart type="family">Harris</mods:namePart>
+    <mods:namePart type="given">Amy</mods:namePart>
+  </mods:name>
+  <mods:originInfo>
+    <mods:publisher>Oxford : Oxford University Press, 2023</mods:publisher>
+  </mods:originInfo>
+  <mods:titleInfo>
+    <mods:title>Being single in Georgian England : families, households, and the unmarried</mods:title>
+  </mods:titleInfo>
+</mods:relatedItem>
+```
+
+V MetaKat tomu odpovídají tři pole. Každá hodnota nese text, jistotu a
+identifikátor detekce; skupina `reviewedWork` je váže dohromady:
+
+```json
+"reviewedWorkTitle":   [["Being single in Georgian England : families, households, and the unmarried", 0.94, "…"]],
+"reviewedWorkAuthor":  [["Amy Harris", 0.91, "…"]],
+"reviewedWorkImprint": [["Oxford : Oxford University Press, 2023", 0.88, "…"]],
+"groups": [{"type": "reviewedWork", "members": ["…", "…", "…"]}]
+```
+
+Nakladatelské údaje tedy zůstávají v jednom poli, nerozdělené na místo,
+nakladatele a rok. Je to tak zamýšleno?
 
 **6. Chybí něco?** Níže uvedená pole jsou to, co považujeme zároveň za užitečné a
 za čitelné ze skenu. Pokud archivu chybí něco dalšího, teď je vhodná chvíle to
