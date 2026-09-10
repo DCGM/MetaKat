@@ -169,11 +169,13 @@ class GroupType(str, enum.Enum):
     SERIES = "series"                # <relatedItem type="series">: the three series fields
     REVIEWED_WORK = "reviewedWork"   # <relatedItem>: reviewed title, author and imprint
 
-    # <part type="pageNumber">: one printed range. Only earns its place when
-    # an internal part is printed in two non-contiguous runs - pages 3-4,
-    # continued on 12-13 - where the start and end lists alone cannot say
-    # which start pairs with which end. Common in periodicals; the DMF notes
-    # that for monographs "deleni oddilu se bezne nepredpoklada".
+    # <part type="pageNumber">: one printed range, pairing a
+    # pageNumberStartTocPage with its pageNumberEndTocPage. Only earns its
+    # place when an internal part is printed in two non-contiguous runs -
+    # pages 3-4, continued on 12-13 - where the start and end lists alone
+    # cannot say which start pairs with which end. Common in periodicals;
+    # the DMF notes that for monographs "deleni oddilu se bezne
+    # nepredpoklada".
     PAGE_RANGE = "pageRange"
 
     # There is deliberately no group for <subject>. Its purpose would be to
@@ -427,46 +429,53 @@ class _MetakatInternalPartFields(MetakatBaseModel):
 
     Split out purely for field order - see _MetakatBibliographicFields. Use
     MetakatInternalPart, which is the complete model.
+
+    Two pages describe an internal part and they are read separately, so the
+    field names say which one a value came from:
+
+      * no suffix  - read on the part's own destination page, where the
+                     chapter or article actually begins;
+      * TocPage    - read in the table-of-contents entry that points at it,
+                     including the page number printed on the right of that
+                     entry.
+
+    The same logical value can therefore appear twice, once per side, and the
+    schema does not assert that the two agree - a TITLE group may hold both
+    and leave the reader to decide. Fields are declared destination side
+    first, then the table-of-contents side.
+
+    Note there is no destination-side page number: the number printed on the
+    part's own opening page belongs to that MetakatPage record, and
+    pageIndexStart/pageIndexEnd already say which pages those are.
     """
 
     id: UUID
     parent_id: UUID
 
-    # Scan index of the table-of-contents entry. A pointer, not a range, so
-    # it stays scalar.
-    pageIndexToc: Optional[int] = None
+    # ------------------------------------------------------------------
+    # Destination page - where the chapter or article actually begins.
+    # ------------------------------------------------------------------
 
-    # Scan-order ranges, MODS <part type="pageIndex">. Lists because a part
-    # printed in two non-contiguous runs has two of them, exactly as the
-    # printed side does - MODS repeats the whole <part> either way.
+    # Which scans the part occupies, MODS <part type="pageIndex">. Lists
+    # because a part printed in two non-contiguous runs has two of them, and
+    # MODS repeats the whole <part> for each.
+    #
+    # These identify the pages of interest belonging to this part; they are
+    # not necessarily derived from matching a printed page number, a title
+    # match alone can establish them. The printed number of any of those
+    # pages is read from the corresponding MetakatPage record rather than
+    # duplicated here.
     #
     # pageIndexStart[i] pairs with pageIndexEnd[i]; that is the only
-    # alignment claimed. No correspondence is expressed between an index run
-    # and a printed run, because MODS expresses none either: the pageIndex
-    # and pageNumber <part> elements are siblings with nothing linking a
-    # particular one of the first to a particular one of the second.
-    #
-    # These stay plain ints rather than Values: they are computed from the
-    # scan order, not detected, so they have no text, no confidence and no
-    # detection id - which also means they cannot be members of a pageRange
-    # group. That group pairs the printed side, where each endpoint is a
-    # detection in its own right.
+    # alignment claimed. They stay plain ints because they are computed from
+    # the scan order, not detected - no text, no confidence, no detection id,
+    # and so no membership in a pageRange group.
     pageIndexStart: Optional[List[int]] = None
     pageIndexEnd: Optional[List[int]] = None
 
     title: Optional[List[Value]] = None
     subTitle: Optional[List[Value]] = None
-    partNumber: Optional[List[Value]] = None
 
-    # Printed pagination, MODS <part type="pageNumber">: the DMF pairs
-    # detail/number with extent/start and extent/end, so an internal part
-    # carries a printed *range* rather than a single number. The scan-order
-    # counterpart is pageIndexStart/pageIndexEnd above.
-    pageNumberStart: Optional[List[Value]] = None
-    pageNumberEnd: Optional[List[Value]] = None
-
-    titleDestinationPage: Optional[List[Value]] = None
-    subTitleDestinationPage: Optional[List[Value]] = None
     abstract: Optional[List[Value]] = None
     keywords: Optional[List[Value]] = None
 
@@ -493,6 +502,27 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     # in practice only articles carry a meaningful genre specialisation.
     language: Optional[List[Tuple[str, float]]] = None  # iso639-2b codes
     articleGenre: Optional[Tuple[ArticleGenre, float]] = None
+
+    # ------------------------------------------------------------------
+    # Table-of-contents page - the entry that points at the part.
+    # ------------------------------------------------------------------
+
+    # Which scan carries the entry. A pointer, not a range, so it stays
+    # scalar.
+    pageIndexTocPage: Optional[int] = None
+
+    titleTocPage: Optional[List[Value]] = None
+    subTitleTocPage: Optional[List[Value]] = None
+    partNumberTocPage: Optional[List[Value]] = None
+
+    # The page number printed in the entry, usually on the right. It is
+    # evidence read on the table-of-contents page, but it serialises to the
+    # part's own MODS <part type="pageNumber"> - the standard records what
+    # the number is, not where it was read. Two values on each side when the
+    # entry gives a range; a pageRange group says which start goes with
+    # which end.
+    pageNumberStartTocPage: Optional[List[Value]] = None
+    pageNumberEndTocPage: Optional[List[Value]] = None
 
 
 class MetakatInternalPart(MetakatAgents, _MetakatInternalPartFields):
