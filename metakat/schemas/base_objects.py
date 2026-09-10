@@ -168,8 +168,19 @@ class GroupType(str, enum.Enum):
     AGENT = "agent"                  # <name>: one person, their affiliation and email
     SERIES = "series"                # <relatedItem type="series">: the three series fields
     REVIEWED_WORK = "reviewedWork"   # <relatedItem>: reviewed title, author and imprint
-    SUBJECT = "subject"              # <subject>: the topics of one keyword block
-    PAGE_RANGE = "pageRange"         # <part type="pageNumber">: printed start and end
+
+    # <part type="pageNumber">: one printed range. Only earns its place when
+    # an internal part is printed in two non-contiguous runs - pages 3-4,
+    # continued on 12-13 - where the start and end lists alone cannot say
+    # which start pairs with which end. Common in periodicals; the DMF notes
+    # that for monographs "deleni oddilu se bezne nepredpoklada".
+    PAGE_RANGE = "pageRange"
+
+    # There is deliberately no group for <subject>. Its purpose would be to
+    # bind the topics of one keyword block, but `lang` on each Value already
+    # separates them: across the 116 articles in the ground truth, all 45
+    # records with several title, abstract or keyword blocks give every block
+    # a distinct language, and none repeats one.
 
 
 class MetakatBaseModel(BaseModel):
