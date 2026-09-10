@@ -6,7 +6,7 @@ Je to podklad pro rozhodnutí, ne plán implementace. Popisuje, jak by se metada
 
 **Nic z toho není uzavřené.** Smyslem sepsání je nechat si model potvrdit — nebo opravit — dřív, než se proti němu přepíše okolní kód. Kapitola 4 shrnuje otázky, na které potřebujeme odpověď z archivní strany; zbytek je kontext k nim.
 
-Zkratkou „DMF“ se dále rozumí *Definice metadatových formátů* — DMF pro digitalizaci monografických dokumentů v. 2.3 a DMF pro digitalizaci periodik v. 2.2 — a „mapováním“ tabulka `metada_mapping.xlsx`. „Testovací sadou“ se rozumí 116 ručně opravených záznamů článků, což je náhodný vzorek z KNAV; čísla, která se na ni dále odvolávají, popisují tento vzorek.
+Zkratkou „DMF“ se dále rozumí *Definice metadatových formátů*, konkrétně [DMF pro digitalizaci monografických dokumentů v. 2.3](https://standardy.ndk.cz/ndk/standardy-digitalizace/DMF_monografie_2.3_final.pdf) a [DMF pro digitalizaci periodik v. 2.2](https://standardy.ndk.cz/ndk/standardy-digitalizace/DMF_periodika_2.2_final.pdf); aktuální verze jsou na [standardy.ndk.cz](https://standardy.ndk.cz/ndk/standardy-digitalizace/metadata). „Mapováním“ se rozumí [tabulka mapování polí do MODS](https://docs.google.com/spreadsheets/d/1xOtcJn9_sJ51sv20iRorSFohM1o6urXJJiUF6k2jGEE). „Testovací sadou“ se rozumí 116 ručně opravených záznamů článků, což je náhodný vzorek z KNAV; čísla, která se na ni dále odvolávají, popisují tento vzorek.
 
 Názvy polí, elementů MODS a hodnot řízených slovníků zůstávají v celém dokumentu v původní podobě, protože odkazují na konkrétní pole v MetaKat, respektive na konkrétní elementy MODS.
 
