@@ -340,10 +340,11 @@ pochází, se tedy dá zjistit i bez toho, aby se to u ní zapisovalo. Varianta
 s jedním polem tak ve skutečnosti nepotřebuje žádný nový klíč, jen mapování,
 které už v datech je.
 
-Týká se to jen názvu a podnázvu. Čísla stran se čtou pouze v obsahu, protože
-číslo vytištěné na vlastní straně části je vedeno u záznamu strany, takže tam
-žádná dvojice není. U `partNumberTocPage` je to podobné: pořadové číslo kapitoly
-bývá vytištěné i na její úvodní straně, ale odtud se dnes nečte.
+Týká se to názvu, podnázvu a pořadového čísla kapitoly. To sice MetaKat dnes
+čte jen z obsahu, ale bývá vytištěné i na úvodní straně části a časem se odtud
+číst má, takže dvojice vznikne i tam. Čísel stran se rozhodnutí netýká — ty se
+čtou pouze v obsahu, protože číslo vytištěné na vlastní straně části je vedeno
+u záznamu strany.
 
 **7. Chybí něco?** Pole v tabulkách v kapitole 2 jsou to, co považujeme zároveň
 za užitečné a za čitelné ze skenu. Pokud archivu chybí něco dalšího, teď je
