@@ -115,9 +115,7 @@ Jde o údaj **u jednotlivé hodnoty**. Samotný MODS značkuje kontejner —
 
 Odděleně od toho obě hierarchie získaly **pole** `language`, což je něco jiného:
 `<language><languageTerm>`, tedy jazyk, ve kterém je dokument nebo vnitřní část
-napsána. Z jazyků u jednotlivých hodnot ho odvodit nelze — v testovací sadě se
-u 29 z 63 záznamů, které mají název i abstrakt, jazyk prvního názvu od jazyka
-abstraktu liší.
+napsána.
 
 **Na které straně byla hodnota přečtena.** Kapitolu a článek popisují dvě strany
 a čtou se odděleně: záznam v obsahu, který na část odkazuje, a vlastní úvodní
