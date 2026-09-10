@@ -118,12 +118,12 @@ Odděleně od toho obě hierarchie získaly **pole** `language`, což je něco j
 napsána.
 
 **Na které straně byla hodnota přečtena.** Kapitolu a článek popisují dvě strany
-a čtou se odděleně: záznam v obsahu, který na část odkazuje, a vlastní úvodní
-strana části. Názvy polí to nyní říkají:
+a čtou se odděleně: vlastní úvodní strana části a záznam v obsahu, který na část
+odkazuje. Názvy polí to nyní říkají:
 
 - **bez přípony** — přečteno na vlastní úvodní straně části;
-- **`TocPage`** — přečteno v záznamu v obsahu, včetně čísla strany vytištěného
-  vpravo u toho záznamu.
+- **`TocPage`** — přečteno v záznamu v obsahu, včetně čísla strany, které záznam
+  uvádí.
 
 Původní pojmenování to mělo obráceně: `title`, `subTitle`, `partNumber` i
 `pageNumber` se plnily z obsahu, zatímco výslovnou příponu nesl údaj z úvodní
@@ -336,7 +336,7 @@ vlastní úvodní strany, pak pole ze strany obsahu.
 | `titleTocPage` | obě | `titleInfo/title` | Tentýž název tak, jak je přečten **v záznamu v obsahu**. |
 | `subTitleTocPage` | obě | `titleInfo/subTitle` |  |
 | `partNumberTocPage` | obě | `titleInfo/partNumber` | Pořadové číslo kapitoly (I., XI., 5.), do názvu se neuvádí. |
-| `pageNumberStartTocPage` | obě | `part @type="pageNumber"/extent/start` | Číslo strany vytištěné v záznamu v obsahu, obvykle vpravo. |
+| `pageNumberStartTocPage` | obě | `part @type="pageNumber"/extent/start` | Číslo strany, které uvádí záznam v obsahu. |
 | `pageNumberEndTocPage` | obě | `part @type="pageNumber"/extent/end` | Pokud záznam uvádí rozsah. |
 | `author` | obě | `name` + `role/roleTerm` `aut` |  |
 | `illustrator` | obě | `name` + `role/roleTerm` `ill` |  |
