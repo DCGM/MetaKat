@@ -159,14 +159,17 @@ class GroupType(str, enum.Enum):
     only on an internal part, but nothing enforces that.
     """
 
-    TITLE = "title"                  # titleInfo: title, subTitle, partNumber, partName
-    PUBLICATION = "publication"      # originInfo: placeTerm, publisher, dateIssued, edition
-    MANUFACTURE = "manufacture"      # originInfo eventType="manufacture"
-    AGENT = "agent"                  # name: one person, their affiliation and email
-    SERIES = "series"                # relatedItem type="series": the three series fields
-    SUBJECT = "subject"              # subject: the topics of one keyword block
-    PAGE_RANGE = "pageRange"         # part type="pageNumber": printed start and end
-    REVIEWED_WORK = "reviewedWork"   # relatedItem: the reviewed title, author and imprint
+    # Named after the MODS element the members would sit inside. originInfo
+    # takes a suffix because one element serves several events and the
+    # eventType attribute is what tells them apart.
+    TITLE_INFO = "titleInfo"                          # title, subTitle, partNumber, partName
+    ORIGIN_INFO_PUBLICATION = "originInfoPublication"  # placeTerm, publisher, dateIssued, edition
+    ORIGIN_INFO_MANUFACTURE = "originInfoManufacture"  # the manufacture trio
+    AGENT = "agent"                  # <name>: one person, their affiliation and email
+    SERIES = "series"                # <relatedItem type="series">: the three series fields
+    REVIEWED_WORK = "reviewedWork"   # <relatedItem>: reviewed title, author and imprint
+    SUBJECT = "subject"              # <subject>: the topics of one keyword block
+    PAGE_RANGE = "pageRange"         # <part type="pageNumber">: printed start and end
 
 
 class MetakatBaseModel(BaseModel):
