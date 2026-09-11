@@ -72,6 +72,7 @@ Pole sdílená úrovněmi **titul**, **svazek**, **číslo** a **příloha**.
 | `id` | vše | — | Identita záznamu v MetaKat. |
 | `parent_id` | svazek, číslo, příloha | — | Titul je kořen. Příloha visí na svazku nebo na čísle. |
 | `page_id` | vše | — | Strana, ke které je záznam ukotven. Pouze MetaKat. |
+| `preview_page_id` | vše | — | **Nové.** Strana, která element zastupuje — obvykle se uživateli ukáže jako jeho náhled. Není totéž co `page_id`: ta říká, odkud byl záznam přečten. Pouze MetaKat. |
 | `hierarchy` | titul, svazek | — | `multipart` / `monograph` / `periodical`. Není v MODS. |
 | `partNumber` | vše | `titleInfo/partNumber` | Číslo svazku, číslo výtisku, číslo části vícesvazkové monografie. |
 | `partName` | vše | `titleInfo/partName` | U ročenek, speciálních a tematických čísel. |
@@ -110,6 +111,7 @@ Pole sdílená **kapitolou** a **článkem**. Nejdřív pole z vlastní úvodní
 |---|---|---|---|
 | `id` | obě | — | Identita záznamu v MetaKat. |
 | `parent_id` | obě | — | Svazek, číslo, nebo jiná kapitola. |
+| `preview_page_id` | obě | — | **Nové.** Strana, která vnitřní část zastupuje — obvykle se uživateli ukáže jako její náhled. Zpravidla vlastní úvodní strana, ale nemusí to tak být. Pouze MetaKat. |
 | `pageIndexStart` | obě | `part @type="pageIndex"/extent/start` | Které skeny vnitřní část zabírá. Seznam — část pokračující na dalších stranách má úseků víc. |
 | `pageIndexEnd` | obě | `part @type="pageIndex"/extent/end` |  |
 | `title` | obě | `titleInfo/title` | Přečteno na **vlastní úvodní straně** vnitřní části. |
