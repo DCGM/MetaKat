@@ -289,17 +289,17 @@ class _MetakatBibliographicFields(MetakatBaseModel):
 
     id: UUID
     parent_id: Optional[UUID] = None
-    page_id: Optional[UUID] = None
 
     # The page to show when this element is presented on its own - the
     # preview or thumbnail in a listing. Holds a MetakatPage.id.
     #
-    # Kept apart from page_id, which the binder sets to the page a record's
-    # fields were read from and then also uses to order elements within the
-    # batch. The two usually land on the same scan, since the page stating a
-    # volume's title is the obvious one to show for it, but they answer
-    # different questions: a deliberately chosen cover moves the preview and
-    # must not move the ordering.
+    # The only page pointer on a bibliographic record, and deliberately so.
+    # It replaces a page_id that carried the binder's anchor page, which said
+    # nothing a reader could not get better elsewhere: which pages the element
+    # covers is on the pages themselves, as MetakatPage.parent_id, and where a
+    # given value was read is in detection_to_page_mapping, per value rather
+    # than one page for the whole record. The anchor is binder scaffolding and
+    # now stays inside the binder.
     #
     # MetaKat-only - MODS has no element for a preview page, so this does not
     # export.

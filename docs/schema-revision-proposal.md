@@ -34,7 +34,7 @@ Obě sady přitom zůstávají oddělené z věcného důvodu: **vnitřní čás
 
 Uvnitř každé sady platí, že dostupnost pole na dané úrovni neznamená, že tam dává smysl. Ročník periodika legitimně vyplní sotva víc než `partNumber` a `dateIssued`; sloupec „Úrovně“ v tabulkách níže říká, kde pole dává smysl.
 
-### Dvě drobnější změny
+### Drobnější změny
 
 **Z každého pole se stal seznam.** Záznam s jedním nakladatelem nese jednoprvkový seznam, titulní list se dvěma nese oba. Tím se zároveň odstranila nedůslednost, kdy `publisher` už seznamem byl, zatímco `placeTerm`, `dateIssued` a `edition` byly jednotlivé hodnoty — schéma uneslo tři nakladatele, ale jen jedno místo.
 
@@ -54,6 +54,8 @@ Nově je to slovník se čtyřmi pojmenovanými klíči:
 
 Klíč `lang` je nový a nese jazyk, ve kterém je hodnota zapsána. To potřebují souběžné titulní listy a dvojjazyčné abstrakty: u českého článku s anglickým abstraktem a anglickým souběžným názvem dnes nelze rozlišit, který řetězec je který. V testovací sadě nese 36 ze 116 záznamů dva nebo tři jazyky napříč názvy, abstrakty a klíčovými slovy. Odděleně od toho obě sady získaly **pole** `language` — `<language><languageTerm>`, tedy jazyk, ve kterém je dokument nebo vnitřní část napsána.
 
+**Záznam nese jediný odkaz na stranu.** Bibliografické úrovně dosud měly pole `page_id` — stranu, na kterou si vázání záznam ukotvilo. Pro čtenáře v něm ale nebyla žádná informace navíc. Které strany do elementu patří, je zapsáno u samotných stran (`parent_id`); na které straně byla přečtena konkrétní hodnota, říká `detection_to_page_mapping`, a to pro každou hodnotu zvlášť, ne jednou za celý záznam. U sloučeného záznamu navíc `page_id` ukazovalo na stranu jediné z původních detekcí, takže jako souhrn bylo spíš zavádějící. Z výstupu se proto odstraňuje — je to údaj, který potřebuje vázání, ne čtenář. Zůstává `preview_page_id`, odpovídající na jedinou otázku, kterou čtenář nad tímto polem skutečně má: kterou stranu ukázat.
+
 ### Na které straně byla hodnota přečtena
 
 Kapitolu a článek popisují dvě strany a čtou se odděleně: vlastní úvodní strana části a záznam v obsahu, který na část odkazuje. Názvy polí to nyní říkají:
@@ -71,8 +73,7 @@ Pole sdílená úrovněmi **titul**, **svazek**, **číslo** a **příloha**.
 |---|---|---|---|
 | `id` | vše | — | Identita záznamu v MetaKat. |
 | `parent_id` | svazek, číslo, příloha | — | Titul je kořen. Příloha visí na svazku nebo na čísle. |
-| `page_id` | vše | — | Strana, ke které je záznam ukotven. Pouze MetaKat. |
-| `preview_page_id` | vše | — | **Nové.** Strana, která element zastupuje — obvykle se uživateli ukáže jako jeho náhled. Není totéž co `page_id`: ta říká, odkud byl záznam přečten. Pouze MetaKat. |
+| `preview_page_id` | vše | — | **Nové.** Strana, která element zastupuje — obvykle se uživateli ukáže jako jeho náhled. Jediný odkaz na stranu, který záznam nese; nahrazuje `page_id`, viz kapitola 2. Pouze MetaKat. |
 | `hierarchy` | titul, svazek | — | `multipart` / `monograph` / `periodical`. Není v MODS. |
 | `partNumber` | vše | `titleInfo/partNumber` | Číslo svazku, číslo výtisku, číslo části vícesvazkové monografie. |
 | `partName` | vše | `titleInfo/partName` | U ročenek, speciálních a tematických čísel. |
