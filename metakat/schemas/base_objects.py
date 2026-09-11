@@ -475,6 +475,16 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     title: Optional[List[Value]] = None
     subTitle: Optional[List[Value]] = None
 
+    # The part's ordinal - "I.", "XI.", "5." - printed at the head of its own
+    # opening page and kept out of the title. partNumberTocPage is the same
+    # number as given by the table-of-contents entry.
+    #
+    # There is no partName here, unlike on MetakatBibliographic: for a
+    # bibliographic record partNumber and partName are the number and title of
+    # one part of a larger work, whereas an internal part's own title is
+    # already `title`, so a partName would have nothing left to hold.
+    partNumber: Optional[List[Value]] = None
+
     abstract: Optional[List[Value]] = None
     keywords: Optional[List[Value]] = None
 

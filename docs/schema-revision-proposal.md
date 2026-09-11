@@ -117,6 +117,7 @@ Pole sdílená **kapitolou** a **článkem**. Nejdřív pole z vlastní úvodní
 | `pageIndexEnd` | obě | `part @type="pageIndex"/extent/end` |  |
 | `title` | obě | `titleInfo/title` | Přečteno na **vlastní úvodní straně** vnitřní části. |
 | `subTitle` | obě | `titleInfo/subTitle` | DMF sem výslovně připouští i perex. |
+| `partNumber` | obě | `titleInfo/partNumber` | **Nové.** Pořadové číslo kapitoly (I., XI., 5.) vytištěné na vlastní úvodní straně. Dosud jen `partNumberTocPage`, tedy pouze z obsahu. |
 | `abstract` | obě | `abstract` | Seznam — souběžný český a anglický abstrakt je běžný. |
 | `keywords` | obě | `subject/topic` | Seznam — jedna položka na každý vytištěný termín. |
 | `dateIssued` | článek | `originInfo/dateIssued` **rodiče** | **Nové.** Viz otázka 3. |
@@ -128,7 +129,7 @@ Pole sdílená **kapitolou** a **článkem**. Nejdřív pole z vlastní úvodní
 | `pageIndexTocPage` | obě | — | Který sken nese záznam v obsahu. |
 | `titleTocPage` | obě | `titleInfo/title` | Tentýž název tak, jak je přečten **v záznamu v obsahu**. |
 | `subTitleTocPage` | obě | `titleInfo/subTitle` |  |
-| `partNumberTocPage` | obě | `titleInfo/partNumber` | Pořadové číslo kapitoly (I., XI., 5.), do názvu se neuvádí. |
+| `partNumberTocPage` | obě | `titleInfo/partNumber` | Totéž číslo tak, jak je uvedeno **v záznamu v obsahu**. |
 | `pageNumberStartTocPage` | obě | `part @type="pageNumber"/extent/start` | Číslo strany, které uvádí záznam v obsahu. |
 | `pageNumberEndTocPage` | obě | `part @type="pageNumber"/extent/end` | Pokud záznam uvádí rozsah. |
 | `author` | obě | `name` + `role/roleTerm` `aut` |  |
@@ -258,7 +259,7 @@ Pro dvě pole mluví, že je rozdíl vidět už v seznamu polí a že konzument,
 
 Klíč `source` v ukázce je přitom nejspíš zbytečný. `id` hodnoty se mapuje na stranu, na které byla detekována (`detection_to_page_mapping`), a `pageIndexTocPage` říká, která strana nese záznam v obsahu — z čeho hodnota pochází, se tedy dá zjistit i bez toho, aby se to u ní zapisovalo. Varianta s jedním polem tak ve skutečnosti nepotřebuje žádný nový klíč, jen mapování, které už v datech je.
 
-Týká se to názvu, podnázvu a pořadového čísla kapitoly. To sice MetaKat dnes čte jen z obsahu, ale bývá vytištěné i na úvodní straně části a časem se odtud číst má, takže dvojice vznikne i tam. Čísel stran se rozhodnutí netýká — ty se čtou pouze v obsahu, protože číslo vytištěné na vlastní straně části je vedeno u záznamu strany.
+Týká se to názvu, podnázvu a pořadového čísla kapitoly — u všech tří už schéma dvojici polí nese. Čísel stran se rozhodnutí netýká — ty se čtou pouze v obsahu, protože číslo vytištěné na vlastní straně části je vedeno u záznamu strany.
 
 **7. Stačí skupině typ a seznam členů?** Dnes nese jen tyto dvě věci (kapitola 3). Otázka je, zda kontejneru nechybí ještě údaj, který se k jednotlivým hodnotám připsat nedá, protože platí pro celou skupinu:
 
