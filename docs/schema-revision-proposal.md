@@ -248,7 +248,7 @@ V MetaKat tomu odpovídají tři pole; skupina `reviewedWork` je váže dohromad
 
 Nakladatelské údaje tedy zůstávají v jednom poli, nerozdělené na místo, nakladatele a rok. Je to tak zamýšleno?
 
-**6. Dvojí zápis názvu: dvě pole, nebo klíč u hodnoty?** Kapitola 2 popisuje současné řešení — název přečtený na úvodní straně je v `title`, název přečtený v obsahu v `titleTocPage`, totéž u podnázvu, a skupina `titleInfo` obě čtení sváže. Druhá možnost je mít jen `title` a `subTitle` a doplnit hodnotě další klíč, který řekne, odkud pochází:
+**6. Dvojí zápis téhož údaje: dvě pole, nebo klíč u hodnoty?** Týká se to názvu, podnázvu a pořadového čísla kapitoly — u všech tří nese schéma dvojici polí. Kapitola 2 popisuje současné řešení: název přečtený na úvodní straně je v `title`, název přečtený v obsahu v `titleTocPage`, stejně tak `subTitle` a `subTitleTocPage`, `partNumber` a `partNumberTocPage`, a skupina `titleInfo` obě čtení sváže. Druhá možnost je mít jen `title`, `subTitle` a `partNumber` a doplnit hodnotě další klíč, který řekne, odkud pochází:
 
 ```json
 {"text": "Počátky písma", "confidence": 0.95, "lang": "ces", "id": "…", "source": "destinationPage"}
@@ -259,7 +259,7 @@ Pro dvě pole mluví, že je rozdíl vidět už v seznamu polí a že konzument,
 
 Klíč `source` v ukázce je přitom nejspíš zbytečný. `id` hodnoty se mapuje na stranu, na které byla detekována (`detection_to_page_mapping`), a `pageIndexTocPage` říká, která strana nese záznam v obsahu — z čeho hodnota pochází, se tedy dá zjistit i bez toho, aby se to u ní zapisovalo. Varianta s jedním polem tak ve skutečnosti nepotřebuje žádný nový klíč, jen mapování, které už v datech je.
 
-Týká se to názvu, podnázvu a pořadového čísla kapitoly — u všech tří už schéma dvojici polí nese. Čísel stran se rozhodnutí netýká — ty se čtou pouze v obsahu, protože číslo vytištěné na vlastní straně části je vedeno u záznamu strany.
+Čísel stran se rozhodnutí netýká — ty se čtou pouze v obsahu, protože číslo vytištěné na vlastní straně části je vedeno u záznamu strany.
 
 **7. Stačí skupině typ a seznam členů?** Dnes nese jen tyto dvě věci (kapitola 3). Otázka je, zda kontejneru nechybí ještě údaj, který se k jednotlivým hodnotám připsat nedá, protože platí pro celou skupinu:
 
