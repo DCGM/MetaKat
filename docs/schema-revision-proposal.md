@@ -54,7 +54,7 @@ Nově je to slovník se čtyřmi pojmenovanými klíči:
 
 Klíč `lang` je nový a nese jazyk, ve kterém je hodnota zapsána. To potřebují souběžné titulní listy a dvojjazyčné abstrakty: u českého článku s anglickým abstraktem a anglickým souběžným názvem dnes nelze rozlišit, který řetězec je který. V testovací sadě nese 36 ze 116 záznamů dva nebo tři jazyky napříč názvy, abstrakty a klíčovými slovy. Odděleně od toho obě sady získaly **pole** `language` — `<language><languageTerm>`, tedy jazyk, ve kterém je dokument nebo vnitřní část napsána.
 
-**Záznam nese jediný odkaz na stranu.** Bibliografické úrovně dosud měly pole `page_id` — stranu, na kterou si vázání záznam ukotvilo. Pro čtenáře v něm ale nebyla žádná informace navíc. Které strany do elementu patří, je zapsáno u samotných stran (`parent_id`); na které straně byla přečtena konkrétní hodnota, říká `detection_to_page_mapping`, a to pro každou hodnotu zvlášť, ne jednou za celý záznam. U sloučeného záznamu navíc `page_id` ukazovalo na stranu jediné z původních detekcí, takže jako souhrn bylo spíš zavádějící. Z výstupu se proto odstraňuje — je to údaj, který potřebuje vázání, ne čtenář. Zůstává `preview_page_id`, odpovídající na jedinou otázku, kterou čtenář nad tímto polem skutečně má: kterou stranu ukázat.
+**Místo pole `page_id` je nově `preview_page_id`.** Původní pole sloužilo jen vnitřním potřebám zpracování a z výstupu mizí. Nové pole má jasný účel: je to strana, která element zastupuje — obvykle se uživateli ukáže jako jeho náhled.
 
 ### Na které straně byla hodnota přečtena
 
@@ -73,7 +73,7 @@ Pole sdílená úrovněmi **titul**, **svazek**, **číslo** a **příloha**.
 |---|---|---|---|
 | `id` | vše | — | Identita záznamu v MetaKat. |
 | `parent_id` | svazek, číslo, příloha | — | Titul je kořen. Příloha visí na svazku nebo na čísle. |
-| `preview_page_id` | vše | — | **Nové.** Strana, která element zastupuje — obvykle se uživateli ukáže jako jeho náhled. Jediný odkaz na stranu, který záznam nese; nahrazuje `page_id`, viz kapitola 2. Pouze MetaKat. |
+| `preview_page_id` | vše | — | **Nové.** Strana, která element zastupuje — obvykle se uživateli ukáže jako jeho náhled. Nahrazuje `page_id`. Pouze MetaKat. |
 | `hierarchy` | titul, svazek | — | `multipart` / `monograph` / `periodical`. Není v MODS. |
 | `partNumber` | vše | `titleInfo/partNumber` | Číslo svazku, číslo výtisku, číslo části vícesvazkové monografie. |
 | `partName` | vše | `titleInfo/partName` | U ročenek, speciálních a tematických čísel. |
