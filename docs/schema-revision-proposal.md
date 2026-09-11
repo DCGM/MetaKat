@@ -260,7 +260,15 @@ Klíč `source` v ukázce je přitom nejspíš zbytečný. `id` hodnoty se mapuj
 
 Týká se to názvu, podnázvu a pořadového čísla kapitoly. To sice MetaKat dnes čte jen z obsahu, ale bývá vytištěné i na úvodní straně části a časem se odtud číst má, takže dvojice vznikne i tam. Čísel stran se rozhodnutí netýká — ty se čtou pouze v obsahu, protože číslo vytištěné na vlastní straně části je vedeno u záznamu strany.
 
-**7. Má MetaKat vracet rovnou MODS?** Schéma je proti MODS namapované pole po poli — sloupec „Uloženo v MODS jako“ v tabulkách v kapitole 2 je v podstatě celý ten převod. Napsat převodník oběma směry je proto v tuto chvíli přímočaré a otevírá to dvě možnosti:
+**7. Stačí skupině typ a seznam členů?** Dnes nese jen tyto dvě věci (kapitola 3). Otázka je, zda kontejneru nechybí ještě údaj, který se k jednotlivým hodnotám připsat nedá, protože platí pro celou skupinu:
+
+- **atributy kontejneru, které MODS zná.** `<titleInfo>` má `usage="primary"` pro hlavní název a `type` s hodnotami `translated`, `alternative`, `uniform`. To jsou vlastnosti celého bloku, ne jedné hodnoty. Záznam se souběžným anglickým názvem má dvě skupiny `titleInfo` a dnes o nich nelze říct, která je hlavní a která překlad — `lang` u hodnoty rozliší jazyk, pořadí důležitosti ne;
+- **jistota samotného svázání**, oddělená od jistoty jednotlivých hodnot. Obě jména mohou být přečtena spolehlivě, a přitom si MetaKat nemusí být jistý, že patří k sobě;
+- **identifikátor skupiny**, aby na ni šlo odkázat zvenčí. Zatím jsme ho nezaváděli, protože členy jsou identifikátory hodnot a na ty se odkázat dá.
+
+K rozhodnutí: má skupina zůstat čistým kontejnerem, nebo je některý z těchto údajů pro archiv potřebný? První bod je z nich nejpodstatnější — jde o údaj, který MODS běžně zapisuje a MetaKat by ho jinak neměl kam uložit.
+
+**8. Má MetaKat vracet rovnou MODS?** Schéma je proti MODS namapované pole po poli — sloupec „Uloženo v MODS jako“ v tabulkách v kapitole 2 je v podstatě celý ten převod. Napsat převodník oběma směry je proto v tuto chvíli přímočaré a otevírá to dvě možnosti:
 
 - **vracet vedle vlastního JSON rovnou MODS**, aby si převod nemusel psát každý konzument sám;
 - **doplňovat MODS, který už existuje**. To je scénář ProArc: balíček katalogizační záznam v MODS už nese a MetaKat by do něj přidal, co přečetl ze skenů.
@@ -271,4 +279,4 @@ K rozhodnutí:
 - u doplňování: co má přednost, když se katalogizační záznam a čtení ze skenu liší? Má MetaKat existující hodnoty přepisovat, doplňovat jen to, co v záznamu chybí, nebo neshody pouze hlásit?
 - v jaké verzi MODS — viz otázka 1.
 
-**8. Chybí něco?** Pole v tabulkách v kapitole 2 jsou to, co považujeme zároveň za užitečné a za čitelné ze skenu.
+**9. Chybí něco?** Pole v tabulkách v kapitole 2 jsou to, co považujeme zároveň za užitečné a za čitelné ze skenu.
