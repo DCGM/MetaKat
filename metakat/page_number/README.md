@@ -522,7 +522,7 @@ When a core result is bound, the binder writes:
 
 | MetaKat destination | Source |
 |---|---|
-| `MetakatPage.pageNumber` | `(evidence.output_text(), evidence.confidence, detection_uuid)` |
+| `MetakatPage.pageNumber` | `Value(text=evidence.output_text(), confidence=evidence.confidence, id=detection_uuid)` |
 | `MetakatIO.detection_to_bbox[detection_uuid]` | `(bbox.x, bbox.y, bbox.width, bbox.height)` |
 | `MetakatIO.detection_to_page_mapping[detection_uuid]` | Source `MetakatPage.id` |
 

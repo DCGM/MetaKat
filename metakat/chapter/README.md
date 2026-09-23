@@ -87,11 +87,11 @@ One core chapter is represented by:
 ```python
 ChapterResult(
     toc_page_key: str,
-    title: DetectionEvidence | None,
-    subtitle: DetectionEvidence | None = None,
-    part_number: DetectionEvidence | None = None,
-    page_number: ChapterPageNumberEvidence | None = None,
-    title_destination_page: DetectionEvidence | None = None,
+    title_toc_page: DetectionEvidence | None,
+    subtitle_toc_page: DetectionEvidence | None = None,
+    part_number_toc_page: DetectionEvidence | None = None,
+    page_number_toc_page: ChapterPageNumberEvidence | None = None,
+    title: DetectionEvidence | None = None,
     page_start_key: str | None = None,
     page_end_key: str | None = None,
     children: tuple[ChapterResult, ...] = (),
@@ -101,21 +101,23 @@ ChapterResult(
 | Field | Core result contract |
 |---|---|
 | `toc_page_key` | Input image stem of the page containing the source TOC entry. |
-| `title` | Title evidence from the TOC page, when available. |
-| `subtitle` | Optional subtitle evidence associated with the title on the TOC page. |
-| `part_number` | Optional chapter or section-number evidence from the TOC page. |
-| `page_number` | Optional parsed destination-page reference from the TOC page. It retains the original OCR evidence as well as the normalized values supplied by the TOC-producing engine. It is not the physical number detected on the destination page. |
-| `title_destination_page` | Optional title evidence found on the resolved destination page. |
+| `title_toc_page` | Title evidence from the TOC page, when available. |
+| `subtitle_toc_page` | Optional subtitle evidence associated with the title on the TOC page. |
+| `part_number_toc_page` | Optional chapter or section-number evidence from the TOC page. |
+| `page_number_toc_page` | Optional parsed destination-page reference from the TOC page. It retains the original OCR evidence as well as the normalized values supplied by the TOC-producing engine. It is not the physical number detected on the destination page. |
+| `title` | Optional title evidence found on the resolved destination page. |
 | `page_start_key` | Input image stem of the resolved first page, or `None` when unresolved. |
 | `page_end_key` | Input image stem of the resolved last page, whether read from an explicit TOC range or inferred by the engine, or `None` when the engine resolved no end. |
 | `children` | Nested chapter hierarchy of arbitrary depth. |
 
-An unresolved chapter may still be returned with TOC evidence and children;
-its `title_destination_page`, `page_start_key`, and `page_end_key` remain
-`None`.
+The field names follow `MetakatChapter`: a `_toc_page` field was read in the
+TOC entry, an unsuffixed one on the chapter's own destination page.
 
-The bind engine converts every retained evidence object into a MetaKat tuple
-and detection UUID. Every `toc_page_key`, evidence `page_key`,
+An unresolved chapter may still be returned with TOC evidence and children;
+its `title`, `page_start_key`, and `page_end_key` remain `None`.
+
+The bind engine converts every retained evidence object into a MetaKat
+`Value` with its own detection UUID. Every `toc_page_key`, evidence `page_key`,
 `page_start_key`, and `page_end_key` must refer to an input image stem.
 
 ### Implementing another chapter core engine
@@ -409,10 +411,10 @@ TOC page. Each extracted TOC entry is represented as:
 ```python
 ChapterBase(
     toc_page_key: str,
-    title: DetectionEvidence | None,
-    subtitle: DetectionEvidence | None = None,
-    part_number: DetectionEvidence | None = None,
-    page_number: ChapterPageNumberEvidence | None = None,
+    title_toc_page: DetectionEvidence | None,
+    subtitle_toc_page: DetectionEvidence | None = None,
+    part_number_toc_page: DetectionEvidence | None = None,
+    page_number_toc_page: ChapterPageNumberEvidence | None = None,
     children: tuple[ChapterBase, ...] = (),
 )
 ```
@@ -420,10 +422,10 @@ ChapterBase(
 | Field | Meaning |
 |---|---|
 | `toc_page_key` | Physical TOC page containing the entry. It is present even when the entry has no title evidence. |
-| `title` | Chapter title detected on the TOC page. This remains distinct from a title later found on the destination page. |
-| `subtitle` | Optional subtitle detected below and geometrically associated with the entry's title on the TOC page. A subtitle never creates an entry by itself. |
-| `part_number` | Optional chapter/section number printed as part of the TOC entry, such as `2.3`. It is not the destination page number. |
-| `page_number` | Optional parsed `PageNumber` printed in the TOC entry. It denotes the destination page number and retains the complete source evidence together with normalized semantic values for alignment. |
+| `title_toc_page` | Chapter title detected on the TOC page. This remains distinct from a title later found on the destination page, which `ChapterResult` holds as `title`. |
+| `subtitle_toc_page` | Optional subtitle detected below and geometrically associated with the entry's title on the TOC page. A subtitle never creates an entry by itself. |
+| `part_number_toc_page` | Optional chapter/section number printed as part of the TOC entry, such as `2.3`. It is not the destination page number. |
+| `page_number_toc_page` | Optional parsed `PageNumber` printed in the TOC entry. It denotes the destination page number and retains the complete source evidence together with normalized semantic values for alignment. |
 | `children` | Nested TOC entries. The model supports arbitrary hierarchy depth. |
 
 The `ChapterPageNumberEvidence` model extends `DetectionEvidence`:
@@ -450,7 +452,8 @@ range. The optional case is `"lowercase"` or `"uppercase"`; `None` preserves
 the normalized token case. `output_text(case=None)` returns normalized text
 when available and otherwise falls back to the complete original OCR text.
 
-`title`, `subtitle`, `part_number`, and `page_number` each retain independent text,
+`title_toc_page`, `subtitle_toc_page`, `part_number_toc_page`, and
+`page_number_toc_page` each retain independent text,
 confidence, geometry, and source-page provenance. For every non-null field,
 its `DetectionEvidence.page_key` is expected to equal `toc_page_key`, and its
 bounding box is expected to belong to that TOC page. These expectations are
@@ -500,7 +503,7 @@ aligned TOC entry is represented as:
 
 ```python
 ChapterResult(ChapterBase):
-    title_destination_page: DetectionEvidence | None = None
+    title: DetectionEvidence | None = None
     page_start_key: str | None = None
     page_end_key: str | None = None
     children: tuple[ChapterResult, ...] = ()
@@ -508,19 +511,19 @@ ChapterResult(ChapterBase):
 
 | Additional or overridden field | Meaning |
 |---|---|
-| `title_destination_page` | Optional title evidence detected on the resolved destination page. This remains distinct from the TOC-page `title` inherited from `ChapterBase`. |
+| `title` | Optional title evidence detected on the resolved destination page. This remains distinct from the TOC-page `title_toc_page` inherited from `ChapterBase`. |
 | `page_start_key` | `ChapterPageInput.page_key` of the resolved first destination page, or `None` when the chapter was not aligned. |
 | `page_end_key` | `ChapterPageInput.page_key` of the resolved final destination page, whether read from an explicit TOC range or inferred by the stage, or `None` when no end was resolved. |
 | `children` | Nested aligned chapter results. This overrides `ChapterBase.children` so the recursive elements are `ChapterResult` objects. |
 
-The fields inherited by `ChapterResult`, including `page_number`, retain the
+The fields inherited by `ChapterResult`, including `page_number_toc_page`, retain the
 values and meanings documented for `ChapterBase` in the
 [stage-2 contract](#stage-2-contract-chapter-extraction). An
 alignment engine adds destination bindings without reparsing, normalizing, or
 otherwise replacing the TOC entry.
 
 Chapters that cannot be connected to a destination may be returned with
-`title_destination_page=None`, `page_start_key=None`, and
+`title=None`, `page_start_key=None`, and
 `page_end_key=None`.
 
 The registered stage-3 implementation is documented under
@@ -574,8 +577,8 @@ The registered stage-3 implementation is documented under
    item refers to the same page key. Multiple destination-title evidence
    items for one page remain allowed.
 7. It recursively prunes titleless entries from the stage-3 `TocResult`.
-   An entry is retained when either its TOC-page `title` or its
-   `title_destination_page` is present. When an entry has neither title, the
+   An entry is retained when either its TOC-page `title_toc_page` or its
+   destination-page `title` is present. When an entry has neither title, the
    wrapper removes it and promotes its retained children into the removed
    entry's parent level. The pruned result is returned to
    `ChapterBindEngineBase`.
@@ -1557,7 +1560,7 @@ with either source alone or with both sources.
 
 For every input TOC entry, the engine preserves the original `ChapterBase`
 fields and hierarchy from `TocBase` unchanged. It produces the corresponding
-`ChapterResult` by adding only `title_destination_page`, `page_start_key`, and
+`ChapterResult` by adding only `title`, `page_start_key`, and
 `page_end_key`.
 
 When this engine directly receives `None` for both inputs, it has no
@@ -1669,7 +1672,7 @@ The asymmetry has one cost worth knowing: text the **TOC entry** carries and
 the heading does not now counts against the match. A TOC entry `1. Úvod`
 against a heading `ÚVOD` scores `0.667`, below the `0.7` default, where it
 previously matched at `1.0`. Extraction keeps chapter numbers in
-`ChapterBase.part_number` rather than in the title, so this affects entries
+`ChapterBase.part_number_toc_page` rather than in the title, so this affects entries
 whose number leaked into the title text rather than well-formed ones.
 
 ##### Anchor candidates
@@ -1984,15 +1987,15 @@ The original reference hierarchy is reconstructed after flat alignment.
 Every input entry is retained, including unresolved and titleless entries,
 because the alignment engine preserves the input TOC and only adds destination
 fields when it resolves them. When a destination title was assigned, it is
-exposed as `title_destination_page`.
+exposed as `title`.
 
 After [stage 3](#stage-3-contract-chapter-alignment) returns, the
 [pipeline wrapper](#pipeline-wrapper-orchestration) performs the final
 pruning. A
-chapter entry with both `title=None` and `title_destination_page=None` is
+chapter entry with both `title_toc_page=None` and `title=None` is
 removed there, and its retained children are spliced into its parent level.
 
-The alignment engine does not copy `title_destination_page` into `title`: TOC
+The alignment engine does not copy `title` into `title_toc_page`: TOC
 title and destination-page title remain separate optional evidence fields.
 
 ## TOC page-number parsers
@@ -2120,7 +2123,7 @@ because such a relation violates the MetaKat hierarchy. Empty input creates no
 synthetic volume.
 
 When at least one page in a group already has `MetakatPage.pageNumber`, the
-binder converts each available MetaKat tuple into parsed
+binder converts each available MetaKat `Value` into parsed
 `PhysicalPageNumberEvidence` and passes the resulting sparse sequence to the
 core. Pages without an existing number are omitted. If none exist, it passes
 `page_numbers=None`, allowing the source precedence documented in
@@ -2145,14 +2148,19 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 |---|---|
 | `id` | New chapter UUID; it is not a detection UUID. |
 | `parent_id` | Parent chapter UUID, or the enclosing issue/volume UUID for a root. |
-| `pageIndexToc` | `pageIndex` of `toc_page_key`; may be `None`. |
-| `pageIndexStart` | `pageIndex` of `page_start_key`; `None` when unresolved or unavailable. |
-| `pageIndexEnd` | `pageIndex` of `page_end_key`; `None` when unresolved or unavailable. |
-| `title` | Title evidence detected on the TOC page. |
-| `title_destination_page` | Independently stored title evidence from the destination page. It is not copied into `title`. |
-| `partNumber` | Part-number evidence detected on the TOC page. |
-| `pageNumber` | Normalized valid TOC reference, or unchanged original evidence when parsing failed. It is not the physical page number. |
-| `subTitle` | Subtitle evidence detected on the TOC page and associated with the entry's title during stage 2. |
+| `preview_page_id` | The page of `page_start_key`; `None` when unresolved. |
+| `pageIndexStart` | One entry `(pageIndex of page_start_key, entry UUID)`; `None` when unresolved or unavailable. |
+| `pageIndexEnd` | One entry `(pageIndex of page_end_key, entry UUID)`; `None` when unresolved or unavailable. |
+| `title` | `ChapterResult.title`: title evidence from the destination page. It is not copied into `titleTocPage`. |
+| `pageIndexTocPage` | `pageIndex` of `toc_page_key`; may be `None`. |
+| `titleTocPage` | `title_toc_page`: title evidence detected on the TOC page. |
+| `subTitleTocPage` | `subtitle_toc_page`: subtitle evidence detected on the TOC page and associated with the entry's title during stage 2. |
+| `partNumberTocPage` | `part_number_toc_page`: part-number evidence detected on the TOC page. |
+| `pageNumberStartTocPage` | `page_number_toc_page`: normalized valid TOC reference, or unchanged original evidence when parsing failed. It is the whole reference, so a range is written here as one text such as `12-15`; `pageNumberEndTocPage` is not filled yet. It is not the physical page number. |
+
+Every field is named as in the core result: an unsuffixed field was read on
+the destination page, a `TocPage` one in the TOC entry. `groups` is not
+filled yet.
 
 Page keys are translated through the image-stem mapping for the processed
 document. An unknown TOC or evidence page key is an error. Unknown start/end
@@ -2160,7 +2168,8 @@ keys and pages without `pageIndex` are logged. A missing start index remains
 unset, and so does a missing end index; the binder resolves no end of its own.
 A valid end can remain present even when the start is missing.
 
-Each non-null evidence field becomes `(text, confidence, detection_uuid)`.
+Each non-null evidence field becomes a one-element list holding a MetaKat
+`Value` - `text`, `confidence`, `lang` (not set) and `id`, a detection UUID.
 The binder creates a new detection UUID, writes its `(x, y, width, height)` to
 `detection_to_bbox`, and writes the source MetaKat page UUID to
 `detection_to_page_mapping`. The same chapter can therefore retain separate

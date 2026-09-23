@@ -95,8 +95,8 @@ these attributes and no others:
 | `AlignmentRegion.matched` | An unmatched region is skipped. |
 | `AlignmentRegion.label_for_export` | The model label resolved through `biblio_type_by_label`. It is `label_export` when set, otherwise the raw `label`. |
 | `AlignmentRegion.input_geometry` | Detection geometry; its `bounds` become the stored bounding box. |
-| `AlignmentRegion.input_geometry_confidence` | The confidence stored in the MetaKat evidence tuple and used for every field precedence decision. |
-| `AlignmentRegion.alto_text` | The text stored in the MetaKat evidence tuple. |
+| `AlignmentRegion.input_geometry_confidence` | The `confidence` of the MetaKat `Value`, used for every field precedence decision. |
+| `AlignmentRegion.alto_text` | The `text` of the MetaKat `Value`. |
 | `AlignmentRegion.region_id`, `label`, `label_export` | Warning messages only. |
 
 A region missing `input_geometry`, `input_geometry_confidence`, or `alto_text`
@@ -144,7 +144,7 @@ the type never contributes to that element.
 | `PartNumber` | `partNumber` | — | highest confidence | `monograph` → `multipart` |
 | `PartName` | `partName` | — | highest confidence | `monograph` → `multipart` |
 | `SeriesName` | `seriesName` | — | appended | — |
-| `SeriesNumber` | `seriesNumber` | — | appended | — |
+| `SeriesNumber` | `seriesPartNumber` | — | appended | — |
 | `Edition` | `edition` | — | highest confidence | — |
 | `Publisher` | `publisher` | `publisher` | appended | — |
 | `PlaceTerm` | `placeTerm` | `placeTerm` | highest confidence | — |
@@ -407,20 +407,25 @@ in that index raises `KeyError`.
 ### Candidate element construction
 
 `get_volume_issue_from_page` processes one alignment page at a time. It creates
-one `MetakatVolume` with `hierarchy=monograph` and one `MetakatIssue`, both
-anchored on the source page through `page_id`, and then fills them from the
-page's regions.
+one `MetakatVolume` with `hierarchy=monograph` and one `MetakatIssue`, fills
+them from the page's regions, and returns them. `get_volume_issue_from_alignment`
+then records the source page as each candidate's anchor - see
+[Anchor pages](#anchor-pages).
 
 A region is skipped when it is unmatched, when `input_geometry`,
 `input_geometry_confidence`, or `alto_text` is missing, or when its
 `label_for_export` is not in the core engine's `biblio_type_by_label`. The last
 two cases are logged as warnings.
 
-Every retained region produces one evidence tuple:
+Every retained region produces one `Value`:
 
 ```text
-(region.alto_text, region.input_geometry_confidence, uuid4())
+Value(text=region.alto_text, confidence=region.input_geometry_confidence, id=uuid4())
 ```
+
+Every field is a list of `Value`s. A "highest confidence" field keeps only its
+best reading, as a one-element list - the schema would allow more, keeping one
+is the binder's choice. An "appended" field keeps every reading.
 
 The destination field, precedence rule, and hierarchy effect for each resolved
 type are listed in [Bibliographic label types](#bibliographic-label-types). The
@@ -503,12 +508,12 @@ else is MetaKat's.
 |---|---|
 | That the batch holds exactly one volume | Which text, confidence, and geometry every field carries |
 | Which group of neighbouring title pages wins | Whether a field is present at all |
-| Which of several detections of one single-value field is kept | Which detection wins when the record corroborates none of them |
+| Which of several detections of one single-kept field is kept | Which detection wins when the record corroborates none of them |
 | The volume's `id`, taken from the record's `pid` | Everything in a list-valued field |
 
 No catalog value is ever written to `MetakatIO`. The record's values are read
 only to be compared against detections and are then discarded; every value in
-the merged volume is a detection tuple from the winning group, with its own
+the merged volume is a detected `Value` from the winning group, with its own
 text, confidence, detection UUID, and geometry. The record also does not gate
 which detections may be written: a whole group is merged, not the subset that
 happened to match, so a field the record disagrees with is still written when
@@ -517,8 +522,8 @@ the detector saw it.
 #### Choosing between detections of one field
 
 A group can detect the same field more than once — several title pages, or
-several readings on one page. A single-value field in the output schema holds
-one of them, so that competition has to be settled, and this is the only place
+several readings on one page. For a single-kept field the binder writes one
+of them, so that competition has to be settled, and this is the only place
 the record influences content.
 
 A detection whose text reaches `0.8` similarity to one of the record's values
@@ -558,8 +563,13 @@ Matching and merging use the fields shared by `MetakatVolume` and the ProArc
 
 | Kind | Fields |
 |---|---|
-| Single-value | `dateIssued`, `title`, `subTitle`, `edition`, `placeTerm` |
-| List-valued | `publisher`, `manufacturePublisher`, `manufacturePlaceTerm`, `author`, `illustrator`, `photographer`, `translator`, `editor`, `seriesName`, `seriesNumber` |
+| Single-kept | `dateIssued`, `title`, `subTitle`, `edition`, `placeTerm` |
+| Keep-all | `publisher`, `manufacturePublisher`, `manufacturePlaceTerm`, `author`, `illustrator`, `photographer`, `translator`, `editor`, `seriesName`, `seriesPartNumber` |
+
+Both kinds are lists of `Value`s; a single-kept field holds one. Record values
+are looked up by the MetaKat field name except where the ProArc parser names
+the field differently: `seriesPartNumber` is compared against
+`ObjectItem.seriesNumber` (`_PROARC_FIELD_NAMES`).
 
 `partNumber` and `partName` are excluded from scoring, merging, and detection
 counting. A candidate can only carry them from `PartNumber`, `PartName`, or
@@ -624,7 +634,7 @@ The resulting score is read against three different bars, loosest to strictest:
 |---:|---|---|
 | `0.6` | Does the catalog recognise a title this group detected — ranking key 1 | Only decides which group is looked at first, and conflicts behind it are resolved by overall corroboration, so a rough OCR reading costs nothing |
 | `0.7` | Does a field corroborate the record — ranking key 2 | Enough agreement to help identify the book |
-| `0.8` | Which detection of a single-value field is written | A stronger claim than helping identify the book: this one decides output |
+| `0.8` | Which detection of a single-kept field is written | A stronger claim than helping identify the book: this one decides output |
 
 #### Merging
 
@@ -635,14 +645,13 @@ group:
 |---|---|
 | `id` | The ProArc record's own `pid`, as the `UUID` that `parse_proarc_json` puts on `ObjectItem.id`. This element *is* that catalogued object, so it does not get a fresh UUID. |
 | `hierarchy` | Always `monograph`. No candidate's own hierarchy is consulted, because the only signals that would suggest otherwise are the excluded part fields. |
-| Single-value fields | The candidate value the record corroborates at `0.8` or better; otherwise the highest-confidence one. See [Choosing between detections of one field](#choosing-between-detections-of-one-field). |
-| List-valued fields | Union in candidate order, skipping tuples already present. Since every detection carries its own UUID, identical text detected on two pages is kept twice. |
-| `page_id` | Assigned separately, see below. |
+| Single-kept fields | A one-element list holding the candidate value the record corroborates at `0.8` or better; otherwise the highest-confidence one. See [Choosing between detections of one field](#choosing-between-detections-of-one-field). |
+| Keep-all fields | Union in candidate order, skipping `Value`s already present. Since every detection carries its own UUID, identical text detected on two pages is kept twice. |
 
-The anchor page is chosen by `_pick_anchor_page_id` in this order: the group
-member with the highest-confidence title; otherwise the first member of the
-group; otherwise the first title page; otherwise the first page; otherwise
-`None`.
+The merged volume's anchor is recorded separately, by `_pick_anchor_page_id`,
+in this order: the group member with the highest-confidence title; otherwise
+the first member of the group; otherwise the first title page; otherwise the
+first page; otherwise none.
 
 ### Periodical volume consolidation
 
@@ -664,10 +673,10 @@ field is never offered and is dropped from the output.
 bag, the `root_page_id` anchor, and the volumes it absorbed. `add_volume` first
 rejects a candidate that is not `periodical` or that carries neither field, then
 applies a cheap pre-filter: at least one of `partNumber` or `dateIssued` must
-match the root's. Matching compares **normalized text**, not the raw
-`(text, confidence, detection_id)` tuples: two genuine detections of the same
-volume never share a detection UUID and rarely share a confidence, so tuple
-equality could only ever match a tuple against itself. `None` matches only
+match the root's. Matching compares the **normalized text** of the kept
+readings, not whole `Value`s: two genuine detections of the same volume never
+share a detection UUID and rarely share a confidence, so `Value` equality
+could only ever match a value against itself. `None` matches only
 `None`, so two candidates that both lack a field satisfy the pre-filter on that
 field alone.
 
@@ -687,7 +696,7 @@ anchor pages. The anchor therefore reflects the bag's full page range rather
 than whichever candidate currently supplies the fields — which matters because
 [hierarchy binding](#hierarchy-binding) orders parents by that anchor.
 
-The output is one deep-copied root volume per bag, re-anchored to
+The output is one deep-copied root volume per bag, whose id is re-anchored to
 `root_page_id`, followed by every issue, followed by every element that is
 neither a `periodical` volume nor an issue, in their original order.
 
@@ -706,12 +715,30 @@ MetakatTitle(
 )
 ```
 
-The evidence tuples are shared with the source volume, so the title reuses that
+The `Value`s are shared with the source volume, so the title reuses that
 volume's detection UUIDs rather than creating new ones. `MetakatTitle.hierarchy`
 rejects `monograph` at the schema level, which is why only the two other
 hierarchies are eligible. When no such volume exists, no title element is
 created. A created title is prepended to the element list, ahead of the volumes
 and issues.
+
+### Anchor pages
+
+Every candidate volume and issue has an anchor page: the page its detections
+were read from. The anchor orders candidates, groups neighbouring ones, and is
+what [hierarchy binding](#hierarchy-binding) switches parents on. It is
+binder-internal - the output schema has no anchor field - and lives in an
+`Anchors` dict mapping element id to page id, built by
+`get_volume_issue_from_alignment` and passed explicitly to every step that
+needs it. A merged ProArc volume and a consolidated periodical volume each get
+their own entry.
+
+The final volumes and issues get `preview_page_id` set to their anchor: the
+page their title was read from is also the page that best represents them.
+
+A volume or issue that arrived in the input `MetakatIO` has no anchor. Its
+position is not guessed: `bind()` leaves it out of positional parenting and
+logs a warning naming it.
 
 ### Hierarchy binding
 
@@ -739,12 +766,12 @@ flowchart TD
 When issues exist, pages are parented to issues only; volumes then receive their
 pages indirectly, through the issues.
 
-`bind_infants(pages, infants, parents, apply_cover_nudge)` walks the ordered
+`bind_infants(pages, infants, parents, apply_cover_nudge, anchors)` walks the ordered
 page list once, tracking which parent currently owns the pages being walked:
 
 1. it returns immediately when any of the three sequences is empty;
 2. each infant is placed at a batch index — a page uses its own `batch_index`,
-   any other infant uses the `batch_index` of its anchor `page_id`;
+   any other infant uses the `batch_index` of its [anchor page](#anchor-pages);
 3. parents are sorted by their anchor page's `batch_index`, and the walk starts
    at the first of them;
 4. for each page, the walk advances to the next parent exactly when that
@@ -795,9 +822,11 @@ element a detection was gathered for. Before writing the geometry maps, the
 binder therefore collects the detection UUIDs still referenced as evidence.
 
 `_referenced_detection_ids` walks every kept element's model fields and collects
-the third item of each three-element tuple, whether the tuple stands alone or
-sits in a list. Detections outside that set are removed from both maps and the
-count is logged.
+the `id` of every `Value`, whether it stands alone or sits in a list.
+Detections outside that set are removed from both maps and the count is
+logged. Recognising `Value`s is what keeps the geometry at all: a check that
+missed them would drop every biblio bbox and page mapping, with only that
+count logged.
 
 The surviving entries are merged into the existing maps:
 
