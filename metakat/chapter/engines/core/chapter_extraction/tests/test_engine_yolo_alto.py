@@ -135,11 +135,11 @@ def test_assigns_subtitles_with_configured_geometry_guards(
     assert engine.subtitle_max_vertical_gap_height_multiplier == 1.5
     assert engine.subtitle_max_vertical_overlap_height_fraction == 0.25
     assert engine.subtitle_min_horizontal_overlap_fraction == 0.5
-    chapters = {chapter.title.text: chapter for chapter in result.chapters}
-    assert chapters["Overlap"].subtitle.text == "Overlap subtitle"
-    assert chapters["Too far"].subtitle is None
-    assert chapters["No horizontal"].subtitle is None
-    assert chapters["Assigned"].subtitle.text == "Assigned subtitle"
+    chapters = {chapter.title_toc_page.text: chapter for chapter in result.chapters}
+    assert chapters["Overlap"].subtitle_toc_page.text == "Overlap subtitle"
+    assert chapters["Too far"].subtitle_toc_page is None
+    assert chapters["No horizontal"].subtitle_toc_page is None
+    assert chapters["Assigned"].subtitle_toc_page.text == "Assigned subtitle"
 
 
 def test_subtitles_are_partitioned_with_their_multicolumn_titles(
@@ -191,9 +191,9 @@ def test_subtitles_are_partitioned_with_their_multicolumn_titles(
 
     result = engine.process((_toc_page(),))
 
-    chapters = {chapter.title.text: chapter for chapter in result.chapters}
-    assert chapters["Left 1"].subtitle.text == "Left subtitle"
-    assert chapters["Right 1"].subtitle.text == "Right subtitle"
+    chapters = {chapter.title_toc_page.text: chapter for chapter in result.chapters}
+    assert chapters["Left 1"].subtitle_toc_page.text == "Left subtitle"
+    assert chapters["Right 1"].subtitle_toc_page.text == "Right subtitle"
 
 
 def test_units_claim_best_available_subtitle_in_reading_order(
@@ -217,9 +217,9 @@ def test_units_claim_best_available_subtitle_in_reading_order(
 
     result = engine.process((_toc_page(),))
 
-    chapters = {chapter.title.text: chapter for chapter in result.chapters}
-    assert chapters["Earlier"].subtitle.text == "First subtitle"
-    assert chapters["Later"].subtitle.text == "Second subtitle"
+    chapters = {chapter.title_toc_page.text: chapter for chapter in result.chapters}
+    assert chapters["Earlier"].subtitle_toc_page.text == "First subtitle"
+    assert chapters["Later"].subtitle_toc_page.text == "Second subtitle"
 
 
 def test_equal_title_scores_retain_group_reading_order(
@@ -250,9 +250,9 @@ def test_equal_title_scores_retain_group_reading_order(
 
     result = engine.process((_toc_page(),))
 
-    chapters = {chapter.title.text: chapter for chapter in result.chapters}
-    assert chapters["First in reading order"].subtitle.text == "Subtitle"
-    assert chapters["Lower top edge"].subtitle is None
+    chapters = {chapter.title_toc_page.text: chapter for chapter in result.chapters}
+    assert chapters["First in reading order"].subtitle_toc_page.text == "Subtitle"
+    assert chapters["Lower top edge"].subtitle_toc_page is None
 
 
 def test_subtitle_confidence_precedes_horizontal_overlap(
@@ -291,7 +291,7 @@ def test_subtitle_confidence_precedes_horizontal_overlap(
 
     result = engine.process((_toc_page(),))
 
-    assert result.chapters[0].subtitle.text == "Higher confidence"
+    assert result.chapters[0].subtitle_toc_page.text == "Higher confidence"
 
 
 def test_subtitle_ties_prefer_area_then_width(
@@ -339,7 +339,7 @@ def test_subtitle_ties_prefer_area_then_width(
 
     result = engine.process((_toc_page(),))
 
-    assert result.chapters[0].subtitle.text == "Wider equal area"
+    assert result.chapters[0].subtitle_toc_page.text == "Wider equal area"
 
 
 @pytest.mark.parametrize(
@@ -380,10 +380,10 @@ def test_distinct_overlapping_roles_are_not_suppressed_after_alignment(
     result = engine.process((_toc_page(),))
 
     assert len(result.chapters) == 2
-    assert result.chapters[0].title.text == "Chapter"
-    assert result.chapters[0].page_number is None
-    assert result.chapters[1].title is None
-    assert result.chapters[1].page_number.output_text() == "12"
+    assert result.chapters[0].title_toc_page.text == "Chapter"
+    assert result.chapters[0].page_number_toc_page is None
+    assert result.chapters[1].title_toc_page is None
+    assert result.chapters[1].page_number_toc_page.output_text() == "12"
 
 
 def test_title_bands_assign_nearest_numbers_once(
@@ -409,13 +409,13 @@ def test_title_bands_assign_nearest_numbers_once(
     result = engine.process((_toc_page(),))
 
     assert len(result.chapters) == 2
-    assert result.chapters[0].title.text == "First"
-    assert result.chapters[0].part_number.text == "1"
-    assert result.chapters[0].page_number.output_text() == "10"
-    assert result.chapters[1].title.text == "Second"
-    assert result.chapters[1].part_number.text == "remote"
-    assert result.chapters[0].part_number != result.chapters[1].part_number
-    assert result.chapters[1].page_number is None
+    assert result.chapters[0].title_toc_page.text == "First"
+    assert result.chapters[0].part_number_toc_page.text == "1"
+    assert result.chapters[0].page_number_toc_page.output_text() == "10"
+    assert result.chapters[1].title_toc_page.text == "Second"
+    assert result.chapters[1].part_number_toc_page.text == "remote"
+    assert result.chapters[0].part_number_toc_page != result.chapters[1].part_number_toc_page
+    assert result.chapters[1].page_number_toc_page is None
 
 
 def test_title_bands_prefer_outside_then_area_then_width(
@@ -459,10 +459,10 @@ def test_title_bands_prefer_outside_then_area_then_width(
     result = engine.process((_toc_page(),))
 
     chapter = next(
-        chapter for chapter in result.chapters if chapter.title is not None
+        chapter for chapter in result.chapters if chapter.title_toc_page is not None
     )
-    assert chapter.part_number.text == "outside greater area"
-    assert chapter.page_number.output_text() == "12"
+    assert chapter.part_number_toc_page.text == "outside greater area"
+    assert chapter.page_number_toc_page.output_text() == "12"
 
 
 def test_uses_column_order_for_supported_page_number_lines(
@@ -508,7 +508,7 @@ def test_uses_column_order_for_supported_page_number_lines(
     with caplog.at_level(logging.INFO, logger=EXTRACTION_LOGGER):
         result = engine.process((_toc_page(width=1500),))
 
-    assert [chapter.title.text for chapter in result.chapters] == [
+    assert [chapter.title_toc_page.text for chapter in result.chapters] == [
         "Left 1",
         "Left 2",
         "Left 3",
@@ -579,11 +579,11 @@ def test_column_partition_prevents_cross_column_number_assignment(
     with caplog.at_level(logging.DEBUG, logger=EXTRACTION_LOGGER):
         result = engine.process((_toc_page(),))
 
-    chapters = {chapter.title.text: chapter for chapter in result.chapters}
-    assert chapters["Left without page"].page_number is None
-    assert chapters["Left without page"].part_number is None
-    assert chapters["Right first"].page_number.output_text() == "101"
-    assert chapters["Right first"].part_number is None
+    chapters = {chapter.title_toc_page.text: chapter for chapter in result.chapters}
+    assert chapters["Left without page"].page_number_toc_page is None
+    assert chapters["Left without page"].part_number_toc_page is None
+    assert chapters["Right first"].page_number_toc_page.output_text() == "101"
+    assert chapters["Right first"].part_number_toc_page is None
     assert (
         "Discarded PartNumber detections without an alignment axis to "
         "their right: page='toc', count=1" in _log_output(caplog)
@@ -626,7 +626,7 @@ def test_geometry_only_page_numbers_can_establish_columns(
 
     result = engine.process((_toc_page(),))
 
-    assert [chapter.title.text for chapter in result.chapters] == [
+    assert [chapter.title_toc_page.text for chapter in result.chapters] == [
         "Left 1",
         "Left 2",
         "Left 3",
@@ -634,7 +634,7 @@ def test_geometry_only_page_numbers_can_establish_columns(
         "Right 2",
         "Right 3",
     ]
-    assert all(chapter.page_number is None for chapter in result.chapters)
+    assert all(chapter.page_number_toc_page is None for chapter in result.chapters)
 
 
 def test_raises_when_column_analysis_cannot_resolve_page_width(
@@ -702,7 +702,7 @@ def test_rejects_false_columns_when_title_areas_overlap(
     with caplog.at_level(logging.INFO, logger=EXTRACTION_LOGGER):
         result = engine.process((_toc_page(),))
 
-    assert [chapter.title.text for chapter in result.chapters] == [
+    assert [chapter.title_toc_page.text for chapter in result.chapters] == [
         f"Entry {position}" for position in range(6)
     ]
     assert "title areas assigned to adjacent axes overlap" in _log_output(caplog)
@@ -740,12 +740,12 @@ def test_hierarchy_continues_across_toc_pages_and_preserves_page_keys(
     assert isinstance(result, TocBase)
     assert len(result.chapters) == 1
     assert result.chapters[0].toc_page_key == "toc-1"
-    assert result.chapters[0].page_number.text == "1"
-    assert isinstance(result.chapters[0].title.bbox, BoundingBox)
-    assert isinstance(result.chapters[0].page_number.bbox, BoundingBox)
+    assert result.chapters[0].page_number_toc_page.text == "1"
+    assert isinstance(result.chapters[0].title_toc_page.bbox, BoundingBox)
+    assert isinstance(result.chapters[0].page_number_toc_page.bbox, BoundingBox)
     assert len(result.chapters[0].children) == 1
     assert result.chapters[0].children[0].toc_page_key == "toc-2"
-    assert result.chapters[0].children[0].page_number.text == "2"
+    assert result.chapters[0].children[0].page_number_toc_page.text == "2"
     log_output = _log_output(caplog)
     assert "Extracting TOC hierarchy from 2 page(s)" in log_output
     assert "Chapter extraction page='toc-1'" in log_output
@@ -783,9 +783,9 @@ def test_number_only_unit_inherits_preceding_titled_level(
     assert len(result.chapters) == 1
     children = result.chapters[0].children
     assert len(children) == 3
-    assert children[1].page_number.text == "str. 003"
-    assert children[1].page_number.normalized_start() == "3"
-    assert children[1].title is None
+    assert children[1].page_number_toc_page.text == "str. 003"
+    assert children[1].page_number_toc_page.normalized_start() == "3"
+    assert children[1].title_toc_page is None
     assert not hasattr(children[1], "anchor_only")
 
 
@@ -820,7 +820,7 @@ def test_number_only_unit_inherits_preceding_level_across_pages(
 
     assert len(result.chapters) == 2
     inherited = result.chapters[0].children[1]
-    assert inherited.title is None
-    assert inherited.page_number.output_text() == "3"
+    assert inherited.title_toc_page is None
+    assert inherited.page_number_toc_page.output_text() == "3"
     assert inherited.toc_page_key == "toc-2"
-    assert result.chapters[1].title.text == "Next root"
+    assert result.chapters[1].title_toc_page.text == "Next root"

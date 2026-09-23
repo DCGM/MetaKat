@@ -215,7 +215,7 @@ class ChapterAlignmentEngineFuzzy:
         )
         flat_entries = flatten_toc(reference_toc)
         toc_number_by_entry = {
-            index: entry.page_number
+            index: entry.page_number_toc_page
             for index, entry in enumerate(flat_entries)
         }
         toc_monotonicity_score = _toc_monotonicity_score(
@@ -419,15 +419,15 @@ class ChapterAlignmentEngineFuzzy:
                 page_by_position,
                 enforce_toc_monotonic_order=enforce_toc_monotonic_order,
             )
-            if entry.title is None and destination is not None:
+            if entry.title_toc_page is None and destination is not None:
                 titleless_entries_with_destination_titles += 1
             resolved_by_identity[id(entry)] = ChapterResult(
                 toc_page_key=entry.toc_page_key,
-                title=entry.title,
-                subtitle=entry.subtitle,
-                part_number=entry.part_number,
-                page_number=entry.page_number,
-                title_destination_page=(
+                title_toc_page=entry.title_toc_page,
+                subtitle_toc_page=entry.subtitle_toc_page,
+                part_number_toc_page=entry.part_number_toc_page,
+                page_number_toc_page=entry.page_number_toc_page,
+                title=(
                     None if destination is None else destination.title
                 ),
                 page_start_key=page_start_key,
@@ -859,11 +859,11 @@ class ChapterAlignmentEngineFuzzy:
     ) -> _AnchorOption:
         confidence = toc_number.confidence + physical_number.confidence
         title_supported = (
-            entry.title is not None and destination_index is not None
+            entry.title_toc_page is not None and destination_index is not None
         )
         if title_supported:
             confidence += (
-                entry.title.confidence
+                entry.title_toc_page.confidence
                 + destinations[destination_index].title.confidence
             )
         return {
@@ -1004,10 +1004,10 @@ class ChapterAlignmentEngineFuzzy:
             len(assignment),
             sum(item["title_score"] for item in assignment),
             sum(
-                entry_by_index[item["entry_index"]].title.confidence
+                entry_by_index[item["entry_index"]].title_toc_page.confidence
                 + destinations[item["destination_index"]].title.confidence
                 for item in assignment
-                if entry_by_index[item["entry_index"]].title is not None
+                if entry_by_index[item["entry_index"]].title_toc_page is not None
             ),
         )
 
@@ -1395,11 +1395,11 @@ class ChapterAlignmentEngineFuzzy:
                         if destination_index in used_destinations:
                             diagnostics["already_used"] += 1
                             continue
-                        if entry.title is None:
+                        if entry.title_toc_page is None:
                             continue
                         title_score = title_similarity(
                             destinations[destination_index].title.text,
-                            entry.title.text,
+                            entry.title_toc_page.text,
                         )
                         if (
                             title_score
@@ -1439,7 +1439,7 @@ class ChapterAlignmentEngineFuzzy:
                         )
                 continue
 
-            if entry.title is not None:
+            if entry.title_toc_page is not None:
                 for destination_index, destination in enumerate(destinations):
                     if destination_index in used_destinations:
                         diagnostics["already_used"] += 1
@@ -1459,7 +1459,7 @@ class ChapterAlignmentEngineFuzzy:
                         continue
                     title_score = title_similarity(
                         destination.title.text,
-                        entry.title.text,
+                        entry.title_toc_page.text,
                     )
                     if title_score < self.minimum_title_substring_similarity:
                         diagnostics["below_title_similarity"] += 1
@@ -1843,7 +1843,7 @@ class ChapterAlignmentEngineFuzzy:
                     lambda candidate: candidate["destination_index"]
                     is not None,
                     lambda candidate: _solver_float(
-                        entries[candidate["entry_index"]].title.confidence
+                        entries[candidate["entry_index"]].title_toc_page.confidence
                         + destinations[
                             candidate["destination_index"]
                         ].title.confidence,
@@ -2227,7 +2227,7 @@ class ChapterAlignmentEngineFuzzy:
         *,
         used: set[int] | None = None,
     ) -> list[tuple[int, float]]:
-        if entry.title is None:
+        if entry.title_toc_page is None:
             return []
         used = used or set()
         matches = []
@@ -2237,7 +2237,7 @@ class ChapterAlignmentEngineFuzzy:
             destination = destinations[destination_index]
             score = title_similarity(
                 destination.title.text,
-                entry.title.text,
+                entry.title_toc_page.text,
             )
             if score >= self.minimum_title_substring_similarity:
                 matches.append((destination_index, score))
@@ -2269,11 +2269,11 @@ def _solver_float(value: float, label: str) -> int:
 
 
 def _entry_title(entry: ChapterBase) -> str | None:
-    return None if entry.title is None else entry.title.text
+    return None if entry.title_toc_page is None else entry.title_toc_page.text
 
 
 def _entry_page_number(entry: ChapterBase) -> str | None:
-    return None if entry.page_number is None else entry.page_number.text
+    return None if entry.page_number_toc_page is None else entry.page_number_toc_page.text
 
 
 def _toc_start_item(

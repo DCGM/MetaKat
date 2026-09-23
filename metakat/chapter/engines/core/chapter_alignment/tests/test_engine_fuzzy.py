@@ -183,7 +183,7 @@ def test_monotonicity_score_uses_longest_nondecreasing_subsequences(
     toc_page_number_fields,
 ):
     numbers = tuple(
-        toc_page_number_fields(str(value), "toc")["page_number"]
+        toc_page_number_fields(str(value), "toc")["page_number_toc_page"]
         for value in (1, 2, 3, 4, 5, 7, 6, 8, 9, 10)
     )
 
@@ -192,7 +192,7 @@ def test_monotonicity_score_uses_longest_nondecreasing_subsequences(
 
 def test_monotonicity_score_separates_numeral_systems(toc_page_number_fields):
     numbers = tuple(
-        toc_page_number_fields(text, "toc")["page_number"]
+        toc_page_number_fields(text, "toc")["page_number_toc_page"]
         for text in ("X", "XX", "1", "2")
     )
 
@@ -341,7 +341,7 @@ def test_unordered_exact_match_ignores_anchor_bounds(
 
     assert result.chapters[0].page_start_key == "page-8"
     assert result.chapters[1].page_start_key == "page-4"
-    assert result.chapters[1].title_destination_page is None
+    assert result.chapters[1].title is None
 
 
 def test_unordered_many_to_one_does_not_require_title_order(
@@ -376,7 +376,7 @@ def test_unordered_many_to_one_does_not_require_title_order(
         "page-5",
     )
     assert tuple(
-        chapter.title_destination_page.text for chapter in result.chapters
+        chapter.title.text for chapter in result.chapters
     ) == ("A", "B")
 
 
@@ -412,7 +412,7 @@ def test_unordered_many_to_one_canonicalizes_equal_title_pairings(
         "page-5",
     )
     assert tuple(
-        chapter.title_destination_page.bbox.y for chapter in result.chapters
+        chapter.title.bbox.y for chapter in result.chapters
     ) == (10, 50)
 
 
@@ -639,9 +639,9 @@ def test_a_chapter_number_only_in_the_toc_entry_costs_the_match():
     # The reverse direction gets no substring licence, so a number the TOC
     # entry carries and the heading does not now counts against the match.
     # 0.667 is below the 0.7 default threshold: this pairing used to align and
-    # no longer does. Extraction keeps part numbers in ChapterBase.part_number
-    # rather than in the title, so this is the leaked-number case rather than
-    # the normal one.
+    # no longer does. Extraction keeps part numbers in
+    # ChapterBase.part_number_toc_page rather than in the title, so this is the
+    # leaked-number case rather than the normal one.
     assert title_similarity("ÚVOD", "1. Úvod") == pytest.approx(2 / 3, abs=1e-3)
 
 
@@ -656,8 +656,8 @@ def test_alignment_preserves_raw_toc_evidence(
         chapters=(
             ChapterBase(
                 toc_page_key="page-0",
-                title=evidence("Introduction", "page-0"),
-                subtitle=evidence("Background", "page-0", y=30),
+                title_toc_page=evidence("Introduction", "page-0"),
+                subtitle_toc_page=evidence("Background", "page-0", y=30),
                 **toc_page_number_fields("XIV", "page-0"),
             ),
         )
@@ -677,10 +677,10 @@ def test_alignment_preserves_raw_toc_evidence(
 
     assert isinstance(result, TocResult)
     chapter = result.chapters[0]
-    assert chapter.subtitle.text == "Background"
-    assert chapter.page_number.text == "XIV"
+    assert chapter.subtitle_toc_page.text == "Background"
+    assert chapter.page_number_toc_page.text == "XIV"
     assert chapter.page_start_key == "page-15"
-    assert chapter.title_destination_page.page_key == "page-15"
+    assert chapter.title.page_key == "page-15"
 
 
 def test_alignment_preserves_normalized_toc_page_number_evidence(
@@ -698,8 +698,8 @@ def test_alignment_preserves_normalized_toc_page_number_evidence(
             (
                 ChapterBase(
                     toc_page_key="toc",
-                    title=evidence("Chapter", "toc"),
-                    page_number=ArabicRomanChapterPageNumberParser.create(
+                    title_toc_page=evidence("Chapter", "toc"),
+                    page_number_toc_page=ArabicRomanChapterPageNumberParser.create(
                         source_evidence
                     ),
                 ),
@@ -710,7 +710,7 @@ def test_alignment_preserves_normalized_toc_page_number_evidence(
         ),
     )
 
-    normalized = result.chapters[0].page_number
+    normalized = result.chapters[0].page_number_toc_page
     assert normalized.text == "str. 004"
     assert normalized.output_text() == "4"
     assert normalized.confidence == source_evidence.confidence
@@ -729,7 +729,7 @@ def test_duplicate_physical_number_requires_a_title_match(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Second chapter", "toc"),
+                title_toc_page=evidence("Second chapter", "toc"),
                 **toc_page_number_fields("10", "toc"),
             ),
         )
@@ -761,7 +761,7 @@ def test_one_to_many_multiple_title_matches_do_not_create_anchor(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Repeated chapter", "toc"),
+                title_toc_page=evidence("Repeated chapter", "toc"),
                 **toc_page_number_fields("10", "toc"),
             ),
         )
@@ -787,7 +787,7 @@ def test_one_to_many_multiple_title_matches_do_not_create_anchor(
         "anchors were selected" in _log_output(caplog)
     )
     assert result.chapters[0].page_start_key == "page-4"
-    assert result.chapters[0].title_destination_page.page_key == "page-4"
+    assert result.chapters[0].title.page_key == "page-4"
 
 
 def test_one_to_many_ideal_position_precedes_better_title_match(
@@ -801,7 +801,7 @@ def test_one_to_many_ideal_position_precedes_better_title_match(
         tuple(
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence(title, "toc"),
+                title_toc_page=evidence(title, "toc"),
                 **toc_page_number_fields(number, "toc"),
             )
             for title, number in (
@@ -827,7 +827,7 @@ def test_one_to_many_ideal_position_precedes_better_title_match(
     )
 
     assert result.chapters[1].page_start_key == "page-25"
-    assert result.chapters[1].title_destination_page.page_key == "page-25"
+    assert result.chapters[1].title.page_key == "page-25"
 
 
 def test_exact_one_to_many_does_not_fall_through_to_off_number_title(
@@ -856,7 +856,7 @@ def test_exact_one_to_many_does_not_fall_through_to_off_number_title(
     )
 
     assert result.chapters[0].page_start_key is None
-    assert result.chapters[0].title_destination_page is None
+    assert result.chapters[0].title is None
 
 
 def test_many_to_many_number_group_does_not_create_anchors(
@@ -990,7 +990,7 @@ def test_many_to_many_equal_assignments_use_canonical_order(
         "page-4",
     )
     assert tuple(
-        chapter.title_destination_page.bbox.y for chapter in result.chapters
+        chapter.title.bbox.y for chapter in result.chapters
     ) == (10, 50)
 
 
@@ -1027,8 +1027,8 @@ def test_many_to_one_non_anchors_all_resolve_without_title_matches(
 
     assert result.chapters[0].page_start_key == "page-5"
     assert result.chapters[1].page_start_key == "page-5"
-    assert result.chapters[0].title_destination_page is None
-    assert result.chapters[1].title_destination_page is None
+    assert result.chapters[0].title is None
+    assert result.chapters[1].title is None
 
 
 def test_ordered_assignment_maximizes_anchor_count_before_similarity(
@@ -1174,7 +1174,7 @@ def test_anchor_confidence_sums_all_supporting_evidence(
         1.0,
         entry,
         destinations,
-        entry.page_number,
+        entry.page_number_toc_page,
         physical_page_number("10", "page-3", confidence=0.4),
     )
 
@@ -1192,7 +1192,7 @@ def test_unique_page_number_aligns_without_destination_titles(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Chapter", "toc"),
+                title_toc_page=evidence("Chapter", "toc"),
                 **toc_page_number_fields("10", "toc"),
             ),
         )
@@ -1207,7 +1207,7 @@ def test_unique_page_number_aligns_without_destination_titles(
 
     chapter = result.chapters[0]
     assert chapter.page_start_key == "page-3"
-    assert chapter.title_destination_page is None
+    assert chapter.title is None
 
 
 # Subsumes the former test_unique_page_number_resolves_non_anchor_when_title_
@@ -1229,7 +1229,7 @@ def test_unique_exact_number_precedes_off_number_title_match(
             (
                 ChapterBase(
                     toc_page_key="toc",
-                    title=evidence("Expected chapter", "toc"),
+                    title_toc_page=evidence("Expected chapter", "toc"),
                     **toc_page_number_fields("10", "toc"),
                 ),
             )
@@ -1243,7 +1243,7 @@ def test_unique_exact_number_precedes_off_number_title_match(
 
     chapter = result.chapters[0]
     assert chapter.page_start_key == "page-3"
-    assert chapter.title_destination_page is None
+    assert chapter.title is None
 
 
 def test_exact_one_to_one_title_prefers_width_then_reading_order(
@@ -1258,7 +1258,7 @@ def test_exact_one_to_one_title_prefers_width_then_reading_order(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Chapter", "toc"),
+                title_toc_page=evidence("Chapter", "toc"),
                 **toc_page_number_fields("10", "toc"),
             ),
         )
@@ -1284,9 +1284,9 @@ def test_exact_one_to_one_title_prefers_width_then_reading_order(
 
     chapter = result.chapters[0]
     assert chapter.page_start_key == "page-3"
-    assert chapter.title_destination_page.text == "Chapter"
-    assert chapter.title_destination_page.bbox.width == 140
-    assert chapter.title_destination_page.bbox.y == 30
+    assert chapter.title.text == "Chapter"
+    assert chapter.title.bbox.width == 140
+    assert chapter.title.bbox.y == 30
     assert (
         "Anchor support is enabled, but no consistent page-number "
         "anchors were selected" in _log_output(caplog)
@@ -1331,7 +1331,7 @@ def test_alignment_accepts_both_evidence_collections_empty(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Chapter", "toc"),
+                title_toc_page=evidence("Chapter", "toc"),
             ),
         )
     )
@@ -1357,14 +1357,14 @@ def test_chapters_may_share_a_page_but_not_a_heading_detection(
     engine = fuzzy_engine()
     child = ChapterBase(
         toc_page_key="toc",
-        title=evidence("Section heading", "toc"),
+        title_toc_page=evidence("Section heading", "toc"),
         **toc_page_number_fields("10", "toc"),
     )
     reference = TocBase(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Volume heading", "toc"),
+                title_toc_page=evidence("Volume heading", "toc"),
                 **toc_page_number_fields("10", "toc"),
                 children=(child,),
             ),
@@ -1389,8 +1389,8 @@ def test_chapters_may_share_a_page_but_not_a_heading_detection(
     root = result.chapters[0]
     assert root.page_start_key == "page-5"
     assert root.children[0].page_start_key == "page-5"
-    assert root.title_destination_page.text == "VOLUME HEADING"
-    assert root.children[0].title_destination_page.text == "SECTION HEADING"
+    assert root.title.text == "VOLUME HEADING"
+    assert root.children[0].title.text == "SECTION HEADING"
 
 
 def test_anchor_chain_prefers_title_supported_monotonic_solution(
@@ -1405,7 +1405,7 @@ def test_anchor_chain_prefers_title_supported_monotonic_solution(
         tuple(
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence(title, "toc"),
+                title_toc_page=evidence(title, "toc"),
                 **toc_page_number_fields(str(number), "toc"),
             )
             for number, title in (
@@ -1446,20 +1446,20 @@ def test_mismatched_anchor_offsets_use_the_physical_interval(
     engine = fuzzy_engine()
     middle = ChapterBase(
         toc_page_key="toc",
-        title=evidence("Middle", "toc"),
+        title_toc_page=evidence("Middle", "toc"),
         **toc_page_number_fields("15", "toc"),
     )
     reference = TocBase(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("First", "toc"),
+                title_toc_page=evidence("First", "toc"),
                 **toc_page_number_fields("10", "toc"),
                 children=(middle,),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Last", "toc"),
+                title_toc_page=evidence("Last", "toc"),
                 **toc_page_number_fields("20", "toc"),
             ),
         )
@@ -1508,20 +1508,20 @@ def test_matching_anchor_offsets_keep_the_tolerance_constraint(
     engine = fuzzy_engine()
     middle = ChapterBase(
         toc_page_key="toc",
-        title=evidence("Middle", "toc"),
+        title_toc_page=evidence("Middle", "toc"),
         **toc_page_number_fields("15", "toc"),
     )
     reference = TocBase(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("First", "toc"),
+                title_toc_page=evidence("First", "toc"),
                 **toc_page_number_fields("10", "toc"),
                 children=(middle,),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Last", "toc"),
+                title_toc_page=evidence("Last", "toc"),
                 **toc_page_number_fields("20", "toc"),
             ),
         )
@@ -1558,7 +1558,7 @@ def test_anchor_derived_position_resolves_without_title_match(
         tuple(
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence(title, "toc"),
+                title_toc_page=evidence(title, "toc"),
                 **toc_page_number_fields(number, "toc"),
             )
             for title, number in (
@@ -1582,7 +1582,7 @@ def test_anchor_derived_position_resolves_without_title_match(
 
     middle = result.chapters[1]
     assert middle.page_start_key == "page-25"
-    assert middle.title_destination_page is None
+    assert middle.title is None
     log_output = _log_output(caplog)
     assert "Generating unified resolution candidates: entry=1" in log_output
     assert (
@@ -1603,7 +1603,7 @@ def test_disabled_anchors_use_the_unified_solver_without_offsets(
         tuple(
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence(title, "toc"),
+                title_toc_page=evidence(title, "toc"),
                 **toc_page_number_fields(number, "toc"),
             )
             for title, number in (
@@ -1688,7 +1688,7 @@ def test_distant_title_keeps_anchor_derived_position(
         tuple(
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence(title, "toc"),
+                title_toc_page=evidence(title, "toc"),
                 **toc_page_number_fields(number, "toc"),
             )
             for title, number in (
@@ -1712,7 +1712,7 @@ def test_distant_title_keeps_anchor_derived_position(
 
     middle = result.chapters[1]
     assert middle.page_start_key == "page-25"
-    assert middle.title_destination_page is None
+    assert middle.title is None
 
 
 def test_title_within_tolerance_precedes_anchor_position_fallback(
@@ -1726,7 +1726,7 @@ def test_title_within_tolerance_precedes_anchor_position_fallback(
         tuple(
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence(title, "toc"),
+                title_toc_page=evidence(title, "toc"),
                 **toc_page_number_fields(number, "toc"),
             )
             for title, number in (
@@ -1750,7 +1750,7 @@ def test_title_within_tolerance_precedes_anchor_position_fallback(
 
     middle = result.chapters[1]
     assert middle.page_start_key == "page-26"
-    assert middle.title_destination_page.page_key == "page-26"
+    assert middle.title.page_key == "page-26"
 
 
 def test_failed_title_fallback_logs_final_reason(
@@ -1769,7 +1769,7 @@ def test_failed_title_fallback_logs_final_reason(
                 (
                     ChapterBase(
                         toc_page_key="toc",
-                        title=evidence("Missing", "toc"),
+                        title_toc_page=evidence("Missing", "toc"),
                         **toc_page_number_fields("10", "toc"),
                     ),
                 )
@@ -1799,17 +1799,17 @@ def test_one_compatible_anchor_still_supplies_the_offset(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Roman", "toc"),
+                title_toc_page=evidence("Roman", "toc"),
                 **toc_page_number_fields("X", "toc"),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Middle", "toc"),
+                title_toc_page=evidence("Middle", "toc"),
                 **toc_page_number_fields("15", "toc"),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Arabic", "toc"),
+                title_toc_page=evidence("Arabic", "toc"),
                 **toc_page_number_fields("20", "toc"),
             ),
         )
@@ -1845,7 +1845,7 @@ def test_no_compatible_offsets_use_a_complete_anchor_interval(
         tuple(
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence(title, "toc"),
+                title_toc_page=evidence(title, "toc"),
                 **toc_page_number_fields(number, "toc"),
             )
             for title, number in (
@@ -1881,12 +1881,12 @@ def test_incompatible_preceding_anchor_supplies_a_one_sided_bound(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Roman", "toc"),
+                title_toc_page=evidence("Roman", "toc"),
                 **toc_page_number_fields("X", "toc"),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Arabic", "toc"),
+                title_toc_page=evidence("Arabic", "toc"),
                 **toc_page_number_fields("15", "toc"),
             ),
         )
@@ -1919,12 +1919,12 @@ def test_incompatible_following_anchor_supplies_a_one_sided_bound(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Arabic", "toc"),
+                title_toc_page=evidence("Arabic", "toc"),
                 **toc_page_number_fields("15", "toc"),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Roman", "toc"),
+                title_toc_page=evidence("Roman", "toc"),
                 **toc_page_number_fields("XX", "toc"),
             ),
         )
@@ -1959,7 +1959,7 @@ def test_range_resolves_explicit_end_page(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Range chapter", "toc"),
+                title_toc_page=evidence("Range chapter", "toc"),
                 **toc_page_number_fields("10–12", "toc"),
             ),
         )
@@ -1977,7 +1977,7 @@ def test_range_resolves_explicit_end_page(
     chapter = result.chapters[0]
     assert chapter.page_start_key == "page-20"
     assert chapter.page_end_key == "page-22"
-    assert chapter.page_number.output_text() == "10-12"
+    assert chapter.page_number_toc_page.output_text() == "10-12"
 
 
 def test_range_end_distance_tie_prefers_earlier_page_position(
@@ -1991,7 +1991,7 @@ def test_range_end_distance_tie_prefers_earlier_page_position(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Range chapter", "toc"),
+                title_toc_page=evidence("Range chapter", "toc"),
                 **toc_page_number_fields("10–12", "toc"),
             ),
         )
@@ -2024,7 +2024,7 @@ def test_list_uses_first_number_for_anchor_and_preserves_full_list(
             (
                 ChapterBase(
                     toc_page_key="toc",
-                    title=evidence("Listed chapter", "toc"),
+                    title_toc_page=evidence("Listed chapter", "toc"),
                     **toc_page_number_fields("010, 12, 14", "toc"),
                 ),
             )
@@ -2037,7 +2037,7 @@ def test_list_uses_first_number_for_anchor_and_preserves_full_list(
     chapter = result.chapters[0]
     assert chapter.page_start_key == "page-20"
     assert chapter.page_end_key is None
-    assert chapter.page_number.output_text() == "10,12,14"
+    assert chapter.page_number_toc_page.output_text() == "10,12,14"
 
 
 def test_descending_range_uses_start_as_single_number_anchor(
@@ -2055,7 +2055,7 @@ def test_descending_range_uses_start_as_single_number_anchor(
             (
                 ChapterBase(
                     toc_page_key="toc",
-                    title=evidence("Chapter", "toc"),
+                    title_toc_page=evidence("Chapter", "toc"),
                     **toc_page_number_fields("24-23", "toc"),
                 ),
             )
@@ -2068,7 +2068,7 @@ def test_descending_range_uses_start_as_single_number_anchor(
     chapter = result.chapters[0]
     assert chapter.page_start_key == "page-5"
     assert chapter.page_end_key is None
-    assert chapter.page_number.output_text() == "24"
+    assert chapter.page_number_toc_page.output_text() == "24"
 
 def test_end_inference_infers_from_the_following_entry_and_document_end(
     fuzzy_engine,
@@ -2081,12 +2081,12 @@ def test_end_inference_infers_from_the_following_entry_and_document_end(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("First", "toc"),
+                title_toc_page=evidence("First", "toc"),
                 **toc_page_number_fields("3", "toc"),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Second", "toc"),
+                title_toc_page=evidence("Second", "toc"),
                 **toc_page_number_fields("6", "toc"),
             ),
         )
@@ -2119,12 +2119,12 @@ def test_disabled_end_inference_leaves_implicit_ends_unresolved(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("First", "toc"),
+                title_toc_page=evidence("First", "toc"),
                 **toc_page_number_fields("3", "toc"),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Second", "toc"),
+                title_toc_page=evidence("Second", "toc"),
                 **toc_page_number_fields("6", "toc"),
             ),
         )
@@ -2157,12 +2157,12 @@ def test_end_inference_requires_the_configured_monotonicity_score(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Late", "toc"),
+                title_toc_page=evidence("Late", "toc"),
                 **toc_page_number_fields("20", "toc"),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Early", "toc"),
+                title_toc_page=evidence("Early", "toc"),
                 **toc_page_number_fields("10", "toc"),
             ),
         )
@@ -2193,7 +2193,7 @@ def test_null_end_inference_threshold_infers_without_a_usable_score(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Only chapter", "toc"),
+                title_toc_page=evidence("Only chapter", "toc"),
                 **toc_page_number_fields("10", "toc"),
             ),
         )
@@ -2228,19 +2228,19 @@ def test_end_inference_stops_a_parent_at_a_following_entry_not_its_child(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("First", "toc"),
+                title_toc_page=evidence("First", "toc"),
                 **toc_page_number_fields("2", "toc"),
                 children=(
                     ChapterBase(
                         toc_page_key="toc",
-                        title=evidence("Sub", "toc"),
+                        title_toc_page=evidence("Sub", "toc"),
                         **toc_page_number_fields("4", "toc"),
                     ),
                 ),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Second", "toc"),
+                title_toc_page=evidence("Second", "toc"),
                 **toc_page_number_fields("7", "toc"),
             ),
         )
@@ -2276,12 +2276,12 @@ def test_end_inference_never_overwrites_an_explicit_range_end(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Range chapter", "toc"),
+                title_toc_page=evidence("Range chapter", "toc"),
                 **toc_page_number_fields("2–3", "toc"),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Later chapter", "toc"),
+                title_toc_page=evidence("Later chapter", "toc"),
                 **toc_page_number_fields("8", "toc"),
             ),
         )
@@ -2312,17 +2312,17 @@ def test_titleless_entry_terminates_the_chapter_before_it(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("First", "toc"),
+                title_toc_page=evidence("First", "toc"),
                 **toc_page_number_fields("2", "toc"),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=None,
+                title_toc_page=None,
                 **toc_page_number_fields("5", "toc"),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Second", "toc"),
+                title_toc_page=evidence("Second", "toc"),
                 **toc_page_number_fields("8", "toc"),
             ),
         )
@@ -2339,7 +2339,7 @@ def test_titleless_entry_terminates_the_chapter_before_it(
     )
 
     first, titleless, second = result.chapters
-    assert titleless.title is None
+    assert titleless.title_toc_page is None
     assert titleless.page_start_key == "page-5"
     # Without the number-only entry the first chapter would run to page-7.
     assert first.page_end_key == "page-4"
@@ -2356,7 +2356,7 @@ def test_titleless_unique_number_resolves_without_destination_title(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=None,
+                title_toc_page=None,
                 **toc_page_number_fields("10", "toc"),
             ),
         )
@@ -2372,8 +2372,8 @@ def test_titleless_unique_number_resolves_without_destination_title(
     )
 
     assert len(result.chapters) == 1
+    assert result.chapters[0].title_toc_page is None
     assert result.chapters[0].title is None
-    assert result.chapters[0].title_destination_page is None
     assert result.chapters[0].page_start_key == "page-5"
 
 
@@ -2388,12 +2388,12 @@ def test_numberless_title_match_can_share_exact_number_page(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=None,
+                title_toc_page=None,
                 **toc_page_number_fields("10", "toc"),
             ),
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Detected title", "toc"),
+                title_toc_page=evidence("Detected title", "toc"),
             ),
         )
     )
@@ -2409,9 +2409,9 @@ def test_numberless_title_match_can_share_exact_number_page(
 
     titleless_anchor, titled_entry = result.chapters
     assert titleless_anchor.page_start_key == "page-5"
-    assert titleless_anchor.title_destination_page is None
+    assert titleless_anchor.title is None
     assert titled_entry.page_start_key == "page-5"
-    assert titled_entry.title_destination_page.text == "Detected title"
+    assert titled_entry.title.text == "Detected title"
 
 
 def test_titleless_entry_is_returned_for_wrapper_pruning(
@@ -2423,14 +2423,14 @@ def test_titleless_entry_is_returned_for_wrapper_pruning(
     engine = fuzzy_engine()
     child = ChapterBase(
         toc_page_key="toc",
-        title=evidence("Child", "toc"),
+        title_toc_page=evidence("Child", "toc"),
         **toc_page_number_fields("11", "toc"),
     )
     reference = TocBase(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=None,
+                title_toc_page=None,
                 **toc_page_number_fields("10", "toc"),
                 children=(child,),
             ),
@@ -2447,11 +2447,11 @@ def test_titleless_entry_is_returned_for_wrapper_pruning(
     )
 
     assert len(result.chapters) == 1
+    assert result.chapters[0].title_toc_page is None
     assert result.chapters[0].title is None
-    assert result.chapters[0].title_destination_page is None
     assert result.chapters[0].page_start_key == "page-5"
     assert len(result.chapters[0].children) == 1
-    assert result.chapters[0].children[0].title.text == "Child"
+    assert result.chapters[0].children[0].title_toc_page.text == "Child"
     assert result.chapters[0].children[0].page_start_key == "page-6"
 
 
@@ -2465,7 +2465,7 @@ def test_without_anchors_title_matching_uses_the_whole_document(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Chapter", "toc"),
+                title_toc_page=evidence("Chapter", "toc"),
             ),
         )
     )
@@ -2485,7 +2485,7 @@ def test_without_anchors_title_matching_uses_the_whole_document(
     )
 
     assert result.chapters[0].page_start_key == "page-3"
-    assert result.chapters[0].title_destination_page.page_key == "page-3"
+    assert result.chapters[0].title.page_key == "page-3"
 
 
 def test_title_fallback_globally_maximizes_monotonic_matches(
@@ -2524,7 +2524,7 @@ def test_title_fallback_globally_maximizes_monotonic_matches(
         )
 
     assert tuple(
-        chapter.title_destination_page.text for chapter in result.chapters
+        chapter.title.text for chapter in result.chapters
     ) == ("destination-0", "destination-1")
 
 
@@ -2563,8 +2563,8 @@ def test_title_fallback_global_assignment_enforces_monotonicity(
             destination_chapters=destinations,
         )
 
-    assert result.chapters[0].title_destination_page.text == "lower"
-    assert result.chapters[1].title_destination_page is None
+    assert result.chapters[0].title.text == "lower"
+    assert result.chapters[1].title is None
 
 
 def test_unordered_title_fallback_does_not_enforce_monotonicity(
@@ -2603,7 +2603,7 @@ def test_unordered_title_fallback_does_not_enforce_monotonicity(
         )
 
     assert tuple(
-        chapter.title_destination_page.text for chapter in result.chapters
+        chapter.title.text for chapter in result.chapters
     ) == ("lower", "upper")
 
 
@@ -2616,7 +2616,7 @@ def test_title_fallback_uses_reading_order_as_final_tie_break(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Chapter", "toc"),
+                title_toc_page=evidence("Chapter", "toc"),
             ),
         )
     )
@@ -2631,7 +2631,7 @@ def test_title_fallback_uses_reading_order_as_final_tie_break(
         ),
     )
 
-    selected = result.chapters[0].title_destination_page
+    selected = result.chapters[0].title
     assert selected.page_key == "page-2"
     assert selected.bbox.y == 10
 
@@ -2646,7 +2646,7 @@ def test_unparsable_toc_number_uses_title_fallback(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Chapter", "toc"),
+                title_toc_page=evidence("Chapter", "toc"),
                 **toc_page_number_fields("unknown", "toc"),
             ),
         )
@@ -2662,7 +2662,7 @@ def test_unparsable_toc_number_uses_title_fallback(
     )
 
     assert result.chapters[0].page_start_key == "page-2"
-    assert result.chapters[0].page_number.text == "unknown"
+    assert result.chapters[0].page_number_toc_page.text == "unknown"
 
 
 def test_unified_title_solver_uses_canonical_toc_order(
@@ -2709,7 +2709,7 @@ def test_rejected_numeric_fragment_cannot_anchor_but_is_preserved(
         (
             ChapterBase(
                 toc_page_key="toc",
-                title=evidence("Chapter", "toc"),
+                title_toc_page=evidence("Chapter", "toc"),
                 **toc_page_number_fields("-45", "toc"),
             ),
         )
@@ -2729,4 +2729,4 @@ def test_rejected_numeric_fragment_cannot_anchor_but_is_preserved(
 
     chapter = result.chapters[0]
     assert chapter.page_start_key == "page-2"
-    assert chapter.page_number.text == "-45"
+    assert chapter.page_number_toc_page.text == "-45"

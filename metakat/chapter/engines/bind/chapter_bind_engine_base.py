@@ -398,28 +398,25 @@ class ChapterBindEngineBase(ChapterBindEngine):
             else:
                 parent_id = container_id
 
-            # The chapter core names the TOC entry's reading `title` and the
-            # chapter's own heading `title_destination_page`. The schema is
-            # the other way round: the unsuffixed fields hold what was read on
-            # the destination page, the *TocPage fields what the TOC entry
-            # says. Everything but title_destination_page is a TOC reading.
+            # ChapterResult mirrors MetakatChapter: an unsuffixed field was
+            # read on the destination page, a `_toc_page` one in the TOC entry.
             chapter = MetakatChapter(
                 id=uuid4(),
                 parent_id=parent_id,
                 preview_page_id=None if start_page is None else start_page.id,
                 pageIndexStart=page_index_entries(start_page),
                 pageIndexEnd=page_index_entries(end_page),
-                title=bind_evidence(resolved.title_destination_page),
+                title=bind_evidence(resolved.title),
                 pageIndexTocPage=toc_page.pageIndex,
-                titleTocPage=bind_evidence(resolved.title),
-                subTitleTocPage=bind_evidence(resolved.subtitle),
-                partNumberTocPage=bind_evidence(resolved.part_number),
+                titleTocPage=bind_evidence(resolved.title_toc_page),
+                subTitleTocPage=bind_evidence(resolved.subtitle_toc_page),
+                partNumberTocPage=bind_evidence(resolved.part_number_toc_page),
                 pageNumberStartTocPage=bind_evidence(
-                    resolved.page_number,
+                    resolved.page_number_toc_page,
                     output_text=(
                         None
-                        if resolved.page_number is None
-                        else resolved.page_number.output_text()
+                        if resolved.page_number_toc_page is None
+                        else resolved.page_number_toc_page.output_text()
                     ),
                 ),
             )
@@ -455,10 +452,10 @@ class ChapterBindEngineBase(ChapterBindEngine):
     @staticmethod
     def _resolved_chapter_label(resolved: ChapterResult) -> str:
         for evidence in (
+            resolved.title_toc_page,
+            resolved.subtitle_toc_page,
             resolved.title,
-            resolved.subtitle,
-            resolved.title_destination_page,
-            resolved.page_number,
+            resolved.page_number_toc_page,
         ):
             if evidence is not None:
                 return evidence.text

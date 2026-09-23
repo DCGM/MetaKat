@@ -262,8 +262,8 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
             for chapter in chapters:
                 children = prune(chapter.children)
                 if (
-                    chapter.title is None
-                    and chapter.title_destination_page is None
+                    chapter.title_toc_page is None
+                    and chapter.title is None
                 ):
                     pruned_count += 1
                     retained.extend(children)

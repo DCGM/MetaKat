@@ -1299,9 +1299,9 @@ class ChapterExtractionEngineYOLOALTO:
     def _freeze(cls, entry: _MutableEntry) -> ChapterBase:
         return ChapterBase(
             toc_page_key=entry.toc_page_key,
-            title=entry.title,
-            subtitle=entry.subtitle,
-            part_number=entry.part_number,
-            page_number=entry.page_number,
+            title_toc_page=entry.title,
+            subtitle_toc_page=entry.subtitle,
+            part_number_toc_page=entry.part_number,
+            page_number_toc_page=entry.page_number,
             children=tuple(cls._freeze(child) for child in entry.children),
         )

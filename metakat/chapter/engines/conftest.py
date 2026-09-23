@@ -55,7 +55,7 @@ def evidence():
 
 @pytest.fixture
 def toc_page_number_fields(evidence):
-    """The page_number keyword arguments a TocBase or ChapterBase expects."""
+    """The page_number_toc_page keyword argument a ChapterBase expects."""
 
     def _build(
         text,
@@ -67,7 +67,7 @@ def toc_page_number_fields(evidence):
         height=20,
     ):
         return {
-            "page_number": ArabicRomanChapterPageNumberParser.create(
+            "page_number_toc_page": ArabicRomanChapterPageNumberParser.create(
                 evidence(
                     text,
                     page_key,

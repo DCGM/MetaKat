@@ -55,17 +55,17 @@ def test_chapter_type_uses_level_based_title_names(removed_name):
 def test_shared_toc_models_represent_base_and_aligned_results(evidence):
     base_chapter = ChapterBase(
         toc_page_key="toc-1",
-        title=evidence("Root", "toc-1"),
+        title_toc_page=evidence("Root", "toc-1"),
     )
     base_toc = TocBase(chapters=(base_chapter,))
     child = ChapterResult(
         toc_page_key="toc-2",
-        title=evidence("Child", "toc-2"),
+        title_toc_page=evidence("Child", "toc-2"),
         page_start_key="destination-2",
     )
     chapter = ChapterResult(
         toc_page_key="toc-1",
-        title=evidence("Root", "toc-1"),
+        title_toc_page=evidence("Root", "toc-1"),
         page_start_key="destination-1",
         children=(child,),
     )
@@ -80,7 +80,7 @@ def test_extraction_model_does_not_accept_alignment_fields(evidence):
     with pytest.raises(TypeError, match="page_start_key"):
         ChapterBase(
             toc_page_key="toc",
-            title=evidence("Title", "toc"),
+            title_toc_page=evidence("Title", "toc"),
             page_start_key="destination",
         )
 

@@ -52,19 +52,19 @@ def pipeline_inputs(tmp_path):
 def test_wrapper_prunes_titleless_results_and_splices_children(evidence, caplog):
     child = ChapterResult(
         toc_page_key="toc",
-        title=evidence("Child", "toc"),
+        title_toc_page=evidence("Child", "toc"),
         page_start_key="page-2",
     )
     titleless = ChapterResult(
         toc_page_key="toc",
-        title=None,
+        title_toc_page=None,
         page_start_key="page-1",
         children=(child,),
     )
     destination_titled = ChapterResult(
         toc_page_key="toc",
-        title=None,
-        title_destination_page=evidence(
+        title_toc_page=None,
+        title=evidence(
             "Destination title",
             "page-3",
         ),

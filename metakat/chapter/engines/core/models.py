@@ -95,13 +95,16 @@ class ChapterPageNumberEvidence(DetectionEvidence):
         return apply_page_number_text_case(self.text, case)
 
 
+# Field names follow the MetaKat schema (MetakatChapter): a `_toc_page` field
+# was read in the table-of-contents entry, an unsuffixed one on the chapter's
+# own destination page.
 @dataclass(frozen=True)
 class ChapterBase:
     toc_page_key: str
-    title: DetectionEvidence | None
-    subtitle: DetectionEvidence | None = field(default=None, kw_only=True)
-    part_number: DetectionEvidence | None = None
-    page_number: ChapterPageNumberEvidence | None = None
+    title_toc_page: DetectionEvidence | None
+    subtitle_toc_page: DetectionEvidence | None = field(default=None, kw_only=True)
+    part_number_toc_page: DetectionEvidence | None = None
+    page_number_toc_page: ChapterPageNumberEvidence | None = None
     children: tuple[ChapterBase, ...] = ()
 
 
@@ -112,7 +115,7 @@ class TocBase:
 
 @dataclass(frozen=True)
 class ChapterResult(ChapterBase):
-    title_destination_page: DetectionEvidence | None = None
+    title: DetectionEvidence | None = None
     page_start_key: str | None = None
     page_end_key: str | None = None
     children: tuple[ChapterResult, ...] = ()

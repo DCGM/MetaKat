@@ -191,7 +191,7 @@ def test_issues_are_processed_as_independent_documents(bind_engine, evidence):
         (
             ChapterResult(
                 toc_page_key="shared",
-                title=evidence("Chapter", "shared"),
+                title_toc_page=evidence("Chapter", "shared"),
                 page_start_key="shared",
             ),
         )
@@ -285,7 +285,7 @@ def test_leaf_volumes_keep_chapter_parents_and_ends_separate(
             (
                 ChapterResult(
                     toc_page_key="page",
-                    title=evidence("Chapter", "page"),
+                    title_toc_page=evidence("Chapter", "page"),
                     page_start_key="page",
                     page_end_key="page",
                 ),
@@ -489,7 +489,7 @@ def test_pages_without_alto_are_not_passed_to_the_core(
                 (
                     ChapterResult(
                         toc_page_key="first",
-                        title=evidence("Chapter", "first"),
+                        title_toc_page=evidence("Chapter", "first"),
                         page_start_key="first",
                     ),
                 ),
@@ -564,18 +564,18 @@ def test_recursive_result_binds_schema_and_detection_provenance(
         chapters=(
             ChapterResult(
                 toc_page_key="toc",
-                title=evidence("Chapter", "toc"),
-                subtitle=evidence("Subtitle", "toc", y=30),
-                page_number=ArabicRomanChapterPageNumberParser.create(
+                title_toc_page=evidence("Chapter", "toc"),
+                subtitle_toc_page=evidence("Subtitle", "toc", y=30),
+                page_number_toc_page=ArabicRomanChapterPageNumberParser.create(
                     evidence("10", "toc", x=500)
                 ),
-                title_destination_page=evidence("CHAPTER", "destination"),
+                title=evidence("CHAPTER", "destination"),
                 page_start_key="destination",
                 page_end_key="last",
                 children=(
                     ChapterResult(
                         toc_page_key="toc",
-                        title=evidence("Child", "toc", y=50),
+                        title_toc_page=evidence("Child", "toc", y=50),
                         page_start_key="last",
                         page_end_key="last",
                     ),
@@ -631,11 +631,11 @@ def test_explicit_container_parents_all_chapter_roots(bind_engine, evidence):
         chapters=(
             ChapterResult(
                 toc_page_key="page",
-                title=evidence("One", "page"),
+                title_toc_page=evidence("One", "page"),
             ),
             ChapterResult(
                 toc_page_key="page",
-                title=evidence("Two", "page"),
+                title_toc_page=evidence("Two", "page"),
             ),
         ),
     )
@@ -664,11 +664,11 @@ def test_titleless_chapter_uses_destination_title_evidence(bind_engine, evidence
         chapters=(
             ChapterResult(
                 toc_page_key="page",
-                title=None,
-                page_number=ArabicRomanChapterPageNumberParser.create(
+                title_toc_page=None,
+                page_number_toc_page=ArabicRomanChapterPageNumberParser.create(
                     evidence("10", "page")
                 ),
-                title_destination_page=evidence(
+                title=evidence(
                     "Destination title",
                     "page",
                 ),
