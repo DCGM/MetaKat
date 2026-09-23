@@ -27,8 +27,8 @@ def test_binder_only_binds_selected_core_evidence(metakat_page):
         metakat_io,
     )
 
-    assert metakat_page.pageNumber[:2] == ("42", 0.9)
-    detection_id = metakat_page.pageNumber[2]
+    assert (metakat_page.pageNumber.text, metakat_page.pageNumber.confidence) == ("42", 0.9)
+    detection_id = metakat_page.pageNumber.id
     assert metakat_io.detection_to_bbox[detection_id] == (10, 20, 30, 40)
     assert metakat_io.detection_to_page_mapping[detection_id] == metakat_page.id
     # Nothing beyond the selected evidence is recorded -- this is what makes

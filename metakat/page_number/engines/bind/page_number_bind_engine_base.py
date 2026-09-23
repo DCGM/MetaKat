@@ -16,6 +16,7 @@ from metakat.schemas.base_objects import (
     MetakatIO,
     MetakatPage,
     ProarcIO,
+    Value,
 )
 
 
@@ -114,7 +115,7 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
                 )
             if (
                 metakat_page.pageNumber is not None
-                and metakat_page.pageNumber[1] >= evidence.confidence
+                and metakat_page.pageNumber.confidence >= evidence.confidence
             ):
                 logger.debug(
                     "Keeping existing page number on page %s because its "
@@ -124,10 +125,10 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
                 continue
 
             detection_id = uuid4()
-            metakat_page.pageNumber = (
-                evidence.output_text(),
-                evidence.confidence,
-                detection_id,
+            metakat_page.pageNumber = Value(
+                text=evidence.output_text(),
+                confidence=evidence.confidence,
+                id=detection_id,
             )
             bbox = evidence.bbox
             metakat_io.detection_to_bbox[detection_id] = (

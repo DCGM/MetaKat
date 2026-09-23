@@ -187,7 +187,12 @@ class GroupType(str, enum.Enum):
 
 
 class MetakatBaseModel(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    # extra="forbid": an unknown field name is an error rather than silently
+    # dropped, so a stale or misspelt field in a constructor or in input JSON
+    # cannot lose data unnoticed.
+    # validate_assignment: `element.field = value` is validated like a
+    # constructor argument. In-place mutation (list.append) still is not.
+    model_config = ConfigDict(use_enum_values=True, extra="forbid", validate_assignment=True)
 
 
 class Value(MetakatBaseModel):
