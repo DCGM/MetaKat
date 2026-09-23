@@ -24,9 +24,15 @@ from metakat.schemas.base_objects import (
     MetakatPage,
     MetakatPageDimensions,
     MetakatVolume,
+    Value,
 )
 
 BIND_LOGGER = "metakat.chapter.engines.bind.chapter_bind_engine_base"
+
+
+def _indices(entries):
+    """The scan indices of a pageIndexStart/pageIndexEnd list."""
+    return [index for index, _ in entries]
 
 
 @pytest.fixture
@@ -64,7 +70,7 @@ def test_process_passes_existing_page_numbers_to_core(bind_engine):
         id=uuid4(),
         batch_id=batch_id,
         batch_index=0,
-        pageNumber=("XIV", 0.9, page_number_detection_id),
+        pageNumber=Value(text="XIV", confidence=0.9, id=page_number_detection_id),
         imageDim=MetakatPageDimensions(width=100, height=200),
         altoDim=MetakatPageDimensions(width=90, height=180),
     )
@@ -298,8 +304,8 @@ def test_leaf_volumes_keep_chapter_parents_and_ends_separate(
         if element.type == "chapter"
     }
     assert bind_engine.core_engine.process.call_count == 2
-    assert chapters[first_volume.id].pageIndexEnd == 5
-    assert chapters[second_volume.id].pageIndexEnd == 50
+    assert _indices(chapters[first_volume.id].pageIndexEnd) == [5]
+    assert _indices(chapters[second_volume.id].pageIndexEnd) == [50]
 
 
 def test_pages_with_ineligible_non_null_parents_are_ignored(bind_engine, caplog):
@@ -596,16 +602,20 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     root, child = chapters
     assert root.parent_id == volume_id
     assert child.parent_id == root.id
-    assert root.pageIndexToc == 3
-    assert root.pageIndexStart == 10
-    assert root.pageIndexEnd == 20
-    assert child.pageIndexEnd == 20
-    assert root.pageNumber[0] == "10"
-    assert root.subTitle[0] == "Subtitle"
-    assert root.title_destination_page[0] == "CHAPTER"
+    assert root.pageIndexTocPage == 3
+    assert _indices(root.pageIndexStart) == [10]
+    assert _indices(root.pageIndexEnd) == [20]
+    assert _indices(child.pageIndexEnd) == [20]
+    assert root.preview_page_id == pages[1].id
+    assert root.pageNumberStartTocPage[0].text == "10"
+    assert root.subTitleTocPage[0].text == "Subtitle"
+    # The core calls the TOC reading `title`; the schema keeps the heading
+    # read on the chapter's own page in `title` and the TOC's in titleTocPage.
+    assert root.title[0].text == "CHAPTER"
+    assert root.titleTocPage[0].text == "Chapter"
     assert root.id not in bbox_by_id
-    assert page_by_detection[root.title[2]] == pages[0].id
-    assert page_by_detection[root.title_destination_page[2]] == pages[1].id
+    assert page_by_detection[root.titleTocPage[0].id] == pages[0].id
+    assert page_by_detection[root.title[0].id] == pages[1].id
     assert len(bbox_by_id) == 5
 
 
@@ -676,8 +686,8 @@ def test_titleless_chapter_uses_destination_title_evidence(bind_engine, evidence
     )
 
     chapter = next(element for element in elements if element.type == "chapter")
-    assert chapter.title is None
-    assert chapter.title_destination_page[0] == "Destination title"
-    assert chapter.pageIndexStart == 7
+    assert chapter.titleTocPage is None
+    assert chapter.title[0].text == "Destination title"
+    assert _indices(chapter.pageIndexStart) == [7]
     assert len(bbox_by_id) == 2
-    assert page_by_detection[chapter.title_destination_page[2]] == page.id
+    assert page_by_detection[chapter.title[0].id] == page.id

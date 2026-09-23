@@ -34,6 +34,7 @@ from metakat.schemas.base_objects import (
     MetakatIO,
     MetakatPage,
     ProarcIO,
+    Value,
 )
 
 logger = logging.getLogger(__name__)
@@ -242,7 +243,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
     ) -> PhysicalPageNumberEvidence | None:
         if page.pageNumber is None:
             return None
-        text, confidence, detection_id = page.pageNumber
+        detection_id = page.pageNumber.id
         bbox = (metakat_io.detection_to_bbox or {}).get(detection_id)
         if bbox is None:
             logger.warning(
@@ -254,8 +255,8 @@ class ChapterBindEngineBase(ChapterBindEngine):
             return None
         return DecoratedPageNumberParser.create(
             page_key=page_key,
-            text=text,
-            confidence=confidence,
+            text=page.pageNumber.text,
+            confidence=page.pageNumber.confidence,
             bbox=BoundingBox(*bbox),
         )
 
@@ -306,11 +307,22 @@ class ChapterBindEngineBase(ChapterBindEngine):
         bbox_by_id: dict[UUID, tuple[float, float, float, float]] = {}
         page_by_detection: dict[UUID, UUID] = {}
 
+        def page_index_entries(
+            page: MetakatPage | None,
+        ) -> list[tuple[int, UUID]] | None:
+            # One scan run, so one entry, carrying its own id. Nothing groups
+            # these entries yet.
+            if page is None or page.pageIndex is None:
+                return None
+            return [(page.pageIndex, uuid4())]
+
         def bind_evidence(
             evidence: DetectionEvidence | None,
             *,
             output_text: str | None = None,
-        ) -> tuple[str, float, UUID] | None:
+        ) -> list[Value] | None:
+            # A one-element list: the schema's fields are lists, and the
+            # chapter core yields at most one reading per field.
             if evidence is None:
                 return None
             source_page = page_by_key.get(evidence.page_key)
@@ -327,11 +339,13 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 evidence.bbox.height,
             )
             page_by_detection[detection_id] = source_page.id
-            return (
-                evidence.text if output_text is None else output_text,
-                evidence.confidence,
-                detection_id,
-            )
+            return [
+                Value(
+                    text=evidence.text if output_text is None else output_text,
+                    confidence=evidence.confidence,
+                    id=detection_id,
+                )
+            ]
 
         def bind_chapter(
             resolved: ChapterResult,
@@ -384,20 +398,23 @@ class ChapterBindEngineBase(ChapterBindEngine):
             else:
                 parent_id = container_id
 
+            # The chapter core names the TOC entry's reading `title` and the
+            # chapter's own heading `title_destination_page`. The schema is
+            # the other way round: the unsuffixed fields hold what was read on
+            # the destination page, the *TocPage fields what the TOC entry
+            # says. Everything but title_destination_page is a TOC reading.
             chapter = MetakatChapter(
                 id=uuid4(),
                 parent_id=parent_id,
-                pageIndexToc=toc_page.pageIndex,
-                pageIndexStart=(
-                    None if start_page is None else start_page.pageIndex
-                ),
-                pageIndexEnd=(
-                    None if end_page is None else end_page.pageIndex
-                ),
-                title=bind_evidence(resolved.title),
-                subTitle=bind_evidence(resolved.subtitle),
-                partNumber=bind_evidence(resolved.part_number),
-                pageNumber=bind_evidence(
+                preview_page_id=None if start_page is None else start_page.id,
+                pageIndexStart=page_index_entries(start_page),
+                pageIndexEnd=page_index_entries(end_page),
+                title=bind_evidence(resolved.title_destination_page),
+                pageIndexTocPage=toc_page.pageIndex,
+                titleTocPage=bind_evidence(resolved.title),
+                subTitleTocPage=bind_evidence(resolved.subtitle),
+                partNumberTocPage=bind_evidence(resolved.part_number),
+                pageNumberStartTocPage=bind_evidence(
                     resolved.page_number,
                     output_text=(
                         None
@@ -405,20 +422,17 @@ class ChapterBindEngineBase(ChapterBindEngine):
                         else resolved.page_number.output_text()
                     ),
                 ),
-                title_destination_page=bind_evidence(
-                    resolved.title_destination_page
-                ),
             )
             logger.debug(
                 "Binding chapter depth=%d, label=%r, toc_page=%r, "
-                "start_page=%r, end_page=%r, pageIndexToc=%s, "
+                "start_page=%r, end_page=%r, pageIndexTocPage=%s, "
                 "pageIndexStart=%s, pageIndexEnd=%s",
                 depth,
                 chapter_label,
                 resolved.toc_page_key,
                 resolved.page_start_key,
                 resolved.page_end_key,
-                chapter.pageIndexToc,
+                chapter.pageIndexTocPage,
                 chapter.pageIndexStart,
                 chapter.pageIndexEnd,
             )
