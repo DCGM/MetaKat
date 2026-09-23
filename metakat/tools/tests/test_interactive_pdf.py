@@ -13,14 +13,24 @@ from metakat.schemas.base_objects import (
     MetakatPage,
     MetakatVolume,
     PageType,
+    Value,
 )
 from metakat.tools import create_interactive_pdf as pdf_module
+
+
+def _v(text, confidence, value_id=None):
+    return Value(text=text, confidence=confidence, id=value_id or uuid4())
+
+
+def _run(scan_index):
+    """A pageIndexStart/pageIndexEnd list holding one run."""
+    return [(scan_index, uuid4())]
 
 
 def test_single_document_creates_chapter_outline_and_toc_link(tmp_path, page_image):
     page_image(tmp_path / "first.jpg")
     page_image(tmp_path / "second.jpg")
-    volume = MetakatVolume(id=uuid4(), title=("Volume", 0.9, uuid4()))
+    volume = MetakatVolume(id=uuid4(), title=[_v("Volume", 0.9)])
     pages = [
         MetakatPage(
             id=uuid4(),
@@ -35,9 +45,9 @@ def test_single_document_creates_chapter_outline_and_toc_link(tmp_path, page_ima
     chapter = MetakatChapter(
         id=uuid4(),
         parent_id=volume.id,
-        pageIndexToc=0,
-        pageIndexStart=1,
-        title=("Chapter one", 0.8, title_detection),
+        pageIndexStart=_run(1),
+        pageIndexTocPage=0,
+        titleTocPage=[_v("Chapter one", 0.8, title_detection)],
     )
     metakat_io = MetakatIO(
         batch_id=uuid4(),
@@ -81,7 +91,7 @@ def test_multiple_documents_allow_repeated_local_page_indices(tmp_path, page_ima
     for document_index, label in enumerate(("Issue A", "Issue B")):
         issue = MetakatIssue(
             id=uuid4(),
-            title=(label, 0.9, uuid4()),
+            title=[_v(label, 0.9)],
         )
         issues.append(issue)
         document_pages = []
@@ -99,17 +109,13 @@ def test_multiple_documents_allow_repeated_local_page_indices(tmp_path, page_ima
             pages.append(page)
             document_pages.append(page)
             image_mapping[page.id] = filename
-        issue.page_id = document_pages[0].id
+        issue.preview_page_id = document_pages[0].id
         chapters.append(
             MetakatChapter(
                 id=uuid4(),
                 parent_id=issue.id,
-                pageIndexStart=1,
-                title=(
-                    f"Chapter {document_index + 1}",
-                    0.8,
-                    uuid4(),
-                ),
+                pageIndexStart=_run(1),
+                titleTocPage=[_v(f"Chapter {document_index + 1}", 0.8)],
             )
         )
     metakat_io = MetakatIO(
@@ -154,16 +160,12 @@ def test_chapter_outline_label_combines_all_available_fields(tmp_path, page_imag
     chapter = MetakatChapter(
         id=uuid4(),
         parent_id=volume.id,
-        pageIndexToc=0,
-        pageIndexStart=1,
-        partNumber=("I", 0.9, part_detection),
-        title=("TOC title", 0.9, title_detection),
-        title_destination_page=(
-            "Destination title",
-            0.8,
-            destination_detection,
-        ),
-        pageNumber=("12", 0.9, page_number_detection),
+        pageIndexStart=_run(1),
+        title=[_v("Destination title", 0.8, destination_detection)],
+        pageIndexTocPage=0,
+        titleTocPage=[_v("TOC title", 0.9, title_detection)],
+        partNumberTocPage=[_v("I", 0.9, part_detection)],
+        pageNumberStartTocPage=[_v("12", 0.9, page_number_detection)],
     )
     output = tmp_path / "output.pdf"
 
@@ -197,18 +199,18 @@ def test_chapter_outline_label_combines_all_available_fields(tmp_path, page_imag
         assert document.get_toc() == [[1, "I | TOC title | 12", 2]]
         source_link = document[0].get_links()[0]
         assert source_link["page"] == 1
-        assert "title_destination_page: Destination title (0.80)" in (
+        assert "title: Destination title (0.80)" in (
             document.xref_get_key(source_link["xref"], "Contents")[1]
         )
         destination_link = document[1].get_links()[0]
         assert destination_link["page"] == 0
-        assert "title: TOC title (0.90)" in (
+        assert "titleTocPage: TOC title (0.90)" in (
             document.xref_get_key(destination_link["xref"], "Contents")[1]
         )
         notes = list(document[1].annots())
         assert len(notes) == 1
         assert notes[0].info["subject"] == "Chapter metadata"
-        assert "pageNumber: 12 (0.90)" in notes[0].info["content"]
+        assert "pageNumberStartTocPage: 12 (0.90)" in notes[0].info["content"]
     finally:
         document.close()
 
@@ -217,10 +219,10 @@ def test_chapter_outline_uses_destination_title_as_title_fallback():
     chapter = MetakatChapter(
         id=uuid4(),
         parent_id=uuid4(),
-        pageIndexStart=0,
-        partNumber=("I", 0.9, uuid4()),
-        title_destination_page=("Destination title", 0.8, uuid4()),
-        pageNumber=("12", 0.9, uuid4()),
+        pageIndexStart=_run(0),
+        title=[_v("Destination title", 0.8)],
+        partNumberTocPage=[_v("I", 0.9)],
+        pageNumberStartTocPage=[_v("12", 0.9)],
     )
 
     assert pdf_module._chapter_label(chapter) == "I | Destination title | 12"
@@ -234,8 +236,8 @@ def test_page_and_bibliographic_sticky_notes_are_added(tmp_path, page_image):
     page_number_detection = uuid4()
     volume = MetakatVolume(
         id=uuid4(),
-        title=("Book title", 0.95, title_detection),
-        author=[("Book author", 0.85, author_detection)],
+        title=[_v("Book title", 0.95, title_detection)],
+        author=[_v("Book author", 0.85, author_detection)],
     )
     pages = [
         MetakatPage(
@@ -245,7 +247,7 @@ def test_page_and_bibliographic_sticky_notes_are_added(tmp_path, page_image):
             pageIndex=index,
             parent_id=volume.id,
             pageType=(PageType.TITLE_PAGE, 0.9 - index * 0.1),
-            pageNumber=("i", 0.8, page_number_detection)
+            pageNumber=_v("i", 0.8, page_number_detection)
             if index == 0
             else None,
         )
@@ -321,9 +323,9 @@ def test_multiple_links_on_one_toc_page_are_preserved(tmp_path, page_image):
         MetakatChapter(
             id=uuid4(),
             parent_id=volume.id,
-            pageIndexToc=0,
-            pageIndexStart=index + 1,
-            title=(f"Chapter {index + 1}", 0.9, detections[index]),
+            pageIndexStart=_run(index + 1),
+            pageIndexTocPage=0,
+            titleTocPage=[_v(f"Chapter {index + 1}", 0.9, detections[index])],
         )
         for index in range(2)
     ]
@@ -370,14 +372,14 @@ def test_chapter_hierarchy_is_preserved_in_outline(tmp_path, page_image):
     parent = MetakatChapter(
         id=uuid4(),
         parent_id=volume.id,
-        pageIndexStart=0,
-        title=("Parent", 0.9, uuid4()),
+        pageIndexStart=_run(0),
+        titleTocPage=[_v("Parent", 0.9)],
     )
     child = MetakatChapter(
         id=uuid4(),
         parent_id=parent.id,
-        pageIndexStart=1,
-        title=("Child", 0.9, uuid4()),
+        pageIndexStart=_run(1),
+        titleTocPage=[_v("Child", 0.9)],
     )
     metakat_io = MetakatIO(
         batch_id=uuid4(),

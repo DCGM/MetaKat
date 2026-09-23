@@ -24,6 +24,7 @@ from metakat.schemas.base_objects import (
     MetakatIO,
     MetakatPage,
     PageType,
+    Value,
 )
 
 
@@ -50,7 +51,7 @@ _BIBLIO_FIELD_NAMES = (
     "translator",
     "editor",
     "seriesName",
-    "seriesNumber",
+    "seriesPartNumber",
     "redaktor",
 )
 
@@ -291,14 +292,15 @@ def _build_outline(
             raise ValueError(f"Chapter hierarchy cycle detected at {chapter.id}")
         visiting.add(chapter.id)
         group = group_by_chapter_id[chapter.id]
+        start_index = _start_index(chapter)
         destination = (
             None
-            if chapter.pageIndexStart is None
-            else page_maps[group.container.id].get(chapter.pageIndexStart)
+            if start_index is None
+            else page_maps[group.container.id].get(start_index)
         )
         label = _chapter_label(chapter)
         included = destination is not None and label is not None
-        if chapter.pageIndexStart is None:
+        if start_index is None:
             logger.warning(
                 "Chapter %s has no pageIndexStart; skipping bookmark",
                 chapter.id,
@@ -308,7 +310,7 @@ def _build_outline(
                 "Chapter %s pageIndexStart=%s is not present in %s %s; "
                 "skipping bookmark",
                 chapter.id,
-                chapter.pageIndexStart,
+                start_index,
                 group.container.type,
                 group.container.id,
             )
@@ -370,32 +372,47 @@ def _container_destination(
     group: LowestDocumentGroup,
     rendered_by_page_id: dict[UUID, _RenderedPage],
 ) -> _RenderedPage:
-    page_id = getattr(group.container, "page_id", None)
+    page_id = group.container.preview_page_id
     if page_id in rendered_by_page_id:
         return rendered_by_page_id[page_id]
     return rendered_by_page_id[group.pages[0].id]
 
 
-def _value_text(value) -> str | None:
+def _first(values: list[Value] | None) -> Value | None:
+    return values[0] if values else None
+
+
+def _indices(entries: list[tuple[int, UUID]] | None) -> list[int] | None:
+    return None if entries is None else [index for index, _ in entries]
+
+
+def _start_index(chapter: MetakatChapter) -> int | None:
+    # The scan index of the chapter's first run. A chapter can have several
+    # runs; its bookmark goes to where it starts.
+    return chapter.pageIndexStart[0][0] if chapter.pageIndexStart else None
+
+
+def _value_text(values: list[Value] | None) -> str | None:
+    value = _first(values)
     if value is None:
         return None
-    text = str(value[0]).strip()
+    text = value.text.strip()
     return text or None
 
 
 def _container_label(group: LowestDocumentGroup) -> str:
-    title = _value_text(getattr(group.container, "title", None))
+    title = _value_text(group.container.title)
     return "monograph" if title is None else f"monograph | {title}"
 
 
 def _chapter_label(chapter: MetakatChapter) -> str | None:
-    title = _value_text(chapter.title)
+    title = _value_text(chapter.titleTocPage)
     if title is None:
-        title = _value_text(chapter.title_destination_page)
+        title = _value_text(chapter.title)
     parts = (
-        _value_text(chapter.partNumber),
+        _value_text(chapter.partNumberTocPage),
         title,
-        _value_text(chapter.pageNumber),
+        _value_text(chapter.pageNumberStartTocPage),
     )
     label = " | ".join(part for part in parts if part is not None)
     return label or None
@@ -433,8 +450,8 @@ def _insert_toc_links(
         )
         source = (
             None
-            if chapter.pageIndexToc is None
-            else page_maps[group.container.id].get(chapter.pageIndexToc)
+            if chapter.pageIndexTocPage is None
+            else page_maps[group.container.id].get(chapter.pageIndexTocPage)
         )
         evidence = _toc_evidence(
             chapter,
@@ -504,7 +521,7 @@ def _insert_toc_links(
         destination_title = _evidence_rectangle(
             pymupdf,
             document,
-            chapter.title_destination_page,
+            _first(chapter.title),
             detection_to_bbox,
             detection_to_page,
             rendered_by_page_id,
@@ -569,20 +586,20 @@ def _chapter_annotation_text(
     level: int,
 ) -> str:
     fields = (
-        ("partNumber", chapter.partNumber),
+        ("partNumberTocPage", chapter.partNumberTocPage),
+        ("titleTocPage", chapter.titleTocPage),
         ("title", chapter.title),
-        ("title_destination_page", chapter.title_destination_page),
-        ("pageNumber", chapter.pageNumber),
+        ("pageNumberStartTocPage", chapter.pageNumberStartTocPage),
     )
     lines = [
-        _bibliographic_line(field_name, evidence)
-        for field_name, evidence in fields
-        if evidence is not None
+        _bibliographic_line(field_name, value)
+        for field_name, values in fields
+        for value in (values or [])
     ]
     lines.append(f"level: {level}")
-    lines.append(f"pageIndexToc: {chapter.pageIndexToc}")
-    lines.append(f"pageIndexStart: {chapter.pageIndexStart}")
-    lines.append(f"pageIndexEnd: {chapter.pageIndexEnd}")
+    lines.append(f"pageIndexTocPage: {chapter.pageIndexTocPage}")
+    lines.append(f"pageIndexStart: {_indices(chapter.pageIndexStart)}")
+    lines.append(f"pageIndexEnd: {_indices(chapter.pageIndexEnd)}")
     return "\n".join(("Chapter", *lines))
 
 
@@ -660,11 +677,12 @@ def _insert_page_metadata_notes(
                     evidence_page.page.id,
                 )
                 continue
-            value, confidence, _ = page.pageNumber
             _add_sticky_note(
                 pdf_page,
                 _note_point(pdf_page.rect, rectangle),
-                _detection_note_text("pageNumber", value, confidence),
+                _detection_note_text(
+                    "pageNumber", page.pageNumber.text, page.pageNumber.confidence
+                ),
                 subject="Page number",
             )
 
@@ -674,15 +692,15 @@ def _insert_page_metadata_notes(
         if element.type
         in {DocumentType.VOLUME.value, DocumentType.ISSUE.value}
     ]
-    evidence_by_detection: dict[UUID, list[tuple[str, tuple]]] = defaultdict(
+    evidence_by_detection: dict[UUID, list[tuple[str, Value]]] = defaultdict(
         list
     )
-    evidence_by_element: dict[UUID, list[tuple[str, tuple]]] = {}
+    evidence_by_element: dict[UUID, list[tuple[str, Value]]] = {}
     for element in biblio_elements:
         evidence = list(_bibliographic_evidence(element))
         evidence_by_element[element.id] = evidence
-        for field_name, item in evidence:
-            evidence_by_detection[item[2]].append((field_name, item))
+        for field_name, value in evidence:
+            evidence_by_detection[value.id].append((field_name, value))
 
     for detection_id, evidence in evidence_by_detection.items():
         rectangle_result = _detection_rectangle(
@@ -701,12 +719,12 @@ def _insert_page_metadata_notes(
             )
             continue
         rendered, rectangle = rectangle_result
-        field_name, (text, confidence, _) = evidence[0]
+        field_name, value = evidence[0]
         pdf_page = document[rendered.pdf_index]
         _add_sticky_note(
             pdf_page,
             _note_point(pdf_page.rect, rectangle),
-            _detection_note_text(field_name, text, confidence),
+            _detection_note_text(field_name, value.text, value.confidence),
             subject="Bibliographic detection",
         )
 
@@ -721,11 +739,10 @@ def _insert_page_metadata_notes(
             candidate_pages = group.pages
         else:
             candidate_page_ids = {
-                detection_to_page.get(item[2]) for _, item in evidence
+                detection_to_page.get(value.id) for _, value in evidence
             }
-            page_id = getattr(element, "page_id", None)
-            if page_id is not None:
-                candidate_page_ids.add(page_id)
+            if element.preview_page_id is not None:
+                candidate_page_ids.add(element.preview_page_id)
             candidate_pages = tuple(
                 page
                 for page in pages
@@ -812,18 +829,12 @@ def _insert_detection_boxes(
 
 def _bibliographic_evidence(element):
     for field_name in _BIBLIO_FIELD_NAMES:
-        value = getattr(element, field_name, None)
-        if value is None:
-            continue
-        if isinstance(value, tuple):
+        for value in getattr(element, field_name) or []:
             yield field_name, value
-            continue
-        for item in value:
-            yield field_name, item
 
 
-def _bibliographic_line(field_name: str, evidence: tuple) -> str:
-    return f"{field_name}: {evidence[0]} ({evidence[1]:.2f})"
+def _bibliographic_line(field_name: str, value: Value) -> str:
+    return f"{field_name}: {value.text} ({value.confidence:.2f})"
 
 
 def _evidence_rectangle(
@@ -839,7 +850,7 @@ def _evidence_rectangle(
     return _detection_rectangle(
         pymupdf,
         document,
-        evidence[2],
+        evidence.id,
         detection_to_bbox,
         detection_to_page,
         rendered_by_page_id,
@@ -908,23 +919,27 @@ def _toc_evidence(
     detection_to_page: dict,
     rendered_by_page_id: dict[UUID, _RenderedPage],
 ) -> list[tuple[UUID, tuple[float, float, float, float]]]:
+    # What the TOC entry itself says, which is what the TOC link covers. The
+    # unsuffixed title is the chapter's own heading, read on another page.
     result = []
-    for field_name in ("title", "subTitle", "partNumber", "pageNumber"):
-        value = getattr(chapter, field_name)
-        if value is None:
-            continue
-        detection_id = value[2]
-        page_id = detection_to_page.get(detection_id)
-        bbox = detection_to_bbox.get(detection_id)
-        if page_id not in rendered_by_page_id or bbox is None:
-            logger.warning(
-                "Chapter %s %s detection %s is missing page or geometry",
-                chapter.id,
-                field_name,
-                detection_id,
-            )
-            continue
-        result.append((page_id, bbox))
+    for field_name in (
+        "titleTocPage",
+        "subTitleTocPage",
+        "partNumberTocPage",
+        "pageNumberStartTocPage",
+    ):
+        for value in getattr(chapter, field_name) or []:
+            page_id = detection_to_page.get(value.id)
+            bbox = detection_to_bbox.get(value.id)
+            if page_id not in rendered_by_page_id or bbox is None:
+                logger.warning(
+                    "Chapter %s %s detection %s is missing page or geometry",
+                    chapter.id,
+                    field_name,
+                    value.id,
+                )
+                continue
+            result.append((page_id, bbox))
     return result
 
 
