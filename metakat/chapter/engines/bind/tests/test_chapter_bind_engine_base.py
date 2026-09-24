@@ -66,10 +66,12 @@ def _messages(caplog):
 def test_process_passes_existing_page_numbers_to_core(bind_engine):
     batch_id = uuid4()
     page_number_detection_id = uuid4()
+    volume = MetakatVolume(id=uuid4(), hierarchy=HierarchyType.MONOGRAPH)
     first = MetakatPage(
         id=uuid4(),
         batch_id=batch_id,
         batch_index=0,
+        parent_id=volume.id,
         pageNumber=Value(text="XIV", confidence=0.9, id=page_number_detection_id),
         imageDim=MetakatPageDimensions(width=100, height=200),
         altoDim=MetakatPageDimensions(width=90, height=180),
@@ -78,11 +80,12 @@ def test_process_passes_existing_page_numbers_to_core(bind_engine):
         id=uuid4(),
         batch_id=batch_id,
         batch_index=1,
+        parent_id=volume.id,
         altoDim=MetakatPageDimensions(width=95, height=190),
     )
     metakat_io = MetakatIO(
         batch_id=batch_id,
-        elements=[first, second],
+        elements=[volume, first, second],
         page_to_image_mapping={
             first.id: "first.jpg",
             second.id: "second.jpg",
@@ -99,7 +102,7 @@ def test_process_passes_existing_page_numbers_to_core(bind_engine):
         process=mock.Mock(return_value=TocResult(()))
     )
 
-    result = bind_engine.process("/batch", metakat_io)
+    bind_engine.process("/batch", metakat_io)
 
     bind_engine.core_engine.process.assert_called_once_with(
         ["/batch/first.jpg", "/batch/second.jpg"],
@@ -118,25 +121,20 @@ def test_process_passes_existing_page_numbers_to_core(bind_engine):
             PageDimensions(95, 190),
         ),
     )
-    dummy = next(
-        element for element in result.elements if element.type == "volume"
-    )
-    result_pages = [
-        element for element in result.elements if element.type == "page"
-    ]
-    assert all(page.parent_id == dummy.id for page in result_pages)
 
 
 def test_process_omits_page_numbers_when_none_are_available(bind_engine):
     batch_id = uuid4()
+    volume = MetakatVolume(id=uuid4(), hierarchy=HierarchyType.MONOGRAPH)
     page = MetakatPage(
         id=uuid4(),
         batch_id=batch_id,
         batch_index=0,
+        parent_id=volume.id,
     )
     metakat_io = MetakatIO(
         batch_id=batch_id,
-        elements=[page],
+        elements=[volume, page],
         page_to_image_mapping={page.id: "page.jpg"},
         page_to_alto_mapping={page.id: "page.xml"},
     )
@@ -354,7 +352,12 @@ def test_pages_with_ineligible_non_null_parents_are_ignored(bind_engine, caplog)
     assert sum(element.type == "volume" for element in result.elements) == 1
 
 
-def test_orphan_pages_are_persisted_under_one_dummy_monograph(bind_engine):
+def test_pages_without_a_unit_are_skipped_and_no_unit_is_created(
+    bind_engine, caplog,
+):
+    # Attaching pages to issues and volumes is the biblio stage's job alone.
+    # A page reaching this binder without one can only come from input, and
+    # is left out rather than given a unit here.
     batch_id = uuid4()
     volume = MetakatVolume(
         id=uuid4(),
@@ -385,28 +388,25 @@ def test_orphan_pages_are_persisted_under_one_dummy_monograph(bind_engine):
         },
     )
     bind_engine.core_engine = types.SimpleNamespace(
-        process=mock.Mock(side_effect=(TocResult(()), TocResult(())))
+        process=mock.Mock(return_value=TocResult(()))
     )
 
-    result = bind_engine.process("/batch", metakat_io)
+    with caplog.at_level(logging.WARNING):
+        result = bind_engine.process("/batch", metakat_io)
 
-    result_pages = {
-        element.id: element
-        for element in result.elements
-        if element.type == "page"
-    }
     volumes = [
         element for element in result.elements if element.type == "volume"
     ]
-    dummy = next(item for item in volumes if item.id != volume.id)
-    assert len(volumes) == 2
-    assert dummy.hierarchy == HierarchyType.MONOGRAPH
-    assert result_pages[grouped_page.id].parent_id == volume.id
-    assert result_pages[orphan_page.id].parent_id == dummy.id
-    assert bind_engine.core_engine.process.call_count == 2
+    orphan = next(
+        element for element in result.elements if element.id == orphan_page.id
+    )
+    assert [item.id for item in volumes] == [volume.id]
+    assert orphan.parent_id is None
+    assert bind_engine.core_engine.process.call_count == 1
+    assert "belong to no issue or volume" in caplog.text
 
 
-def test_empty_input_creates_no_dummy_and_does_not_call_core(bind_engine):
+def test_empty_input_does_not_call_core(bind_engine):
     metakat_io = MetakatIO(batch_id=uuid4())
     bind_engine.core_engine = types.SimpleNamespace(process=mock.Mock())
 

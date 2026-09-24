@@ -8,6 +8,8 @@ import types
 from unittest import mock
 from uuid import uuid4
 
+import pytest
+
 import metakat.process_batch as process_batch_module
 from metakat.schemas.base_objects import MetakatIO
 
@@ -154,3 +156,24 @@ def test_init_io_yields_no_proarc_when_the_only_record_is_unusable():
     )
 
     assert proarc_io is None
+
+
+def _stage(category):
+    return {"core": {"name": f"{category}-core"}, "bind": {"name": f"{category}-bind"}}
+
+
+def test_chapter_engine_without_biblio_is_rejected_before_processing():
+    # Only the biblio stage attaches pages to issues and volumes, and chapters
+    # are found per issue or volume, so this configuration cannot work. The
+    # engine-availability checks are stubbed: stub names are not real engines.
+    with (
+        mock.patch.object(process_batch_module, "check_chapter_core_engine"),
+        mock.patch.object(process_batch_module, "check_biblio_core_engine"),
+    ):
+        with pytest.raises(ValueError, match="requires the biblio engine"):
+            process_batch_module._preflight_engine_requirements(
+                {"chapter": _stage("chapter")}
+            )
+        process_batch_module._preflight_engine_requirements(
+            {"biblio": _stage("biblio"), "chapter": _stage("chapter")}
+        )

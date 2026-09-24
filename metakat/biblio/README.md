@@ -814,6 +814,28 @@ The walk also assumes `MetakatIO.elements` lists pages in ascending
 `batch_index`; unlike `process()`, `bind()` filters that list without re-sorting
 it.
 
+#### Pages without a detected unit
+
+This binder is the only place in the pipeline that attaches pages to issues and
+volumes; later stages read those units and never create one. The walk attaches
+every page as soon as any issue or volume exists, so a page is left over only
+when the batch produced none at all. After the walk, any page still without a
+parent is attached to one new `monograph` volume with no title, appended to
+`MetakatIO.elements`, and a warning is logged. Later stages can therefore rely
+on every page having a unit.
+
+#### Page indices
+
+Right after pages are attached, `bind()` calls `assign_page_indices()` from
+`metakat/common/aux/document_groups.py`. It numbers the pages of every
+bottom-level unit - each issue, and each volume without issues - 1…n in
+`batch_index` order, which is the meaning of MODS `<part type="pageIndex">`:
+position within the unit, not within the batch. `batch_index` stays the
+0-based position in the batch. A page attached to a volume that has issues sits
+above the bottom level and gets `pageIndex=None`, with a warning. Pages are
+created without a `pageIndex`, so no page carries a position before it has a
+unit.
+
 ### Detection geometry retention
 
 Candidate construction records geometry for every handled detection, but

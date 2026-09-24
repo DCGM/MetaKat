@@ -264,18 +264,18 @@ class ChapterBindEngineBase(ChapterBindEngine):
     def _document_groups(
         metakat_io: MetakatIO,
     ) -> list[LowestDocumentGroup]:
-        groups = lowest_document_groups(metakat_io, log=logger)
-        for group in groups:
-            if not group.synthetic:
+        # The biblio stage attaches every page to an issue or volume; this
+        # binder only reads those units and never creates one. Pages without
+        # a unit can only come from an input MetakatIO, and are left out.
+        groups = []
+        for group in lowest_document_groups(metakat_io, log=logger):
+            if group.synthetic:
+                logger.warning(
+                    "Skipping %d page(s) that belong to no issue or volume",
+                    len(group.pages),
+                )
                 continue
-            metakat_io.elements.append(group.container)
-            for page in group.pages:
-                page.parent_id = group.container.id
-            logger.warning(
-                "Assigned %d parentless page(s) to dummy monograph %s",
-                len(group.pages),
-                group.container.id,
-            )
+            groups.append(group)
         return groups
 
     @staticmethod

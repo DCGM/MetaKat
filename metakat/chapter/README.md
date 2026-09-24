@@ -2116,11 +2116,13 @@ lowest document group. Eligible containers are:
 Only pages whose direct `parent_id` identifies an eligible container are added
 to that container's group. Groups and pages are processed by `batch_index`.
 
-Pages with `parent_id=None` are placed together under one synthetic monograph
-volume. The synthetic volume is added to `MetakatIO`, and those pages are
-reparented to it. A page with any other invalid or ineligible parent is ignored
-because such a relation violates the MetaKat hierarchy. Empty input creates no
-synthetic volume.
+The binder never attaches pages to issues or volumes; that is the
+[biblio stage's](../biblio/README.md#pages-without-a-detected-unit) job alone,
+which is also why a pipeline with a chapter engine must include a biblio
+engine - the preflight rejects one that does not. A page with `parent_id=None`
+can therefore only come from an input `MetakatIO`; such pages are skipped with a
+warning. A page with any other invalid or ineligible parent is ignored because
+such a relation violates the MetaKat hierarchy.
 
 When at least one page in a group already has `MetakatPage.pageNumber`, the
 binder converts each available MetaKat `Value` into parsed
@@ -2181,8 +2183,8 @@ the complete entry set; the registered core resolves ends under
 [Chapter end inference](#chapter-end-inference).
 
 For each processed document group, the new chapter elements are inserted
-immediately after their enclosing issue, leaf volume, or synthetic orphan
-container in `MetakatIO.elements`. Each returned chapter tree remains a
+immediately after their enclosing issue or leaf volume in
+`MetakatIO.elements`. Each returned chapter tree remains a
 contiguous pre-order block: a parent chapter is followed by its descendants
 before the next root chapter. Other pre-existing elements retain their
 relative order.

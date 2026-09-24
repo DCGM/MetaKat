@@ -153,3 +153,31 @@ def lowest_document_groups(
         )
 
     return sorted(groups, key=lambda group: group.pages[0].batch_index)
+
+
+def assign_page_indices(
+    metakat_io: MetakatIO,
+    *,
+    log: logging.Logger = logger,
+) -> None:
+    """Number every page 1..n within its bottom-level unit, in batch order.
+
+    This is MODS <part type="pageIndex">: the position of a page inside its
+    issue, or inside a volume that has no issues - not its position in the
+    batch, which is batch_index. Called by whichever step attaches pages to
+    their units, right after it does, since the numbering exists only once
+    the units do.
+
+    A page outside every bottom-level unit gets None: a parentless page (the
+    synthetic group is not a unit until someone makes it one) and a page
+    attached to a volume that has issues. Recomputed from scratch each call,
+    so a later step that attaches more pages simply calls it again.
+    """
+    for element in metakat_io.elements:
+        if element.type == DocumentType.PAGE.value:
+            element.pageIndex = None
+    for group in lowest_document_groups(metakat_io, log=log):
+        if group.synthetic:
+            continue
+        for index, page in enumerate(group.pages, start=1):
+            page.pageIndex = index

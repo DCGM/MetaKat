@@ -896,6 +896,8 @@ def test_bind_attaches_periodical_issues_to_the_volume_they_belong_to():
     assert issue_2.parent_id == volume_2.id
     assert {p.parent_id for p in pages[:3]} == {issue_1.id}
     assert {p.parent_id for p in pages[3:]} == {issue_2.id}
+    # Attaching pages is what gives them positions: 1-based, per issue.
+    assert [p.pageIndex for p in pages] == [1, 2, 3, 1, 2, 3]
 
 
 def test_periodical_bag_matches_same_volume_across_pages_despite_ocr_noise():
@@ -1204,3 +1206,36 @@ def test_an_unanchored_volume_is_left_out_of_page_binding(caplog):
     assert {p.parent_id for p in pages} == {anchored.id}
     assert from_input.parent_id is None
     assert str(from_input.id) in caplog.text
+
+
+def test_a_batch_without_any_volume_becomes_one_untitled_monograph():
+    # This binder is the only place pages get a unit. When nothing was
+    # detected to attach them to, the whole batch is one untitled monograph,
+    # so every later stage can rely on every page having a unit.
+    binder = _binder({})
+    batch_id = uuid4()
+    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(3)]
+    metakat_io = MetakatIO(batch_id=batch_id, elements=list(pages))
+
+    binder.bind(metakat_io, {})
+
+    volumes = [e for e in metakat_io.elements if e.type == DocumentType.VOLUME.value]
+    assert len(volumes) == 1
+    assert volumes[0].hierarchy == HierarchyType.MONOGRAPH
+    assert volumes[0].title is None
+    assert {p.parent_id for p in pages} == {volumes[0].id}
+    assert [p.pageIndex for p in pages] == [1, 2, 3]
+
+
+def test_no_untitled_monograph_is_added_when_every_page_has_a_unit():
+    anchors = {}
+    binder = _binder({})
+    batch_id = uuid4()
+    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(3)]
+    volume = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
+    metakat_io = MetakatIO(batch_id=batch_id, elements=[volume, *pages])
+
+    binder.bind(metakat_io, anchors)
+
+    volumes = [e for e in metakat_io.elements if e.type == DocumentType.VOLUME.value]
+    assert [v.id for v in volumes] == [volume.id]

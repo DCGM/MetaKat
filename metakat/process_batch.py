@@ -291,10 +291,11 @@ def init_io(batch_dir: str,
                 )
         else:
             page_id = uuid4()
+            # pageIndex is the position within the page's issue or volume,
+            # set once a binder attaches the page to one.
             metakat_page = MetakatPage(id=page_id,
                                        batch_id=metakat_io.batch_id,
-                                       batch_index=batch_index,
-                                       pageIndex=batch_index)
+                                       batch_index=batch_index)
             metakat_io.elements.append(metakat_page)
             metakat_pages_by_id[page_id] = metakat_page
             metakat_io.page_to_image_mapping[page_id] = image_name
@@ -350,6 +351,17 @@ def _preflight_engine_requirements(pipeline_config: Mapping[str, Any]) -> None:
         component = _engine_pair(pipeline_config, category)
         if component is not None:
             check(component["core"])
+
+    # Only the biblio stage attaches pages to issues and volumes. Chapters are
+    # found per issue or volume, so without it they would have none.
+    if (
+        _engine_pair(pipeline_config, "chapter") is not None
+        and _engine_pair(pipeline_config, "biblio") is None
+    ):
+        raise ValueError(
+            "Pipeline chapter engine requires the biblio engine, which is the "
+            "only stage that attaches pages to issues and volumes"
+        )
 
 
 def _engine_pair(

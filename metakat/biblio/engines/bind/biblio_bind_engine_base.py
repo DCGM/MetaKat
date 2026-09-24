@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from text_geometry_aligner import AlignmentPage
 
 from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
+from metakat.common.aux.document_groups import assign_page_indices
 
 from metakat.schemas.base_objects import MetakatIO, ProarcIO, ObjectItem, ObjectModel, DocumentType, MetakatPage, \
     PageType, BiblioType, MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle, HierarchyType, Value
@@ -361,6 +362,36 @@ class BiblioBindEngineBase(BiblioBindEngine):
         elif infant_pages:
             self.bind_infants(pages, infants=infant_pages, parents=infant_volumes,
                               apply_cover_nudge=True, anchors=anchors)
+
+        self._attach_unattached_pages(metakat_io)
+
+        # Pages now belong to their issues and volumes, which is what gives
+        # them a position within one.
+        assign_page_indices(metakat_io, log=logger)
+
+    @staticmethod
+    def _attach_unattached_pages(metakat_io: MetakatIO) -> None:
+        # The walk attaches every page once any issue or volume exists, so a
+        # page is left over only when the batch produced none at all. Such a
+        # batch is read as one untitled monograph. This is the only place a
+        # page gets a unit without one being detected; later stages rely on
+        # every page having one.
+        unattached = [
+            element for element in metakat_io.elements
+            if element.type == DocumentType.PAGE.value and element.parent_id is None
+        ]
+        if not unattached:
+            return
+        volume = MetakatVolume(id=uuid4(), hierarchy=HierarchyType.MONOGRAPH)
+        metakat_io.elements.append(volume)
+        for page in unattached:
+            page.parent_id = volume.id
+        logger.warning(
+            "No issue or volume was found for %d page(s); attached them to "
+            "untitled monograph %s",
+            len(unattached),
+            volume.id,
+        )
 
     @staticmethod
     def _anchored(

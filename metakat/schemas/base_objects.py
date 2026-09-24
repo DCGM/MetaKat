@@ -400,8 +400,12 @@ class MetakatPage(MetakatBaseModel):
     type: Literal["page"] = "page"
     id: UUID
     batch_id: UUID
+    # Position in the processed batch, 0-based. Fixed when the page is created.
     batch_index: int
     parent_id: Optional[UUID] = None
+    # Position within the page's bottom-level unit - its issue, or a volume
+    # without issues - 1-based, as MODS <part type="pageIndex">. Set by the
+    # step that attaches the page to that unit; None while it has none.
     pageIndex: Optional[int] = None
     pageNumber: Optional[Value] = None
     pageType: Optional[Tuple[PageType, float]] = None
