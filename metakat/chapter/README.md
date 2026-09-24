@@ -2158,11 +2158,24 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 | `titleTocPage` | `title_toc_page`: title evidence detected on the TOC page. |
 | `subTitleTocPage` | `subtitle_toc_page`: subtitle evidence detected on the TOC page and associated with the entry's title during stage 2. |
 | `partNumberTocPage` | `part_number_toc_page`: part-number evidence detected on the TOC page. |
-| `pageNumberStartTocPage` | `page_number_toc_page`: normalized valid TOC reference, or unchanged original evidence when parsing failed. It is the whole reference, so a range is written here as one text such as `12-15`; `pageNumberEndTocPage` is not filled yet. It is not the physical page number. |
+| `pageNumberStartTocPage` | `page_number_toc_page` split by its parsed kind: a single page gives one start, a range its first page, a list one start per listed page, and a reference that failed to parse its original text. It is not the physical page number. |
+| `pageNumberEndTocPage` | The last page of a range reference; otherwise `None`. |
+| `groups` | See below. |
 
 Every field is named as in the core result: an unsuffixed field was read on
-the destination page, a `TocPage` one in the TOC entry. `groups` is not
-filled yet.
+the destination page, a `TocPage` one in the TOC entry. All values split from
+one printed reference share its bounding box but each has its own id.
+
+The binder groups only what it knows belongs together, and creates a group
+only when it would have at least two members:
+
+- `titleInfo`: every title reading of the chapter - `title`, `titleTocPage`,
+  `subTitleTocPage`, `partNumberTocPage`. They all describe this one chapter.
+- `pageRange`: the resolved `pageIndexStart` and `pageIndexEnd` entries, which
+  are the chapter's one resolved run, together with the TOC start (and end)
+  when the reference is a single page or a range - the number the core aligned
+  that run to. The pages of a list reference stay ungrouped, since which of
+  them the run belongs to is not known here.
 
 Page keys are translated through the image-stem mapping for the processed
 document. An unknown TOC or evidence page key is an error. Unknown start/end

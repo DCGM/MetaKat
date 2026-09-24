@@ -691,3 +691,120 @@ def test_titleless_chapter_uses_destination_title_evidence(bind_engine, evidence
     assert _indices(chapter.pageIndexStart) == [7]
     assert len(bbox_by_id) == 2
     assert page_by_detection[chapter.title[0].id] == page.id
+
+
+def _bind_one_chapter(bind_engine, evidence, printed_pages, *, end_key="last"):
+    """Bind one chapter from a TOC entry printing `printed_pages`."""
+    volume_id = uuid4()
+    batch_id = uuid4()
+    pages = {
+        key: MetakatPage(
+            id=uuid4(),
+            batch_id=batch_id,
+            batch_index=index,
+            pageIndex=index + 1,
+            parent_id=volume_id,
+        )
+        for index, key in enumerate(("toc", "destination", "last"))
+    }
+    result = TocResult(
+        chapters=(
+            ChapterResult(
+                toc_page_key="toc",
+                title_toc_page=evidence("Chapter", "toc"),
+                subtitle_toc_page=evidence("Subtitle", "toc", y=30),
+                page_number_toc_page=ArabicRomanChapterPageNumberParser.create(
+                    evidence(printed_pages, "toc", x=500)
+                ),
+                title=evidence("CHAPTER", "destination"),
+                page_start_key="destination",
+                page_end_key=end_key,
+            ),
+        ),
+    )
+    elements, bbox_by_id, page_by_detection = (
+        bind_engine.extract_metakat_elements_from_pipeline(
+            result, pages, container_id=volume_id,
+        )
+    )
+    chapter = next(element for element in elements if element.type == "chapter")
+    return chapter, bbox_by_id, page_by_detection
+
+
+def _group(chapter, group_type):
+    groups = [group for group in chapter.groups or [] if group.type == group_type]
+    assert len(groups) <= 1
+    return groups[0] if groups else None
+
+
+def _texts(values):
+    return None if values is None else [value.text for value in values]
+
+
+def test_a_printed_page_range_becomes_a_start_and_an_end_of_one_run(
+    bind_engine, evidence,
+):
+    chapter, bbox_by_id, _ = _bind_one_chapter(bind_engine, evidence, "12-15")
+
+    assert _texts(chapter.pageNumberStartTocPage) == ["12"]
+    assert _texts(chapter.pageNumberEndTocPage) == ["15"]
+    # Both numbers were read from the one printed reference.
+    start, end = chapter.pageNumberStartTocPage[0], chapter.pageNumberEndTocPage[0]
+    assert start.id != end.id
+    assert bbox_by_id[start.id] == bbox_by_id[end.id]
+    # The scan run and the printed range it was aligned to form one pageRange.
+    assert set(_group(chapter, "pageRange").members) == {
+        chapter.pageIndexStart[0][1],
+        chapter.pageIndexEnd[0][1],
+        start.id,
+        end.id,
+    }
+
+
+def test_a_single_printed_page_joins_the_run_as_its_start(bind_engine, evidence):
+    chapter, _, _ = _bind_one_chapter(bind_engine, evidence, "12")
+
+    assert _texts(chapter.pageNumberStartTocPage) == ["12"]
+    assert chapter.pageNumberEndTocPage is None
+    assert set(_group(chapter, "pageRange").members) == {
+        chapter.pageIndexStart[0][1],
+        chapter.pageIndexEnd[0][1],
+        chapter.pageNumberStartTocPage[0].id,
+    }
+
+
+def test_a_printed_page_list_gives_ungrouped_starts(bind_engine, evidence):
+    # Which listed page the resolved run belongs to is not known to the
+    # binder, so the listed pages stay out of the run's group.
+    chapter, _, _ = _bind_one_chapter(bind_engine, evidence, "12, 15")
+
+    assert _texts(chapter.pageNumberStartTocPage) == ["12", "15"]
+    assert chapter.pageNumberEndTocPage is None
+    assert set(_group(chapter, "pageRange").members) == {
+        chapter.pageIndexStart[0][1],
+        chapter.pageIndexEnd[0][1],
+    }
+
+
+def test_an_unresolved_end_with_one_printed_page_still_pairs_them(
+    bind_engine, evidence,
+):
+    chapter, _, _ = _bind_one_chapter(bind_engine, evidence, "12", end_key=None)
+
+    assert chapter.pageIndexEnd is None
+    assert set(_group(chapter, "pageRange").members) == {
+        chapter.pageIndexStart[0][1],
+        chapter.pageNumberStartTocPage[0].id,
+    }
+
+
+def test_all_title_readings_of_a_chapter_form_one_title_info_group(
+    bind_engine, evidence,
+):
+    chapter, _, _ = _bind_one_chapter(bind_engine, evidence, "12")
+
+    assert set(_group(chapter, "titleInfo").members) == {
+        chapter.title[0].id,
+        chapter.titleTocPage[0].id,
+        chapter.subTitleTocPage[0].id,
+    }

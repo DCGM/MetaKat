@@ -13,6 +13,8 @@ from metakat.common.aux.document_groups import (
 )
 from metakat.chapter.engines.bind.chapter_bind_engine import ChapterBindEngine
 from metakat.chapter.engines.core.models import (
+    ChapterPageNumberEvidence,
+    ChapterPageNumberKind,
     ChapterResult,
     TocResult,
 )
@@ -29,8 +31,10 @@ from metakat.page_number.engines.core.page_number_parsers import (
 )
 from metakat.schemas.base_objects import (
     DocumentType,
+    GroupType,
     MetakatChapter,
     MetakatElement,
+    MetakatGroup,
     MetakatIO,
     MetakatPage,
     ProarcIO,
@@ -310,42 +314,61 @@ class ChapterBindEngineBase(ChapterBindEngine):
         def page_index_entries(
             page: MetakatPage | None,
         ) -> list[tuple[int, UUID]] | None:
-            # One scan run, so one entry, carrying its own id. Nothing groups
-            # these entries yet.
+            # One scan run, so one entry, carrying its own id.
             if page is None or page.pageIndex is None:
                 return None
             return [(page.pageIndex, uuid4())]
 
-        def bind_evidence(
-            evidence: DetectionEvidence | None,
-            *,
-            output_text: str | None = None,
-        ) -> list[Value] | None:
-            # A one-element list: the schema's fields are lists, and the
-            # chapter core yields at most one reading per field.
-            if evidence is None:
-                return None
+        def new_value(evidence: DetectionEvidence, text: str) -> Value:
+            # Every value gets its own id; values read from one region share
+            # its geometry and page.
             source_page = page_by_key.get(evidence.page_key)
             if source_page is None:
                 raise ValueError(
                     f"Detection evidence refers to unknown page key: "
                     f"{evidence.page_key}"
                 )
-            detection_id = uuid4()
-            bbox_by_id[detection_id] = (
+            value_id = uuid4()
+            bbox_by_id[value_id] = (
                 evidence.bbox.x,
                 evidence.bbox.y,
                 evidence.bbox.width,
                 evidence.bbox.height,
             )
-            page_by_detection[detection_id] = source_page.id
-            return [
-                Value(
-                    text=evidence.text if output_text is None else output_text,
-                    confidence=evidence.confidence,
-                    id=detection_id,
+            page_by_detection[value_id] = source_page.id
+            return Value(text=text, confidence=evidence.confidence, id=value_id)
+
+        def bind_evidence(
+            evidence: DetectionEvidence | None,
+        ) -> list[Value] | None:
+            # A one-element list: the schema's fields are lists, and the
+            # chapter core yields at most one reading per field.
+            if evidence is None:
+                return None
+            return [new_value(evidence, evidence.text)]
+
+        def bind_page_numbers(
+            evidence: ChapterPageNumberEvidence | None,
+        ) -> tuple[list[Value] | None, list[Value] | None]:
+            # The TOC entry's printed page reference, split by its parsed
+            # shape: a single page is a start, a range a start and an end, a
+            # list one start per page. An unparsed reference keeps its raw
+            # text as the start.
+            if evidence is None:
+                return None, None
+            if evidence.kind is ChapterPageNumberKind.RANGE:
+                return (
+                    [new_value(evidence, evidence.normalized_start())],
+                    [new_value(evidence, evidence.normalized_end())],
                 )
-            ]
+            if evidence.kind is ChapterPageNumberKind.LIST:
+                return (
+                    [new_value(evidence, text) for text, _, _ in evidence.normalized_items],
+                    None,
+                )
+            if evidence.kind is ChapterPageNumberKind.SINGLE:
+                return [new_value(evidence, evidence.normalized_start())], None
+            return [new_value(evidence, evidence.output_text())], None
 
         def bind_chapter(
             resolved: ChapterResult,
@@ -400,24 +423,34 @@ class ChapterBindEngineBase(ChapterBindEngine):
 
             # ChapterResult mirrors MetakatChapter: an unsuffixed field was
             # read on the destination page, a `_toc_page` one in the TOC entry.
+            page_index_start = page_index_entries(start_page)
+            page_index_end = page_index_entries(end_page)
+            title = bind_evidence(resolved.title)
+            title_toc_page = bind_evidence(resolved.title_toc_page)
+            subtitle_toc_page = bind_evidence(resolved.subtitle_toc_page)
+            part_number_toc_page = bind_evidence(resolved.part_number_toc_page)
+            page_number_start, page_number_end = bind_page_numbers(
+                resolved.page_number_toc_page
+            )
             chapter = MetakatChapter(
                 id=uuid4(),
                 parent_id=parent_id,
                 preview_page_id=None if start_page is None else start_page.id,
-                pageIndexStart=page_index_entries(start_page),
-                pageIndexEnd=page_index_entries(end_page),
-                title=bind_evidence(resolved.title),
+                pageIndexStart=page_index_start,
+                pageIndexEnd=page_index_end,
+                title=title,
                 pageIndexTocPage=toc_page.pageIndex,
-                titleTocPage=bind_evidence(resolved.title_toc_page),
-                subTitleTocPage=bind_evidence(resolved.subtitle_toc_page),
-                partNumberTocPage=bind_evidence(resolved.part_number_toc_page),
-                pageNumberStartTocPage=bind_evidence(
-                    resolved.page_number_toc_page,
-                    output_text=(
-                        None
-                        if resolved.page_number_toc_page is None
-                        else resolved.page_number_toc_page.output_text()
-                    ),
+                titleTocPage=title_toc_page,
+                subTitleTocPage=subtitle_toc_page,
+                partNumberTocPage=part_number_toc_page,
+                pageNumberStartTocPage=page_number_start,
+                pageNumberEndTocPage=page_number_end,
+                groups=self._chapter_groups(
+                    titles=(title, title_toc_page, subtitle_toc_page, part_number_toc_page),
+                    page_index_start=page_index_start,
+                    page_index_end=page_index_end,
+                    page_number_start=page_number_start,
+                    page_number_end=page_number_end,
                 ),
             )
             logger.debug(
@@ -448,6 +481,33 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 parent_chapter_id=None,
             )
         return elements, bbox_by_id, page_by_detection
+
+    @staticmethod
+    def _chapter_groups(
+        *,
+        titles: tuple[list[Value] | None, ...],
+        page_index_start: list[tuple[int, UUID]] | None,
+        page_index_end: list[tuple[int, UUID]] | None,
+        page_number_start: list[Value] | None,
+        page_number_end: list[Value] | None,
+    ) -> list[MetakatGroup] | None:
+        # Only what this binder knows belongs together. All title readings
+        # describe the one chapter. The resolved scan start and end are its
+        # one run, and a single or range TOC reference is the number the core
+        # aligned that run to; a list is left out, since which of its pages
+        # the run belongs to is not known here. A group of one pairs nothing.
+        groups = []
+        title_members = [value.id for values in titles for value in (values or [])]
+        if len(title_members) > 1:
+            groups.append(MetakatGroup(type=GroupType.TITLE_INFO, members=title_members))
+        run_members = [entry_id for _, entry_id in (page_index_start or [])]
+        run_members += [entry_id for _, entry_id in (page_index_end or [])]
+        if page_number_start and len(page_number_start) == 1:
+            run_members += [page_number_start[0].id]
+            run_members += [value.id for value in (page_number_end or [])]
+        if len(run_members) > 1:
+            groups.append(MetakatGroup(type=GroupType.PAGE_RANGE, members=run_members))
+        return groups or None
 
     @staticmethod
     def _resolved_chapter_label(resolved: ChapterResult) -> str:
