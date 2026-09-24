@@ -357,7 +357,7 @@ The PDF also adds visible sticky notes for:
 - a detected physical page number, beside its detection geometry;
 - every bibliographic detection, beside its detection geometry;
 - the complete bibliographic information for each issue or volume, in the
-  upper-left corner of the first page classified as `TitlePage`;
+  upper-left corner of the first page classified as `titlePage`;
 - each page type, in the upper-right corner of the page.
 
 Every detection with a resolvable page and bounding box is additionally outlined

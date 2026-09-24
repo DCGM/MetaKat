@@ -23,50 +23,63 @@ class HierarchyType(str, enum.Enum):
 
 
 class PageSideType(str, enum.Enum):
+    """Which side a page is, MODS <note>; NDK words."""
     LEFT = "left"
     RIGHT = "right"
-    SINGLE = "single"
+    SINGLE = "singlePage"
 
 
 class PageType(str, enum.Enum):
-    ABSTRACT = "Abstract"
-    ADVERTISEMENT = "Advertisement"
-    APPENDIX = "Appendix"
-    BACK_COVER = "BackCover"
-    BACK_END_PAPER = "BackEndPaper"
-    BACK_END_SHEET = "BackEndSheet"
-    BIBLIOGRAPHY = "Bibliography"
-    BLANK = "Blank"
-    CALIBRATION_TABLE = "CalibrationTable"
-    COVER = "Cover"
-    CUSTOM_INCLUDE = "CustomInclude"
-    DEDICATION = "Dedication"
-    EDGE = "Edge"
-    ERRATA = "Errata"
-    FLY_LEAF = "FlyLeaf"
-    FRAGMENTS_OF_BOOKBINDING = "FragmentsOfBookbinding"
-    FRONT_COVER = "FrontCover"
-    FRONT_END_PAPER = "FrontEndPaper"
-    FRONT_END_SHEET = "FrontEndSheet"
-    FRONT_JACKET = "FrontJacket"
-    FRONTISPIECE = "Frontispiece"
-    ILLUSTRATION = "Illustration"
-    IMPRESSUM = "Impressum"
-    IMPRIMATUR = "Imprimatur"
-    INDEX = "Index"
-    JACKET = "Jacket"
-    LIST_OF_ILLUSTRATIONS = "ListOfIllustrations"
-    LIST_OF_MAPS = "ListOfMaps"
-    LIST_OF_TABLES = "ListOfTables"
-    MAP = "Map"
-    NORMAL_PAGE = "NormalPage"
-    OBITUARY = "Obituary"
-    PREFACE = "Preface"
-    SHEET_MUSIC = "SheetMusic"
-    SPINE = "Spine"
-    TABLE = "Table"
-    TABLE_OF_CONTENTS = "TableOfContents"
-    TITLE_PAGE = "TitlePage"
+    """Page type, MODS <genre type="..."> and <part type="..."> of a page.
+
+    Values are the words of the NDK description rules (Pravidla pro popis
+    monografii 2.4 and periodik 8.7, table 1.2.2), so they are written to
+    MODS unchanged. Five have no NDK page-type word and are kept until the
+    classifier's classes are revisited: abstract and obituary exist in NDK
+    only as internal-part types, and calibrationTable, customInclude and
+    fragmentsOfBookbinding not at all.
+
+    These are not the classifier's own labels; an engine's page_type labels
+    configuration maps each value to the label its model outputs.
+    """
+    ABSTRACT = "abstract"
+    ADVERTISEMENT = "advertisement"
+    APPENDIX = "appendix"
+    BACK_COVER = "backCover"
+    BACK_END_PAPER = "backEndPaper"
+    BACK_END_SHEET = "backEndSheet"
+    BIBLIOGRAPHY = "bibliography"
+    BLANK = "blank"
+    CALIBRATION_TABLE = "calibrationTable"
+    COVER = "cover"
+    CUSTOM_INCLUDE = "customInclude"
+    DEDICATION = "dedication"
+    EDGE = "edge"
+    ERRATA = "errata"
+    FLY_LEAF = "flyleaf"
+    FRAGMENTS_OF_BOOKBINDING = "fragmentsOfBookbinding"
+    FRONT_COVER = "frontCover"
+    FRONT_END_PAPER = "frontEndPaper"
+    FRONT_END_SHEET = "frontEndSheet"
+    FRONT_JACKET = "frontJacket"
+    FRONTISPIECE = "frontispiece"
+    ILLUSTRATION = "illustration"
+    IMPRESSUM = "impressum"
+    IMPRIMATUR = "imprimatur"
+    INDEX = "index"
+    JACKET = "jacket"
+    LIST_OF_ILLUSTRATIONS = "listOfIllustrations"
+    LIST_OF_MAPS = "listOfMaps"
+    LIST_OF_TABLES = "listOfTables"
+    MAP = "map"
+    NORMAL_PAGE = "normalPage"
+    OBITUARY = "obituary"
+    PREFACE = "preface"
+    SHEET_MUSIC = "sheetMusic"
+    SPINE = "spine"
+    TABLE = "table"
+    TABLE_OF_CONTENTS = "tableOfContents"
+    TITLE_PAGE = "titlePage"
 
 
 class FormType(str, enum.Enum):
@@ -78,9 +91,10 @@ class FormType(str, enum.Enum):
     media- and carrier-type forms (fields 337/338, e.g. "bez media",
     "svazek") that come from the catalogue rather than the image. Extend
     this enum once the metadata team confirms which 008/23 values they want.
+    Only marcform terms belong here - a manuscript, for one, is not a form of
+    item in MARC 008/23.
     """
     PRINT = "print"
-    MANUSCRIPT = "manuscript"
 
 
 class ArticleGenre(str, enum.Enum):

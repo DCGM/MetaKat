@@ -353,7 +353,7 @@ is fixed in the implementation.
 ```mermaid
 flowchart TD
     A[MetakatIO pages sorted by batch_index]
-    B[filter_title_pages: pages classified TitlePage]
+    B[filter_title_pages: pages classified titlePage]
     C[Biblio core engine over the selected title pages]
     D[get_volume_issue_from_alignment: per title page one candidate MetakatVolume and optionally one MetakatIssue]
     E{ProArc has exactly one object with model volume?}
@@ -809,8 +809,8 @@ The two cover types are opposites, so they act at opposite moments in the walk:
 
 | Page type | Switches | Effect |
 |---|---|---|
-| `FrontCover` | before the page is attached | the cover opens the next parent and is bound to it |
-| `BackCover` | after the page is attached | the cover closes the current parent and stays with it |
+| `frontCover` | before the page is attached | the cover opens the next parent and is bound to it |
+| `backCover` | after the page is attached | the cover closes the current parent and stays with it |
 
 A nudge is applied only while the current parent's own anchor page is strictly
 behind the walked page. After a nudge that anchor lies ahead, which is what
@@ -881,7 +881,7 @@ contracts, and are documented so a change can be scoped against them.
 | ProArc integration | Only a record with exactly one `volume`-model object is used. Multi-object records, `title` and `unit` objects, and any issue-level guidance are ignored, and such a batch silently takes the vision-only branch. |
 | Periodical path | No production label configuration in this repository maps a detector label to `PeriodicalVolumePartNumber` or `PeriodicalVolumeDateIssued`, so the `periodical` hierarchy and the consolidation it drives are reachable but not exercised by a real run. |
 | Monograph batches | Without a ProArc record, nothing consolidates `monograph` volumes: every title page carrying a `Title` detection yields its own volume. |
-| Cover nudge | The heuristic depends on `page_type` having classified the covers, and recognises only `FrontCover` and `BackCover` — not `Cover`, `Jacket`, or `FrontJacket`. A run of consecutive back covers switches at the first of them, so the rest are attributed to the next parent; a run of front covers is handled correctly. |
+| Cover nudge | The heuristic depends on `page_type` having classified the covers, and recognises only `frontCover` and `backCover` — not `cover`, `jacket`, or `frontJacket`. A run of consecutive back covers switches at the first of them, so the rest are attributed to the next parent; a run of front covers is handled correctly. |
 | Title-page grouping | `filter_title_pages` is called with `min_distance=1`, at which its grouping can never merge two distinct pages. |
 | Anchor collisions | `bind_infants` keeps one infant per batch index, so two infants anchored on the same page leave one unparented. |
 | Input pairing | Image and ALTO path lists are filtered and sorted independently; a selected title page that has only one of the two mappings shifts the pairing for the rest of the batch. |

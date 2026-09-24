@@ -22,7 +22,7 @@ def _engine(config=None, id2label=None):
         **(config or {}),
     }
     model = _model(
-        {0: "Cover", 1: "TitlePage"}
+        {0: "cover", 1: "titlePage"}
         if id2label is None
         else id2label
     )
@@ -37,7 +37,7 @@ def _engine(config=None, id2label=None):
 def test_checkpoint_labels_use_identity_page_type_mapping_by_default():
     engine = _engine()
 
-    assert engine.model_label_by_class_id == {0: "Cover", 1: "TitlePage"}
+    assert engine.model_label_by_class_id == {0: "cover", 1: "titlePage"}
     assert engine.page_type_by_class_id == {
         0: PageType.COVER,
         1: PageType.TITLE_PAGE,
@@ -49,8 +49,8 @@ def test_labels_override_maps_model_names_to_page_types():
     engine = _engine(
         config={
             "labels": {
-                "Cover": "obalka",
-                "TitlePage": "titulni strana",
+                "cover": "obalka",
+                "titlePage": "titulni strana",
             }
         },
         id2label={"0": "obalka", "1": "titulni strana"},
@@ -64,16 +64,16 @@ def test_labels_override_maps_model_names_to_page_types():
 
 def test_old_id_mapping_is_rejected():
     with pytest.raises(ValueError, match="id2label is not supported"):
-        _engine(config={"id2label": {"0": "Cover"}})
+        _engine(config={"id2label": {"0": "cover"}})
 
 
 @pytest.mark.parametrize(
     "mapping,message",
     (
         ({0: "model-specific"}, "has no PageType mapping"),
-        ({1: "Cover"}, "contiguous from zero"),
-        ({0: "Cover", 1: "Cover"}, "Duplicate model label"),
-        ({0.5: "Cover"}, "Invalid class ID"),
+        ({1: "cover"}, "contiguous from zero"),
+        ({0: "cover", 1: "cover"}, "Duplicate model label"),
+        ({0.5: "cover"}, "Invalid class ID"),
         ({}, "non-empty id2label"),
     ),
 )
@@ -87,8 +87,8 @@ def test_duplicate_configured_model_labels_are_rejected():
         _engine(
             config={
                 "labels": {
-                    "Cover": "same",
-                    "TitlePage": "same",
+                    "cover": "same",
+                    "titlePage": "same",
                 }
             }
         )
