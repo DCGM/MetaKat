@@ -137,7 +137,8 @@ def check_or_write_meta(meta_path: Path, meta: dict) -> None:
     """Writes meta.json on the first run; on resume refuses settings that would mix embeddings."""
     if meta_path.exists():
         existing = json.loads(meta_path.read_text(encoding='utf-8'))
-        fixed = ('model', 'model_commit_hash', 'pooling', 'dtype', 'dim', 'max_length', 'source_lmdb')
+        fixed = ('model', 'model_commit_hash', 'pooling', 'dtype', 'dim', 'max_length', 'empty_text',
+                 'source_lmdb')
         mismatched = {k: (existing.get(k), meta[k]) for k in fixed if existing.get(k) != meta[k]}
         if mismatched:
             raise SystemExit(f'{meta_path} does not match this run (existing, requested): {mismatched}. '
@@ -212,11 +213,12 @@ def iter_chunks(source_env: lmdb.Environment, tokenizer, after_key: Optional[byt
                 ids = ids[:max_length - 1] + ids[-1:]
                 truncated += 1
             input_ids.append(ids)
-        return Chunk(list(keys), input_ids, sum(1 for t in texts if not t.strip()), truncated)
+        return Chunk(list(keys), input_ids, sum(1 for t in texts if not t), truncated)
 
     for key, text in iter_source(source_env, after_key, limit):
         keys.append(key)
-        texts.append(text)
+        # Pages without text all get the same embedding, whatever whitespace their OCR left behind.
+        texts.append(text if text.strip() else '')
         if len(keys) >= chunk_size:
             yield tokenize()
             keys, texts = [], []
@@ -373,6 +375,7 @@ def main(argv=None):
         'dim': model.config.hidden_size,
         'max_length': args.max_length,
         'truncation': 'head',
+        'empty_text': 'whitespace-only text is encoded as ""',
         'source_lmdb': str(args.source_lmdb.resolve()),
         'source_entries': source_entries,
         'key_format': '{library}_{page_id}, same as the source LMDB',
