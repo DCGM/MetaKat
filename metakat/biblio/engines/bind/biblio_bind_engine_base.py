@@ -25,7 +25,8 @@ from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
 from metakat.common.aux.document_groups import assign_page_indices
 
 from metakat.schemas.base_objects import MetakatIO, ProarcIO, ObjectItem, ObjectModel, DocumentType, MetakatPage, \
-    PageType, BiblioType, MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle, HierarchyType, Value
+    PageType, BiblioType, MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle, HierarchyType, Value, \
+    GroupType, MetakatGroup
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,13 @@ _PROARC_VOLUME_LIST_FIELDS = (
 _PROARC_FIELD_NAMES = {
     "seriesPartNumber": "seriesNumber",
 }
+# The fields of a record's own <titleInfo>, and the records that get one here.
+_TITLE_INFO_FIELDS = ("title", "subTitle", "partNumber", "partName")
+_TITLE_INFO_ELEMENT_TYPES = (
+    DocumentType.TITLE.value,
+    DocumentType.VOLUME.value,
+    DocumentType.ISSUE.value,
+)
 # How close a group's title has to be to one of the record's titles for the
 # catalog to be treated as recognising it. Deliberately the most permissive of
 # the three bars: this only decides which group gets looked at first, and if
@@ -271,6 +279,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
         for element in metakat_elements:
             if element.type in (DocumentType.VOLUME.value, DocumentType.ISSUE.value) and element.id in anchors:
                 element.preview_page_id = anchors[element.id]
+            self._group_title_info(element)
 
         logger.info(f"Adding {len(metakat_elements)} MetaKat elements to MetaKatIO")
         metakat_io.elements = metakat_elements + metakat_io.elements
@@ -311,6 +320,24 @@ class BiblioBindEngineBase(BiblioBindEngine):
         logger.info(f"Binding MetaKat elements")
         self.bind(metakat_io, anchors)
         return metakat_io
+
+    @staticmethod
+    def _group_title_info(element: MetakatElement) -> None:
+        # The binder keeps one reading of each title field per record, and all
+        # of them describe that record, so they form its one titleInfo. A group
+        # of one pairs nothing.
+        if element.type not in _TITLE_INFO_ELEMENT_TYPES:
+            return
+        members = [
+            value.id
+            for field_name in _TITLE_INFO_FIELDS
+            for value in (getattr(element, field_name) or [])
+        ]
+        if len(members) > 1:
+            element.groups = [
+                *(element.groups or []),
+                MetakatGroup(type=GroupType.TITLE_INFO, members=members),
+            ]
 
     @staticmethod
     def _referenced_detection_ids(elements: List[MetakatElement]) -> set:

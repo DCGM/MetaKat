@@ -736,6 +736,15 @@ their own entry.
 The final volumes and issues get `preview_page_id` set to their anchor: the
 page their title was read from is also the page that best represents them.
 
+### Groups
+
+The binder groups only what it knows belongs together. Every final title,
+volume and issue holding at least two of `title`, `subTitle`, `partNumber` and
+`partName` gets one `titleInfo` group of them: the binder keeps one reading of
+each per record, and all of them describe that record. Places, publishers and
+dates are not grouped - which place goes with which publisher is not known -
+so they stay ungrouped values.
+
 A volume or issue that arrived in the input `MetakatIO` has no anchor. Its
 position is not guessed: `bind()` leaves it out of positional parenting and
 logs a warning naming it.

@@ -1239,3 +1239,31 @@ def test_no_untitled_monograph_is_added_when_every_page_has_a_unit():
 
     volumes = [e for e in metakat_io.elements if e.type == DocumentType.VOLUME.value]
     assert [v.id for v in volumes] == [volume.id]
+
+
+def test_a_records_kept_title_readings_form_its_title_info_group():
+    # The binder keeps one reading of each title field per record, and they
+    # all describe it, so they are the record's one titleInfo.
+    volume = MetakatVolume(
+        id=uuid4(),
+        title=[_v("Kytice", 0.9)],
+        subTitle=[_v("z pověstí národních", 0.8)],
+        partNumber=[_v("2", 0.7)],
+        publisher=[_v("Storch", 0.9)],
+    )
+
+    BiblioBindEngineBase._group_title_info(volume)
+
+    assert len(volume.groups) == 1
+    assert volume.groups[0].type == "titleInfo"
+    assert volume.groups[0].members == [
+        volume.title[0].id, volume.subTitle[0].id, volume.partNumber[0].id,
+    ]
+
+
+def test_a_lone_title_reading_is_not_grouped():
+    volume = MetakatVolume(id=uuid4(), title=[_v("Kytice", 0.9)])
+
+    BiblioBindEngineBase._group_title_info(volume)
+
+    assert volume.groups is None
