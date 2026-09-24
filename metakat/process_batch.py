@@ -39,6 +39,7 @@ from metakat.schemas.base_objects import (
     MetakatPageDimensions,
     ProarcIO,
 )
+from metakat.io_exporters.mods_exporter import export_mods
 from metakat.tools.create_interactive_pdf import create_interactive_pdf
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,9 @@ def parse_args():
 
     parser.add_argument('--output-metakat-json', type=str, help='Path to output Metakat JSON file')
     parser.add_argument('--output-metakat-pdf', type=str, help='Path to output interactive MetaKat PDF file')
+    parser.add_argument('--output-mods-dir', type=str, help='Directory for one MODS record per unit and page')
+    parser.add_argument('--output-mods-overview', type=str,
+                        help='Text file with every MODS record in MetaKat JSON order, for inspection')
 
     parser.add_argument('--logging-level', default=logging.INFO)
 
@@ -115,6 +119,8 @@ def main():
         proarc_data=_load_json_file(args.proarc_json),
         output_metakat_json=args.output_metakat_json,
         output_metakat_pdf=args.output_metakat_pdf,
+        output_mods_dir=args.output_mods_dir,
+        output_mods_overview=args.output_mods_overview,
         allowed_image_extensions=set(args.allowed_image_extensions),
         engine_name=args.engine_name,
         engine_version=args.engine_version,
@@ -132,6 +138,8 @@ def process_batch(
     allowed_image_extensions: Optional[Set] = None,
     engine_name: Optional[str] = None,
     engine_version: Optional[str] = None,
+    output_mods_dir: Optional[str] = None,
+    output_mods_overview: Optional[str] = None,
 ) -> MetakatIO:
     """
     Process a batch directory and return the processed MetakatIO object.
@@ -148,6 +156,11 @@ def process_batch(
         engine_name: Name of the engine being run, recorded in MetakatIO.engine;
             optional, since a plain pipeline run need not know it
         engine_version: Version of that engine; ignored without engine_name
+        output_mods_dir: Directory for one MODS 3.8 record per unit and page,
+            each named by its uuid
+        output_mods_overview: Text file with every MODS record in the order of
+            the MetaKat JSON's elements, for reading side by side with it;
+            written only together with output_mods_dir
 
     Returns:
         Processed MetakatIO object
@@ -238,6 +251,9 @@ def process_batch(
         with open(output_metakat_json, 'w') as f:
             json.dump(metakat_io.model_dump(mode="json"), f, indent=4, ensure_ascii=False)
         logger.info(f"MetakatIO saved to {output_metakat_json}")
+
+    if output_mods_dir is not None:
+        export_mods(metakat_io, output_mods_dir, overview_path=output_mods_overview)
     
     return metakat_io
 

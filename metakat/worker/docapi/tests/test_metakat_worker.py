@@ -1,6 +1,7 @@
 import json
 import logging
 import types
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -146,6 +147,10 @@ def test_no_meta_file_passes_none_metadata(tmp_path, worker, workspace):
     # The job's engine is recorded in the MetaKat JSON the pipeline writes.
     assert process.call_args.kwargs["engine_name"] == "monograph"
     assert process.call_args.kwargs["engine_version"] == "v1.5.0"
+    # MODS records and their overview sit next to the MetaKat JSON.
+    result_dir = Path(process.call_args.kwargs["output_metakat_json"]).parent
+    assert Path(process.call_args.kwargs["output_mods_dir"]) == result_dir / "mods"
+    assert Path(process.call_args.kwargs["output_mods_overview"]) == result_dir / "metakat.mods.txt"
 
 
 def test_path_escaping_engine_directory_fails_the_job(tmp_path, worker, workspace):

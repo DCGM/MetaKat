@@ -107,6 +107,8 @@ class MetakatWorker(DocWorkerWrapper):
                     engine_name=job.engine_name,
                     engine_version=job.engine_version,
                     output_metakat_json=os.path.join(result_dir, "metakat.json"),
+                    output_mods_dir=os.path.join(result_dir, "mods"),
+                    output_mods_overview=os.path.join(result_dir, "metakat.mods.txt"),
                     output_metakat_pdf=(
                         os.path.join(Path(result_dir).parent, "result.pdf")
                         if config.STORE_METAKAT_PDF
