@@ -11,6 +11,7 @@ output directory holds:
   progress.tsv   one line per committed chunk; the last line's key is where a
                  resumed run continues
   log.txt        the run log (also printed to stdout)
+  run.lock       held while a run is writing; a second concurrent run refuses to start
 
 Source keys are processed in LMDB key order, one chunk at a time: the chunk's
 embeddings are committed to LMDB first, then its progress line is appended and
@@ -24,15 +25,19 @@ trained sentence embedder; the mean is the conventional pooling for it.
 
 Requires transformers with ModernBERT support (>=4.48). The model repository
 ships only pytorch_model.bin, which transformers>=4.50 refuses to load on
-torch<2.6, so with torch 2.4 the usable range is transformers 4.48-4.49.
+torch<2.6. With flash-attn installed, ModernBERT unpads each batch and runs
+varlen attention, which is the fast path; without it, sdpa over padded batches
+is used (see patch_padding_nan).
 
 Example:
     python -m metakat.page_type.training.text_embeddings.infer_mmbert_base \\
         --source-lmdb /data/2026-09-16.db_text_dump/lmdb \\
-        --output-root /data/2026-09-16.db_text_dump/embedings
+        --output-root /data/2026-09-16.db_text_dump/embeddings
 """
 
 import argparse
+import fcntl
+import importlib.util
 import json
 import logging
 import os
@@ -100,9 +105,10 @@ def parse_arguments(argv=None):
                         help='Storage dtype of the embedding vectors.')
     parser.add_argument('--compute-dtype', choices=['bfloat16', 'float16', 'float32'], default='bfloat16',
                         help='Autocast dtype of the forward pass.')
-    parser.add_argument('--attn-implementation', default='sdpa',
-                        help='Passed to from_pretrained; "flash_attention_2" unpads batches if flash-attn '
-                             'is installed.')
+    parser.add_argument('--attn-implementation', default=None,
+                        choices=['flash_attention_2', 'sdpa', 'eager'],
+                        help='Passed to from_pretrained (default: flash_attention_2 if flash-attn is '
+                             'installed, else sdpa).')
 
     parser.add_argument('--limit', type=int, default=None,
                         help='Stop after this many pages in this run (for testing); resumable as usual.')
@@ -286,7 +292,7 @@ def embed_chunk(model, chunk: Chunk, pad_token_id: int, device: torch.device, co
 
 def patch_padding_nan(model) -> None:
     """
-    Keeps padded batches from turning real tokens into NaN (ModernBERT, sdpa/eager, transformers 4.49).
+    Keeps padded batches from turning real tokens into NaN (ModernBERT sdpa/eager, transformers 4.49-4.57).
 
     A padding query farther than local_attention/2 from every real token has all its keys masked by
     finfo.min; inside attention score + finfo.min overflows to -inf, the row's softmax is NaN, and the
@@ -327,6 +333,14 @@ def main(argv=None):
     lmdb_dir = output_dir / 'lmdb'
     progress_path = output_dir / 'progress.tsv'
     lmdb_dir.mkdir(parents=True, exist_ok=True)
+
+    # Two runs appending to one progress file and LMDB would corrupt the resume point.
+    lock_file = (output_dir / 'run.lock').open('w')
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise SystemExit(f'Another run is already writing to {output_dir} (holds run.lock).')
+
     setup_logging(output_dir / 'log.txt', args.logging_level)
     logger.info(' '.join(sys.argv))
     logger.info(f'torch {torch.__version__}, transformers {transformers.__version__}, '
@@ -335,8 +349,12 @@ def main(argv=None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     compute_dtype = getattr(torch, args.compute_dtype)
 
+    attn_implementation = args.attn_implementation or (
+        'flash_attention_2' if importlib.util.find_spec('flash_attn') is not None else 'sdpa')
+    logger.info(f'Attention implementation: {attn_implementation}')
+
     tokenizer = AutoTokenizer.from_pretrained(args.model)
-    model = AutoModel.from_pretrained(args.model, attn_implementation=args.attn_implementation)
+    model = AutoModel.from_pretrained(args.model, attn_implementation=attn_implementation)
     model.to(device).eval()
     patch_padding_nan(model)
     if args.max_length > model.config.max_position_embeddings:
