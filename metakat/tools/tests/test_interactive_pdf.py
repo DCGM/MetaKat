@@ -109,7 +109,7 @@ def test_multiple_documents_allow_repeated_local_page_indices(tmp_path, page_ima
             pages.append(page)
             document_pages.append(page)
             image_mapping[page.id] = filename
-        issue.preview_page_id = document_pages[0].id
+        document_pages[0].representative = True
         chapters.append(
             MetakatChapter(
                 id=uuid4(),

@@ -2150,7 +2150,6 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 |---|---|
 | `id` | New chapter UUID; it is not a detection UUID. |
 | `parent_id` | Parent chapter UUID, or the enclosing issue/volume UUID for a root. |
-| `preview_page_id` | The page of `page_start_key`; `None` when unresolved. |
 | `pageIndexStart` | One entry `(pageIndex of page_start_key, entry UUID)`; `None` when unresolved or unavailable. |
 | `pageIndexEnd` | One entry `(pageIndex of page_end_key, entry UUID)`; `None` when unresolved or unavailable. |
 | `title` | `ChapterResult.title`: title evidence from the destination page. It is not copied into `titleTocPage`. |

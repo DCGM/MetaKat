@@ -606,7 +606,6 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     assert _indices(root.pageIndexStart) == [10]
     assert _indices(root.pageIndexEnd) == [20]
     assert _indices(child.pageIndexEnd) == [20]
-    assert root.preview_page_id == pages[1].id
     assert root.pageNumberStartTocPage[0].text == "10"
     assert root.subTitleTocPage[0].text == "Subtitle"
     # The core calls the TOC reading `title`; the schema keeps the heading

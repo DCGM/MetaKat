@@ -372,10 +372,9 @@ def _container_destination(
     group: LowestDocumentGroup,
     rendered_by_page_id: dict[UUID, _RenderedPage],
 ) -> _RenderedPage:
-    page_id = group.container.preview_page_id
-    if page_id in rendered_by_page_id:
-        return rendered_by_page_id[page_id]
-    return rendered_by_page_id[group.pages[0].id]
+    # The page that represents the unit, else its first page.
+    page = next((page for page in group.pages if page.representative), group.pages[0])
+    return rendered_by_page_id[page.id]
 
 
 def _first(values: list[Value] | None) -> Value | None:
@@ -741,8 +740,6 @@ def _insert_page_metadata_notes(
             candidate_page_ids = {
                 detection_to_page.get(value.id) for _, value in evidence
             }
-            if element.preview_page_id is not None:
-                candidate_page_ids.add(element.preview_page_id)
             candidate_pages = tuple(
                 page
                 for page in pages

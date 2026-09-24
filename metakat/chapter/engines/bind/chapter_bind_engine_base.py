@@ -435,7 +435,6 @@ class ChapterBindEngineBase(ChapterBindEngine):
             chapter = MetakatChapter(
                 id=uuid4(),
                 parent_id=parent_id,
-                preview_page_id=None if start_page is None else start_page.id,
                 pageIndexStart=page_index_start,
                 pageIndexEnd=page_index_end,
                 title=title,

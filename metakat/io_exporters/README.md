@@ -37,10 +37,9 @@ one against the Library of Congress schema.
 | reviewed work | `<relatedItem type="reviewOf">` |
 | page runs | `<part type="pageIndex">` and `<part type="pageNumber">` with `extent/start`, `end` |
 | internal part `dateIssued` | provenance only: an internal part has no `<originInfo>` |
-| page | `part@type`/`genre@type` = page type; `detail type="pageNumber"`; `detail type="pageIndex"`; side as `<note>`; `genre` is `reprePage` for a page some unit previews, otherwise `page` |
+| page | `part@type`/`genre@type` = page type; `detail type="pageNumber"`; `detail type="pageIndex"`; side as `<note>`; `genre` is `reprePage` when `MetakatPage.representative` is set, otherwise `page` |
 
-`email`, `hierarchy` and `preview_page_id` have no MODS element and are not
-written yet.
+`email` and `hierarchy` have no MODS element and are not written yet.
 
 ### Containers come only from groups
 

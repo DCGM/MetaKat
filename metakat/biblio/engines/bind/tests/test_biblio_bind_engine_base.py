@@ -898,6 +898,9 @@ def test_bind_attaches_periodical_issues_to_the_volume_they_belong_to():
     assert {p.parent_id for p in pages[3:]} == {issue_2.id}
     # Attaching pages is what gives them positions: 1-based, per issue.
     assert [p.pageIndex for p in pages] == [1, 2, 3, 1, 2, 3]
+    # Each issue is represented by the page its title was read from; the
+    # volumes hold no pages of their own, so they mark none.
+    assert [p.representative for p in pages] == [True, False, False, True, False, False]
 
 
 def test_periodical_bag_matches_same_volume_across_pages_despite_ocr_noise():
@@ -1225,6 +1228,8 @@ def test_a_batch_without_any_volume_becomes_one_untitled_monograph():
     assert volumes[0].title is None
     assert {p.parent_id for p in pages} == {volumes[0].id}
     assert [p.pageIndex for p in pages] == [1, 2, 3]
+    # Nothing was read for it, so no page represents it.
+    assert not any(p.representative for p in pages)
 
 
 def test_no_untitled_monograph_is_added_when_every_page_has_a_unit():

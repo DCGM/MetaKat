@@ -309,21 +309,6 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     id: UUID
     parent_id: Optional[UUID] = None
 
-    # The page to show when this element is presented on its own - the
-    # preview or thumbnail in a listing. Holds a MetakatPage.id.
-    #
-    # The only page pointer on a bibliographic record, and deliberately so.
-    # It replaces a page_id that carried the binder's anchor page, which said
-    # nothing a reader could not get better elsewhere: which pages the element
-    # covers is on the pages themselves, as MetakatPage.parent_id, and where a
-    # given value was read is in detection_to_page_mapping, per value rather
-    # than one page for the whole record. The anchor is binder scaffolding and
-    # now stays inside the binder.
-    #
-    # MetaKat-only - MODS has no element for a preview page, so this does not
-    # export.
-    preview_page_id: Optional[UUID] = None
-
     hierarchy: Optional[HierarchyType] = None
 
     partNumber: Optional[List[Value]] = None
@@ -421,6 +406,11 @@ class MetakatPage(MetakatBaseModel):
     # without issues - 1-based, as MODS <part type="pageIndex">. Set by the
     # step that attaches the page to that unit; None while it has none.
     pageIndex: Optional[int] = None
+    # Whether this page represents its bottom-level unit - the one shown for
+    # the issue or volume, usually its title page. MODS writes it as the
+    # page's <genre>: "reprePage" when set, "page" otherwise. Set by the step
+    # that attaches pages to units, for the page it read the unit's title from.
+    representative: bool = False
     pageNumber: Optional[Value] = None
     pageType: Optional[Tuple[PageType, float]] = None
     side: Optional[Tuple[PageSideType, float]] = None
@@ -455,16 +445,6 @@ class _MetakatInternalPartFields(MetakatBaseModel):
 
     id: UUID
     parent_id: UUID
-
-    # The page to show when this part is presented on its own - the preview
-    # or thumbnail in a listing. Holds a MetakatPage.id.
-    #
-    # Usually the part's own opening page, reachable by matching the first
-    # pageIndexStart entry against MetakatPage.pageIndex, but it is a choice
-    # rather than that derivation: an illustrated article may be better
-    # represented by a plate printed inside it. MetaKat-only, with no MODS
-    # element, so it does not export.
-    preview_page_id: Optional[UUID] = None
 
     # ------------------------------------------------------------------
     # Destination page - where the chapter or article actually begins.

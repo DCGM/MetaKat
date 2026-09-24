@@ -415,7 +415,7 @@ def _unit_record(record: _Record, created: datetime) -> None:
     record.leaf(record_info, "recordOrigin", "machine generated")
 
 
-def _page_record(record: _Record, preview_pages: set) -> None:
+def _page_record(record: _Record) -> None:
     page: MetakatPage = record.element
     page_type = page.pageType[0] if page.pageType else None
     if page.pageNumber is not None:
@@ -435,7 +435,7 @@ def _page_record(record: _Record, preview_pages: set) -> None:
         note.text = page.side[0]
         _classified(record, target, "note", "side", page.side[0], page.side[1], page.id)
     genre, genre_id = record.container(record.root, "genre", **({"type": page_type} if page_type else {}))
-    genre.text = "reprePage" if page.id in preview_pages else "page"
+    genre.text = "reprePage" if page.representative else "page"
     if page_type:
         _classified(record, genre_id, "type", "pageType", page_type, page.pageType[1], page.id)
     _identifier(record)
@@ -523,7 +523,6 @@ def build_mods(
     *,
     provenance: bool = True,
     created: Optional[datetime] = None,
-    preview_pages: Optional[set] = None,
 ) -> ET.Element:
     """Build the MODS record of one unit or page."""
     root = ET.Element(_m("mods"), {
@@ -533,7 +532,7 @@ def build_mods(
     })
     record = _Record(element, metakat_io, root)
     if element.type == DocumentType.PAGE.value:
-        _page_record(record, preview_pages if preview_pages is not None else _preview_pages(metakat_io))
+        _page_record(record)
     else:
         _unit_record(record, created or datetime.now(timezone.utc))
     if provenance:
@@ -542,14 +541,6 @@ def build_mods(
             root.append(extension)
     ET.indent(root)
     return root
-
-
-def _preview_pages(metakat_io: MetakatIO) -> set:
-    return {
-        element.preview_page_id
-        for element in metakat_io.elements
-        if element.type in UNIT_TYPES and element.preview_page_id is not None
-    }
 
 
 def export_mods(
@@ -568,13 +559,11 @@ def export_mods(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     created = created or datetime.now(timezone.utc)
-    preview_pages = _preview_pages(metakat_io)
     written, overview = [], []
     for position, element in enumerate(metakat_io.elements):
         if element.type not in UNIT_TYPES and element.type != DocumentType.PAGE.value:
             continue
-        root = build_mods(element, metakat_io, provenance=provenance, created=created,
-                          preview_pages=preview_pages)
+        root = build_mods(element, metakat_io, provenance=provenance, created=created)
         path = output_dir / f"{element.id}.xml"
         ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
         written.append(path)

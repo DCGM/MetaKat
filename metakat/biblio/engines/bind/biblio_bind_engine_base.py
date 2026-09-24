@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from text_geometry_aligner import AlignmentPage
 
 from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
-from metakat.common.aux.document_groups import assign_page_indices
+from metakat.common.aux.document_groups import assign_page_indices, lowest_document_groups
 
 from metakat.schemas.base_objects import MetakatIO, ProarcIO, ObjectItem, ObjectModel, DocumentType, MetakatPage, \
     PageType, BiblioType, MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle, HierarchyType, Value, \
@@ -34,7 +34,8 @@ logger = logging.getLogger(__name__)
 # its detections were read from, later moved to the earliest page of a
 # periodical volume bag. bind_infants switches ownership of the page walk on
 # these, and they order candidates generally. Binder-internal - the output
-# schema carries no anchor, only preview_page_id, which is set from it.
+# schema carries no anchor; the anchor page of each issue, and of each volume
+# without issues, is marked MetakatPage.representative.
 Anchors = Dict[UUID, UUID]
 
 # Fields shared by MetakatVolume and the proarc ObjectItem, used to match a
@@ -274,11 +275,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
             if title_element is not None:
                 metakat_elements = [title_element] + metakat_elements
 
-        # The anchor is also the page that best represents a volume or issue:
-        # it is where the record's title was read.
         for element in metakat_elements:
-            if element.type in (DocumentType.VOLUME.value, DocumentType.ISSUE.value) and element.id in anchors:
-                element.preview_page_id = anchors[element.id]
             self._group_title_info(element)
 
         logger.info(f"Adding {len(metakat_elements)} MetaKat elements to MetaKatIO")
@@ -393,8 +390,22 @@ class BiblioBindEngineBase(BiblioBindEngine):
         self._attach_unattached_pages(metakat_io)
 
         # Pages now belong to their issues and volumes, which is what gives
-        # them a position within one.
-        assign_page_indices(metakat_io, log=logger)
+        # them a position within one, and a unit a page that represents it.
+        groups = lowest_document_groups(metakat_io, log=logger)
+        assign_page_indices(metakat_io, groups=groups, log=logger)
+        self._mark_representative_pages(groups, anchors)
+
+    @staticmethod
+    def _mark_representative_pages(groups, anchors: Anchors) -> None:
+        # A unit is represented by the page its title was read from, its
+        # anchor. Only bottom-level units hold pages, so a volume with issues
+        # marks none, and the untitled monograph, which has no anchor, neither.
+        for group in groups:
+            anchor = anchors.get(group.container.id)
+            if group.synthetic or anchor is None:
+                continue
+            for page in group.pages:
+                page.representative = page.id == anchor
 
     @staticmethod
     def _attach_unattached_pages(metakat_io: MetakatIO) -> None:

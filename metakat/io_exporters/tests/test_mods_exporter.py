@@ -48,10 +48,10 @@ class _Batch:
             MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i, pageIndex=i + 1)
             for i in range(3)
         ]
-        self.volume = MetakatVolume(id=uuid4(), hierarchy=HierarchyType.MONOGRAPH,
-                                    preview_page_id=self.pages[0].id)
+        self.volume = MetakatVolume(id=uuid4(), hierarchy=HierarchyType.MONOGRAPH)
         for page in self.pages:
             page.parent_id = self.volume.id
+        self.pages[0].representative = True
         self.pages[0].pageType = (PageType.TITLE_PAGE, 0.95)
         self.pages[0].side = (PageSideType.RIGHT, 0.9)
         self.pages[1].pageNumber = self.v("7", 0.8, 1)
@@ -70,7 +70,7 @@ class _Batch:
         v.language = [("cze", 0.97)]
         v.groups = [MetakatGroup(type=GroupType.TITLE_INFO, members=[v.title[0].id, v.subTitle[0].id])]
 
-        self.chapter = MetakatChapter(id=uuid4(), parent_id=v.id, preview_page_id=self.pages[1].id)
+        self.chapter = MetakatChapter(id=uuid4(), parent_id=v.id)
         c = self.chapter
         c.title = [self.v("PŘEDMLUVA", 0.6, 1)]
         c.titleTocPage = [self.v("Předmluva", 0.9, 2)]
@@ -202,7 +202,7 @@ def test_pages_carry_type_side_index_and_the_representative_page(batch, tmp_path
 
     assert _texts(title_page, "/mods:mods/mods:genre[@type='titlePage']") == ["reprePage"]
     assert _texts(title_page, "/mods:mods/mods:note") == ["right"]
-    assert _texts(numbered, "/mods:mods/mods:genre[@type='normalPage']") == ["reprePage"]
+    assert _texts(numbered, "/mods:mods/mods:genre[@type='normalPage']") == ["page"]
     assert _texts(numbered, "//mods:part[@type='normalPage']/mods:detail[@type='pageNumber']/mods:number") == ["7"]
     assert _texts(numbered, "//mods:part/mods:detail[@type='pageIndex']/mods:number") == ["2"]
     classify = title_page.xpath("//mkp:event[@action='classify']/@field", namespaces=NS)

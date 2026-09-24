@@ -158,6 +158,7 @@ def lowest_document_groups(
 def assign_page_indices(
     metakat_io: MetakatIO,
     *,
+    groups: list[LowestDocumentGroup] | None = None,
     log: logging.Logger = logger,
 ) -> None:
     """Number every page 1..n within its bottom-level unit, in batch order.
@@ -171,12 +172,16 @@ def assign_page_indices(
     A page outside every bottom-level unit gets None: a parentless page (the
     synthetic group is not a unit until someone makes it one) and a page
     attached to a volume that has issues. Recomputed from scratch each call,
-    so a later step that attaches more pages simply calls it again.
+    so a later step that attaches more pages simply calls it again. `groups`,
+    when the caller already has them, must be lowest_document_groups() of the
+    same metakat_io.
     """
     for element in metakat_io.elements:
         if element.type == DocumentType.PAGE.value:
             element.pageIndex = None
-    for group in lowest_document_groups(metakat_io, log=log):
+    if groups is None:
+        groups = lowest_document_groups(metakat_io, log=log)
+    for group in groups:
         if group.synthetic:
             continue
         for index, page in enumerate(group.pages, start=1):

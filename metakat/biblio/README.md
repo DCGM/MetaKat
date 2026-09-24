@@ -733,8 +733,12 @@ binder-internal - the output schema has no anchor field - and lives in an
 needs it. A merged ProArc volume and a consolidated periodical volume each get
 their own entry.
 
-The final volumes and issues get `preview_page_id` set to their anchor: the
-page their title was read from is also the page that best represents them.
+The anchor is also the page that represents a unit: the page its title was
+read from. Right after pages are attached, `bind()` sets
+`MetakatPage.representative` on the anchor page of each issue and of each
+volume without issues - the units that hold pages - and clears it on their
+other pages. A volume with issues holds no pages and marks none; the untitled
+monograph has no anchor and marks none either.
 
 ### Groups
 
