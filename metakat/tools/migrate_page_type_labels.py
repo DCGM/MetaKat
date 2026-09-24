@@ -69,11 +69,33 @@ def _load(path: Path) -> dict:
     return json.loads(text)
 
 
+def _migrate_yaml_text(text: str, migrated: dict) -> str:
+    """Rename the label keys in YAML text, keeping its layout and comments.
+
+    Re-dumping would reflow a hand-written file. Instead each old key is
+    renamed where it stands, and the result must parse to exactly the
+    migrated configuration.
+    """
+    import re
+
+    import yaml
+
+    def rename(match: re.Match) -> str:
+        return f"{match.group(1)}{_NEW_BY_OLD[match.group(2)]}{match.group(3)}"
+
+    pattern = re.compile(
+        r"^(\s*)(" + "|".join(sorted(map(re.escape, _NEW_BY_OLD), key=len, reverse=True)) + r")(\s*:)",
+        re.MULTILINE,
+    )
+    renamed = pattern.sub(rename, text)
+    if yaml.safe_load(renamed) != migrated:
+        raise ValueError("Renaming the keys in place did not give the migrated configuration")
+    return renamed
+
+
 def _dump(path: Path, config: dict) -> None:
     if path.suffix in (".yaml", ".yml"):
-        import yaml
-
-        text = yaml.safe_dump(config, allow_unicode=True, sort_keys=False)
+        text = _migrate_yaml_text(path.read_text(encoding="utf-8"), config)
     else:
         text = json.dumps(config, indent=2, ensure_ascii=False) + "\n"
     path.write_text(text, encoding="utf-8")
