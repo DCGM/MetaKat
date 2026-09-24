@@ -108,7 +108,13 @@ class MetakatWorker(DocWorkerWrapper):
                     engine_version=job.engine_version,
                     output_metakat_json=os.path.join(result_dir, "metakat.json"),
                     output_mods_dir=os.path.join(result_dir, "mods"),
-                    output_mods_overview=os.path.join(result_dir, "metakat.mods.txt"),
+                    # For inspection only, so kept beside result.zip like the
+                    # PDF rather than uploaded with the result.
+                    output_mods_overview=(
+                        os.path.join(Path(result_dir).parent, "metakat.mods.txt")
+                        if config.STORE_MODS_OVERVIEW
+                        else None
+                    ),
                     output_metakat_pdf=(
                         os.path.join(Path(result_dir).parent, "result.pdf")
                         if config.STORE_METAKAT_PDF
@@ -236,6 +242,12 @@ def main():
         help="Store an interactive result.pdf beside result.zip"
     )
     parser.add_argument(
+        "--store-mods-overview",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Store metakat.mods.txt, every MODS record in one file, beside result.zip"
+    )
+    parser.add_argument(
         "--allowed-image-extensions",
         type=_extension_set,
         metavar="EXT[,EXT...]",
@@ -274,6 +286,7 @@ def main():
         ("cleanup_job_dir", "CLEANUP_JOB_DIR"),
         ("cleanup_old_engines", "CLEANUP_OLD_ENGINES"),
         ("store_metakat_pdf", "STORE_METAKAT_PDF"),
+        ("store_mods_overview", "STORE_MODS_OVERVIEW"),
         ("allowed_image_extensions", "ALLOWED_IMAGE_EXTENSIONS"),
         ("log_level", "LOGGING_CONSOLE_LEVEL"),
         ("log_file_level", "LOGGING_FILE_LEVEL"),
@@ -293,6 +306,11 @@ def main():
         logger.warning(
             "STORE_METAKAT_PDF and CLEANUP_JOB_DIR are both enabled; "
             "the locally stored result.pdf will be removed after upload"
+        )
+    if config.STORE_MODS_OVERVIEW and config.CLEANUP_JOB_DIR:
+        logger.warning(
+            "STORE_MODS_OVERVIEW and CLEANUP_JOB_DIR are both enabled; "
+            "the locally stored metakat.mods.txt will be removed after upload"
         )
         
     # Validate directory arguments
@@ -319,6 +337,7 @@ def main():
     logger.info(f"Jobs directory: {config.JOBS_DIR}")
     logger.info(f"Engines directory: {config.ENGINES_DIR}")
     logger.info(f"Store MetaKat PDF: {config.STORE_METAKAT_PDF}")
+    logger.info(f"Store MODS overview: {config.STORE_MODS_OVERVIEW}")
     
     worker.start()
 

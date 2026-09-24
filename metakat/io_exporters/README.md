@@ -12,7 +12,10 @@ python -m metakat.io_exporters.mods_exporter --metakat-json metakat.json \
 
 `--overview` also writes every record into one text file in the order of the
 MetaKat JSON's `elements`, each under a header naming its position, type, title
-or page number, and uuid, for reading side by side with the JSON.
+or page number, and uuid, for reading side by side with the JSON. It is for
+inspection only: the worker writes it, as `metakat.mods.txt`, beside
+`result.zip` like the interactive PDF - never into the uploaded result - and
+only when `STORE_MODS_OVERVIEW` is enabled.
 
 ## What a record holds
 

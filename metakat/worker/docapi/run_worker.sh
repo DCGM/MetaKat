@@ -15,6 +15,7 @@ export BASE_DIR=/mnt/kolosus/data/metakat_worker
 export ENGINES_DIR=/home/ikohut/data/metakat_worker/engines
 export LOGGING_DIR=/home/ikohut/data/metakat_worker/logs
 export STORE_METAKAT_PDF=true
+export STORE_MODS_OVERVIEW=true
 
 # No PYTHONPATH: metakat, text-geometry-aligner and doc-api are installed into
 # this environment as editable packages.

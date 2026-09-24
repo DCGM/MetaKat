@@ -147,10 +147,11 @@ def test_no_meta_file_passes_none_metadata(tmp_path, worker, workspace):
     # The job's engine is recorded in the MetaKat JSON the pipeline writes.
     assert process.call_args.kwargs["engine_name"] == "monograph"
     assert process.call_args.kwargs["engine_version"] == "v1.5.0"
-    # MODS records and their overview sit next to the MetaKat JSON.
+    # MODS records are part of the result, next to the MetaKat JSON; the
+    # overview is only for inspection and off by default.
     result_dir = Path(process.call_args.kwargs["output_metakat_json"]).parent
     assert Path(process.call_args.kwargs["output_mods_dir"]) == result_dir / "mods"
-    assert Path(process.call_args.kwargs["output_mods_overview"]) == result_dir / "metakat.mods.txt"
+    assert process.call_args.kwargs["output_mods_overview"] is None
 
 
 def test_path_escaping_engine_directory_fails_the_job(tmp_path, worker, workspace):
@@ -318,4 +319,33 @@ def test_process_job_stores_pdf_beside_result_zip_when_enabled(
     assert response.success
     assert process.call_args.kwargs["output_metakat_pdf"] == str(
         tmp_path / "result.pdf"
+    )
+
+
+def test_process_job_stores_mods_overview_beside_result_zip_when_enabled(
+    tmp_path,
+    worker,
+    workspace,
+):
+    # Like the PDF, the overview is for inspection: kept beside result.zip,
+    # never inside the uploaded result.
+    images, altos, result, engines = workspace
+    handler = logging.FileHandler(tmp_path / "job.log")
+
+    with (
+        mock.patch.object(worker_module, "process_batch") as process,
+        mock.patch.object(worker_module.config, "STORE_MODS_OVERVIEW", True),
+    ):
+        response = worker.process_job(
+            _job({}),
+            handler,
+            str(images),
+            str(result),
+            alto_dir=str(altos),
+            engine_dir=str(engines),
+        )
+
+    assert response.success
+    assert process.call_args.kwargs["output_mods_overview"] == str(
+        tmp_path / "metakat.mods.txt"
     )

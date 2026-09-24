@@ -32,6 +32,7 @@ class Config:
         self.CLEANUP_JOB_DIR = self._env_bool("CLEANUP_JOB_DIR", False)
         self.CLEANUP_OLD_ENGINES = self._env_bool("CLEANUP_OLD_ENGINES", False)
         self.STORE_METAKAT_PDF = self._env_bool("STORE_METAKAT_PDF", False)
+        self.STORE_MODS_OVERVIEW = self._env_bool("STORE_MODS_OVERVIEW", False)
 
         # LOGGING configuration
         ################################################################################################################
