@@ -177,3 +177,24 @@ def test_chapter_engine_without_biblio_is_rejected_before_processing():
         process_batch_module._preflight_engine_requirements(
             {"biblio": _stage("biblio"), "chapter": _stage("chapter")}
         )
+
+
+def test_engine_is_recorded_only_when_the_caller_names_it():
+    for engine_name, expected in ((None, None), ("monograph", ("monograph", "v1.5.0"))):
+        with mock.patch.object(
+            process_batch_module,
+            "init_io",
+            return_value=(MetakatIO(batch_id=uuid4()), None),
+        ):
+            result = process_batch_module.process_batch(
+                batch_dir="batch",
+                engine_config={},
+                engine_name=engine_name,
+                engine_version="v1.5.0",
+            )
+        recorded = None if result.engine is None else (result.engine.name, result.engine.version)
+        assert recorded == expected
+        # Every file declares how its boxes are to be read.
+        assert result.bbox_coordinates.model_dump() == {
+            "unit": "px", "origin": "top-left", "format": "xywh", "reference": "image",
+        }

@@ -605,13 +605,39 @@ MetakatElement = Annotated[
     Field(discriminator="type")
 ]
 
+class MetakatBBoxCoordinates(MetakatBaseModel):
+    """How every box in detection_to_bbox is to be read.
+
+    One declaration for the whole file: every engine takes its boxes from the
+    detector, which runs on the page image. A box is (x, y, width, height) in
+    pixels of that page's image in page_to_image_mapping, measured from its
+    top-left corner. Fixed values, so a file cannot claim anything else.
+    """
+
+    unit: Literal["px"] = "px"
+    origin: Literal["top-left"] = "top-left"
+    format: Literal["xywh"] = "xywh"
+    reference: Literal["image"] = "image"
+
+
+class MetakatEngine(MetakatBaseModel):
+    """The engine whose run produced this file, as the job named it."""
+
+    name: str
+    version: Optional[str] = None
+
+
 class MetakatIO(MetakatBaseModel):
     batch_id: UUID
+    # Optional: set when the caller knows which engine it ran, as the worker
+    # does; a plain pipeline run without that knowledge leaves it empty.
+    engine: Optional[MetakatEngine] = None
     elements: List[MetakatElement] = Field(default_factory=list)
     detection_to_page_mapping: Optional[Dict[UUID, UUID]] = None
     page_to_alto_mapping: Optional[Dict[UUID, str]] = None
     page_to_xml_mapping: Optional[Dict[UUID, str]] = None
     page_to_image_mapping: Optional[Dict[UUID, str]] = None
+    bbox_coordinates: MetakatBBoxCoordinates = Field(default_factory=MetakatBBoxCoordinates)
     detection_to_bbox: Optional[Dict[UUID, Tuple[float, float, float, float]]] = None
 
 MetakatIO.model_rebuild()

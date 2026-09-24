@@ -33,6 +33,7 @@ from metakat.io_parsers.parser_proarc_json import parse_proarc_json
 from metakat.logging_utils import redacted_for_logging
 
 from metakat.schemas.base_objects import (
+    MetakatEngine,
     MetakatIO,
     MetakatPage,
     MetakatPageDimensions,
@@ -48,6 +49,8 @@ def parse_args():
 
     parser.add_argument('--batch-dir', type=str, required=True)
     parser.add_argument('--metakat-json', type=str)
+    parser.add_argument('--engine-name', type=str, help='Engine name to record in the MetaKat JSON')
+    parser.add_argument('--engine-version', type=str, help='Engine version to record with --engine-name')
     parser.add_argument('--proarc-json', type=str)
     parser.add_argument(
         '--engine-config',
@@ -112,7 +115,9 @@ def main():
         proarc_data=_load_json_file(args.proarc_json),
         output_metakat_json=args.output_metakat_json,
         output_metakat_pdf=args.output_metakat_pdf,
-        allowed_image_extensions=set(args.allowed_image_extensions)
+        allowed_image_extensions=set(args.allowed_image_extensions),
+        engine_name=args.engine_name,
+        engine_version=args.engine_version,
     )
     
 
@@ -125,6 +130,8 @@ def process_batch(
     output_metakat_json: Optional[str] = None,
     output_metakat_pdf: Optional[str] = None,
     allowed_image_extensions: Optional[Set] = None,
+    engine_name: Optional[str] = None,
+    engine_version: Optional[str] = None,
 ) -> MetakatIO:
     """
     Process a batch directory and return the processed MetakatIO object.
@@ -138,6 +145,9 @@ def process_batch(
         output_metakat_json: Path to output Metakat JSON file
         output_metakat_pdf: Path to output interactive MetaKat PDF file
         allowed_image_extensions: Set of allowed image file extensions
+        engine_name: Name of the engine being run, recorded in MetakatIO.engine;
+            optional, since a plain pipeline run need not know it
+        engine_version: Version of that engine; ignored without engine_name
 
     Returns:
         Processed MetakatIO object
@@ -162,6 +172,8 @@ def process_batch(
         ordered_image_filenames=ordered_image_filenames,
         allowed_image_extensions=allowed_image_extensions
     )
+    if engine_name is not None:
+        metakat_io.engine = MetakatEngine(name=engine_name, version=engine_version)
 
     page_number = _engine_pair(pipeline_config, "page_number")
     if page_number is not None:

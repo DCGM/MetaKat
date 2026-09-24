@@ -104,6 +104,8 @@ class MetakatWorker(DocWorkerWrapper):
                     metakat_data=metadata["metakat_json"],
                     proarc_data=metadata["proarc_json"],
                     ordered_image_filenames=ordered_image_filenames,
+                    engine_name=job.engine_name,
+                    engine_version=job.engine_version,
                     output_metakat_json=os.path.join(result_dir, "metakat.json"),
                     output_metakat_pdf=(
                         os.path.join(Path(result_dir).parent, "result.pdf")

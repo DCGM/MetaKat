@@ -14,6 +14,8 @@ def _job(engine_definition):
     return types.SimpleNamespace(
         images=[types.SimpleNamespace(name="page.jpg", order=0)],
         engine_definition=engine_definition,
+        engine_name="monograph",
+        engine_version="v1.5.0",
     )
 
 
@@ -141,6 +143,9 @@ def test_no_meta_file_passes_none_metadata(tmp_path, worker, workspace):
     assert process.call_args.kwargs["engine_config"] == {}
     assert process.call_args.kwargs["metakat_data"] is None
     assert process.call_args.kwargs["proarc_data"] is None
+    # The job's engine is recorded in the MetaKat JSON the pipeline writes.
+    assert process.call_args.kwargs["engine_name"] == "monograph"
+    assert process.call_args.kwargs["engine_version"] == "v1.5.0"
 
 
 def test_path_escaping_engine_directory_fails_the_job(tmp_path, worker, workspace):
