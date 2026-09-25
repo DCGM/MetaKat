@@ -245,13 +245,22 @@ class MetakatGroup(MetakatBaseModel):
     Value, so catalogue-derived or hand-entered values are grouped on the
     same terms.
 
-    Grouping is enrichment, never a precondition. The DMF permits both
-    serialisations: subelements repeated inside one container when the
-    bindings are unknown, or the whole container repeated when they are. So a
-    producer that cannot work out the groupings emits none and still writes
-    valid MODS; a producer that can emits groups and writes a more precise
-    record. Partial grouping - two of three publishers grouped - is a normal
-    state, not a broken one.
+    A group is one statement: the values read together as one imprint, one
+    title or one series, which MODS writes as one container. It does not
+    claim which value inside it pairs with which. The DMF ties <originInfo>
+    to the catalogue's 260/264 fields - one container per field - and for
+    parallel places or publishers within one field allows either
+    serialisation: the subelements repeated inside that one container, or
+    the whole container repeated "tak, aby se neztratily vzajemne vazby mezi
+    subelementy". So values of one statement whose pairings are unknown form
+    one group; splitting it into several is for pairings that are known.
+
+    Grouping is enrichment, never a precondition. A producer that cannot
+    work out the groupings emits none and still writes valid MODS, but each
+    ungrouped value is then written as a statement of its own - one
+    <originInfo> per place, publisher or date. A producer that can emits
+    groups and writes a more precise record. Partial grouping - two of three
+    publishers grouped - is a normal state, not a broken one.
     """
 
     type: GroupType
