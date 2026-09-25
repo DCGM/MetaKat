@@ -280,7 +280,8 @@ class MetakatAgents(MetakatBaseModel):
     not model contact data for names, so it is a MetaKat-only field that
     cannot be exported.
 
-    Mixed into both document bases, which is why it excludes
+    Mixed into both document bases, between their <titleInfo> fields and the
+    rest, as MODS puts <name> right after <titleInfo>. That is also why it excludes
     reviewedWorkAuthor: that name sits inside a <relatedItem> describing a
     different work, not in the record's own <name> block, and only an
     internal part has one.
@@ -296,56 +297,70 @@ class MetakatAgents(MetakatBaseModel):
     email: Optional[List[Value]] = None
 
 
-class _MetakatBibliographicFields(MetakatBaseModel):
-    """Everything on a bibliographic record except the MODS <name> block.
+class _MetakatBibliographicHead(MetakatBaseModel):
+    """What a bibliographic record is, and its <titleInfo>.
 
-    Split out purely for field order. Pydantic collects fields in reverse MRO,
-    so the base listed *first* in a class statement contributes its fields
-    *last*; combining as MetakatBibliographic(MetakatAgents, <this>) therefore
-    serialises the agents after the rest. Not meant to be referenced directly
-    - use MetakatBibliographic, which is the complete model.
+    One of the three parts MetakatBibliographic is composed of, purely for
+    field order - see there. Not meant to be referenced directly.
     """
 
+    # Each level narrows this to its Literal, which keeps the field in this
+    # position: every record opens with what it is.
+    type: str
     id: UUID
     parent_id: Optional[UUID] = None
-
     hierarchy: Optional[HierarchyType] = None
 
+    # <titleInfo>
+    title: Optional[List[Value]] = None
+    subTitle: Optional[List[Value]] = None
     partNumber: Optional[List[Value]] = None
     partName: Optional[List[Value]] = None
 
-    title: Optional[List[Value]] = None
-    subTitle: Optional[List[Value]] = None
+
+class _MetakatBibliographicFields(MetakatBaseModel):
+    """Everything on a bibliographic record after its <name> block.
+
+    One of the three parts MetakatBibliographic is composed of, purely for
+    field order - see there. Not meant to be referenced directly.
+    """
+
+    # <originInfo eventType="publication">
+    placeTerm: Optional[List[Value]] = None
+    publisher: Optional[List[Value]] = None
+    dateIssued: Optional[List[Value]] = None
     edition: Optional[List[Value]] = None
     frequency: Optional[List[Value]] = None
 
-    statementOfResponsibility: Optional[List[Value]] = None
-
-    publisher: Optional[List[Value]] = None
-    placeTerm: Optional[List[Value]] = None
-    dateIssued: Optional[List[Value]] = None
-    copyrightDate: Optional[List[Value]] = None
-
-    manufacturePublisher: Optional[List[Value]] = None
-    manufacturePlaceTerm: Optional[List[Value]] = None
+    # <originInfo eventType="manufacture">. The date is
     # <dateOther type="manufacture">, not a dateIssued - hence the name.
+    manufacturePlaceTerm: Optional[List[Value]] = None
+    manufacturePublisher: Optional[List[Value]] = None
     manufactureDate: Optional[List[Value]] = None
 
+    # <originInfo eventType="copyright">
+    copyrightDate: Optional[List[Value]] = None
+
+    # <language> and <physicalDescription><form>. Classifier outputs rather
+    # than detected text spans, so they carry a confidence but no detection
+    # UUID - the same shape MetakatPage already uses for pageType and side.
+    # `language` is a list because a document legitimately has several (the
+    # periodical records in the sample packages carry both "cze" and "pol");
+    # `form` is singular because the marcform axis admits one answer per
+    # document.
+    language: Optional[List[Tuple[str, float]]] = None  # iso639-2b codes
+    form: Optional[Tuple[FormType, float]] = None
+
+    # <note type="statement of responsibility">
+    statementOfResponsibility: Optional[List[Value]] = None
+
+    # <relatedItem type="series">
     seriesName: Optional[List[Value]] = None
     seriesPartNumber: Optional[List[Value]] = None
     seriesPartName: Optional[List[Value]] = None
 
-    # Classifier outputs rather than detected text spans, so they carry a
-    # confidence but no detection UUID - the same shape MetakatPage already
-    # uses for pageType and side. `language` is a list because a document
-    # legitimately has several (the periodical records in the sample
-    # packages carry both "cze" and "pol"); `form` is singular because the
-    # marcform axis admits one answer per document.
-    language: Optional[List[Tuple[str, float]]] = None  # iso639-2b codes
-    form: Optional[Tuple[FormType, float]] = None
 
-
-class MetakatBibliographic(MetakatAgents, _MetakatBibliographicFields):
+class MetakatBibliographic(_MetakatBibliographicFields, MetakatAgents, _MetakatBibliographicHead):
     """Shared field set for the four bibliographic levels.
 
     MODS has a single <mods> element for every level: a title, a volume, an
@@ -361,9 +376,13 @@ class MetakatBibliographic(MetakatAgents, _MetakatBibliographicFields):
     supplement. Which fields apply where is documented in the field inventory
     artifact and is deliberately not enforced here.
 
-    `groups` is declared here rather than on either base so that it
-    serialises after the agents: fields declared in a subclass body come
-    after every inherited field.
+    Fields follow the record's identity and then the MODS element order of the
+    DMF tables - titleInfo, name, originInfo, language, physicalDescription,
+    note, relatedItem - and the MODS exporter derives its element order from
+    them, so a MetaKat record and its MODS read in the same order. Pydantic
+    collects fields in reverse MRO, so of the bases above the last listed comes
+    first: the head, then the agents, then the rest. `groups`, declared here,
+    comes after all of them.
     """
 
     groups: Optional[List[MetakatGroup]] = None
@@ -418,11 +437,11 @@ class MetakatPage(MetakatBaseModel):
     altoDim: Optional[MetakatPageDimensions] = None
 
 
-class _MetakatInternalPartFields(MetakatBaseModel):
-    """Everything on an internal part except the MODS <name> block.
+class _MetakatInternalPartHead(MetakatBaseModel):
+    """What an internal part is, and its <titleInfo> readings.
 
-    Split out purely for field order - see _MetakatBibliographicFields. Use
-    MetakatInternalPart, which is the complete model.
+    One of the three parts MetakatInternalPart is composed of, purely for
+    field order - see there. Not meant to be referenced directly.
 
     Two pages describe an internal part and they are read separately, so the
     field names say which one a value came from:
@@ -435,24 +454,84 @@ class _MetakatInternalPartFields(MetakatBaseModel):
 
     The same logical value can therefore appear twice, once per side, and the
     schema does not assert that the two agree - a TITLE group may hold both
-    and leave the reader to decide. Fields are declared destination side
-    first, then the table-of-contents side.
+    and leave the reader to decide. Each TOC reading is declared right after
+    the field it backs, as MODS writes the two as one value.
+    """
 
-    Note there is no destination-side page number: the number printed on the
+    # Each level narrows this to its Literal, which keeps the field in this
+    # position: every record opens with what it is.
+    type: str
+    id: UUID
+    parent_id: UUID
+
+    # <titleInfo>
+    title: Optional[List[Value]] = None
+    titleTocPage: Optional[List[Value]] = None
+    subTitle: Optional[List[Value]] = None
+    subTitleTocPage: Optional[List[Value]] = None
+
+    # The part's ordinal - "I.", "XI.", "5." - printed at the head of its own
+    # opening page and kept out of the title; partNumberTocPage is the same
+    # number as given by the table-of-contents entry.
+    #
+    # There is no partName here, unlike on MetakatBibliographic: for a
+    # bibliographic record partNumber and partName are the number and title of
+    # one part of a larger work, whereas an internal part's own title is
+    # already `title`, so a partName would have nothing left to hold.
+    partNumber: Optional[List[Value]] = None
+    partNumberTocPage: Optional[List[Value]] = None
+
+
+class _MetakatInternalPartFields(MetakatBaseModel):
+    """Everything on an internal part after its <name> block.
+
+    One of the three parts MetakatInternalPart is composed of, purely for
+    field order - see there. Not meant to be referenced directly.
+
+    There is no destination-side page number: the number printed on the
     part's own opening page belongs to that MetakatPage record, and
     pageIndexStart/pageIndexEnd already say which pages those are.
     """
 
-    id: UUID
-    parent_id: UUID
+    # <genre type="...">. A classifier output, so a confidence but no
+    # detection UUID; in practice only articles carry a meaningful genre
+    # specialisation.
+    articleGenre: Optional[Tuple[ArticleGenre, float]] = None
 
-    # ------------------------------------------------------------------
-    # Destination page - where the chapter or article actually begins.
-    # ------------------------------------------------------------------
+    # An internal part has no <originInfo>, so this date has no place in its
+    # MODS record and is kept only in the record's provenance. Recording it
+    # here keeps the evidence that the part's own page carried the date.
+    dateIssued: Optional[List[Value]] = None
 
-    # Which scans the part occupies, MODS <part type="pageIndex">. Lists
-    # because a part printed in two non-contiguous runs has two of them, and
-    # MODS repeats the whole <part> for each.
+    # <language>, a classifier output like articleGenre.
+    language: Optional[List[Tuple[str, float]]] = None  # iso639-2b codes
+
+    # <abstract> and <subject><topic>
+    abstract: Optional[List[Value]] = None
+    keywords: Optional[List[Value]] = None
+
+    # <relatedItem type="reviewOf">, holding the reviewed work's own
+    # <titleInfo>, <name> and <originInfo>. Kept out of MetakatAgents even
+    # though one of them is a name: these describe a *different* work, and
+    # only an internal part ever has them. Imprint stays one field because the
+    # mapping's own example keeps place, publisher and year together in a
+    # single <publisher> element - identifying someone else's book, not
+    # cataloguing it - and because a review header prints it as one line.
+    reviewedWorkTitle: Optional[List[Value]] = None
+    reviewedWorkAuthor: Optional[List[Value]] = None
+    reviewedWorkImprint: Optional[List[Value]] = None
+
+    # <part type="pageNumber">: the page number printed in the TOC entry,
+    # usually on the right. It is evidence read on the table-of-contents page,
+    # but it describes the part itself - the standard records what the number
+    # is, not where it was read. A range gives a start and an end; a pageRange
+    # group says which start goes with which end.
+    pageNumberStartTocPage: Optional[List[Value]] = None
+    pageNumberEndTocPage: Optional[List[Value]] = None
+
+    # <part type="pageIndex">: which scans the part occupies. Lists because a
+    # part printed in two non-contiguous runs has two of them, and MODS
+    # repeats the whole <part> for each.
     #
     # These identify the pages of interest belonging to this part; they are
     # not necessarily derived from matching a printed page number, a title
@@ -475,69 +554,12 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     pageIndexStart: Optional[List[Tuple[int, UUID]]] = None
     pageIndexEnd: Optional[List[Tuple[int, UUID]]] = None
 
-    title: Optional[List[Value]] = None
-    subTitle: Optional[List[Value]] = None
-
-    # The part's ordinal - "I.", "XI.", "5." - printed at the head of its own
-    # opening page and kept out of the title. partNumberTocPage is the same
-    # number as given by the table-of-contents entry.
-    #
-    # There is no partName here, unlike on MetakatBibliographic: for a
-    # bibliographic record partNumber and partName are the number and title of
-    # one part of a larger work, whereas an internal part's own title is
-    # already `title`, so a partName would have nothing left to hold.
-    partNumber: Optional[List[Value]] = None
-
-    abstract: Optional[List[Value]] = None
-    keywords: Optional[List[Value]] = None
-
-    # Denormalised from the parent. An internal part has no <originInfo>, so
-    # this serialises to the *parent's* originInfo, never the part's - the
-    # binder corroborates the parent issue's date with it, or promotes it
-    # when the parent has none. Recording it here keeps the evidence that
-    # this part's own page carried the date.
-    dateIssued: Optional[List[Value]] = None
-
-    # The reviewed work, MODS <relatedItem> holding its own <titleInfo>,
-    # <name> and <originInfo>. Kept out of MetakatAgents even though one of
-    # them is a name: these describe a *different* work, and only an internal
-    # part ever has them. Imprint stays one field because the mapping's own
-    # example keeps place, publisher and year together in a single
-    # <publisher> element - identifying someone else's book, not cataloguing
-    # it - and because a review header prints it as one line.
-    reviewedWorkTitle: Optional[List[Value]] = None
-    reviewedWorkAuthor: Optional[List[Value]] = None
-    reviewedWorkImprint: Optional[List[Value]] = None
-
-    # Classifier outputs, so a confidence but no detection UUID. Both live on
-    # the shared base because either internal-part kind serialises them, but
-    # in practice only articles carry a meaningful genre specialisation.
-    language: Optional[List[Tuple[str, float]]] = None  # iso639-2b codes
-    articleGenre: Optional[Tuple[ArticleGenre, float]] = None
-
-    # ------------------------------------------------------------------
-    # Table-of-contents page - the entry that points at the part.
-    # ------------------------------------------------------------------
-
-    # Which scan carries the entry. A pointer, not a range, so it stays
-    # scalar.
+    # Which scan carries the TOC entry. A pointer, not a range, so it stays
+    # scalar. MetaKat-only.
     pageIndexTocPage: Optional[int] = None
 
-    titleTocPage: Optional[List[Value]] = None
-    subTitleTocPage: Optional[List[Value]] = None
-    partNumberTocPage: Optional[List[Value]] = None
 
-    # The page number printed in the entry, usually on the right. It is
-    # evidence read on the table-of-contents page, but it serialises to the
-    # part's own MODS <part type="pageNumber"> - the standard records what
-    # the number is, not where it was read. Two values on each side when the
-    # entry gives a range; a pageRange group says which start goes with
-    # which end.
-    pageNumberStartTocPage: Optional[List[Value]] = None
-    pageNumberEndTocPage: Optional[List[Value]] = None
-
-
-class MetakatInternalPart(MetakatAgents, _MetakatInternalPartFields):
+class MetakatInternalPart(_MetakatInternalPartFields, MetakatAgents, _MetakatInternalPartHead):
     """Shared field set for the two internal-part levels.
 
     MODS describes a chapter and an article with the same <mods> element -
@@ -553,12 +575,11 @@ class MetakatInternalPart(MetakatAgents, _MetakatInternalPartFields):
     part the two hierarchies genuinely do share, which is why MetakatAgents is
     mixed into both.
 
-    pageIndex* stay scalar ints - they are computed positions in the scan
-    order, not detected values, so unlike the text fields they cannot repeat.
-
-    `groups` is declared here rather than on either base so that it
-    serialises after the agents: fields declared in a subclass body come
-    after every inherited field.
+    Fields follow the part's identity and then the MODS element order of the
+    DMF internal-part table - titleInfo, name, genre, language, abstract,
+    subject, relatedItem, part - and the MODS exporter derives its element
+    order from them. Composed the same way as MetakatBibliographic, with
+    `groups` last.
     """
 
     groups: Optional[List[MetakatGroup]] = None

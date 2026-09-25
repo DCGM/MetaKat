@@ -44,6 +44,28 @@ one against the Library of Congress schema.
 
 `email` and `hierarchy` have no MODS element and are not written yet.
 
+### Order
+
+A record's elements come in the order its model declares their fields, so a
+MetaKat record and its MODS read in the same order, and the schema is the
+only place the order is defined. `section_order()` walks the model's fields
+and writes each MODS section where its first field sits; values inside a
+container follow field order too.
+
+The identity fields - `type`, `id`, `parent_id`, `hierarchy` - lead every
+model but not a DMF record, so their elements take the DMF's places: `<genre>`
+after `<name>`, `<identifier>` before the `<part>` elements (last if there are
+none), then `<recordInfo>` and the provenance extension. Fields without a MODS
+element write nothing and take no place.
+
+The tests hold the schema order to the NDK DMF tables - titleInfo, name,
+genre, originInfo (publication, manufacture, copyright), language,
+physicalDescription, abstract, note, subject, relatedItem, identifier, part
+(pageNumber, pageIndex), recordInfo - including the order of the leaves inside
+`titleInfo` and `originInfo`. They also require every field of both bases to
+name its MODS section or declare it has none, so a new field cannot be added
+without deciding where it goes.
+
 ### Containers come only from groups
 
 The code that creates values groups what it knows belongs together. A group

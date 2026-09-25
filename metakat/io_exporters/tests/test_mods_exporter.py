@@ -4,14 +4,17 @@ from uuid import uuid4
 
 import pytest
 
-from metakat.io_exporters.mods_exporter import MODS_NS, PROVENANCE_NS, export_mods
+from metakat.io_exporters import mods_exporter
+from metakat.io_exporters.mods_exporter import MODS_NS, PROVENANCE_NS, export_mods, section_order
 from metakat.schemas.base_objects import (
     GroupType,
     HierarchyType,
     MetakatArticle,
+    MetakatBibliographic,
     MetakatChapter,
     MetakatEngine,
     MetakatGroup,
+    MetakatInternalPart,
     MetakatIO,
     MetakatPage,
     MetakatVolume,
@@ -230,3 +233,78 @@ def test_the_overview_lists_every_record_in_json_order(batch, tmp_path):
     headers = [line for line in text.splitlines() if line.startswith("==== ")]
     assert [h.split(" | ")[-2] for h in headers] == [str(e.id) for e in batch.io.elements]
     assert headers[0] == f"==== elements[0] volume | Kytice | {batch.volume.id} | {batch.volume.id}.xml"
+
+
+# The order MetaKat records and their MODS follow. The schema's field order is
+# the single source: the exporter derives its element order from it. These
+# tests hold that order to the NDK DMF tables (monographs 2.3, periodicals
+# 2.2), whose top-level sequence is the same at every level, and to the order
+# of the leaves inside the containers MetaKat fills.
+DMF_ORDER = ("titleInfo", "name", "typeOfResource", "genre", "originInfo", "language",
+             "physicalDescription", "abstract", "note", "subject", "classification",
+             "relatedItem", "identifier", "location", "part", "recordInfo")
+# Several events or kinds of one element: originInfo in MARC 264 order, the
+# two parts as the internal-part table lists them.
+DMF_SUBORDER = {"originInfo": ("publication", "manufacture", "copyright"),
+                "part": ("pageNumber", "pageIndex")}
+DMF_LEAVES = {
+    "titleInfo": ("title", "subTitle", "partNumber", "partName"),
+    "originInfo": ("place", "agent", "dateIssued", "dateOther", "copyrightDate", "edition", "frequency"),
+}
+LEAF_OF_FIELD = {
+    "title": "title", "titleTocPage": "title", "subTitle": "subTitle", "subTitleTocPage": "subTitle",
+    "partNumber": "partNumber", "partNumberTocPage": "partNumber", "partName": "partName",
+    "placeTerm": "place", "manufacturePlaceTerm": "place",
+    "publisher": "agent", "manufacturePublisher": "agent",
+    "dateIssued": "dateIssued", "manufactureDate": "dateOther", "copyrightDate": "copyrightDate",
+    "edition": "edition", "frequency": "frequency",
+}
+
+
+def _dmf_rank(section):
+    # A kind the DMF does not order - series and reviewOf items never share a
+    # record - ranks with its element.
+    element, _, kind = section.partition(":")
+    kinds = DMF_SUBORDER.get(element, ())
+    return DMF_ORDER.index(element), kinds.index(kind) if kind in kinds else 0
+
+
+@pytest.mark.parametrize("base, sections", [
+    (MetakatBibliographic, mods_exporter._BIBLIOGRAPHIC_SECTIONS),
+    (MetakatInternalPart, mods_exporter._INTERNAL_PART_SECTIONS),
+])
+def test_every_field_is_placed_in_a_mods_section_or_declared_to_have_none(base, sections):
+    # A new field cannot be added without deciding where it goes in MODS.
+    assert set(sections) == set(base.model_fields)
+
+
+@pytest.mark.parametrize("model", [MetakatVolume, MetakatChapter])
+def test_the_schema_order_is_the_dmf_order(model):
+    # Reordering the schema reorders the MODS output; this keeps both in the
+    # order of the archive's standard. A section with no MODS element of its
+    # own - an internal part's provenance-only date - has no rank.
+    ranked = [s for s in section_order(model) if not s.startswith("provenance:")]
+    assert ranked == sorted(ranked, key=_dmf_rank)
+
+    sections = mods_exporter._sections_of(model.model_construct(type=model.model_fields["type"].default))
+    for container, leaves in DMF_LEAVES.items():
+        for section in {s for s in sections.values() if s and s.split(":")[0] == container}:
+            in_model_order = [LEAF_OF_FIELD[f] for f in model.model_fields if sections[f] == section]
+            assert in_model_order == sorted(in_model_order, key=leaves.index), section
+
+
+def _section_of(node):
+    tag = etree.QName(node).localname
+    kind = node.get("eventType") if tag == "originInfo" else node.get("type") if tag in ("relatedItem", "part") else None
+    return f"{tag}:{kind}" if kind else tag
+
+
+def test_records_are_written_in_the_schema_order(batch, tmp_path):
+    records = _export(batch, tmp_path)
+
+    for element in (batch.volume, batch.chapter, batch.article):
+        order = section_order(type(element))
+        root = records[str(element.id)].getroot()
+        written = [_section_of(node) for node in root if etree.QName(node).localname != "extension"]
+        assert written == sorted(written, key=order.index), element.type
+        assert etree.QName(root[-1]).localname == "extension"

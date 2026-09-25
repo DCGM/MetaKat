@@ -127,6 +127,10 @@ class _Record:
     # TOC readings kept only in provenance, by the id of the value they back.
     supplementary: dict = field(default_factory=dict)
 
+    def position(self, field_name: str) -> int:
+        """Where a field sits in its model - the order values are written in."""
+        return list(type(self.element).model_fields).index(field_name)
+
     def container(self, parent: ET.Element, tag: str, **attributes: str) -> tuple[ET.Element, str]:
         count = self.counters.get(tag, 0) + 1
         self.counters[tag] = count
@@ -175,7 +179,8 @@ def _consume_groups(record: _Record, group_type: Optional[str], fields: Sequence
     """
     demoted = _demoted_ids(record)
     by_id = {}
-    for field_name in fields:
+    model_fields = type(record.element).model_fields
+    for field_name in sorted((f for f in fields if f in model_fields), key=record.position):
         for value in _values(record.element, field_name):
             if value.id not in demoted:
                 by_id[value.id] = (value, field_name)
@@ -184,6 +189,7 @@ def _consume_groups(record: _Record, group_type: Optional[str], fields: Sequence
         if group_type is None or group.type != group_type:
             continue
         members = [by_id[member] for member in group.members if member in by_id and member not in used]
+        members.sort(key=lambda member: record.position(member[1]))
         if members:
             used.update(value.id for value, _ in members)
             yield members
@@ -200,17 +206,14 @@ _TITLE_LEAF = {
     "title": "title", "subTitle": "subTitle", "partNumber": "partNumber", "partName": "partName",
     "titleTocPage": "title", "subTitleTocPage": "subTitle", "partNumberTocPage": "partNumber",
 }
-_TITLE_ORDER = ("title", "subTitle", "partNumber", "partName")
 
 
 def _title_infos(record: _Record) -> None:
     for members in _consume_groups(record, GroupType.TITLE_INFO.value, tuple(_TITLE_LEAF)):
         container, target = record.container(record.root, "titleInfo", **_common_lang(v for v, _ in members))
-        for leaf_name in _TITLE_ORDER:
-            for value, field_name in members:
-                if _TITLE_LEAF[field_name] == leaf_name:
-                    record.leaf(container, leaf_name, value.text)
-                    record.value(target, container, leaf_name, value, field_name)
+        for value, field_name in members:
+            record.leaf(container, _TITLE_LEAF[field_name], value.text)
+            record.value(target, container, _TITLE_LEAF[field_name], value, field_name)
 
 
 def _mark_toc_readings(record: _Record) -> None:
@@ -277,11 +280,9 @@ def _related_items(record: _Record, group_type: str, item_type: str, fields: dic
         title_members = [(v, f) for v, f in members if fields[f] in ("title", "partNumber", "partName")]
         if title_members:
             title_info = ET.SubElement(container, _m("titleInfo"), _common_lang(v for v, _ in title_members))
-            for leaf_name in _TITLE_ORDER:
-                for value, field_name in title_members:
-                    if fields[field_name] == leaf_name:
-                        record.leaf(title_info, leaf_name, value.text)
-                        record.value(target, container, leaf_name, value, field_name)
+            for value, field_name in title_members:
+                record.leaf(title_info, fields[field_name], value.text)
+                record.value(target, container, fields[field_name], value, field_name)
         for value, field_name in members:
             if fields[field_name] == "name":
                 name = ET.SubElement(container, _m("name"))
@@ -358,61 +359,151 @@ def _classified(record: _Record, target: str, prop: str, field_name: str,
 
 # ------------------------------------------------------------------- records
 
-def _unit_record(record: _Record, created: datetime) -> None:
+# Which MODS section each field is written in, per base. None marks a field
+# with no MODS element. Every field of the base must be listed: an unlisted
+# one fails the export rather than being silently left out.
+_COMMON_SECTIONS = {
+    "type": None, "id": None, "parent_id": None, "groups": None, "email": None,
+    "title": "titleInfo", "subTitle": "titleInfo", "partNumber": "titleInfo",
+    **{field_name: "name" for field_name in AGENT_FIELDS},
+    "language": "language",
+}
+_BIBLIOGRAPHIC_SECTIONS = {
+    **_COMMON_SECTIONS,
+    "hierarchy": None,
+    "partName": "titleInfo",
+    "placeTerm": "originInfo:publication", "publisher": "originInfo:publication",
+    "dateIssued": "originInfo:publication", "edition": "originInfo:publication",
+    "frequency": "originInfo:publication",
+    "manufacturePlaceTerm": "originInfo:manufacture", "manufacturePublisher": "originInfo:manufacture",
+    "manufactureDate": "originInfo:manufacture",
+    "copyrightDate": "originInfo:copyright",
+    "form": "physicalDescription",
+    "statementOfResponsibility": "note",
+    "seriesName": "relatedItem:series", "seriesPartNumber": "relatedItem:series",
+    "seriesPartName": "relatedItem:series",
+}
+_INTERNAL_PART_SECTIONS = {
+    **_COMMON_SECTIONS,
+    "titleTocPage": "titleInfo", "subTitleTocPage": "titleInfo", "partNumberTocPage": "titleInfo",
+    "articleGenre": "genre",
+    # An internal part has no <originInfo>; its date is written to provenance only.
+    "dateIssued": "provenance:dateIssued",
+    "abstract": "abstract",
+    "keywords": "subject",
+    "reviewedWorkTitle": "relatedItem:reviewOf", "reviewedWorkAuthor": "relatedItem:reviewOf",
+    "reviewedWorkImprint": "relatedItem:reviewOf",
+    "pageNumberStartTocPage": "part:pageNumber", "pageNumberEndTocPage": "part:pageNumber",
+    "pageIndexStart": "part:pageIndex", "pageIndexEnd": "part:pageIndex",
+    "pageIndexTocPage": None,
+}
+
+
+def _sections_of(element: MetakatElement) -> dict:
+    return _INTERNAL_PART_SECTIONS if element.type in INTERNAL_PART_TYPES else _BIBLIOGRAPHIC_SECTIONS
+
+
+def section_order(model: type) -> list[str]:
+    """The MODS sections of a unit, in the order its model declares their fields.
+
+    The record's identity fields lead the model but not a MODS record, so their
+    elements have the fixed places the DMF tables give them instead: <genre>
+    right after <name> unless a field puts it elsewhere, <identifier> before
+    the <part> elements - or last if there are none - and <recordInfo> last.
+    """
+    internal = model.model_fields["type"].default in INTERNAL_PART_TYPES
+    sections = _INTERNAL_PART_SECTIONS if internal else _BIBLIOGRAPHIC_SECTIONS
+    order = []
+    for field_name in model.model_fields:
+        section = sections[field_name]
+        if section is not None and section not in order:
+            order.append(section)
+    if "genre" not in order:
+        order.insert(order.index("name") + 1, "genre")
+    parts = [index for index, section in enumerate(order) if section.startswith("part:")]
+    order.insert(parts[0] if parts else len(order), "identifier")
+    return [*order, "recordInfo"]
+
+
+def _genre(record: _Record) -> None:
     element = record.element
-    genre_attributes = {}
-    if element.type == DocumentType.ARTICLE.value and element.articleGenre is not None:
-        genre_attributes["type"] = element.articleGenre[0]
-    genre, genre_id = record.container(record.root, "genre", **genre_attributes)
+    genre_type = getattr(element, "articleGenre", None) if element.type == DocumentType.ARTICLE.value else None
+    genre, genre_id = record.container(record.root, "genre", **({"type": genre_type[0]} if genre_type else {}))
     genre.text = element.type
-    if "type" in genre_attributes:
-        _classified(record, genre_id, "type", "articleGenre", *element.articleGenre)
+    if genre_type:
+        _classified(record, genre_id, "type", "articleGenre", *genre_type)
 
-    _mark_toc_readings(record)
-    _title_infos(record)
-    _names(record)
 
-    if element.type in INTERNAL_PART_TYPES:
-        _simple(record, "abstract", "abstract", lang=True)
-        _simple(record, "keywords", "subject", child=("topic", {}), lang=True)
-        _related_items(record, GroupType.REVIEWED_WORK.value, "reviewOf", {
-            "reviewedWorkTitle": "title", "reviewedWorkAuthor": "name", "reviewedWorkImprint": "imprint",
-        })
-        _page_runs(record, "pageIndexStart", "pageIndexEnd", "pageIndex")
-        _page_runs(record, "pageNumberStartTocPage", "pageNumberEndTocPage", "pageNumber")
-        # An internal part has no <originInfo>; its date stays in provenance.
-        for value in _values(element, "dateIssued"):
-            record.assertions.append(_Assertion(None, "dateIssued", 1, [(value, "dateIssued")]))
-    else:
-        _origin_info(record, GroupType.ORIGIN_INFO_PUBLICATION.value, "publication", "publisher", {
-            "placeTerm": ("place",), "publisher": ("agent",),
-            "dateIssued": ("dateIssued", {}), "edition": ("edition", {}), "frequency": ("frequency", {}),
-        })
-        # No group type binds a copyright date to anything: each is its own event.
-        _origin_info(record, None, "copyright", None, {"copyrightDate": ("copyrightDate", {})})
-        _origin_info(record, GroupType.ORIGIN_INFO_MANUFACTURE.value, "manufacture", "manufacturer", {
-            "manufacturePlaceTerm": ("place",), "manufacturePublisher": ("agent",),
-            "manufactureDate": ("dateOther", {"type": "manufacture"}),
-        })
-        _related_items(record, GroupType.SERIES.value, "series", {
-            "seriesName": "title", "seriesPartNumber": "partNumber", "seriesPartName": "partName",
-        })
-        _simple(record, "statementOfResponsibility", "note", prop="note", type="statement of responsibility")
-
-    for code, confidence in element.language or []:
+def _languages(record: _Record) -> None:
+    for code, confidence in record.element.language or []:
         language, target = record.container(record.root, "language")
         record.leaf(language, "languageTerm", code, type="code", authority="iso639-2b")
         _classified(record, target, "languageTerm", "language", code, confidence)
-    form = getattr(element, "form", None)
+
+
+def _form(record: _Record) -> None:
+    form = getattr(record.element, "form", None)
     if form is not None:
         description, target = record.container(record.root, "physicalDescription")
         record.leaf(description, "form", form[0], authority="marcform")
         _classified(record, target, "form", "form", *form)
 
-    _identifier(record)
+
+def _provenance_only_dates(record: _Record) -> None:
+    for value in _values(record.element, "dateIssued"):
+        record.assertions.append(_Assertion(None, "dateIssued", 1, [(value, "dateIssued")]))
+
+
+def _record_info(record: _Record, created: datetime) -> None:
     record_info = ET.SubElement(record.root, _m("recordInfo"))
     record.leaf(record_info, "recordCreationDate", created.strftime("%Y-%m-%dT%H:%M:%SZ"), encoding="iso8601")
     record.leaf(record_info, "recordOrigin", "machine generated")
+
+
+_SECTION_WRITERS = {
+    "titleInfo": _title_infos,
+    "name": _names,
+    "genre": _genre,
+    "originInfo:publication": lambda record: _origin_info(
+        record, GroupType.ORIGIN_INFO_PUBLICATION.value, "publication", "publisher", {
+            "placeTerm": ("place",), "publisher": ("agent",),
+            "dateIssued": ("dateIssued", {}), "edition": ("edition", {}), "frequency": ("frequency", {}),
+        }),
+    "originInfo:manufacture": lambda record: _origin_info(
+        record, GroupType.ORIGIN_INFO_MANUFACTURE.value, "manufacture", "manufacturer", {
+            "manufacturePlaceTerm": ("place",), "manufacturePublisher": ("agent",),
+            "manufactureDate": ("dateOther", {"type": "manufacture"}),
+        }),
+    # No group type binds a copyright date to anything: each is its own event.
+    "originInfo:copyright": lambda record: _origin_info(
+        record, None, "copyright", None, {"copyrightDate": ("copyrightDate", {})}),
+    "provenance:dateIssued": _provenance_only_dates,
+    "language": _languages,
+    "physicalDescription": _form,
+    "abstract": lambda record: _simple(record, "abstract", "abstract", lang=True),
+    "note": lambda record: _simple(record, "statementOfResponsibility", "note", prop="note",
+                                   type="statement of responsibility"),
+    "subject": lambda record: _simple(record, "keywords", "subject", child=("topic", {}), lang=True),
+    "relatedItem:series": lambda record: _related_items(record, GroupType.SERIES.value, "series", {
+        "seriesName": "title", "seriesPartNumber": "partNumber", "seriesPartName": "partName",
+    }),
+    "relatedItem:reviewOf": lambda record: _related_items(record, GroupType.REVIEWED_WORK.value, "reviewOf", {
+        "reviewedWorkTitle": "title", "reviewedWorkAuthor": "name", "reviewedWorkImprint": "imprint",
+    }),
+    "part:pageNumber": lambda record: _page_runs(
+        record, "pageNumberStartTocPage", "pageNumberEndTocPage", "pageNumber"),
+    "part:pageIndex": lambda record: _page_runs(record, "pageIndexStart", "pageIndexEnd", "pageIndex"),
+    "identifier": lambda record: _identifier(record),
+}
+
+
+def _unit_record(record: _Record, created: datetime) -> None:
+    _mark_toc_readings(record)
+    for section in section_order(type(record.element)):
+        if section == "recordInfo":
+            _record_info(record, created)
+        else:
+            _SECTION_WRITERS[section](record)
 
 
 def _page_record(record: _Record) -> None:
@@ -577,7 +668,9 @@ def export_mods(
 
 def _overview_entry(position: int, element: MetakatElement, root: ET.Element, file_name: str) -> str:
     label = ""
-    title = next(iter(_values(element, "title")), None) if element.type != DocumentType.PAGE.value else None
+    # The own-page title, else a chapter's TOC reading - whichever MODS writes.
+    title = next(iter(_values(element, "title") or _values(element, "titleTocPage")), None) \
+        if element.type != DocumentType.PAGE.value else None
     if title is not None:
         label = f" | {title.text}"
     elif element.type == DocumentType.PAGE.value and element.pageNumber is not None:
