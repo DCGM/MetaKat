@@ -443,14 +443,8 @@ chmod 600 .docapi_worker_key
 
 The key file is gitignored and never appears in the script, so rotating the key
 does not touch a tracked file. A missing or unreadable key file stops the script
-before the worker starts. `WORKER_KEY_FILE` points the script at a key file
-elsewhere, e.g. when running another checkout than the one holding the key.
-
-The script runs the code of the checkout it lives in: it puts that checkout
-first on `PYTHONPATH`, ahead of the environment's editable MetaKat install,
-and prints which branch and commit it runs. The two submodule dependencies
-still come from the environment. Running a branch is therefore running its
-checkout's copy of the script.
+before the worker starts. The script sets no `PYTHONPATH`: MetaKat and its two
+submodule dependencies are expected to be installed into the environment.
 
 The equivalent without the script:
 
