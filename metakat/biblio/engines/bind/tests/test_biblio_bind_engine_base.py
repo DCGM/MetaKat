@@ -1,24 +1,30 @@
-from types import SimpleNamespace
 from uuid import UUID, uuid4
 
-from text_geometry_aligner import (
-    AlignmentPage,
-    AlignmentRegion,
-    BoundingBox,
-    InputFormat,
-)
+import pytest
 
 from metakat.biblio.engines.bind.biblio_bind_engine_base import (
     BiblioBindEngineBase,
     PeriodicalMetakatVolumeBag,
     _text_similarity,
 )
+from metakat.biblio.engines.core.models import (
+    AgentRole,
+    BiblioAgent,
+    BiblioCoreResult,
+    BiblioManufacture,
+    BiblioPageResult,
+    BiblioPublication,
+    BiblioReading,
+    BiblioTitleInfo,
+)
+from metakat.common.models import BoundingBox as CoreBoundingBox, DetectionEvidence
 from metakat.schemas.base_objects import (
-    BiblioType,
     DocumentType,
+    GroupType,
     HierarchyType,
     MetakatIO,
     MetakatIssue,
+    MetakatGroup,
     MetakatPage,
     MetakatVolume,
     ObjectItem,
@@ -46,178 +52,234 @@ def _anchor(anchors, page_id, element):
     return element
 
 
-def _binder(biblio_type_by_label):
-    """A binder with only the core-engine label mapping its binding needs."""
-    binder = object.__new__(BiblioBindEngineBase)
-    binder.core_engine = SimpleNamespace(
-        biblio_type_by_label=biblio_type_by_label
-    )
-    return binder
+def _binder():
+    """A binder without a core engine; these tests hand it the core's result."""
+    return object.__new__(BiblioBindEngineBase)
 
 
-def test_photographer_detection_is_bound_to_volume(metakat_page):
-    binder = _binder(
-        {
-            "titulek": BiblioType.TITLE,
-            "fotograf": BiblioType.PHOTOGRAPHER,
-        }
+def _ev(text, confidence, y=10):
+    """Evidence as the core returns it."""
+    return DetectionEvidence(
+        text=text, confidence=confidence, bbox=CoreBoundingBox(10, y, 100, 20), page_key="page-1",
     )
-    alignment_page = AlignmentPage(
+
+
+def _page_result(reading=None, periodical_volume=None, periodical_issue=None):
+    return BiblioPageResult(
         page_key="page-1",
-        input_format=InputFormat.YOLO,
-        regions=[
-            AlignmentRegion(
-                region_id=0,
-                label="titulek",
-                category_id=0,
-                input_geometry=BoundingBox(10, 10, 100, 20),
-                input_geometry_confidence=0.9,
-                alto_text="Book title",
-                words=[],
-            ),
-            AlignmentRegion(
-                region_id=1,
-                label="fotograf",
-                category_id=16,
-                input_geometry=BoundingBox(10, 40, 100, 20),
-                input_geometry_confidence=0.8,
-                alto_text="Jane Doe",
-                words=[],
-            ),
-        ],
+        reading=reading or BiblioReading(),
+        periodical_volume=periodical_volume,
+        periodical_issue=periodical_issue,
     )
 
-    elements, detection_to_bbox = binder.get_volume_issue_from_page(
-        alignment_page,
-        metakat_page,
-    )
 
-    assert len(elements) == 1
-    volume = elements[0]
-    assert volume.photographer[0].text == "Jane Doe"
-    assert volume.photographer[0].confidence == 0.8
-    assert volume.photographer[0].id in detection_to_bbox
+def _titled(**containers):
+    """A reading with a title plus the given containers."""
+    title_infos = containers.pop("title_infos", (BiblioTitleInfo(title=_ev("Book title", 0.9)),))
+    return BiblioReading(title_infos=title_infos, **containers)
 
 
-def test_binding_does_not_depend_on_category_id(metakat_page):
-    binder = _binder({"titulek": BiblioType.TITLE})
-    alignment_page = AlignmentPage(
-        page_key="page-1",
-        input_format=InputFormat.YOLO,
-        regions=[
-            AlignmentRegion(
-                region_id=0,
-                label="titulek",
-                category_id=None,
-                input_geometry=BoundingBox(10, 10, 100, 20),
-                input_geometry_confidence=0.9,
-                alto_text="Book title",
-                words=[],
-            )
-        ],
-    )
-
-    elements, _ = binder.get_volume_issue_from_page(
-        alignment_page,
-        metakat_page,
-    )
-
-    assert _tc(elements[0].title) == ("Book title", 0.9)
+def _group(element, group_type):
+    return [group for group in element.groups or [] if group.type == group_type]
 
 
-def test_biblio_binding_uses_model_labels(metakat_page, yolo_alignment_page):
-    yolo_alignment_page.regions[0].label = "Title"
-    yolo_alignment_page.regions[0].alto_text = "Book title"
-    binder = _binder({"Title": BiblioType.TITLE})
+def test_an_agent_is_bound_to_the_volume_with_its_geometry(metakat_page):
+    binder = _binder()
+    page = _page_result(_titled(agents=(
+        BiblioAgent(role=AgentRole.PHOTOGRAPHER, name=_ev("Jane Doe", 0.8, y=40)),
+    )))
 
-    elements, bbox_by_id = binder.get_volume_issue_from_page(
-        yolo_alignment_page,
-        metakat_page,
-    )
+    elements, detection_to_bbox = binder.get_volume_issue_from_page(page, metakat_page)
 
-    assert len(elements) == 1
-    volume = elements[0]
+    [volume] = elements
     assert volume.hierarchy == HierarchyType.MONOGRAPH
-    assert _tc(volume.title) == ("Book title", 0.91)
-    assert bbox_by_id[volume.title[0].id] == (10, 20, 30, 10)
-    assert len(bbox_by_id) == 1
+    assert _tc(volume.title) == ("Book title", 0.9)
+    assert _tc(volume.photographer) == ("Jane Doe", 0.8)
+    assert detection_to_bbox[volume.photographer[0].id] == (10, 40, 100, 20)
+    assert len(detection_to_bbox) == 2
 
 
-def test_detections_without_a_title_match_are_not_referenced(metakat_page):
-    # A page can have biblio-labeled detections (e.g. a photographer credit)
-    # without a TITLE detection; get_volume_issue_from_page then discards the
-    # whole candidate volume, but still returns the detection's bbox. process()
-    # relies on _referenced_detection_ids to drop such orphaned detections
-    # before they reach MetakatIO.detection_to_bbox.
-    binder = _binder({"fotograf": BiblioType.PHOTOGRAPHER})
-    alignment_page = AlignmentPage(
-        page_key="page-1",
-        input_format=InputFormat.YOLO,
-        regions=[
-            AlignmentRegion(
-                region_id=0,
-                label="fotograf",
-                category_id=16,
-                input_geometry=BoundingBox(10, 40, 100, 20),
-                input_geometry_confidence=0.8,
-                alto_text="Jane Doe",
-                words=[],
-            ),
-        ],
-    )
+def test_readings_without_a_title_are_not_referenced(metakat_page):
+    # A page can carry biblio evidence (e.g. a photographer credit) without a
+    # title; the candidate volume is then discarded, but the evidence's bbox
+    # is still returned. process() relies on _referenced_detection_ids to drop
+    # such orphaned detections before they reach MetakatIO.detection_to_bbox.
+    binder = _binder()
+    page = _page_result(BiblioReading(agents=(
+        BiblioAgent(role=AgentRole.PHOTOGRAPHER, name=_ev("Jane Doe", 0.8)),
+    )))
 
-    elements, detection_to_bbox = binder.get_volume_issue_from_page(
-        alignment_page,
-        metakat_page,
-    )
+    elements, detection_to_bbox = binder.get_volume_issue_from_page(page, metakat_page)
 
     assert elements == []
     assert len(detection_to_bbox) == 1
-
-    referenced = BiblioBindEngineBase._referenced_detection_ids(elements)
-    assert referenced == set()
-    assert set(detection_to_bbox) - referenced == set(detection_to_bbox)
+    assert BiblioBindEngineBase._referenced_detection_ids(elements) == set()
 
 
 def test_referenced_detection_ids_includes_kept_evidence(metakat_page):
-    binder = _binder(
-        {
-            "titulek": BiblioType.TITLE,
-            "fotograf": BiblioType.PHOTOGRAPHER,
-        }
+    binder = _binder()
+    page = _page_result(_titled(agents=(
+        BiblioAgent(role=AgentRole.PHOTOGRAPHER, name=_ev("Jane Doe", 0.8)),
+    )))
+
+    elements, detection_to_bbox = binder.get_volume_issue_from_page(page, metakat_page)
+
+    assert BiblioBindEngineBase._referenced_detection_ids(elements) == set(detection_to_bbox)
+
+
+def test_each_container_becomes_one_group_on_the_record(metakat_page):
+    binder = _binder()
+    page = _page_result(_titled(
+        title_infos=(BiblioTitleInfo(title=_ev("Kytice", 0.9), sub_title=_ev("z pověstí", 0.8)),),
+        publications=(BiblioPublication(
+            places=(_ev("Praha", 0.8),),
+            publishers=(_ev("Academia", 0.8), _ev("Host", 0.7)),
+            date_issued=_ev("1995", 0.9),
+        ),),
+        manufactures=(BiblioManufacture(manufacturers=(_ev("Tisk Brno", 0.6),)),),
+    ))
+
+    [volume], _ = binder.get_volume_issue_from_page(page, metakat_page)
+    BiblioBindEngineBase._finalize_groups(volume)
+
+    [title_info] = _group(volume, "titleInfo")
+    assert title_info.members == [volume.title[0].id, volume.subTitle[0].id]
+    [publication] = _group(volume, "originInfoPublication")
+    assert publication.members == [
+        volume.placeTerm[0].id, *(value.id for value in volume.publisher), volume.dateIssued[0].id,
+    ]
+    # One value pairs with nothing, so it forms no group.
+    assert _group(volume, "originInfoManufacture") == []
+
+
+def test_separate_containers_stay_separate_groups(metakat_page):
+    binder = _binder()
+    page = _page_result(_titled(publications=(
+        BiblioPublication(places=(_ev("Praha", 0.8),), publishers=(_ev("Academia", 0.8),)),
+        BiblioPublication(places=(_ev("Brno", 0.8),), publishers=(_ev("Host", 0.8),)),
+    )))
+
+    [volume], _ = binder.get_volume_issue_from_page(page, metakat_page)
+    BiblioBindEngineBase._finalize_groups(volume)
+
+    groups = _group(volume, "originInfoPublication")
+    by_id = {value.id: value.text for value in volume.placeTerm + volume.publisher}
+    assert [[by_id[member] for member in group.members] for group in groups] == [
+        ["Praha", "Academia"], ["Brno", "Host"],
+    ]
+
+
+def test_a_part_number_makes_a_multipart_volume(metakat_page):
+    binder = _binder()
+    page = _page_result(_titled(title_infos=(
+        BiblioTitleInfo(title=_ev("Kytice", 0.9), part_number=_ev("Díl 2", 0.7)),
+    )))
+
+    [volume], _ = binder.get_volume_issue_from_page(page, metakat_page)
+
+    assert volume.hierarchy == HierarchyType.MULTIPART
+    assert _tc(volume.partNumber) == ("Díl 2", 0.7)
+
+
+def test_a_periodical_page_gives_a_volume_and_an_issue(metakat_page):
+    binder = _binder()
+    page = _page_result(
+        _titled(
+            publications=(BiblioPublication(
+                places=(_ev("Praha", 0.8),), publishers=(_ev("Otto", 0.8),), edition=_ev("2. vyd.", 0.5),
+            ),),
+            agents=(BiblioAgent(role=AgentRole.REDAKTOR, name=_ev("Novák", 0.7)),
+                    BiblioAgent(role=AgentRole.AUTHOR, name=_ev("Vrchlický", 0.7))),
+        ),
+        periodical_volume=BiblioReading(
+            title_infos=(BiblioTitleInfo(part_number=_ev("Ročník IV", 0.8)),),
+            publications=(BiblioPublication(date_issued=_ev("1887", 0.7)),),
+        ),
+        periodical_issue=BiblioReading(
+            title_infos=(BiblioTitleInfo(part_number=_ev("Číslo 3", 0.8)),),
+        ),
     )
-    alignment_page = AlignmentPage(
-        page_key="page-1",
-        input_format=InputFormat.YOLO,
-        regions=[
-            AlignmentRegion(
-                region_id=0,
-                label="titulek",
-                category_id=0,
-                input_geometry=BoundingBox(10, 10, 100, 20),
-                input_geometry_confidence=0.9,
-                alto_text="Book title",
-                words=[],
-            ),
-            AlignmentRegion(
-                region_id=1,
-                label="fotograf",
-                category_id=16,
-                input_geometry=BoundingBox(10, 40, 100, 20),
-                input_geometry_confidence=0.8,
-                alto_text="Jane Doe",
-                words=[],
-            ),
+
+    volume, issue = binder.get_volume_issue_from_page(page, metakat_page)[0]
+
+    assert volume.hierarchy == HierarchyType.PERIODICAL
+    assert (_tc(volume.partNumber), _tc(volume.dateIssued)) == (("Ročník IV", 0.8), ("1887", 0.7))
+    assert _tc(issue.partNumber) == ("Číslo 3", 0.8)
+    # The issue repeats its title page's title and imprint, but not the
+    # volume's date or edition; a redaktor is the issue's, other names the
+    # volume's.
+    assert issue.title == volume.title and issue.publisher == volume.publisher
+    assert (issue.dateIssued, issue.edition, volume.redaktor, issue.author) == (None, None, None, None)
+    assert _tc(issue.redaktor) == ("Novák", 0.7)
+    assert _tc(volume.author) == ("Vrchlický", 0.7)
+    # The title and the volume number are one titleInfo of the volume.
+    BiblioBindEngineBase._finalize_groups(volume)
+    [title_info] = _group(volume, "titleInfo")
+    assert title_info.members == [volume.title[0].id, volume.partNumber[0].id]
+
+
+def test_a_periodical_issue_needs_a_number_or_a_date(metakat_page):
+    binder = _binder()
+    page = _page_result(_titled(), periodical_volume=BiblioReading(
+        title_infos=(BiblioTitleInfo(part_number=_ev("Ročník IV", 0.8)),),
+    ))
+
+    elements, _ = binder.get_volume_issue_from_page(page, metakat_page)
+
+    assert [element.type for element in elements] == ["volume"]
+
+
+def test_a_field_read_twice_on_one_page_keeps_the_more_confident_reading(metakat_page):
+    # A part number read both as a plain part number and as a periodical
+    # volume number is one field of the volume.
+    binder = _binder()
+    page = _page_result(
+        _titled(title_infos=(BiblioTitleInfo(title=_ev("Zlatá Praha", 0.9), part_number=_ev("IV", 0.6)),)),
+        periodical_volume=BiblioReading(title_infos=(BiblioTitleInfo(part_number=_ev("Ročník IV", 0.8)),)),
+    )
+
+    [volume], detection_to_bbox = binder.get_volume_issue_from_page(page, metakat_page)
+    BiblioBindEngineBase._finalize_groups(volume)
+
+    assert volume.hierarchy == HierarchyType.PERIODICAL
+    assert _tc(volume.partNumber) == ("Ročník IV", 0.8)
+    [title_info] = _group(volume, "titleInfo")
+    assert title_info.members == [volume.title[0].id, volume.partNumber[0].id]
+    # The losing reading's geometry is returned; process() drops it.
+    assert len(detection_to_bbox) == 3
+
+
+def test_an_unknown_page_key_is_rejected(metakat_page):
+    binder = _binder()
+    core_result = BiblioCoreResult(pages={"elsewhere": BiblioPageResult(page_key="elsewhere")})
+    with pytest.raises(ValueError, match="not one of the pages"):
+        binder.get_volume_issue_from_result(core_result, {"page-1": metakat_page})
+
+
+def test_finalized_groups_hold_only_the_records_own_values():
+    kept, dropped, other = _v("Kytice", 0.9), _v("Kytyce", 0.5), _v("z pověstí", 0.8)
+    volume = MetakatVolume(
+        id=uuid4(), title=[kept], subTitle=[other],
+        groups=[
+            MetakatGroup(type=GroupType.TITLE_INFO, members=[kept.id, dropped.id, other.id]),
+            MetakatGroup(type=GroupType.SERIES, members=[dropped.id]),
         ],
     )
 
-    elements, detection_to_bbox = binder.get_volume_issue_from_page(
-        alignment_page,
-        metakat_page,
+    BiblioBindEngineBase._finalize_groups(volume)
+
+    assert [(group.type, group.members) for group in volume.groups] == [("titleInfo", [kept.id, other.id])]
+
+
+def test_a_lone_value_is_not_grouped():
+    title = _v("Kytice", 0.9)
+    volume = MetakatVolume(
+        id=uuid4(), title=[title], groups=[MetakatGroup(type=GroupType.TITLE_INFO, members=[title.id])],
     )
 
-    referenced = BiblioBindEngineBase._referenced_detection_ids(elements)
-    assert referenced == set(detection_to_bbox)
+    BiblioBindEngineBase._finalize_groups(volume)
+
+    assert volume.groups is None
 
 
 def _proarc_volume(**fields):
@@ -320,7 +382,7 @@ def test_a_one_character_detection_cannot_take_a_field(metakat_page):
     # perfect match, so it beat the correctly read title outright at the 0.8
     # preference, regardless of how much less confident it was.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"])
     fragment = _anchor(anchors, metakat_page.id, MetakatVolume(
         id=uuid4(), title=[_v("K", 0.99)]
@@ -393,7 +455,7 @@ def test_count_proarc_matches_is_zero_when_the_record_is_bare():
 
 def test_resolve_single_proarc_volume_uses_the_proarc_pid_as_the_volume_id(metakat_page):
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     record_uuid = uuid4()
     proarc_volume = _proarc_volume(
         pid=f"uuid:{record_uuid}",
@@ -418,7 +480,7 @@ def test_resolve_single_proarc_volume_merges_the_whole_winning_group(metakat_pag
     # nothing about. The stray issue candidate is dropped outright, since a
     # lone volume object implies no issue-level structure.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"], dateIssued=["1853"])
     corroborated_title = _anchor(anchors, metakat_page.id, MetakatVolume(
         id=uuid4(),
@@ -451,7 +513,7 @@ def test_corroborated_detection_beats_a_more_confident_one(metakat_page):
     # The record settles that competition without regard to confidence: a
     # confident misread is exactly what the catalog can see through.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"])
     corroborated = _anchor(anchors, metakat_page.id, MetakatVolume(
         id=uuid4(),
@@ -475,7 +537,7 @@ def test_corroborated_detection_beats_a_more_confident_one(metakat_page):
 
 def test_confidence_decides_when_the_record_corroborates_neither(metakat_page):
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     proarc_volume = _proarc_volume(title=["Something entirely different"])
     quiet = _anchor(anchors, metakat_page.id, MetakatVolume(
         id=uuid4(), title=[_v("First reading", 0.5)]
@@ -496,7 +558,7 @@ def test_a_loose_resemblance_does_not_override_confidence(metakat_page):
     # close enough to count as corroboration when judging which group is the
     # book, not close enough to overrule a confident reading of the title.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     proarc_volume = _proarc_volume(title=["Kytice basni"])
     loosely_similar = _anchor(anchors, metakat_page.id, MetakatVolume(
         id=uuid4(), title=[_v("Kxtxce basnx", 0.5)]
@@ -525,7 +587,7 @@ def test_list_fields_keep_every_detection_regardless_of_the_record(metakat_page)
     # list field has no competition to settle, so nothing is dropped and the
     # record has no say at all.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     proarc_volume = _proarc_volume(publisher=["Storch"])
     corroborated = _anchor(anchors, metakat_page.id, MetakatVolume(
         id=uuid4(),
@@ -560,7 +622,7 @@ def test_a_recognised_title_outranks_broader_corroboration():
     # single sign that a group is the book, so it beats a group agreeing with
     # the record on more fields but on no title of its own.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     batch_id = uuid4()
     pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
     proarc_volume = _proarc_volume(
@@ -594,7 +656,7 @@ def test_a_roughly_read_title_still_counts_as_recognised():
     # scores 0.667: too rough to count as corroboration when scoring fields,
     # close enough for the catalog to recognise the title.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     batch_id = uuid4()
     pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
     proarc_volume = _proarc_volume(title=["Kytice basni"], publisher=["Storch"])
@@ -616,7 +678,7 @@ def test_a_roughly_read_title_still_counts_as_recognised():
 
 def test_overall_corroboration_decides_when_no_title_is_recognised():
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     batch_id = uuid4()
     pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
     proarc_volume = _proarc_volume(publisher=["Storch"], placeTerm=["Praha"])
@@ -646,7 +708,7 @@ def test_a_bare_record_leaves_the_titled_group_winning():
     # group and the ranking reduces to the vision-only preference: a group
     # with a title beats a titleless one with more detections.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     batch_id = uuid4()
     pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
 
@@ -673,7 +735,7 @@ def test_resolve_single_proarc_volume_picks_the_group_the_record_corroborates():
     # detection count does not save it, and none of the record's own values
     # end up in the result.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     batch_id = uuid4()
     pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
     proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"])
@@ -706,7 +768,7 @@ def test_resolve_single_proarc_volume_keeps_detections_when_nothing_matches(meta
     # This used to merge an empty volume over the detections, so a record that
     # matched nothing left the batch worse off than no proarc record at all.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"])
     unrelated_volume = _anchor(anchors, metakat_page.id, MetakatVolume(
         id=uuid4(),
@@ -731,7 +793,7 @@ def test_resolve_single_proarc_volume_keeps_detections_when_the_record_is_bare(m
     # The state the IO guards make ordinary: an object whose MODS could not be
     # read keeps its identity and has no catalog field to match against.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     proarc_volume = _proarc_volume()
     candidate = _anchor(anchors, metakat_page.id, MetakatVolume(
         id=uuid4(),
@@ -753,7 +815,7 @@ def test_resolve_single_proarc_volume_ignores_aligned_placeholders_when_matching
     # An index-aligned column can be nothing but placeholders, which offers no
     # more to match against than an absent field does.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     proarc_volume = _proarc_volume(title=[None, None])
     candidate = _anchor(anchors, metakat_page.id, MetakatVolume(
         id=uuid4(),
@@ -774,7 +836,7 @@ def test_resolve_single_proarc_volume_ignores_part_fields_and_forces_monograph_h
     # object. They must not survive into the merged result, and the result's
     # hierarchy must stay MONOGRAPH regardless of what a candidate reported.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     proarc_volume = _proarc_volume(title=["Kytice z pověstí národních"])
     candidate = _anchor(anchors, metakat_page.id, MetakatVolume(
         id=uuid4(),
@@ -799,7 +861,7 @@ def test_resolve_single_proarc_volume_keeps_only_the_winning_neighbouring_group(
     # titleless group also has real proarc-matching evidence, and its
     # evidence must not leak into the final merged volume.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     batch_id = uuid4()
     pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
     proarc_volume = _proarc_volume(
@@ -839,7 +901,7 @@ def test_resolve_single_proarc_volume_detection_count_breaks_ties_between_titled
     # the one with more overall relevant detections must win, even though
     # its title detection has lower confidence than the other group's.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     batch_id = uuid4()
     pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(8)]
     proarc_volume = _proarc_volume(
@@ -877,7 +939,7 @@ def test_bind_attaches_periodical_issues_to_the_volume_they_belong_to():
     # empty. Issues are now left unparented and must be positioned by bind()
     # itself, the same way pages are positioned against volumes.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     batch_id = uuid4()
     pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(6)]
     volume_1 = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4(), hierarchy=HierarchyType.PERIODICAL))
@@ -993,81 +1055,13 @@ def test_periodical_bag_root_swap_does_not_null_out_root_volume():
         partNumber=[_v("1", 0.9)],
     ))
 
-    binder = _binder({})
+    binder = _binder()
     result = binder.finalize_periodical_volumes([weaker, stronger], page_id_to_batch_index, anchors)
 
     volumes = [el for el in result if el.type == DocumentType.VOLUME.value]
     assert len(volumes) == 1
     assert volumes[0] is not None
     assert volumes[0].partNumber == stronger.partNumber
-
-
-def _date_issued_page(*confidences):
-    """A title page carrying one TITLE and several DateIssued detections."""
-    regions = [
-        AlignmentRegion(
-            region_id=0,
-            label="titulek",
-            category_id=0,
-            input_geometry=BoundingBox(10, 10, 100, 20),
-            input_geometry_confidence=0.9,
-            alto_text="Book title",
-            words=[],
-        ),
-    ]
-    for index, confidence in enumerate(confidences, start=1):
-        regions.append(
-            AlignmentRegion(
-                region_id=index,
-                label="rok vydani",
-                category_id=5,
-                input_geometry=BoundingBox(10, 20 * index, 100, 20),
-                input_geometry_confidence=confidence,
-                alto_text=f"18{index:02d}",
-                words=[],
-            )
-        )
-    return AlignmentPage(
-        page_key="page-1",
-        input_format=InputFormat.YOLO,
-        regions=regions,
-    )
-
-
-def test_date_issued_keeps_the_most_confident_detection(metakat_page):
-    # Regression test: the DateIssued branch used to be guarded by
-    # `and metakat_volume.dateIssued is None`, so once a value was set every
-    # later DateIssued detection fell through the whole if/elif chain to
-    # `continue` - discarded without a confidence comparison, and without its
-    # geometry being recorded. DateIssued now follows the same
-    # highest-confidence rule as every other single-value field.
-    binder = _binder(
-        {"titulek": BiblioType.TITLE, "rok vydani": BiblioType.DATE_ISSUED}
-    )
-
-    elements, detection_to_bbox = binder.get_volume_issue_from_page(
-        _date_issued_page(0.4, 0.9),
-        metakat_page,
-    )
-
-    volume = elements[0]
-    assert _tc(volume.dateIssued) == ("1802", 0.9)
-    # Both detections are now recorded; process() drops the losing one via
-    # _referenced_detection_ids.
-    assert len(detection_to_bbox) == 3
-
-
-def test_date_issued_does_not_downgrade_to_a_weaker_later_detection(metakat_page):
-    binder = _binder(
-        {"titulek": BiblioType.TITLE, "rok vydani": BiblioType.DATE_ISSUED}
-    )
-
-    elements, _ = binder.get_volume_issue_from_page(
-        _date_issued_page(0.9, 0.4),
-        metakat_page,
-    )
-
-    assert _tc(elements[0].dateIssued) == ("1801", 0.9)
 
 
 def _cover_batch(page_types):
@@ -1091,7 +1085,7 @@ def test_front_cover_is_bound_to_the_volume_it_opens():
     # scan starts at the front cover, so the cover pages ahead of the next
     # title page belong to the next volume, not the one that just ended.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     pages = _cover_batch({4: PageType.FRONT_COVER})
     volume_1 = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
     volume_2 = _anchor(anchors, pages[5].id, MetakatVolume(id=uuid4()))
@@ -1109,7 +1103,7 @@ def test_back_cover_stays_with_the_volume_it_closes():
     # volume that just ended, so it keeps that parent and only the pages after
     # it move on.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     pages = _cover_batch({4: PageType.BACK_COVER})
     volume_1 = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
     volume_2 = _anchor(anchors, pages[6].id, MetakatVolume(id=uuid4()))
@@ -1127,7 +1121,7 @@ def test_back_cover_followed_by_front_cover_does_not_skip_a_volume():
     # immediately followed by volume 2's front cover. The back cover nudges
     # once; the front cover must not nudge again and skip volume 2 entirely.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     pages = _cover_batch({3: PageType.BACK_COVER, 4: PageType.FRONT_COVER})
     volume_1 = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
     volume_2 = _anchor(anchors, pages[5].id, MetakatVolume(id=uuid4()))
@@ -1149,7 +1143,7 @@ def test_cover_nudge_is_off_when_the_infants_are_not_pages():
     # apply_cover_nudge=False is used for the issue -> volume sweep; a cover
     # page must not move the parent there.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     pages = _cover_batch({4: PageType.FRONT_COVER})
     volume_1 = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
     volume_2 = _anchor(anchors, pages[5].id, MetakatVolume(id=uuid4()))
@@ -1169,7 +1163,7 @@ def test_cover_on_the_first_volumes_own_anchor_page_does_not_nudge():
     # A volume anchored on a cover page must keep that page: the guard is the
     # current parent's anchor being strictly behind the walked page.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     pages = _cover_batch({0: PageType.FRONT_COVER})
     volume_1 = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
     volume_2 = _anchor(anchors, pages[4].id, MetakatVolume(id=uuid4()))
@@ -1197,7 +1191,7 @@ def test_an_unanchored_volume_is_left_out_of_page_binding(caplog):
     # candidates this binder builds get one. Its position is not guessed: it
     # is skipped with a warning, and pages go to the anchored volume.
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     batch_id = uuid4()
     pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(4)]
     anchored = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
@@ -1215,7 +1209,7 @@ def test_a_batch_without_any_volume_becomes_one_untitled_monograph():
     # This binder is the only place pages get a unit. When nothing was
     # detected to attach them to, the whole batch is one untitled monograph,
     # so every later stage can rely on every page having a unit.
-    binder = _binder({})
+    binder = _binder()
     batch_id = uuid4()
     pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(3)]
     metakat_io = MetakatIO(batch_id=batch_id, elements=list(pages))
@@ -1234,7 +1228,7 @@ def test_a_batch_without_any_volume_becomes_one_untitled_monograph():
 
 def test_no_untitled_monograph_is_added_when_every_page_has_a_unit():
     anchors = {}
-    binder = _binder({})
+    binder = _binder()
     batch_id = uuid4()
     pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(3)]
     volume = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
@@ -1246,29 +1240,49 @@ def test_no_untitled_monograph_is_added_when_every_page_has_a_unit():
     assert [v.id for v in volumes] == [volume.id]
 
 
-def test_a_records_kept_title_readings_form_its_title_info_group():
-    # The binder keeps one reading of each title field per record, and they
-    # all describe it, so they are the record's one titleInfo.
-    volume = MetakatVolume(
-        id=uuid4(),
-        title=[_v("Kytice", 0.9)],
-        subTitle=[_v("z pověstí národních", 0.8)],
-        partNumber=[_v("2", 0.7)],
-        publisher=[_v("Storch", 0.9)],
-    )
+def test_merging_one_volumes_pages_unites_its_statements_but_keeps_its_series_apart(metakat_page):
+    # A half-title and a title page read as one volume: the title from one
+    # and the subtitle from the other are still the volume's one titleInfo,
+    # while each page's series stays its own.
+    anchors = {}
+    title, subtitle = _v("Kytice", 0.9), _v("z pověstí národních", 0.8)
+    series_1, number_1 = _v("Edice A", 0.8), _v("5", 0.8)
+    series_2, number_2 = _v("Edice B", 0.8), _v("7", 0.8)
+    half_title = _anchor(anchors, metakat_page.id, MetakatVolume(
+        id=uuid4(), title=[title], seriesName=[series_1], seriesPartNumber=[number_1],
+        groups=[MetakatGroup(type=GroupType.TITLE_INFO, members=[title.id]),
+                MetakatGroup(type=GroupType.SERIES, members=[series_1.id, number_1.id])],
+    ))
+    misread_title = _v("Kytyce", 0.4)
+    title_page = _anchor(anchors, metakat_page.id, MetakatVolume(
+        id=uuid4(), title=[misread_title], subTitle=[subtitle],
+        seriesName=[series_2], seriesPartNumber=[number_2],
+        groups=[MetakatGroup(type=GroupType.TITLE_INFO, members=[misread_title.id, subtitle.id]),
+                MetakatGroup(type=GroupType.SERIES, members=[series_2.id, number_2.id])],
+    ))
 
-    BiblioBindEngineBase._group_title_info(volume)
+    merged = BiblioBindEngineBase._merge_volumes([half_title, title_page], uuid4())
+    BiblioBindEngineBase._finalize_groups(merged)
 
-    assert len(volume.groups) == 1
-    assert volume.groups[0].type == "titleInfo"
-    assert volume.groups[0].members == [
-        volume.title[0].id, volume.subTitle[0].id, volume.partNumber[0].id,
+    assert [(group.type, group.members) for group in merged.groups] == [
+        ("titleInfo", [title.id, subtitle.id]),
+        ("series", [series_1.id, number_1.id]),
+        ("series", [series_2.id, number_2.id]),
     ]
 
 
-def test_a_lone_title_reading_is_not_grouped():
-    volume = MetakatVolume(id=uuid4(), title=[_v("Kytice", 0.9)])
+def test_the_title_takes_its_volumes_title_info_group():
+    title, subtitle, publisher = _v("Zlatá Praha", 0.9), _v("Obrázkový týdeník", 0.8), _v("Otto", 0.8)
+    volume = MetakatVolume(
+        id=uuid4(), hierarchy=HierarchyType.PERIODICAL,
+        title=[title], subTitle=[subtitle], publisher=[publisher],
+        groups=[MetakatGroup(type=GroupType.TITLE_INFO, members=[title.id, subtitle.id]),
+                MetakatGroup(type=GroupType.ORIGIN_INFO_PUBLICATION, members=[publisher.id, uuid4()])],
+    )
 
-    BiblioBindEngineBase._group_title_info(volume)
+    periodical_title = _binder().get_title([volume])
+    BiblioBindEngineBase._finalize_groups(periodical_title)
 
-    assert volume.groups is None
+    assert [(group.type, group.members) for group in periodical_title.groups] == [
+        ("titleInfo", [title.id, subtitle.id]),
+    ]

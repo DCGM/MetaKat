@@ -4,14 +4,16 @@
 
 - [Purpose](#purpose)
 - [Biblio core engine contract](#biblio-core-engine-contract)
-  - [Label configuration](#label-configuration)
-  - [Bibliographic label types](#bibliographic-label-types)
+  - [Result model](#result-model)
+  - [Grouping](#grouping)
   - [Implementing another core engine](#implementing-another-core-engine)
 - [Core and bind orchestration](#core-and-bind-orchestration)
   - [Pipeline configuration](#pipeline-configuration)
   - [Processing handoff](#processing-handoff)
 - [Available core implementation](#available-core-implementation)
   - [YOLO + ALTO](#engine-yolo--alto-biblio_core_engine_yolo)
+    - [Label configuration](#label-configuration)
+    - [Reading a page](#reading-a-page)
 - [Available bind implementation](#available-bind-implementation)
   - [Base](#engine-base-biblio_bind_engine_base)
   - [Binding flow](#binding-flow)
@@ -20,6 +22,8 @@
   - [Proarc single-volume resolution](#proarc-single-volume-resolution)
   - [Periodical volume consolidation](#periodical-volume-consolidation)
   - [Title creation](#title-creation)
+  - [Anchor pages](#anchor-pages)
+  - [Groups](#groups)
   - [Hierarchy binding](#hierarchy-binding)
   - [Detection geometry retention](#detection-geometry-retention)
 - [Known limitations](#known-limitations)
@@ -30,171 +34,162 @@
 The `metakat.biblio` package reads bibliographic evidence from a document's
 title pages and builds the container part of the MetaKat document hierarchy:
 `MetakatTitle`, `MetakatVolume`, and `MetakatIssue` elements, each carrying
-bibliographic fields, plus the `parent_id` relations that attach every page to
-a container.
+bibliographic fields and groups, plus the `parent_id` relations that attach
+every page to a container.
 
 Bibliographic processing has two boundaries:
 
-1. The **[core engine](#biblio-core-engine-contract)** performs detection and
-   OCR alignment. It returns aligned page regions with geometry, confidence,
-   ALTO text, and a model label.
-2. The **[bind engine](#available-bind-implementation)** owns everything
-   semantic: it selects title pages, resolves model labels to
-   [`BiblioType`](#bibliographic-label-types) values, constructs candidate
-   volumes and issues, reconciles them against an optional ProArc catalog
-   record, creates the title element, and parents every page, issue, and volume.
+1. The **[core engine](#biblio-core-engine-contract)** reads what is printed
+   on a set of pages. It returns, per page, the bibliographic values it could
+   read there - one reading per field where the field holds one - already
+   grouped into MODS statements: a title, an imprint, a series, a name.
+2. The **[bind engine](#available-bind-implementation)** decides what those
+   readings describe: it selects the title pages, turns each page's readings
+   into candidate volumes and issues, reconciles them across pages and
+   against an optional ProArc catalog record, creates the title element,
+   parents every page, issue, and volume, and creates the detection UUIDs.
+
+The core owns detection, OCR alignment, label interpretation, the choice
+between several detections of one field on a page, and grouping. The binder
+owns the hierarchy and does not repeat or alter those decisions - the same
+split as in the [`page_number`](../page_number/README.md) and
+[`chapter`](../chapter/README.md) packages.
 
 ```mermaid
 flowchart LR
     P[Title-page images + ALTO files]
     C[Biblio core engine]
-    R[AlignmentPage list]
+    R[BiblioCoreResult]
     B[Biblio bind engine]
-    M[MetakatIO title/volume/issue elements + geometry maps]
+    M[MetakatIO title/volume/issue elements + groups + geometry maps]
 
     P --> C --> R --> B --> M
 ```
 
-This split is placed lower than in the
-[`page_number`](../page_number/README.md) and [`chapter`](../chapter/README.md)
-packages. Those cores return a MetaKat-owned result model and hand the binder a
-finished interpretation. The biblio core returns the aligner's own
-`AlignmentPage` objects, so label interpretation, field precedence, hierarchy
-inference, and detection-UUID creation all live in the binder. A replacement
-core therefore changes *how* regions are found, never *what they mean*.
-
 ## Biblio core engine contract
 
-Every biblio core engine subclasses `BiblioCoreEngine` and implements:
+Every biblio core engine subclasses `BiblioCoreEngine` and exposes:
 
 ```python
 process(
     images: List[str],
     alto_files: List[str],
-) -> List[AlignmentPage]
+) -> BiblioCoreResult
 ```
 
 The two sequences represent the same pages in the same order. Only the pages
 the binder selected as title pages are passed in, not the complete document.
+An image filename stem is the page key used in the result.
 
 | Argument | Contract |
 |---|---|
-| `images` | Ordered image paths. Each filename stem becomes the `AlignmentPage.page_key` used by the binder to map results back to a `MetakatPage`. |
+| `images` | Ordered image paths. Each filename stem identifies the page in core output. |
 | `alto_files` | Ordered ALTO paths corresponding position by position to `images`. |
 
-`AlignmentPage` and `AlignmentRegion` are defined by the external
-`text_geometry_aligner` package. Unlike the other MetaKat components, the biblio
-contract does not copy them into a MetaKat-owned result model. The binder reads
-these attributes and no others:
+The method returns:
 
-| Attribute | Used for |
+```python
+BiblioCoreResult(
+    pages: Mapping[str, BiblioPageResult],
+)
+```
+
+`pages` is sparse: a page on which nothing was read is absent. Page keys must
+be unique and must identify one of the input pages; the binder rejects any
+other key. The result carries no MetaKat UUIDs and no hierarchy - creating
+those belongs to the [bind engine](#available-bind-implementation).
+
+The classes are defined in `metakat/biblio/engines/core/models.py` and built
+on the common `DetectionEvidence` (`text`, `confidence`, `bbox`, `page_key`),
+as the other core results are.
+
+### Result model
+
+```python
+@dataclass(frozen=True)
+class BiblioPageResult:
+    page_key: str
+    reading: BiblioReading = BiblioReading()
+    periodical_volume: BiblioReading | None = None
+    periodical_issue: BiblioReading | None = None
+
+
+@dataclass(frozen=True)
+class BiblioReading:
+    title_infos: tuple[BiblioTitleInfo, ...] = ()
+    publications: tuple[BiblioPublication, ...] = ()
+    manufactures: tuple[BiblioManufacture, ...] = ()
+    series: tuple[BiblioSeries, ...] = ()
+    agents: tuple[BiblioAgent, ...] = ()
+```
+
+A page's readings are split by what the core can tell about the record they
+describe, never by a hierarchy decision:
+
+| Reading | Holds |
 |---|---|
-| `AlignmentPage.page_key` | Image filename stem; identifies the source `MetakatPage`. |
-| `AlignmentPage.regions` | The detections to interpret. |
-| `AlignmentPage.matched_count` | Logging only. |
-| `AlignmentRegion.matched` | An unmatched region is skipped. |
-| `AlignmentRegion.label_for_export` | The model label resolved through `biblio_type_by_label`. It is `label_export` when set, otherwise the raw `label`. |
-| `AlignmentRegion.input_geometry` | Detection geometry; its `bounds` become the stored bounding box. |
-| `AlignmentRegion.input_geometry_confidence` | The `confidence` of the MetaKat `Value`, used for every field precedence decision. |
-| `AlignmentRegion.alto_text` | The `text` of the MetaKat `Value`. |
-| `AlignmentRegion.region_id`, `label`, `label_export` | Warning messages only. |
+| `reading` | Everything whose level the core cannot state - on a title page, most of it. The binder decides which record each value goes to. |
+| `periodical_volume` | What the core read as explicitly describing a periodical volume, such as a printed volume number or year. |
+| `periodical_issue` | What the core read as explicitly describing a periodical issue, such as an issue number or date. |
 
-A region missing `input_geometry`, `input_geometry_confidence`, or `alto_text`
-is skipped with a warning, so the core may return partially aligned regions
-without breaking binding.
+A `BiblioReading` holds **containers**. Each container class is one MODS
+container, so one `MetakatGroup` type:
 
-### Label configuration
+| Container | MODS container / `GroupType` | Fields → MetaKat field |
+|---|---|---|
+| `BiblioTitleInfo` | `<titleInfo>` / `titleInfo` | `title` → `title`, `sub_title` → `subTitle`, `part_number` → `partNumber`, `part_name` → `partName` |
+| `BiblioPublication` | `<originInfo eventType="publication">` / `originInfoPublication` | `places` → `placeTerm`, `publishers` → `publisher`, `date_issued` → `dateIssued`, `edition` → `edition`, `frequency` → `frequency` |
+| `BiblioManufacture` | `<originInfo eventType="manufacture">` / `originInfoManufacture` | `places` → `manufacturePlaceTerm`, `manufacturers` → `manufacturePublisher`, `date` → `manufactureDate` |
+| `BiblioSeries` | `<relatedItem type="series">` / `series` | `name` → `seriesName`, `part_number` → `seriesPartNumber`, `part_name` → `seriesPartName` |
+| `BiblioAgent` | `<name>` / `agent` | `name` → the field named by `role` (`AgentRole`: `author`, `illustrator`, `photographer`, `translator`, `editor`, `redaktor`), `affiliations` → `affiliation`, `emails` → `email` |
 
-`BiblioCoreEngine.__init__` validates the configuration and builds the label
-mappings that the binder depends on. It requires:
+A field typed `DetectionEvidence | None` holds one reading; a tuple field holds
+any number, in reading order. The mapping is declared on the dataclass fields
+themselves (`metadata={"metakat": ...}`), and `container_values(container)`
+yields `(MetaKat field, evidence)` for every reading in a container, in field
+order. The tests hold the mapping to the schema: every mapped name must be a
+`MetakatBibliographic` field in the container's MODS section, and every
+grouped bibliographic field must be covered by a container.
 
-- a configuration mapping containing a registered engine `name`;
-- a non-empty `labels` object;
-- every `labels` key to be a valid [`BiblioType`](#bibliographic-label-types)
-  value;
-- every `labels` value to be a non-empty string;
-- every model label to be assigned at most once.
+### Grouping
 
-`id2label` is explicitly rejected: numeric model class IDs are not part of the
-pipeline configuration.
+A container is one statement read on the page - one title, one imprint, one
+series, one person. The values inside it were read together; the container
+does not claim which of them pairs with which. That is what the DMF asks of
+`<originInfo>`: one element per imprint statement, with parallel places or
+publishers of one statement either repeated inside it or split into repeated
+elements so that known pairings are kept.
 
-Validation produces two attributes:
+A core therefore:
 
-| Attribute | Content |
-|---|---|
-| `labels` | `dict[BiblioType, str]`, the configured semantic type to model label mapping. |
-| `biblio_type_by_label` | The inverse `dict[str, BiblioType]`. |
+- puts the values of one statement into one container, even when it does not
+  know their pairings;
+- splits a statement into several containers only where it knows the
+  pairings, or where the page carries several separate statements;
+- puts values it cannot place in a common statement into containers of their
+  own.
 
-`biblio_type_by_label` is part of the core contract, not an implementation
-detail: the bind engine reads it directly off `self.core_engine` to resolve
-every detection. A model label present in the results but absent from the
-mapping is skipped with a warning rather than raising.
-
-### Bibliographic label types
-
-`BiblioType` enumerates every semantic type the binder understands. The
-`Volume` and `Issue` columns name the destination field on the candidate
-`MetakatVolume` and `MetakatIssue` built for the detection's page. A dash means
-the type never contributes to that element.
-
-| `BiblioType` | Volume field | Issue field | Several detections | Hierarchy effect |
-|---|---|---|---|---|
-| `Title` | `title` | `title` | highest confidence | — |
-| `Subtitle` | `subTitle` | `subTitle` | highest confidence | — |
-| `PartNumber` | `partNumber` | — | highest confidence | `monograph` → `multipart` |
-| `PartName` | `partName` | — | highest confidence | `monograph` → `multipart` |
-| `SeriesName` | `seriesName` | — | appended | — |
-| `SeriesNumber` | `seriesPartNumber` | — | appended | — |
-| `Edition` | `edition` | — | highest confidence | — |
-| `Publisher` | `publisher` | `publisher` | appended | — |
-| `PlaceTerm` | `placeTerm` | `placeTerm` | highest confidence | — |
-| `DateIssued` | `dateIssued` | — | highest confidence | — |
-| `ManufacturePublisher` | `manufacturePublisher` | `manufacturePublisher` | appended | — |
-| `ManufacturePlaceTerm` | `manufacturePlaceTerm` | `manufacturePlaceTerm` | appended | — |
-| `Author` | `author` | — | appended | — |
-| `Illustrator` | `illustrator` | — | appended | — |
-| `Photographer` | `photographer` | — | appended | — |
-| `Translator` | `translator` | — | appended | — |
-| `Editor` | `editor` | — | appended | — |
-| `Redaktor` | — | `redaktor` | appended | — |
-| `PeriodicalVolumePartNumber` | `partNumber` | — | highest confidence | forces `periodical` |
-| `PeriodicalVolumeDateIssued` | `dateIssued` | — | highest confidence | forces `periodical` |
-| `PeriodicalIssuePartNumber` | — | `partNumber` | highest confidence | — |
-| `PeriodicalIssueDateIssued` | — | `dateIssued` | highest confidence | — |
-
-"Highest confidence" means a later detection replaces the stored one only when
-its `input_geometry_confidence` is strictly greater. "Appended" means every
-detection is kept, in region order, with no deduplication.
-
-`DateIssued` and `PeriodicalVolumeDateIssued` write the same
-`MetakatVolume.dateIssued` field and compete on confidence like any other pair
-of detections for it. The hierarchy that `PeriodicalVolumeDateIssued` forces is
-set independently, so losing the field does not revert it.
-
-Configuring a label is what makes a type reachable. A `BiblioType` absent from
-`labels` can never be produced, so the hierarchy and issue behavior it drives
-stays inactive for that engine.
+The binder turns each container holding at least two values into one
+`MetakatGroup`; a value alone in its container stays ungrouped.
 
 ### Implementing another core engine
 
 Every core engine receives its configuration mapping directly. To add one:
 
 1. subclass `BiblioCoreEngine` and call its constructor with the core
-   configuration mapping, so label validation and `biblio_type_by_label` are
-   built consistently;
-2. implement `process()` returning one `AlignmentPage` per input page, with
-   `page_key` equal to the image filename stem;
-3. label every region with a string that the configured `labels` mapping
-   resolves, and populate `input_geometry`, `input_geometry_confidence`, and
-   `alto_text` on every region that should become evidence;
+   configuration mapping;
+2. implement `process()` while preserving the complete
+   [core contract](#biblio-core-engine-contract); the base class does not
+   prescribe detection, label vocabularies, or how several detections of one
+   field are resolved;
+3. return only the result classes above, with valid input page keys, grouped
+   as [Grouping](#grouping) describes;
 4. register the config `name` in `biblio_core_engines` in core
    `definitions.py`, together with its import requirements;
-5. test engine loading, label validation, and region output.
+5. test engine loading, reading, grouping, and page key validation.
 
 [`BiblioBindEngineBase`](#engine-base-biblio_bind_engine_base) can bind any
-implementation satisfying this contract. A core returning a different result
-model requires its own `BiblioBindEngine` subclass and bind-engine
-registration in bind `definitions.py`.
+implementation satisfying this contract.
 
 ## Core and bind orchestration
 
@@ -256,7 +251,7 @@ The bind engine owns the complete handoff:
    `batch_dir`;
 3. invoke the core once with the ordered inputs;
 4. map returned page keys back to `MetakatPage` objects through the image-stem
-   mapping;
+   mapping, rejecting a key that is not one of the input pages;
 5. construct, reconcile, and bind the bibliographic elements.
 
 `ProarcIO` is passed through from `process_batch()` and is consulted only by
@@ -272,10 +267,9 @@ The registered core implementation is:
 
 ### Engine: YOLO + ALTO (`biblio_core_engine_yolo`)
 
-This engine detects bibliographic regions with YOLO and aligns their geometry
-with ALTO words, returning the aligned pages unchanged. It performs no
-selection, parsing, or filtering of its own — `process()` delegates entirely to
-the shared `EngineYOLOALTO` and returns `document.pages`.
+This engine detects bibliographic regions with YOLO, aligns their geometry
+with ALTO words, and reads each page's aligned regions into a
+`BiblioPageResult` by their labels.
 
 #### Configuration
 
@@ -294,6 +288,22 @@ the shared `EngineYOLOALTO` and returns `document.pages`.
 mapping is required and is validated as described under
 [Label configuration](#label-configuration); its values must match the raw YOLO
 model labels.
+
+#### Label configuration
+
+`parse_biblio_labels` validates the configuration when the engine is
+constructed. It requires:
+
+- a non-empty `labels` object;
+- every `labels` key to be a valid [`BiblioType`](#reading-a-page) value;
+- every `labels` value to be a non-empty string;
+- every model label to be assigned at most once.
+
+`id2label` is explicitly rejected: numeric model class IDs are not part of the
+pipeline configuration. The engine keeps the mapping as `labels`
+(`dict[BiblioType, str]`) and its inverse, `biblio_type_by_label`, which it
+reads every region's label through. Both are the engine's own: the binder
+never sees a model label.
 
 #### Geometry and text loading
 
@@ -323,13 +333,66 @@ setting disables the deduplication.
 This engine requires the `ultralytics` package, supplied by the `inference`
 installation extra. The requirement is checked before any page is read.
 
+#### Reading a page
+
+`read_page` turns one `AlignmentPage` into a `BiblioPageResult`. A region is
+skipped when it is unmatched, when `input_geometry`,
+`input_geometry_confidence`, or `alto_text` is missing, or when its
+`label_for_export` is not a configured label; the last two are logged as
+warnings. Every other region becomes one `DetectionEvidence`: `alto_text`,
+`input_geometry_confidence`, the `input_geometry.bounds` as a `BoundingBox`,
+and the page key. A page on which nothing is read is left out of the result,
+and a page key returned twice by the aligner is an error.
+
+Each `BiblioType` has one place in the result:
+
+| `BiblioType` | Reading | Result field | Several detections on a page |
+|---|---|---|---|
+| `Title` | `reading` | `BiblioTitleInfo.title` | highest confidence |
+| `Subtitle` | `reading` | `BiblioTitleInfo.sub_title` | highest confidence |
+| `PartNumber` | `reading` | `BiblioTitleInfo.part_number` | highest confidence |
+| `PartName` | `reading` | `BiblioTitleInfo.part_name` | highest confidence |
+| `PlaceTerm` | `reading` | `BiblioPublication.places` | highest confidence |
+| `Publisher` | `reading` | `BiblioPublication.publishers` | all |
+| `DateIssued` | `reading` | `BiblioPublication.date_issued` | highest confidence |
+| `Edition` | `reading` | `BiblioPublication.edition` | highest confidence |
+| `ManufacturePlaceTerm` | `reading` | `BiblioManufacture.places` | all |
+| `ManufacturePublisher` | `reading` | `BiblioManufacture.manufacturers` | all |
+| `SeriesName` | `reading` | `BiblioSeries.name` | all |
+| `SeriesNumber` | `reading` | `BiblioSeries.part_number` | all |
+| `Author`, `Illustrator`, `Photographer`, `Translator`, `Editor`, `Redaktor` | `reading` | one `BiblioAgent` each, with the matching `AgentRole` | all |
+| `PeriodicalVolumePartNumber` | `periodical_volume` | `BiblioTitleInfo.part_number` | highest confidence |
+| `PeriodicalVolumeDateIssued` | `periodical_volume` | `BiblioPublication.date_issued` | highest confidence |
+| `PeriodicalIssuePartNumber` | `periodical_issue` | `BiblioTitleInfo.part_number` | highest confidence |
+| `PeriodicalIssueDateIssued` | `periodical_issue` | `BiblioPublication.date_issued` | highest confidence |
+
+"Highest confidence" means a later detection replaces the kept one only when
+its confidence is strictly greater, so the first of equally confident ones
+stays. "All" keeps every detection in region order.
+
+The detector does not say which values belong together, so the engine groups
+by the one thing a page tells it - that it was printed together:
+
+- each reading gets at most one `BiblioTitleInfo`, one `BiblioPublication`
+  and one `BiblioManufacture`, holding everything of that kind read on the
+  page;
+- a series name with at most one series number is one `BiblioSeries`; with
+  several names or several numbers, which number belongs to which name is
+  unknown, and a series holds one title, so each gets a `BiblioSeries` of its
+  own;
+- every name is its own `BiblioAgent`.
+
+Configuring a label is what makes a type reachable. A `BiblioType` absent from
+`labels` is never read, so the hierarchy and issue behaviour it drives stays
+inactive for that engine.
+
 ## Available bind implementation
 
 The registered bind implementation is:
 
 | Config `name` | Implementation |
 |---|---|
-| `biblio_bind_engine_base` | Invoke any compatible biblio core engine, interpret its aligned detections, and bind the resulting hierarchy into `MetakatIO`. |
+| `biblio_bind_engine_base` | Invoke any compatible biblio core engine, build volumes and issues from its page readings, and bind the resulting hierarchy into `MetakatIO`. |
 
 ### Engine: Base (`biblio_bind_engine_base`)
 
@@ -355,12 +418,12 @@ flowchart TD
     A[MetakatIO pages sorted by batch_index]
     B[filter_title_pages: pages classified titlePage]
     C[Biblio core engine over the selected title pages]
-    D[get_volume_issue_from_alignment: per title page one candidate MetakatVolume and optionally one MetakatIssue]
+    D[get_volume_issue_from_result: per title page one candidate MetakatVolume and optionally one MetakatIssue]
     E{ProArc has exactly one object with model volume?}
     F[resolve_single_proarc_volume: group, match, merge to exactly one MetakatVolume]
     G[finalize_periodical_volumes: dedup periodical volume candidates]
     H[get_title: MetakatTitle from the best periodical or multipart volume]
-    I[Drop detections not referenced by a kept element]
+    I[Finalize groups; drop detections not referenced by a kept element]
     J[bind: attach volumes to the title, then parent infants positionally]
     K[MetakatIO with title, volume, and issue elements plus geometry maps]
 
@@ -398,48 +461,52 @@ Image and ALTO paths are then resolved against `batch_dir` from
 `natsorted`. The two lists are filtered and sorted independently, so they pair
 position by position only while every selected title page has both mappings.
 
-The returned alignment pages are re-sorted by `page_key` with `natsorted` and
-mapped back to `MetakatPage` objects through a stem-keyed index built from
-**all** of the batch's `page_to_image_mapping` entries. Image filename stems
-must therefore be unique across the batch, and a page key that does not appear
-in that index raises `KeyError`.
+The core's page results are taken in `natsorted` `page_key` order and mapped
+back to `MetakatPage` objects through a stem-keyed index built from **all** of
+the batch's `page_to_image_mapping` entries. Image filename stems must
+therefore be unique across the batch, and a page key that does not appear in
+that index raises `ValueError`.
 
 ### Candidate element construction
 
-`get_volume_issue_from_page` processes one alignment page at a time. It creates
-one `MetakatVolume` with `hierarchy=monograph` and one `MetakatIssue`, fills
-them from the page's regions, and returns them. `get_volume_issue_from_alignment`
-then records the source page as each candidate's anchor - see
+`get_volume_issue_from_page` turns one page's `BiblioPageResult` into one
+`MetakatVolume` and one `MetakatIssue`. `get_volume_issue_from_result` then
+records the source page as each candidate's anchor - see
 [Anchor pages](#anchor-pages).
 
-A region is skipped when it is unmatched, when `input_geometry`,
-`input_geometry_confidence`, or `alto_text` is missing, or when its
-`label_for_export` is not in the core engine's `biblio_type_by_label`. The last
-two cases are logged as warnings.
-
-Every retained region produces one `Value`:
+Every piece of evidence becomes one `Value`, created once and shared by every
+record it reaches:
 
 ```text
-Value(text=region.alto_text, confidence=region.input_geometry_confidence, id=uuid4())
+Value(text=evidence.text, confidence=evidence.confidence, id=uuid4())
 ```
 
-Every field is a list of `Value`s. A "highest confidence" field keeps only its
-best reading, as a one-element list - the schema would allow more, keeping one
-is the binder's choice. An "appended" field keeps every reading.
+and its `(x, y, width, height)` bbox is recorded against the new UUID.
 
-The destination field, precedence rule, and hierarchy effect for each resolved
-type are listed in [Bibliographic label types](#bibliographic-label-types). The
-detection's `(x, y, width, height)` bounds are recorded against its new UUID
-only when the type was actually handled.
+Which record a value goes to is the binder's decision, made per reading:
 
-The `hierarchy` of the candidate volume is decided entirely by detections on its
-own page:
+| Reading | `MetakatVolume` takes | `MetakatIssue` takes |
+|---|---|---|
+| `reading` | everything except `redaktor` | `title`, `subTitle`, `publisher`, `placeTerm`, `manufacturePublisher`, `manufacturePlaceTerm`, `redaktor` - what an issue repeats from its title page, and its redaktor |
+| `periodical_volume` | all of it | — |
+| `periodical_issue` | — | all of it |
 
-| Detected type | Effect on `MetakatVolume.hierarchy` |
+Each container becomes one group on each record it reaches, holding the
+values of it that reached that record. When two readings of one page give a
+record the same statement - a title from `reading` and a volume number from
+`periodical_volume` are one `<titleInfo>` of the volume - their groups are
+united as described under [Groups](#groups). A single-valued field that two
+readings both fill, such as a part number read both as `PartNumber` and as
+`PeriodicalVolumePartNumber`, keeps the more confident reading; the first on
+a tie.
+
+The `hierarchy` of the candidate volume follows from what its page says:
+
+| The page's result | `MetakatVolume.hierarchy` |
 |---|---|
-| none of the below | stays `monograph` |
-| `PartNumber` or `PartName` | `monograph` → `multipart`; an existing `periodical` is left alone |
-| `PeriodicalVolumePartNumber` or `PeriodicalVolumeDateIssued` | set to `periodical` unconditionally |
+| has a `periodical_volume` reading | `periodical` |
+| otherwise, a `title_info` of `reading` has a `part_number` or `part_name` | `multipart` |
+| otherwise | `monograph` |
 
 Both elements are candidates; emission is conditional:
 
@@ -448,9 +515,9 @@ Both elements are candidates; emission is conditional:
 | `MetakatVolume` | `title` is set. |
 | `MetakatIssue` | the volume was emitted, `title` is set, and at least one of `partNumber` or `dateIssued` is set. |
 
-A title page with no `Title` detection therefore contributes nothing, and all of
-its detections become unreferenced. `MetakatIssue.parent_id` is deliberately
-left unset at creation: an issue's parent is decided later by position in
+A title page without a title therefore contributes nothing, and all of its
+evidence becomes unreferenced. `MetakatIssue.parent_id` is deliberately left
+unset at creation: an issue's parent is decided later by position in
 [hierarchy binding](#hierarchy-binding), not by the volume candidate from its
 own page, which may not survive consolidation.
 
@@ -647,6 +714,7 @@ group:
 | `hierarchy` | Always `monograph`. No candidate's own hierarchy is consulted, because the only signals that would suggest otherwise are the excluded part fields. |
 | Single-kept fields | A one-element list holding the candidate value the record corroborates at `0.8` or better; otherwise the highest-confidence one. See [Choosing between detections of one field](#choosing-between-detections-of-one-field). |
 | Keep-all fields | Union in candidate order, skipping `Value`s already present. Since every detection carries its own UUID, identical text detected on two pages is kept twice. |
+| `groups` | The candidates' groups, combined as described under [Groups](#groups): one `titleInfo` and one imprint per event, every series and name as read. |
 
 The merged volume's anchor is recorded separately, by `_pick_anchor_page_id`,
 in this order: the group member with the highest-confidence title; otherwise
@@ -712,11 +780,14 @@ MetakatTitle(
     hierarchy=volume.hierarchy,
     title=volume.title,
     subTitle=volume.subTitle,
+    groups=volume.groups,
 )
 ```
 
 The `Value`s are shared with the source volume, so the title reuses that
-volume's detection UUIDs rather than creating new ones. `MetakatTitle.hierarchy`
+volume's detection UUIDs rather than creating new ones; of the volume's
+groups, finalizing keeps what holds the title's own values - its `titleInfo`.
+`MetakatTitle.hierarchy`
 rejects `monograph` at the schema level, which is why only the two other
 hierarchies are eligible. When no such volume exists, no title element is
 created. A created title is prepended to the element list, ahead of the volumes
@@ -729,7 +800,7 @@ were read from. The anchor orders candidates, groups neighbouring ones, and is
 what [hierarchy binding](#hierarchy-binding) switches parents on. It is
 binder-internal - the output schema has no anchor field - and lives in an
 `Anchors` dict mapping element id to page id, built by
-`get_volume_issue_from_alignment` and passed explicitly to every step that
+`get_volume_issue_from_result` and passed explicitly to every step that
 needs it. A merged ProArc volume and a consolidated periodical volume each get
 their own entry.
 
@@ -742,12 +813,24 @@ monograph has no anchor and marks none either.
 
 ### Groups
 
-The binder groups only what it knows belongs together. Every final title,
-volume and issue holding at least two of `title`, `subTitle`, `partNumber` and
-`partName` gets one `titleInfo` group of them: the binder keeps one reading of
-each per record, and all of them describe that record. Places, publishers and
-dates are not grouped - which place goes with which publisher is not known -
-so they stay ungrouped values.
+The groups come from the core: each container it returned becomes a group on
+the records its values reach. The binder adds no pairing of its own; it only
+carries the groups through its decisions about records.
+
+- **Combining readings of one record** - two readings of one page, or the
+  candidates [merged into one ProArc volume](#merging): groups of
+  `titleInfo`, `originInfoPublication` and `originInfoManufacture` are united
+  when every reading has at most one of that type, because a record has one
+  title and one imprint per event. A reading that split such a statement into
+  several groups did so on purpose, so then they stay as read. `series` and
+  `agent` groups always stay as read: a record can have several series and
+  several names.
+- **Choosing between records** - a periodical volume bag keeps its root
+  volume, groups included; a title takes its volume's groups.
+- **Finalizing** - before the elements are written, `_finalize_groups` drops
+  from each group the values its record no longer holds - the less confident
+  of two readings, a field a merge does not keep - and drops groups left with
+  fewer than two members.
 
 A volume or issue that arrived in the input `MetakatIO` has no anchor. Its
 position is not guessed: `bind()` leaves it out of positional parenting and
@@ -851,7 +934,7 @@ unit.
 
 ### Detection geometry retention
 
-Candidate construction records geometry for every handled detection, but
+Candidate construction records geometry for every piece of evidence, but
 consolidation, ProArc resolution, and the emission conditions can all drop the
 element a detection was gathered for. Before writing the geometry maps, the
 binder therefore collects the detection UUIDs still referenced as evidence.
@@ -867,8 +950,8 @@ The surviving entries are merged into the existing maps:
 
 | MetaKat destination | Source |
 |---|---|
-| `MetakatIO.detection_to_bbox[detection_uuid]` | `(x, y, width, height)` of the region's `input_geometry.bounds` |
-| `MetakatIO.detection_to_page_mapping[detection_uuid]` | `MetakatPage.id` of the title page whose alignment page produced the region |
+| `MetakatIO.detection_to_bbox[detection_uuid]` | `(x, y, width, height)` of the evidence's `bbox` |
+| `MetakatIO.detection_to_page_mapping[detection_uuid]` | `MetakatPage.id` of the title page the evidence was read on |
 
 Existing entries written by earlier components are preserved. The new
 bibliographic elements are prepended to `MetakatIO.elements`, with the title
@@ -892,18 +975,20 @@ contracts, and are documented so a change can be scoped against them.
 
 ## Observability and revision
 
-The bind engine logs the page and title-page counts, the number of images sent
-to the core, the total detections returned, the number of candidate elements
-created, which branch was taken, and the final element count at `INFO`. ProArc
-resolution additionally logs the candidate and group counts and the winning
-group's relevant-candidate count, detection count, and whether it produced a
-title. Skipped regions — unmatched, missing YOLO metadata, or an unconfigured
-model label — and dropped unreferenced detections are logged as warnings or
-counts.
+The core engine logs its label count and how many of the pages it was given
+it read something on; regions it skips for missing YOLO metadata or an
+unconfigured model label are logged as warnings. The bind engine logs the page
+and title-page counts, the number of images sent to the core, the number of
+pages it returned, the number of candidate elements created, which branch was
+taken, and the final element count at `INFO`. ProArc resolution additionally
+logs the candidate and group counts and the winning group's relevant-candidate
+count, detection count, and whether it produced a title. Dropped unreferenced
+detections are logged as a count.
 
-Because the binder owns every semantic decision, these logs are the primary
-record of why a volume, issue, or title exists. Changes to label precedence,
-the ProArc matching threshold, the group-selection tuple, or the consolidation
-rules should update the implementation, its focused tests in
+Changes to label handling, per-page precedence or grouping belong to the core
+engine: update it, its tests in `metakat/biblio/engines/core/tests`, and
+[Reading a page](#reading-a-page) together. Changes to record routing, the
+ProArc matching threshold, the group-selection tuple, or the consolidation
+rules belong to the binder: update it, its tests in
 `metakat/biblio/engines/bind/tests`, and the corresponding tables here
 together.

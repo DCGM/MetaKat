@@ -1,31 +1,31 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import logging
 import os
 import re
 import unicodedata
 from pathlib import Path
 
-from typing import Dict, List, Tuple, Optional, Union, TYPE_CHECKING
+from typing import Callable, Dict, List, Tuple, Optional, Union
 from uuid import UUID, uuid4
 
 from natsort import natsorted
 
-# Annotation-only import. text_geometry_aligner ships with the [inference]
-# tier, but this module is reached by every `import metakat.process_batch`,
-# including on installs that carry no engine. Keeping it off the runtime
-# path lets those installs import the pipeline, so a missing engine
-# dependency is reported by the engine preflight, naming the extra that
-# supplies it, instead of failing here with a bare ImportError.
-if TYPE_CHECKING:
-    from text_geometry_aligner import AlignmentPage
-
 from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
+from metakat.biblio.engines.core.models import (
+    BiblioAgent,
+    BiblioContainer,
+    BiblioCoreResult,
+    BiblioPageResult,
+    BiblioReading,
+    container_values,
+)
 from metakat.common.aux.document_groups import assign_page_indices, lowest_document_groups
 
 from metakat.schemas.base_objects import MetakatIO, ProarcIO, ObjectItem, ObjectModel, DocumentType, MetakatPage, \
-    PageType, BiblioType, MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle, HierarchyType, Value, \
+    PageType, MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle, HierarchyType, Value, \
     GroupType, MetakatGroup
 
 logger = logging.getLogger(__name__)
@@ -62,13 +62,22 @@ _PROARC_VOLUME_LIST_FIELDS = (
 _PROARC_FIELD_NAMES = {
     "seriesPartNumber": "seriesNumber",
 }
-# The fields of a record's own <titleInfo>, and the records that get one here.
-_TITLE_INFO_FIELDS = ("title", "subTitle", "partNumber", "partName")
-_TITLE_INFO_ELEMENT_TYPES = (
-    DocumentType.TITLE.value,
-    DocumentType.VOLUME.value,
-    DocumentType.ISSUE.value,
-)
+# What an issue takes from its title page's reading besides its own number
+# and date: the periodical's title and imprint, which each issue repeats, and
+# its redaktor. Everything else a title page says describes the volume.
+_ISSUE_FIELDS = frozenset((
+    "title", "subTitle", "publisher", "placeTerm", "manufacturePublisher", "manufacturePlaceTerm",
+    "redaktor",
+))
+# The statements a record has one of per event: when several readings of the
+# same record are combined, their groups of these types are united (see
+# _union_groups). A series or a name is an entity a record can have several
+# of, so those groups are kept as read.
+_UNITED_GROUP_TYPES = frozenset((
+    GroupType.TITLE_INFO.value,
+    GroupType.ORIGIN_INFO_PUBLICATION.value,
+    GroupType.ORIGIN_INFO_MANUFACTURE.value,
+))
 # How close a group's title has to be to one of the record's titles for the
 # catalog to be treated as recognising it. Deliberately the most permissive of
 # the three bars: this only decides which group gets looked at first, and if
@@ -181,21 +190,6 @@ def _kept(values: Optional[List[Value]]) -> Optional[Value]:
     return values[0] if values else None
 
 
-def _keep_best(current: Optional[List[Value]], detection: Value) -> List[Value]:
-    # A single-kept field: the new detection replaces the kept one only when
-    # it is more confident.
-    kept = _kept(current)
-    if kept is None or kept.confidence < detection.confidence:
-        return [detection]
-    return current
-
-
-def _keep_all(current: Optional[List[Value]], detection: Value) -> List[Value]:
-    # A list field. Returned as a new list and assigned, rather than appended
-    # in place, so the assignment is validated.
-    return [*(current or []), detection]
-
-
 def _texts_match(
     first: Optional[List[Value]],
     second: Optional[List[Value]],
@@ -213,6 +207,81 @@ def _texts_match(
 
 def _proarc_values(proarc_volume: ObjectItem, field_name: str) -> Optional[List[Optional[str]]]:
     return getattr(proarc_volume, _PROARC_FIELD_NAMES.get(field_name, field_name))
+
+
+# One source's containers, as they reach a record: per container, its group
+# type and (MetaKat field, Value, whether the field is single-valued in it).
+_SourceContainers = List[Tuple[str, List[Tuple[str, Value, bool]]]]
+
+
+def _is_single(container: BiblioContainer, field_name: str) -> bool:
+    if isinstance(container, BiblioAgent):
+        return False
+    return any(
+        container_field.metadata.get("metakat") == field_name
+        and not isinstance(getattr(container, container_field.name), tuple)
+        for container_field in dataclasses.fields(container)
+    )
+
+
+def _restrict(source: _SourceContainers, keep: Callable[[str], bool]) -> _SourceContainers:
+    return [
+        (group_type, [value for value in values if keep(value[0])])
+        for group_type, values in source
+    ]
+
+
+def _union_groups(sources: List[List[MetakatGroup]]) -> List[MetakatGroup]:
+    """The groups of several readings of one record, combined.
+
+    A statement type every reading has at most one group of - one title, one
+    imprint - is one statement of the record, so those groups are united.
+    Anything else stays as read: a reading that split a statement did so on
+    purpose, and series and names are separate entities.
+    """
+    result: List[MetakatGroup] = []
+    group_types = list(dict.fromkeys(group.type for groups in sources for group in groups))
+    for group_type in group_types:
+        per_source = [[group for group in groups if group.type == group_type] for groups in sources]
+        if group_type in _UNITED_GROUP_TYPES and all(len(groups) <= 1 for groups in per_source):
+            members = list(dict.fromkeys(
+                member for groups in per_source for group in groups for member in group.members
+            ))
+            result.append(MetakatGroup(type=group_type, members=members))
+        else:
+            result.extend(group for groups in per_source for group in groups)
+    return result
+
+
+def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceContainers]) -> None:
+    """Fill a record from the readings of one page that reach it.
+
+    A single-valued field read by two of the readings - a part number read
+    both as such and as a periodical volume number - keeps the more
+    confident reading; the first on a tie.
+    """
+    fields: Dict[str, List[Value]] = {}
+    single_source: Dict[str, int] = {}
+    groups_per_source: List[List[MetakatGroup]] = []
+    for index, source in enumerate(sources):
+        groups = []
+        for group_type, values in source:
+            if not values:
+                continue
+            for field_name, value, single in values:
+                earlier = single_source.get(field_name)
+                if single and earlier is not None and earlier != index:
+                    if fields[field_name][0].confidence < value.confidence:
+                        fields[field_name] = [value]
+                else:
+                    fields.setdefault(field_name, []).append(value)
+                    if single and earlier is None:
+                        single_source[field_name] = index
+            groups.append(MetakatGroup(type=group_type, members=[value.id for _, value, _ in values]))
+        groups_per_source.append(groups)
+    for field_name, values in fields.items():
+        setattr(record, field_name, values)
+    record.groups = _union_groups(groups_per_source) or None
 
 
 class BiblioBindEngineBase(BiblioBindEngine):
@@ -235,25 +304,19 @@ class BiblioBindEngineBase(BiblioBindEngine):
         alto_files = natsorted(alto_files)
 
         logger.info(f"Processing {len(images)} images with biblio core engine")
-        alignment_pages = self.core_engine.process(images, alto_files)
-        alignment_pages = natsorted(
-            alignment_pages,
-            key=lambda page: page.page_key,
-        )
-        logger.info(f"Biblio core engine returned "
-                    f"{sum(page.matched_count for page in alignment_pages)} "
-                    f"detections")
+        core_result = self.core_engine.process(images, alto_files)
+        logger.info(f"Biblio core engine read bibliographic information on {len(core_result.pages)} page(s)")
 
         metakat_page_id_to_metakat_page = {page.id: page for page in metakat_io.elements if
                                            page.type == DocumentType.PAGE.value}
-        alignment_page_key_to_metakat_page = {
+        page_key_to_metakat_page = {
             Path(image_filename).stem: metakat_page_id_to_metakat_page[page_id]
             for page_id, image_filename in metakat_io.page_to_image_mapping.items()
         }
 
         logger.info(f"Creating MetaKatVolume and MetaKatIssue elements from detections")
         metakat_elements, detection_id_to_detection_bbox, detection_id_to_page_id, anchors = \
-            self.get_volume_issue_from_alignment(alignment_pages, alignment_page_key_to_metakat_page)
+            self.get_volume_issue_from_result(core_result, page_key_to_metakat_page)
         logger.info(f"Created {len(metakat_elements)} MetaKatVolume and MetaKatIssue elements from detections")
 
         proarc_volume = self._single_proarc_volume(proarc_io)
@@ -276,7 +339,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 metakat_elements = [title_element] + metakat_elements
 
         for element in metakat_elements:
-            self._group_title_info(element)
+            self._finalize_groups(element)
 
         logger.info(f"Adding {len(metakat_elements)} MetaKat elements to MetaKatIO")
         metakat_io.elements = metakat_elements + metakat_io.elements
@@ -319,22 +382,18 @@ class BiblioBindEngineBase(BiblioBindEngine):
         return metakat_io
 
     @staticmethod
-    def _group_title_info(element: MetakatElement) -> None:
-        # The binder keeps one reading of each title field per record, and all
-        # of them describe that record, so they form its one titleInfo. A group
-        # of one pairs nothing.
-        if element.type not in _TITLE_INFO_ELEMENT_TYPES:
-            return
-        members = [
-            value.id
-            for field_name in _TITLE_INFO_FIELDS
-            for value in (getattr(element, field_name) or [])
-        ]
-        if len(members) > 1:
-            element.groups = [
-                *(element.groups or []),
-                MetakatGroup(type=GroupType.TITLE_INFO, members=members),
-            ]
+    def _finalize_groups(element: MetakatElement) -> None:
+        # Groups are carried through merging with every value that was read,
+        # so a value a merge dropped - the less confident of two readings, a
+        # field the record does not keep - is dropped from its group here. A
+        # group left with one member pairs nothing.
+        present = BiblioBindEngineBase._referenced_detection_ids([element])
+        groups = []
+        for group in element.groups or []:
+            members = [member for member in group.members if member in present]
+            if len(members) > 1:
+                groups.append(MetakatGroup(type=group.type, members=members))
+        element.groups = groups or None
 
     @staticmethod
     def _referenced_detection_ids(elements: List[MetakatElement]) -> set:
@@ -554,7 +613,8 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 id=uuid4(),
                 hierarchy=volume_element.hierarchy,
                 title=volume_element.title,
-                subTitle=volume_element.subTitle
+                subTitle=volume_element.subTitle,
+                groups=volume_element.groups,
             )
 
         return None
@@ -826,6 +886,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
                     if item not in merged_value:
                         merged_value.append(item)
                 setattr(merged, field_name, merged_value)
+        merged.groups = _union_groups([volume.groups or [] for volume in volumes]) or None
         return merged
 
     def finalize_periodical_volumes(
@@ -882,170 +943,82 @@ class BiblioBindEngineBase(BiblioBindEngine):
 
         return elements
 
-    def get_volume_issue_from_alignment(
+    def get_volume_issue_from_result(
         self,
-        alignment_pages: List[AlignmentPage],
-        alignment_page_key_to_metakat_page: dict,
+        core_result: BiblioCoreResult,
+        page_key_to_metakat_page: dict,
     ) -> Tuple[List[MetakatElement], dict, dict, Anchors]:
         elements = []
         detection_id_to_detection_bbox = {}
         detection_id_to_page_id = {}
         anchors: Anchors = {}
-        for alignment_page in alignment_pages:
-            metakat_page = alignment_page_key_to_metakat_page[
-                alignment_page.page_key
-            ]
-            page_elements, page_id_to_detection_bbox = self.get_volume_issue_from_page(
-                alignment_page,
+        for page_result in natsorted(core_result.pages.values(), key=lambda page: page.page_key):
+            metakat_page = page_key_to_metakat_page.get(page_result.page_key)
+            if metakat_page is None:
+                raise ValueError(
+                    f"Biblio core returned page key {page_result.page_key!r}, "
+                    "which is not one of the pages it was given"
+                )
+            page_elements, page_detection_bboxes = self.get_volume_issue_from_page(
+                page_result,
                 metakat_page,
             )
             elements.extend(page_elements)
             for element in page_elements:
                 anchors[element.id] = metakat_page.id
-            detection_id_to_detection_bbox.update(page_id_to_detection_bbox)
-            for detection_id, bbox in page_id_to_detection_bbox.items():
+            detection_id_to_detection_bbox.update(page_detection_bboxes)
+            for detection_id in page_detection_bboxes:
                 detection_id_to_page_id[detection_id] = metakat_page.id
         return elements, detection_id_to_detection_bbox, detection_id_to_page_id, anchors
 
+    # One page's readings become one candidate volume and one candidate issue.
+    # The core decided what was read and how it groups; this decides only
+    # which record each value describes:
+    #
+    #   * `reading` - level not stated. The volume takes all of it except
+    #     redaktor; the issue takes the fields a periodical issue repeats from
+    #     its title page (_ISSUE_FIELDS).
+    #   * `periodical_volume` / `periodical_issue` - that record only.
+    #
+    # Each container becomes one group on each record it reaches, holding the
+    # values that reached it. When the page's readings give one record the
+    # same statement twice - a title from `reading` and a volume number from
+    # `periodical_volume` are one <titleInfo> - they are united (_union_groups),
+    # and a single-valued field read in both keeps the more confident reading.
     def get_volume_issue_from_page(
         self,
-        alignment_page: AlignmentPage,
+        page_result: BiblioPageResult,
         metakat_page: MetakatPage,
     ) -> Tuple[List[MetakatElement], dict]:
-        elements = []
         detection_id_to_detection_bbox = {}
+
+        def containers(reading: Optional[BiblioReading]):
+            for container in (reading.containers() if reading is not None else ()):
+                values = []
+                for field_name, evidence in container_values(container):
+                    value = Value(text=evidence.text, confidence=evidence.confidence, id=uuid4())
+                    bbox = evidence.bbox
+                    detection_id_to_detection_bbox[value.id] = (bbox.x, bbox.y, bbox.width, bbox.height)
+                    values.append((field_name, value, _is_single(container, field_name)))
+                yield container.GROUP_TYPE, values
+
+        reading = list(containers(page_result.reading))
+        periodical_volume = list(containers(page_result.periodical_volume))
+        periodical_issue = list(containers(page_result.periodical_issue))
+
         # Anchored on metakat_page by the caller.
-        metakat_volume = MetakatVolume(id=uuid4(), hierarchy=HierarchyType.MONOGRAPH)
+        metakat_volume = MetakatVolume(id=uuid4(), hierarchy=self._hierarchy(page_result))
         metakat_issue = MetakatIssue(id=uuid4())
-        for region in alignment_page.regions:
-            if not region.matched:
-                continue
-            if (
-                region.input_geometry is None
-                or region.input_geometry_confidence is None
-                or region.alto_text is None
-            ):
-                logger.warning(
-                    "Matched region %s on page %s is missing YOLO metadata; "
-                    "skipping detection",
-                    region.region_id,
-                    alignment_page.page_key,
-                )
-                continue
+        _compose(metakat_volume, [
+            _restrict(reading, lambda field_name: field_name != "redaktor"),
+            periodical_volume,
+        ])
+        _compose(metakat_issue, [
+            _restrict(reading, lambda field_name: field_name in _ISSUE_FIELDS),
+            periodical_issue,
+        ])
 
-            model_label = region.label_for_export
-            biblio_type = self.core_engine.biblio_type_by_label.get(
-                model_label
-            )
-            if biblio_type is None:
-                logger.warning(
-                    "Model label %r (raw=%r, export=%r) not found in the "
-                    "engine configuration's labels mapping; "
-                    "skipping detection",
-                    model_label,
-                    region.label,
-                    region.label_export,
-                )
-                continue
-
-            bbox = region.input_geometry.bounds
-            detection_bbox = (
-                bbox.x,
-                bbox.y,
-                bbox.width,
-                bbox.height,
-            )
-            detection_id = uuid4()
-            detection = Value(
-                text=region.alto_text,
-                confidence=region.input_geometry_confidence,
-                id=detection_id,
-            )
-
-            if biblio_type == BiblioType.PERIODICAL_VOLUME_PART_NUMBER:
-                metakat_volume.hierarchy = HierarchyType.PERIODICAL
-                metakat_volume.partNumber = _keep_best(metakat_volume.partNumber, detection)
-
-            elif biblio_type == BiblioType.PERIODICAL_VOLUME_DATE_ISSUED:
-                metakat_volume.hierarchy = HierarchyType.PERIODICAL
-                metakat_volume.dateIssued = _keep_best(metakat_volume.dateIssued, detection)
-
-            elif biblio_type == BiblioType.PERIODICAL_ISSUE_PART_NUMBER:
-                metakat_issue.partNumber = _keep_best(metakat_issue.partNumber, detection)
-
-            elif biblio_type == BiblioType.PERIODICAL_ISSUE_DATE_ISSUED:
-                metakat_issue.dateIssued = _keep_best(metakat_issue.dateIssued, detection)
-
-            elif biblio_type == BiblioType.REDAKTOR:
-                metakat_issue.redaktor = _keep_all(metakat_issue.redaktor, detection)
-
-            elif biblio_type == BiblioType.TITLE:
-                metakat_volume.title = _keep_best(metakat_volume.title, detection)
-                metakat_issue.title = _keep_best(metakat_issue.title, detection)
-
-            elif biblio_type == BiblioType.SUBTITLE:
-                metakat_volume.subTitle = _keep_best(metakat_volume.subTitle, detection)
-                metakat_issue.subTitle = _keep_best(metakat_issue.subTitle, detection)
-
-            elif biblio_type == BiblioType.PUBLISHER:
-                metakat_volume.publisher = _keep_all(metakat_volume.publisher, detection)
-                metakat_issue.publisher = _keep_all(metakat_issue.publisher, detection)
-
-            elif biblio_type == BiblioType.PLACE_TERM:
-                metakat_volume.placeTerm = _keep_best(metakat_volume.placeTerm, detection)
-                metakat_issue.placeTerm = _keep_best(metakat_issue.placeTerm, detection)
-
-            elif biblio_type == BiblioType.MANUFACTURE_PUBLISHER:
-                metakat_volume.manufacturePublisher = _keep_all(metakat_volume.manufacturePublisher, detection)
-                metakat_issue.manufacturePublisher = _keep_all(metakat_issue.manufacturePublisher, detection)
-
-            elif biblio_type == BiblioType.MANUFACTURE_PLACE_TERM:
-                metakat_volume.manufacturePlaceTerm = _keep_all(metakat_volume.manufacturePlaceTerm, detection)
-                metakat_issue.manufacturePlaceTerm = _keep_all(metakat_issue.manufacturePlaceTerm, detection)
-
-            elif biblio_type == BiblioType.PART_NUMBER:
-                if metakat_volume.hierarchy == HierarchyType.MONOGRAPH:
-                    metakat_volume.hierarchy = HierarchyType.MULTIPART
-                metakat_volume.partNumber = _keep_best(metakat_volume.partNumber, detection)
-
-            elif biblio_type == BiblioType.PART_NAME:
-                if metakat_volume.hierarchy == HierarchyType.MONOGRAPH:
-                    metakat_volume.hierarchy = HierarchyType.MULTIPART
-                metakat_volume.partName = _keep_best(metakat_volume.partName, detection)
-
-            elif biblio_type == BiblioType.SERIES_NAME:
-                metakat_volume.seriesName = _keep_all(metakat_volume.seriesName, detection)
-
-            elif biblio_type == BiblioType.SERIES_NUMBER:
-                metakat_volume.seriesPartNumber = _keep_all(metakat_volume.seriesPartNumber, detection)
-
-            elif biblio_type == BiblioType.EDITION:
-                metakat_volume.edition = _keep_best(metakat_volume.edition, detection)
-
-            elif biblio_type == BiblioType.DATE_ISSUED:
-                metakat_volume.dateIssued = _keep_best(metakat_volume.dateIssued, detection)
-
-            elif biblio_type == BiblioType.AUTHOR:
-                metakat_volume.author = _keep_all(metakat_volume.author, detection)
-
-            elif biblio_type == BiblioType.ILLUSTRATOR:
-                metakat_volume.illustrator = _keep_all(metakat_volume.illustrator, detection)
-
-            elif biblio_type == BiblioType.PHOTOGRAPHER:
-                metakat_volume.photographer = _keep_all(metakat_volume.photographer, detection)
-
-            elif biblio_type == BiblioType.TRANSLATOR:
-                metakat_volume.translator = _keep_all(metakat_volume.translator, detection)
-
-            elif biblio_type == BiblioType.EDITOR:
-                metakat_volume.editor = _keep_all(metakat_volume.editor, detection)
-
-            else:
-                continue
-
-            detection_id_to_detection_bbox[detection_id] = detection_bbox
-
-
+        elements = []
         if metakat_volume.title is not None:
             elements.append(metakat_volume)
             if metakat_issue.title is not None and (metakat_issue.partNumber is not None or
@@ -1059,6 +1032,16 @@ class BiblioBindEngineBase(BiblioBindEngine):
 
         return elements, detection_id_to_detection_bbox
 
+    @staticmethod
+    def _hierarchy(page_result: BiblioPageResult) -> HierarchyType:
+        # A printed volume number or date marks a periodical; a part number
+        # or name alone, one part of a multipart monograph.
+        if page_result.periodical_volume is not None:
+            return HierarchyType.PERIODICAL
+        if any(title_info.part_number is not None or title_info.part_name is not None
+               for title_info in page_result.reading.title_infos):
+            return HierarchyType.MULTIPART
+        return HierarchyType.MONOGRAPH
 
     def filter_title_pages(self, pages: List[MetakatPage], min_distance: int) -> List[MetakatPage]:
         # Sort pages by batch_index (already done in your code)
