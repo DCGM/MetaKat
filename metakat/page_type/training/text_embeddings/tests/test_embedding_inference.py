@@ -1,12 +1,18 @@
-import pytest
+import argparse
 
-from metakat.page_type.training.text_embeddings.infer_mmbert_base import (
+import pytest
+import torch
+
+from metakat.page_type.training.text_embeddings.embedding_inference import (
     PROGRESS_HEADER,
     append_progress,
     check_or_write_meta,
+    last_token_pool,
     load_progress,
     make_batches,
+    mean_pool,
 )
+from metakat.page_type.training.text_embeddings.infer_qwen3_embedding_0_6b import make_text_transform
 
 
 def test_make_batches_respects_token_budget_and_batch_size():
@@ -32,8 +38,25 @@ def test_progress_resumes_after_last_complete_line(tmp_path):
 
 def test_meta_mismatch_refuses_resume(tmp_path):
     meta = {'model': 'm', 'model_commit_hash': 'x', 'pooling': 'mean', 'dtype': 'float16', 'dim': 768,
-            'max_length': 8192, 'empty_text': 'e', 'source_lmdb': '/s'}
+            'max_length': 8192, 'empty_text': 'e', 'source_lmdb': '/s', 'instruction': None}
     check_or_write_meta(tmp_path / 'meta.json', meta)
     check_or_write_meta(tmp_path / 'meta.json', dict(meta))
     with pytest.raises(SystemExit, match='max_length'):
         check_or_write_meta(tmp_path / 'meta.json', {**meta, 'max_length': 512})
+    fixed = ('model', 'instruction')
+    with pytest.raises(SystemExit, match='instruction'):
+        check_or_write_meta(tmp_path / 'meta.json', {**meta, 'instruction': 'Classify'}, fixed)
+
+
+def test_pooling_ignores_right_padding():
+    hidden = torch.tensor([[[1.0, 1.0], [3.0, 5.0], [float('nan'), 9.0]],
+                           [[2.0, 4.0], [0.0, 0.0], [0.0, 0.0]]])
+    mask = torch.tensor([[1, 1, 0], [1, 0, 0]])
+    assert mean_pool(hidden, mask).tolist() == [[2.0, 3.0], [2.0, 4.0]]
+    assert last_token_pool(hidden, mask).tolist() == [[3.0, 5.0], [2.0, 4.0]]
+
+
+def test_qwen_instruction_prefix():
+    assert make_text_transform(argparse.Namespace(instruction=None)) is None
+    transform = make_text_transform(argparse.Namespace(instruction='Classify the page type'))
+    assert transform('Obsah') == 'Instruct: Classify the page type\nQuery:Obsah'

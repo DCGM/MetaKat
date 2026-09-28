@@ -4,12 +4,12 @@ Reads the sample built by build_eval_sample.py, fetches each page's embedding
 and text, and compares classifiers trained on the archive labels of the train
 documents:
 
-  mmBERT LR          logistic regression on the (normalized, standardized) embeddings
-  mmBERT kNN         cosine k-nearest-neighbour vote over the train embeddings
-  mmBERT+layout LR   logistic regression on embeddings plus the layout statistics
-  TF-IDF words       linear SVM on word TF-IDF of the same text (bag-of-words baseline)
-  Layout stats       gradient boosting on ~15 line-structure statistics of the text
-  Position           gradient boosting on the page's position in its document (not text)
+  Embedding LR          logistic regression on the (normalized, standardized) embeddings
+  Embedding kNN         cosine k-nearest-neighbour vote over the train embeddings
+  Embedding+layout LR   logistic regression on embeddings plus the layout statistics
+  TF-IDF words          linear SVM on word TF-IDF of the same text (bag-of-words baseline)
+  Layout stats          gradient boosting on ~15 line-structure statistics of the text
+  Position              gradient boosting on the page's position in its document (not text)
 
 Each is scored on two sets: "test" (archive labels of held-out documents,
 noisy) and "annotated" (hand annotations, never trained on). On the annotated
@@ -355,8 +355,8 @@ def main(argv=None):
     y_train = archive[train]
     predictions: Dict[str, np.ndarray] = {}
     models = {
-        'mmBERT LR': ('emb', lambda: LogisticRegression(C=1.0, max_iter=1000, class_weight='balanced')),
-        'mmBERT+layout LR': ('emb+layout', lambda: LogisticRegression(C=1.0, max_iter=1000,
+        'Embedding LR': ('emb', lambda: LogisticRegression(C=1.0, max_iter=1000, class_weight='balanced')),
+        'Embedding+layout LR': ('emb+layout', lambda: LogisticRegression(C=1.0, max_iter=1000,
                                                                        class_weight='balanced')),
         'TF-IDF words': ('tfidf', lambda: LinearSVC(C=0.5, class_weight='balanced', max_iter=3000)),
         'Layout stats': (layout, lambda: HistGradientBoostingClassifier(class_weight='balanced',
@@ -370,7 +370,7 @@ def main(argv=None):
         model_start = time.time()
         model = make().fit(x[train], y_train)
         predictions[name] = model.predict(x)
-        if name == 'mmBERT LR':
+        if name == 'Embedding LR':
             lr_model = model
             lr_proba = model.predict_proba(x)
         logger.info(f'{name}: fitted in {time.time() - model_start:.0f}s')
@@ -380,8 +380,8 @@ def main(argv=None):
     train_index[train] = np.arange(len(train))
     knn_pred, knn_neighbours, knn_sims = knn_predict(
         embeddings[train], y_train, embeddings, classes, args.knn_k, exclude_self=train_index)
-    predictions['mmBERT kNN'] = knn_pred
-    model_order = ['mmBERT LR', 'mmBERT kNN', 'mmBERT+layout LR', 'TF-IDF words', 'Layout stats',
+    predictions['Embedding kNN'] = knn_pred
+    model_order = ['Embedding LR', 'Embedding kNN', 'Embedding+layout LR', 'TF-IDF words', 'Layout stats',
                    'Position (not text)']
 
     metrics = {name: {set_name: score(y, predictions[name][idx], classes)
@@ -402,9 +402,9 @@ def main(argv=None):
         for set_name, (idx, y) in eval_sets.items():
             row[f'{set_name} macro F1'] = score(y, model.predict(features['emb'][idx]), classes)['macro_f1']
         learning_curve.append(row)
-    # the full train set is the main mmBERT LR model, not refitted
+    # the full train set is the main Embedding LR model, not refitted
     learning_curve.append({'train pages per class (max)': 'all', 'train pages': len(train),
-                           **{f'{s} macro F1': metrics['mmBERT LR'][s]['macro_f1'] for s in eval_sets}})
+                           **{f'{s} macro F1': metrics['Embedding LR'][s]['macro_f1'] for s in eval_sets}})
     learning_curve = pd.DataFrame(learning_curve)
 
     # likely mislabels: held-out archive pages the embedding classifier confidently contradicts
@@ -412,19 +412,19 @@ def main(argv=None):
     test_labelled = test
     p_pred = lr_proba[test_labelled].max(axis=1)
     p_archive = lr_proba[test_labelled, [class_pos[c] for c in archive[test_labelled]]]
-    disagree = predictions['mmBERT LR'][test_labelled] != archive[test_labelled]
+    disagree = predictions['Embedding LR'][test_labelled] != archive[test_labelled]
     margin = np.where(disagree, p_pred - p_archive, -np.inf)
     order = np.argsort(-margin)[:args.suspicious]
     order = order[np.isfinite(margin[order])]
     suspicious = pd.DataFrame({
         'key': sample['key'].to_numpy()[test_labelled[order]],
         'archive': archive[test_labelled[order]],
-        'predicted': predictions['mmBERT LR'][test_labelled[order]],
+        'predicted': predictions['Embedding LR'][test_labelled[order]],
         'p_predicted': p_pred[order], 'p_archive': p_archive[order],
         'text': [snippet(texts[i]) for i in test_labelled[order]],
     })
     confident = disagree & (p_pred >= 0.8)
-    suspicious_pairs = Counter(zip(archive[test_labelled][confident], predictions['mmBERT LR'][test_labelled][confident]))
+    suspicious_pairs = Counter(zip(archive[test_labelled][confident], predictions['Embedding LR'][test_labelled][confident]))
 
     logger.info('UMAP and clusters...')
     import umap
@@ -436,7 +436,7 @@ def main(argv=None):
     xy = umap.UMAP(n_neighbors=30, min_dist=0.1).fit_transform(reduced)
     map_sample = sample.iloc[map_idx].reset_index(drop=True)
     map_texts = [texts[i] for i in map_idx]
-    map_pred = predictions['mmBERT LR'][map_idx]
+    map_pred = predictions['Embedding LR'][map_idx]
     map_sample['text_length'] = pd.cut([len(t.strip()) for t in map_texts], [-1, 0, 100, 500, 1500, 3000, 4001],
                                        labels=['empty', '1-100', '101-500', '501-1500', '1501-3000',
                                                '3001-4000']).astype(str)
@@ -503,7 +503,7 @@ def write_outputs(output_dir, args, meta, sample, texts, classes, dropped_classe
         if set_name == 'annotated':
             frame['Archive label'] = pd.Series({c: v['f1'] for c, v in
                                                 metrics['Archive label']['annotated']['per_class'].items()})
-        support = {c: v['support'] for c, v in metrics['mmBERT LR'][set_name]['per_class'].items()}
+        support = {c: v['support'] for c, v in metrics['Embedding LR'][set_name]['per_class'].items()}
         frame.insert(0, 'pages', pd.Series(support))
         per_class[set_name] = frame.sort_values('pages', ascending=False)
 
@@ -516,8 +516,8 @@ def write_outputs(output_dir, args, meta, sample, texts, classes, dropped_classe
         map_figure(xy, map_sample, map_texts, map_pred, classes, 'text_length',
                    'Same map coloured by text length in characters (confound check)', with_text=False),
     ]
-    confusions = [confusion_figure(y, predictions['mmBERT LR'][idx], classes,
-                                   f'mmBERT LR confusion on the {set_name} set (row-normalized)')
+    confusions = [confusion_figure(y, predictions['Embedding LR'][idx], classes,
+                                   f'Embedding LR confusion on the {set_name} set (row-normalized)')
                   for set_name, (idx, y) in eval_sets.items() if len(idx)]
 
     neighbour_rows = []
@@ -533,7 +533,7 @@ def write_outputs(output_dir, args, meta, sample, texts, classes, dropped_classe
             for j, s in zip(knn_neighbours[i][:5], knn_sims[i][:5]))
         neighbour_rows.append(
             f'<details><summary><b>{html.escape(label)}</b> <code>{html.escape(sample["key"].iat[i])}</code> '
-            f'&rarr; kNN: {html.escape(predictions["mmBERT kNN"][i])}, LR: {html.escape(predictions["mmBERT LR"][i])}'
+            f'&rarr; kNN: {html.escape(predictions["Embedding kNN"][i])}, LR: {html.escape(predictions["Embedding LR"][i])}'
             f'</summary><pre>{html.escape(snippet(texts[i], 400))}</pre><ol>{items}</ol></details>')
 
     cluster_html = []
@@ -562,14 +562,14 @@ Annotated pages of left-out types: {dict(annotated_outside) or 'none'}. Runtime 
 the <i>Archive label</i> row scores the archive's own label against them. Macro F1 averages the page types present
 in the set, so rare types count as much as NormalPage.</p>
 <h2>Scores</h2>{html_table(summary)}
-<h2>Learning curve (mmBERT LR)</h2>{html_table(learning_curve.set_index('train pages per class (max)'))}
+<h2>Learning curve (Embedding LR)</h2>{html_table(learning_curve.set_index('train pages per class (max)'))}
 <h2>Per-class F1</h2>
 <div class="row"><div><h3>test (archive labels)</h3>{html_table(per_class['test'])}</div>
 <div><h3>annotated</h3>{html_table(per_class['annotated'])}</div></div>
 <h2>Maps</h2>{''.join(f.to_html(full_html=False, include_plotlyjs=False) for f in figures)}
 <h2>Confusion matrices</h2>{''.join(f.to_html(full_html=False, include_plotlyjs=False) for f in confusions)}
 <h2>Likely archive mislabels</h2>
-<p>Held-out pages where mmBERT LR disagrees with the archive label, most confident first. Pairs with p &ge; 0.8:</p>
+<p>Held-out pages where Embedding LR disagrees with the archive label, most confident first. Pairs with p &ge; 0.8:</p>
 {html_table(pairs.set_index(['archive', 'predicted'])) if len(pairs) else '<p>none</p>'}
 <details><summary>Top {len(suspicious)} pages</summary>{html_table(suspicious_html.set_index('key'), escape=False)}</details>
 <h2>Nearest train neighbours of annotated pages</h2>{''.join(neighbour_rows)}
