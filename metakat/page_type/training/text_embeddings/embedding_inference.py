@@ -158,7 +158,7 @@ def check_or_write_meta(meta_path: Path, meta: dict, fixed: Tuple[str, ...] = FI
     temp_path.replace(meta_path)
 
 
-def load_progress(progress_path: Path) -> Tuple[Optional[bytes], int, int]:
+def load_progress(progress_path: Path, header: Tuple[str, ...] = PROGRESS_HEADER) -> Tuple[Optional[bytes], int, int]:
     """Returns (last committed key, total pages done, next chunk index) from the progress file."""
     if not progress_path.exists():
         return None, 0, 0
@@ -168,23 +168,33 @@ def load_progress(progress_path: Path) -> Tuple[Optional[bytes], int, int]:
             if not line.endswith('\n'):
                 continue  # a truncated last line left by a killed run; that chunk is redone
             fields = line.rstrip('\n').split('\t')
-            if fields[0] == PROGRESS_HEADER[0] or len(fields) != len(PROGRESS_HEADER):
+            if fields[0] == header[0] or len(fields) != len(header):
                 continue
             last_fields = fields
     if last_fields is None:
         return None, 0, 0
-    row = dict(zip(PROGRESS_HEADER, last_fields))
+    row = dict(zip(header, last_fields))
     return row['last_key'].encode('utf-8'), int(row['total_done']), int(row['chunk_index']) + 1
 
 
-def append_progress(progress_path: Path, values: Tuple) -> None:
+def append_progress(progress_path: Path, values: Tuple, header: Tuple[str, ...] = PROGRESS_HEADER) -> None:
     write_header = not progress_path.exists() or progress_path.stat().st_size == 0
     with progress_path.open('a', encoding='utf-8') as pf:
         if write_header:
-            pf.write('\t'.join(PROGRESS_HEADER) + '\n')
+            pf.write('\t'.join(header) + '\n')
         pf.write('\t'.join(str(v) for v in values) + '\n')
         pf.flush()
         os.fsync(pf.fileno())
+
+
+def acquire_run_lock(output_dir: Path):
+    """Holds output_dir/run.lock for the life of the process; two runs would corrupt the resume point."""
+    lock_file = (output_dir / 'run.lock').open('w')
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise SystemExit(f'Another run is already writing to {output_dir} (holds run.lock).')
+    return lock_file
 
 
 def iter_source(source_env: lmdb.Environment, after_key: Optional[bytes],
@@ -340,12 +350,7 @@ def run(spec: EncoderSpec, argv=None) -> None:
     progress_path = output_dir / 'progress.tsv'
     lmdb_dir.mkdir(parents=True, exist_ok=True)
 
-    # Two runs appending to one progress file and LMDB would corrupt the resume point.
-    lock_file = (output_dir / 'run.lock').open('w')
-    try:
-        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        raise SystemExit(f'Another run is already writing to {output_dir} (holds run.lock).')
+    lock_file = acquire_run_lock(output_dir)  # noqa: F841 -- held until the process exits
 
     setup_logging(output_dir / 'log.txt', args.logging_level)
     logger.info(' '.join(sys.argv))
