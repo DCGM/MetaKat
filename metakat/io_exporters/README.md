@@ -99,8 +99,9 @@ written value:
   - `observedValue`, with `lang` when known;
   - `source` - `type` from the PREMIS agentType vocabulary
     (`software`, `person`, `organization`, `hardware`; the exporter writes
-    `software`), the `engine` and `version` from `MetakatIO.engine` when set,
-    and the pipeline `stage`;
+    `software`). Every `software` source is identified the same way, by
+    `name` and `version` - for MetaKat the engine's name and version from
+    `MetakatIO.engine` when set - with MetaKat's pipeline `stage` added;
   - `confidence scheme="model-score"` - detector and classifier scores are
     not calibrated probabilities;
   - `evidence` - `page` is the page it was read on as a `urn:uuid:` URN

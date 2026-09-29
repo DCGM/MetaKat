@@ -580,7 +580,7 @@ def _provenance(record: _Record) -> Optional[ET.Element]:
 def _source(event: ET.Element, io: MetakatIO, stage: Optional[str]) -> None:
     attributes = {"type": "software"}
     if io.engine is not None:
-        attributes["engine"] = io.engine.name
+        attributes["name"] = io.engine.name
         if io.engine.version:
             attributes["version"] = io.engine.version
     if stage:
