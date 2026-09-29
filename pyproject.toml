@@ -31,9 +31,9 @@ pdf = ["PyMuPDF==1.27.2.3"]
 # to install on its own: nothing is usable with it alone, and no engine reports
 # it as the extra to install.
 torch = [
-    "torch==2.4.1",
-    "torchvision==0.19.1",
-    "transformers==4.42.4",
+    "torch==2.8.0",
+    "torchvision==0.23.0",
+    "transformers==4.57.6",
 ]
 
 # Everything the processing pipeline needs on top of the base IO layer: the
@@ -74,10 +74,37 @@ worker = [
 train = [
     "metakat[torch]",
     "accelerate==1.14.0",
-    "scikit-learn==1.3.2",
+    "scikit-learn==1.9.1",
     "safe-gpu==2.0.0",
     "numpy==1.26.4",
     "opencv-python==4.8.0.76",
+]
+
+# Page text and image embeddings and their page-type evaluation, under
+# metakat/page_type/training/text_embeddings and image_embeddings: LMDB input
+# and output, the embedding models (through [torch]), and the evaluation's
+# probes, UMAP maps and HTML report. The GPU bootstrap they share with
+# metakat/page_type/nets can reserve a GPU through safe-gpu.
+embeddings = [
+    "metakat[torch]",
+    "lmdb==2.2.1",
+    "numpy==1.26.4",
+    "opencv-python==4.8.0.76",
+    "pandas==3.0.3",
+    "scikit-learn==1.9.1",
+    "umap-learn==0.5.12",
+    "plotly==7.1.0",
+    "safe-gpu==2.0.0",
+]
+
+# FlashAttention 2 for the text embedding models, which use it by default when
+# it is installed and fall back to PyTorch sdpa otherwise (mmBERT ~1.7x faster
+# with it). The wheel is built for exactly this stack -- Linux x86_64, CPython
+# 3.12, CUDA 12, torch 2.8, C++11 ABI -- so it is kept out of [all] and must
+# change together with the torch pin.
+flash-attn = [
+    "flash-attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3.post1/flash_attn-2.8.3.post1+cu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl",
+    "einops==0.8.2",
 ]
 
 dev = [
@@ -85,7 +112,7 @@ dev = [
     "pytest-cov>=5.0",
 ]
 
-all = ["metakat[worker,train,dev]"]
+all = ["metakat[worker,train,embeddings,dev]"]
 
 [tool.setuptools.packages.find]
 include = ["metakat*"]
