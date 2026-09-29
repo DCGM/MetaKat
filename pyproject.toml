@@ -89,8 +89,11 @@ train = [
 ]
 
 # FlashAttention 2 for the text embedding models, which use it by default when
-# it is installed and fall back to PyTorch sdpa otherwise (mmBERT ~1.7x faster
-# with it). The wheel is built for exactly this stack -- Linux x86_64, CPython
+# it is installed and fall back to PyTorch sdpa otherwise: it drops the padding
+# of their variable-length batches (mmBERT ~1.7x faster). The DINOv2 image
+# embeddings do not need it -- every image is the same 261 tokens without
+# padding, where sdpa already runs PyTorch's own flash kernel at the same speed.
+# The wheel is built for exactly this stack -- Linux x86_64, CPython
 # 3.12, CUDA 12, torch 2.8, C++11 ABI -- so it is kept out of [all] and must
 # change together with the torch pin.
 flash-attn = [
