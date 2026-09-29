@@ -18,13 +18,15 @@ text_embeddings/embedding_inference.py):
   log.txt        the run log (also printed to stdout)
   run.lock       held while a run is writing; a second concurrent run refuses to start
 
-Preprocessing matches training (LightlyTrain "dinov2": 224x224 views of the
-256-px page images, ImageNet normalization) without its random crops: the whole
-page is resized to 224x224, so headers and footers are kept and any aspect
-ratio works, down to 1-px-wide strips (a center crop would upscale those to
-huge images). Larger JPEGs are decoded at a reduced scale (PIL draft) and
-JPEG 2000 at a reduced resolution level, so full-resolution scans also stay
-cheap to decode.
+Preprocessing follows LightlyTrain 0.17: its embed command resizes the whole
+image to 224x224 and applies ImageNet normalization, and its training crops
+were resized with cv2.INTER_AREA, which is used here too (the interpolation
+matters: PIL bilinear or cv2.INTER_LINEAR move the embeddings of narrow strips
+such as spines to cosine ~0.8 from the INTER_AREA ones). Resizing the whole
+page keeps headers and footers and works for any aspect ratio, down to
+1-px-wide strips (a center crop would upscale those to huge images). Larger
+JPEGs are decoded at a reduced scale (PIL draft) and JPEG 2000 at a reduced
+resolution level, so full-resolution scans also stay cheap to decode.
 
 The embedding is the CLS token after the final LayerNorm (768-d); "cls_mean"
 concatenates it with the mean patch token (1536-d, the DINOv2 linear-probe
@@ -54,6 +56,7 @@ if __name__ == '__main__':
 
 import logging
 
+import cv2
 import lmdb
 import numpy as np
 import torch
@@ -178,8 +181,8 @@ def load_image(path: str, image_size: int) -> np.ndarray:
             while min(image.size) >> (reduce + 1) >= image_size and reduce < 5:
                 reduce += 1
             image.reduce = reduce
-        image = image.convert('RGB').resize((image_size, image_size), Image.BILINEAR)
-        return np.array(image, dtype=np.uint8)
+        rgb = np.asarray(image.convert('RGB'), dtype=np.uint8)
+    return cv2.resize(rgb, (image_size, image_size), interpolation=cv2.INTER_AREA)
 
 
 class PageImages(Dataset):
@@ -264,7 +267,7 @@ def main(argv=None):
                     'cls_mean': 'cls_token+mean_patch_tokens'}[args.pooling],
         'normalized': False,
         'image_size': args.image_size,
-        'resize': 'whole image to image_size x image_size (bilinear, aspect ratio not kept)',
+        'resize': 'whole image to image_size x image_size, cv2.INTER_AREA, aspect ratio not kept',
         'image_normalization': {'mean': IMAGENET_MEAN, 'std': IMAGENET_STD},
         'dtype': args.dtype,
         'compute_dtype': args.compute_dtype,
