@@ -97,12 +97,18 @@ written value:
   field and label); `action` is `extract` for read text and `classify` for a
   label chosen by a classifier; `field` is the MetaKat field.
   - `observedValue`, with `lang` when known;
-  - `source` - `type="software"`, the `engine` and `version` from
-    `MetakatIO.engine` when set, and the pipeline `stage`;
+  - `source` - `type` from the PREMIS agentType vocabulary
+    (`software`, `person`, `organization`, `hardware`; the exporter writes
+    `software`), the `engine` and `version` from `MetakatIO.engine` when set,
+    and the pipeline `stage`;
   - `confidence scheme="model-score"` - detector and classifier scores are
     not calibrated probabilities;
-  - `evidence pageRef` - the page it was read on, with `roi` in the
-    coordinate system declared by `MetakatIO.bbox_coordinates`.
+  - `evidence` - `page` is the page it was read on as a `urn:uuid:` URN
+    (RFC 4122), and `xywh` the region as a W3C Media Fragments spatial
+    dimension, `pixel:x,y,w,h`: whole pixels of the page image from its
+    top-left corner, the space `MetakatIO.bbox_coordinates` declares. Media
+    Fragments admits only whole pixels, so a box on half pixels is widened
+    to the smallest one enclosing it.
 
 `--no-provenance` writes plain MODS without the extension.
 

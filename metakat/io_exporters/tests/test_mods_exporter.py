@@ -5,7 +5,9 @@ from uuid import uuid4
 import pytest
 
 from metakat.io_exporters import mods_exporter
-from metakat.io_exporters.mods_exporter import MODS_NS, PROVENANCE_NS, export_mods, section_order
+from metakat.io_exporters.mods_exporter import (
+    MODS_NS, PROVENANCE_NS, _media_fragment_xywh, export_mods, section_order,
+)
 from metakat.schemas.base_objects import (
     GroupType,
     HierarchyType,
@@ -220,10 +222,15 @@ def test_provenance_carries_engine_page_and_box_in_the_declared_space(batch, tmp
     assert (source.get("engine"), source.get("version"), source.get("stage")) == ("monograph", "v1.5.0", "biblio")
     assert event.find(f"{{{PROVENANCE_NS}}}confidence").get("scheme") == "model-score"
     evidence = event.find(f"{{{PROVENANCE_NS}}}evidence")
-    assert evidence.get("pageRef") == str(batch.pages[0].id)
-    roi = evidence.find(f"{{{PROVENANCE_NS}}}roi")
-    assert dict(roi.attrib) == {"unit": "px", "origin": "top-left", "reference": "image",
-                                "x": "10", "y": "20", "width": "30.5", "height": "40"}
+    # The page as a urn:uuid, the box as a Media Fragments xywh: whole image
+    # pixels from the top-left corner, widened to enclose the half pixel.
+    assert dict(evidence.attrib) == {"page": f"urn:uuid:{batch.pages[0].id}", "xywh": "pixel:10,20,31,40"}
+
+
+def test_a_media_fragment_box_encloses_the_detected_box():
+    assert _media_fragment_xywh((241.5, 1137, 883, 104)) == "pixel:241,1137,884,104"
+    assert _media_fragment_xywh((0.2, 0.7, 10.1, 5.2)) == "pixel:0,0,11,6"
+    assert _media_fragment_xywh((3, 4, 5, 6)) == "pixel:3,4,5,6"
 
 
 def test_the_overview_lists_every_record_in_json_order(batch, tmp_path):

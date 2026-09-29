@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -572,7 +573,7 @@ def _provenance(record: _Record) -> Optional[ET.Element]:
         _source(event, io, stage)
         ET.SubElement(event, _p("confidence"), {"scheme": "model-score"}).text = repr(item.confidence)
         if item.page_ref is not None:
-            ET.SubElement(event, _p("evidence"), {"pageRef": str(item.page_ref)})
+            ET.SubElement(event, _p("evidence"), {"page": item.page_ref.urn})
     return extension
 
 
@@ -588,22 +589,31 @@ def _source(event: ET.Element, io: MetakatIO, stage: Optional[str]) -> None:
 
 
 def _evidence(event: ET.Element, io: MetakatIO, value_id: UUID) -> None:
+    # The page as a URN (RFC 4122) and the box as a W3C Media Fragments
+    # spatial dimension, which is defined in exactly the space
+    # MetakatIO.bbox_coordinates declares: pixels of the page image, x and y
+    # from its top-left corner, then width and height.
     page_id = (io.detection_to_page_mapping or {}).get(value_id)
     if page_id is None:
         return
-    evidence = ET.SubElement(event, _p("evidence"), {"pageRef": str(page_id)})
+    attributes = {"page": page_id.urn}
     bbox = (io.detection_to_bbox or {}).get(value_id)
     if bbox is not None:
-        space = io.bbox_coordinates
-        x, y, width, height = bbox
-        ET.SubElement(evidence, _p("roi"), {
-            "unit": space.unit, "origin": space.origin, "reference": space.reference,
-            "x": _number(x), "y": _number(y), "width": _number(width), "height": _number(height),
-        })
+        attributes["xywh"] = _media_fragment_xywh(bbox)
+    ET.SubElement(event, _p("evidence"), attributes)
 
 
-def _number(value: float) -> str:
-    return str(int(value)) if float(value).is_integer() else repr(float(value))
+def _media_fragment_xywh(bbox) -> str:
+    """`pixel:x,y,w,h` of the smallest whole-pixel box enclosing `bbox`.
+
+    Media Fragments admits only whole pixels; the detector's boxes may fall on
+    half pixels, so the box is widened to the pixels it touches rather than
+    rounded, which could cut off part of what was read.
+    """
+    x, y, width, height = bbox
+    left, top = math.floor(x), math.floor(y)
+    right, bottom = math.ceil(x + width), math.ceil(y + height)
+    return f"pixel:{left},{top},{right - left},{bottom - top}"
 
 
 # -------------------------------------------------------------------- public
