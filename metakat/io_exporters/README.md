@@ -84,8 +84,9 @@ own-page counterpart is written itself.
 
 ## Provenance
 
-`<extension type="metakatProvenance">` holds, in namespace
-`https://github.com/DCGM/MetaKat/ns/provenance/1.0`, one `assertion` per
+`<extension type="metakatProvenance">` holds one `<mkp:provenance
+version="1.0">`, in namespace
+`https://github.com/DCGM/MetaKat/ns/provenance/1.0`, with one `assertion` per
 written value:
 
 - `target` - `#ID` of the MODS container; absent for a value that has no place
@@ -104,3 +105,24 @@ written value:
     coordinate system declared by `MetakatIO.bbox_coordinates`.
 
 `--no-provenance` writes plain MODS without the extension.
+
+### Versioning
+
+The format is versioned on two levels, so a reader always knows what it is
+reading:
+
+- **Namespace - the major version.** A breaking change - an element or
+  attribute renamed or removed, or its meaning changed - gets a new namespace
+  (`…/provenance/2.0`). A reader that knows only 1.0 then does not mistake
+  the new content for something it understands, and one reader can support
+  both by recognising both namespaces.
+- **`version` on `<mkp:provenance>` - the minor version.** An additive change,
+  such as a new optional element, attribute or `action` value, keeps the
+  namespace and raises `version` (1.0 → 1.1). Readers that do not know the
+  addition skip it.
+
+The `<mkp:provenance>` wrapper exists for this attribute: `<mods:extension>`
+admits no `version` of its own, and `type="metakatProvenance"` is a label, not
+a version. Both are set in `mods_exporter.py` (`PROVENANCE_NS` and the
+`version` written with the wrapper); a change to the format updates them, the
+tests and this README together.
