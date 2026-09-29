@@ -67,10 +67,14 @@ worker = [
     "doc-api[worker]",
 ]
 
-# Training and evaluation for metakat/page_type/nets, and the dataset builders
-# under metakat/page_type/datasets and datasets_from_mods. Those read and
-# transform page images directly rather than through an engine, so they name
-# numpy and OpenCV themselves instead of inheriting them from [inference].
+# Training and evaluation for metakat/page_type/nets, the dataset builders
+# under metakat/page_type/datasets and datasets_from_mods, and the page text
+# and image embeddings with their page-type evaluation under
+# metakat/page_type/training. Those read and transform page images and texts
+# directly rather than through an engine, so they name numpy and OpenCV
+# themselves instead of inheriting them from [inference]. lmdb holds the page
+# texts and embeddings; pandas, umap-learn and plotly build the evaluation
+# report.
 train = [
     "metakat[torch]",
     "accelerate==1.14.0",
@@ -78,23 +82,10 @@ train = [
     "safe-gpu==2.0.0",
     "numpy==1.26.4",
     "opencv-python==4.8.0.76",
-]
-
-# Page text and image embeddings and their page-type evaluation, under
-# metakat/page_type/training/text_embeddings and image_embeddings: LMDB input
-# and output, the embedding models (through [torch]), and the evaluation's
-# probes, UMAP maps and HTML report. The GPU bootstrap they share with
-# metakat/page_type/nets can reserve a GPU through safe-gpu.
-embeddings = [
-    "metakat[torch]",
     "lmdb==2.2.1",
-    "numpy==1.26.4",
-    "opencv-python==4.8.0.76",
     "pandas==3.0.3",
-    "scikit-learn==1.9.1",
     "umap-learn==0.5.12",
     "plotly==7.1.0",
-    "safe-gpu==2.0.0",
 ]
 
 # FlashAttention 2 for the text embedding models, which use it by default when
@@ -112,7 +103,7 @@ dev = [
     "pytest-cov>=5.0",
 ]
 
-all = ["metakat[worker,train,embeddings,dev]"]
+all = ["metakat[worker,train,dev]"]
 
 [tool.setuptools.packages.find]
 include = ["metakat*"]
