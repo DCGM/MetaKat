@@ -218,8 +218,11 @@ def test_provenance_carries_engine_page_and_box_in_the_declared_space(batch, tmp
     volume = _export(batch, tmp_path)[str(batch.volume.id)]
 
     event = volume.xpath("//mkp:event[mkp:observedValue='Kytice']", namespaces=NS)[0]
-    source = event.find(f"{{{PROVENANCE_NS}}}source")
-    assert (source.get("name"), source.get("version"), source.get("stage")) == ("monograph", "v1.5.0", "biblio")
+    # Two software agents: MetaKat with the stage, and the engine it ran.
+    assert [dict(source.attrib) for source in event.findall(f"{{{PROVENANCE_NS}}}source")] == [
+        {"type": "software", "role": "application", "name": "MetaKat", "version": "1.0.0", "stage": "biblio"},
+        {"type": "software", "role": "engine", "name": "monograph", "version": "v1.5.0"},
+    ]
     assert event.find(f"{{{PROVENANCE_NS}}}confidence").get("scheme") == "model-score"
     evidence = event.find(f"{{{PROVENANCE_NS}}}evidence")
     # The page as a urn:uuid, the box as a Media Fragments xywh: whole image

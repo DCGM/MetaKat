@@ -637,8 +637,20 @@ class MetakatEngine(MetakatBaseModel):
     version: Optional[str] = None
 
 
+class MetakatApplication(MetakatBaseModel):
+    """The MetaKat software that ran the engine.
+
+    The version is a fixed placeholder for now: nothing exposes the running
+    MetaKat's version yet. Once the worker does, it sets this per job.
+    """
+
+    name: str = "MetaKat"
+    version: str = "1.0.0"
+
+
 class MetakatIO(MetakatBaseModel):
     batch_id: UUID
+    application: MetakatApplication = Field(default_factory=MetakatApplication)
     # Optional: set when the caller knows which engine it ran, as the worker
     # does; a plain pipeline run without that knowledge leaves it empty.
     engine: Optional[MetakatEngine] = None

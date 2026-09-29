@@ -578,14 +578,19 @@ def _provenance(record: _Record) -> Optional[ET.Element]:
 
 
 def _source(event: ET.Element, io: MetakatIO, stage: Optional[str]) -> None:
-    attributes = {"type": "software"}
-    if io.engine is not None:
-        attributes["name"] = io.engine.name
-        if io.engine.version:
-            attributes["version"] = io.engine.version
+    # One event, two software agents told apart by their role, as PREMIS
+    # links several agents to one event: MetaKat, with the pipeline stage
+    # that produced the value, and the engine it ran, when known.
+    application = {"type": "software", "role": "application",
+                   "name": io.application.name, "version": io.application.version}
     if stage:
-        attributes["stage"] = stage
-    ET.SubElement(event, _p("source"), attributes)
+        application["stage"] = stage
+    ET.SubElement(event, _p("source"), application)
+    if io.engine is not None:
+        engine = {"type": "software", "role": "engine", "name": io.engine.name}
+        if io.engine.version:
+            engine["version"] = io.engine.version
+        ET.SubElement(event, _p("source"), engine)
 
 
 def _evidence(event: ET.Element, io: MetakatIO, value_id: UUID) -> None:

@@ -97,11 +97,17 @@ written value:
   field and label); `action` is `extract` for read text and `classify` for a
   label chosen by a classifier; `field` is the MetaKat field.
   - `observedValue`, with `lang` when known;
-  - `source` - `type` from the PREMIS agentType vocabulary
-    (`software`, `person`, `organization`, `hardware`; the exporter writes
-    `software`). Every `software` source is identified the same way, by
-    `name` and `version` - for MetaKat the engine's name and version from
-    `MetakatIO.engine` when set - with MetaKat's pipeline `stage` added;
+  - `source` - who produced the value; one per agent, since an event can
+    have several, as PREMIS links several agents to one event. `type` is
+    from the PREMIS agentType vocabulary (`software`, `person`,
+    `organization`, `hardware`), `role` says what part the agent played, and
+    every `software` source is identified the same way, by `name` and
+    `version`. The exporter writes two:
+    - `role="application"` - MetaKat itself, from `MetakatIO.application`,
+      with the pipeline `stage` that produced the value. Its version is a
+      fixed `1.0.0` until the worker exposes the running version;
+    - `role="engine"` - the engine MetaKat ran, from `MetakatIO.engine`,
+      when set;
   - `confidence scheme="model-score"` - detector and classifier scores are
     not calibrated probabilities;
   - `evidence` - `page` is the page it was read on as a `urn:uuid:` URN
