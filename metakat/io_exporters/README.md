@@ -96,6 +96,13 @@ written value:
 - `event` - `id` is the MetaKat `Value.id` (for a classification, the unit id,
   field and label); `action` is `extract` for read text and `classify` for a
   label chosen by a classifier; `field` is the MetaKat field.
+  - `eventDateTime` - when the event happened: the value read, imported or
+    annotated. It comes first, as PREMIS `eventDateTime` does, and holds an
+    `xs:dateTime` in UTC to the second, `2026-09-30T10:12:00Z` - the form of
+    `recordCreationDate`, but fixed by this format, so it takes no `encoding`.
+    It is defined but not written yet: `MetakatIO` holds no time to fill it
+    from. `recordCreationDate` is when the MODS was written, not when a value
+    was read;
   - `observedValue`, with `lang` when known;
   - `source` - who produced the value; one per agent, since an event can
     have several, as PREMIS links several agents to one event. `type` is
