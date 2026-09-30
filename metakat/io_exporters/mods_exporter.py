@@ -78,16 +78,6 @@ ROLE_CODES = {
 }
 AGENT_FIELDS = ("author", "illustrator", "photographer", "translator", "editor", "redaktor", "affiliation")
 
-# The pipeline stage that produces each kind of element's fields.
-_STAGE_BY_TYPE = {
-    DocumentType.TITLE.value: "biblio",
-    DocumentType.VOLUME.value: "biblio",
-    DocumentType.ISSUE.value: "biblio",
-    DocumentType.SUPPLEMENT.value: "biblio",
-    DocumentType.CHAPTER.value: "chapter",
-}
-
-
 def _m(tag: str) -> str:
     return f"{{{MODS_NS}}}{tag}"
 
@@ -546,8 +536,6 @@ def _provenance(record: _Record) -> Optional[ET.Element]:
     io = record.metakat_io
     extension = ET.Element(_m("extension"), {"type": "metakatProvenance"})
     provenance = ET.SubElement(extension, _p("provenance"), {"version": "1.0"})
-    stage_of_values = "page_number" if record.element.type == DocumentType.PAGE.value else \
-        _STAGE_BY_TYPE.get(record.element.type)
 
     for assertion in record.assertions:
         attributes = {"property": assertion.property, "index": str(assertion.index),
@@ -559,7 +547,7 @@ def _provenance(record: _Record) -> Optional[ET.Element]:
             event = ET.SubElement(node, _p("event"), {"id": str(value.id), "action": "extract", "field": field_name})
             observed = ET.SubElement(event, _p("observedValue"), {"lang": value.lang} if value.lang else {})
             observed.text = value.text
-            _source(event, io, stage_of_values)
+            _source(event, io)
             ET.SubElement(event, _p("confidence"), {"scheme": "model-score"}).text = repr(value.confidence)
             _evidence(event, io, value.id)
 
@@ -569,23 +557,21 @@ def _provenance(record: _Record) -> Optional[ET.Element]:
         })
         event = ET.SubElement(node, _p("event"), {"id": item.event_id, "action": "classify", "field": item.field})
         ET.SubElement(event, _p("observedValue")).text = item.label
-        stage = "page_type" if item.field in ("pageType", "side") else _STAGE_BY_TYPE.get(record.element.type)
-        _source(event, io, stage)
+        _source(event, io)
         ET.SubElement(event, _p("confidence"), {"scheme": "model-score"}).text = repr(item.confidence)
         if item.page_ref is not None:
             ET.SubElement(event, _p("evidence"), {"page": item.page_ref.urn})
     return extension
 
 
-def _source(event: ET.Element, io: MetakatIO, stage: Optional[str]) -> None:
+def _source(event: ET.Element, io: MetakatIO) -> None:
     # One event, two software agents told apart by their role, as PREMIS
-    # links several agents to one event: MetaKat, with the pipeline stage
-    # that produced the value, and the engine it ran, when known.
-    application = {"type": "software", "role": "application",
-                   "name": io.application.name, "version": io.application.version}
-    if stage:
-        application["stage"] = stage
-    ET.SubElement(event, _p("source"), application)
+    # links several agents to one event: MetaKat, and the engine it ran,
+    # when known.
+    ET.SubElement(event, _p("source"), {
+        "type": "software", "role": "application",
+        "name": io.application.name, "version": io.application.version,
+    })
     if io.engine is not None:
         engine = {"type": "software", "role": "engine", "name": io.engine.name}
         if io.engine.version:

@@ -103,9 +103,9 @@ written value:
     `organization`, `hardware`), `role` says what part the agent played, and
     every `software` source is identified the same way, by `name` and
     `version`. The exporter writes two:
-    - `role="application"` - MetaKat itself, from `MetakatIO.application`,
-      with the pipeline `stage` that produced the value. Its version is a
-      fixed `1.0.0` until the worker exposes the running version;
+    - `role="application"` - MetaKat itself, from `MetakatIO.application`.
+      Its version is a fixed `1.0.0` until the worker exposes the running
+      version;
     - `role="engine"` - the engine MetaKat ran, from `MetakatIO.engine`,
       when set;
   - `confidence scheme="model-score"` - detector and classifier scores are
