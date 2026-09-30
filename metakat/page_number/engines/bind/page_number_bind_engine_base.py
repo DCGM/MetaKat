@@ -13,6 +13,7 @@ from metakat.page_number.engines.bind.page_number_bind_engine import (
 from metakat.page_number.engines.core.models import PageNumberCoreResult
 from metakat.schemas.base_objects import (
     DocumentType,
+    MetakatAltoRefs,
     MetakatIO,
     MetakatPage,
     ProarcIO,
@@ -140,3 +141,11 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
             metakat_io.detection_to_page_mapping[detection_id] = (
                 metakat_page.id
             )
+            if not evidence.alto.is_empty():
+                if metakat_io.detection_to_alto is None:
+                    metakat_io.detection_to_alto = {}
+                metakat_io.detection_to_alto[detection_id] = MetakatAltoRefs(
+                    blocks=list(evidence.alto.blocks),
+                    lines=list(evidence.alto.lines),
+                    words=list(evidence.alto.words),
+                )

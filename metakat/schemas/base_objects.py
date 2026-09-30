@@ -643,6 +643,21 @@ class MetakatEngine(MetakatBaseModel):
     version: Optional[str] = None
 
 
+class MetakatAltoRefs(MetakatBaseModel):
+    """The ALTO elements a detection covers, by their ID attributes.
+
+    The IDs are unique only within one page's ALTO file: the detection's page
+    is in detection_to_page_mapping and its ALTO file in
+    page_to_alto_mapping. Each level lists every ID once, in reading order,
+    and only where the ALTO provides one - producers differ, and most write
+    IDs on blocks, many on lines, few on words.
+    """
+
+    blocks: List[str] = Field(default_factory=list)  # TextBlock/@ID
+    lines: List[str] = Field(default_factory=list)   # TextLine/@ID
+    words: List[str] = Field(default_factory=list)   # String/@ID
+
+
 class MetakatApplication(MetakatBaseModel):
     """The MetaKat software that ran the engine.
 
@@ -667,6 +682,8 @@ class MetakatIO(MetakatBaseModel):
     page_to_image_mapping: Optional[Dict[UUID, str]] = None
     bbox_coordinates: MetakatBBoxCoordinates = Field(default_factory=MetakatBBoxCoordinates)
     detection_to_bbox: Optional[Dict[UUID, Tuple[float, float, float, float]]] = None
+    # Only detections whose ALTO provides at least one ID have an entry.
+    detection_to_alto: Optional[Dict[UUID, MetakatAltoRefs]] = None
 
 MetakatIO.model_rebuild()
 ###################################################

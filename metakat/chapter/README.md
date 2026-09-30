@@ -276,6 +276,8 @@ DetectionEvidence(
     confidence: float,
     bbox: BoundingBox,
     page_key: str,
+    *,
+    alto: AltoRefs = AltoRefs(),
 )
 ```
 
@@ -285,6 +287,7 @@ DetectionEvidence(
 | `confidence` | Confidence of the source geometry detection, not necessarily OCR confidence. |
 | `bbox` | Source bounding box. |
 | `page_key` | Stable key of the page containing the evidence. |
+| `alto` | ID attributes of the ALTO `TextBlock`s, `TextLine`s and `String`s holding the evidence's words (`blocks`, `lines`, `words`), each once in reading order and only where the ALTO provides them. Unique only within the page's ALTO file. Optional; the chapter stages do not fill it yet. |
 
 Pipeline stages use `DetectionEvidence` wherever detected text must retain
 confidence and source geometry.

@@ -96,11 +96,19 @@ class BoundingBox:
 
 
 @dataclass(frozen=True)
+class AltoRefs:
+    blocks: tuple[str, ...] = ()
+    lines: tuple[str, ...] = ()
+    words: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class DetectionEvidence:
     text: str
     confidence: float
     bbox: BoundingBox
     page_key: str
+    alto: AltoRefs = AltoRefs()  # keyword-only
 
 
 @dataclass(frozen=True)
@@ -119,6 +127,7 @@ physical-number representation.
 | `confidence` | Geometry-detection confidence used for selection and binding precedence. |
 | `bbox` | Selected detection geometry in the aligned page coordinate system, represented by the top-left coordinates `x` and `y` plus `width` and `height`. |
 | `page_key` | Image filename stem of the source page. |
+| `alto` | ID attributes of the ALTO elements holding the detection's words: `TextBlock` (`blocks`), `TextLine` (`lines`) and `String` (`words`), each once, in reading order. IDs are unique only within the page's ALTO file. A level is empty where the ALTO gives its elements no ID - producers differ, and most write IDs on blocks, many on lines, few on words. |
 | `normalized` | Parsed numeral token with decoration removed, or `None` when parsing failed. |
 | `value` | Integer value of the parsed Arabic or Roman numeral, or `None`. |
 | `numeral_system` | `PageNumberNumeralSystem.ARABIC`, `PageNumberNumeralSystem.ROMAN`, or `None`. |
@@ -351,6 +360,7 @@ matched and must contain `alto_text`, `input_geometry`, and
 | `text` | `region.alto_text`, unchanged. |
 | `confidence` | `region.input_geometry_confidence`. |
 | `bbox` | The bounds of `region.input_geometry`. |
+| `alto` | `AltoRefs.from_words(region.words)`: the aligned words' `alto_block_id`, `alto_line_id` and `alto_word_id`. |
 | `normalized`, `value`, `numeral_system` | The parsed Arabic or Roman number. |
 
 `parse_region()` returns `None` when the region is unmatched, required region
@@ -525,6 +535,7 @@ When a core result is bound, the binder writes:
 | `MetakatPage.pageNumber` | `Value(text=evidence.output_text(), confidence=evidence.confidence, id=detection_uuid)` |
 | `MetakatIO.detection_to_bbox[detection_uuid]` | `(bbox.x, bbox.y, bbox.width, bbox.height)` |
 | `MetakatIO.detection_to_page_mapping[detection_uuid]` | Source `MetakatPage.id` |
+| `MetakatIO.detection_to_alto[detection_uuid]` | `MetakatAltoRefs(blocks, lines, words)` from `evidence.alto`; written only when the ALTO provides at least one ID |
 
 The detection UUID is created only for evidence that is actually written.
 Candidate and selection metadata are not added to the MetaKat schema.

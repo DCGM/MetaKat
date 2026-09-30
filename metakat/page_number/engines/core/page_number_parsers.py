@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from text_geometry_aligner import AlignmentRegion
 
-from metakat.common.models import BoundingBox
+from metakat.common.models import AltoRefs, BoundingBox
 from metakat.page_number.engines.core.models import (
     PageNumberNumeralSystem,
     PhysicalPageNumberEvidence,
@@ -68,6 +68,7 @@ class PhysicalPageNumberParser(ABC):
                 width=region.input_geometry.bounds.width,
                 height=region.input_geometry.bounds.height,
             ),
+            alto=AltoRefs.from_words(region.words),
         )
         if evidence.normalized is None:
             logger.warning(
@@ -89,6 +90,7 @@ class PhysicalPageNumberParser(ABC):
         text: str,
         confidence: float,
         bbox: BoundingBox,
+        alto: AltoRefs = AltoRefs(),
     ) -> PhysicalPageNumberEvidence:
         parsed = cls._parse_text(text)
         if parsed is None:
@@ -105,6 +107,7 @@ class PhysicalPageNumberParser(ABC):
             numeral_system=numeral_system,
             confidence=confidence,
             bbox=bbox,
+            alto=alto,
         )
 
     @classmethod
