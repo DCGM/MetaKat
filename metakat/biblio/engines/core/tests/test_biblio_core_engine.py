@@ -4,6 +4,7 @@ import pytest
 from text_geometry_aligner import (
     AlignmentPage,
     AlignmentRegion,
+    AlignmentWord,
     BoundingBox as AlignmentBoundingBox,
     InputFormat,
 )
@@ -18,7 +19,7 @@ from metakat.biblio.engines.core.models import (
     BiblioTitleInfo,
     container_values,
 )
-from metakat.common.models import BoundingBox
+from metakat.common.models import AltoRefs, BoundingBox
 from metakat.io_exporters.mods_exporter import _BIBLIOGRAPHIC_SECTIONS
 from metakat.schemas.base_objects import BiblioType, MetakatVolume
 
@@ -243,3 +244,20 @@ def test_every_grouped_bibliographic_field_is_covered_by_a_container():
                         "relatedItem:series"}
     grouped = {name for name, section in _BIBLIOGRAPHIC_SECTIONS.items() if section in grouped_sections}
     assert grouped - covered == set()
+
+
+def test_evidence_carries_the_alto_ids_of_its_words():
+    page = _page(("titulek", "Babička", 0.9), ("autor", "Němcová", 0.8))
+    box = page.regions[0].input_geometry
+    page.regions[0].words = [
+        AlignmentWord(word_index=0, text="Babička", bbox=box,
+                      alto_block_id="TB1", alto_line_id="TL1", alto_word_id="S1"),
+    ]
+    page.regions[1].words = [
+        AlignmentWord(word_index=1, text="Němcová", bbox=box, alto_block_id="TB2"),
+    ]
+
+    result = read_page(page, BY_LABEL)
+
+    assert result.reading.title_infos[0].title.alto == AltoRefs(blocks=("TB1",), lines=("TL1",), words=("S1",))
+    assert result.reading.agents[0].name.alto == AltoRefs(blocks=("TB2",))

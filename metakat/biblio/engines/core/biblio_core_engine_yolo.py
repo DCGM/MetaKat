@@ -18,7 +18,7 @@ from metakat.biblio.engines.core.models import (
     container_values,
 )
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
-from metakat.common.models import BoundingBox, DetectionEvidence
+from metakat.common.models import AltoRefs, BoundingBox, DetectionEvidence
 from metakat.schemas.base_objects import BiblioType
 
 logger = logging.getLogger(__name__)
@@ -189,6 +189,7 @@ def _evidence(page_key: str, region) -> Optional[DetectionEvidence]:
         confidence=region.input_geometry_confidence,
         bbox=BoundingBox(bounds.x, bounds.y, bounds.width, bounds.height),
         page_key=page_key,
+        alto=AltoRefs.from_words(region.words),
     )
 
 

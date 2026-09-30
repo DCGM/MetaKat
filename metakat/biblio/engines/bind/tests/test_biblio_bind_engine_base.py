@@ -17,7 +17,7 @@ from metakat.biblio.engines.core.models import (
     BiblioReading,
     BiblioTitleInfo,
 )
-from metakat.common.models import BoundingBox as CoreBoundingBox, DetectionEvidence
+from metakat.common.models import AltoRefs, BoundingBox as CoreBoundingBox, DetectionEvidence
 from metakat.schemas.base_objects import (
     DocumentType,
     GroupType,
@@ -89,7 +89,7 @@ def test_an_agent_is_bound_to_the_volume_with_its_geometry(metakat_page):
         BiblioAgent(role=AgentRole.PHOTOGRAPHER, name=_ev("Jane Doe", 0.8, y=40)),
     )))
 
-    elements, detection_to_bbox = binder.get_volume_issue_from_page(page, metakat_page)
+    elements, detection_to_bbox, _ = binder.get_volume_issue_from_page(page, metakat_page)
 
     [volume] = elements
     assert volume.hierarchy == HierarchyType.MONOGRAPH
@@ -109,7 +109,7 @@ def test_readings_without_a_title_are_not_referenced(metakat_page):
         BiblioAgent(role=AgentRole.PHOTOGRAPHER, name=_ev("Jane Doe", 0.8)),
     )))
 
-    elements, detection_to_bbox = binder.get_volume_issue_from_page(page, metakat_page)
+    elements, detection_to_bbox, _ = binder.get_volume_issue_from_page(page, metakat_page)
 
     assert elements == []
     assert len(detection_to_bbox) == 1
@@ -122,7 +122,7 @@ def test_referenced_detection_ids_includes_kept_evidence(metakat_page):
         BiblioAgent(role=AgentRole.PHOTOGRAPHER, name=_ev("Jane Doe", 0.8)),
     )))
 
-    elements, detection_to_bbox = binder.get_volume_issue_from_page(page, metakat_page)
+    elements, detection_to_bbox, _ = binder.get_volume_issue_from_page(page, metakat_page)
 
     assert BiblioBindEngineBase._referenced_detection_ids(elements) == set(detection_to_bbox)
 
@@ -139,7 +139,7 @@ def test_each_container_becomes_one_group_on_the_record(metakat_page):
         manufactures=(BiblioManufacture(manufacturers=(_ev("Tisk Brno", 0.6),)),),
     ))
 
-    [volume], _ = binder.get_volume_issue_from_page(page, metakat_page)
+    [volume], _, _ = binder.get_volume_issue_from_page(page, metakat_page)
     BiblioBindEngineBase._finalize_groups(volume)
 
     [title_info] = _group(volume, "titleInfo")
@@ -159,7 +159,7 @@ def test_separate_containers_stay_separate_groups(metakat_page):
         BiblioPublication(places=(_ev("Brno", 0.8),), publishers=(_ev("Host", 0.8),)),
     )))
 
-    [volume], _ = binder.get_volume_issue_from_page(page, metakat_page)
+    [volume], _, _ = binder.get_volume_issue_from_page(page, metakat_page)
     BiblioBindEngineBase._finalize_groups(volume)
 
     groups = _group(volume, "originInfoPublication")
@@ -175,7 +175,7 @@ def test_a_part_number_makes_a_multipart_volume(metakat_page):
         BiblioTitleInfo(title=_ev("Kytice", 0.9), part_number=_ev("Díl 2", 0.7)),
     )))
 
-    [volume], _ = binder.get_volume_issue_from_page(page, metakat_page)
+    [volume], _, _ = binder.get_volume_issue_from_page(page, metakat_page)
 
     assert volume.hierarchy == HierarchyType.MULTIPART
     assert _tc(volume.partNumber) == ("Díl 2", 0.7)
@@ -224,7 +224,7 @@ def test_a_periodical_issue_needs_a_number_or_a_date(metakat_page):
         title_infos=(BiblioTitleInfo(part_number=_ev("Ročník IV", 0.8)),),
     ))
 
-    elements, _ = binder.get_volume_issue_from_page(page, metakat_page)
+    elements, _, _ = binder.get_volume_issue_from_page(page, metakat_page)
 
     assert [element.type for element in elements] == ["volume"]
 
@@ -238,7 +238,7 @@ def test_a_field_read_twice_on_one_page_keeps_the_more_confident_reading(metakat
         periodical_volume=BiblioReading(title_infos=(BiblioTitleInfo(part_number=_ev("Ročník IV", 0.8)),)),
     )
 
-    [volume], detection_to_bbox = binder.get_volume_issue_from_page(page, metakat_page)
+    [volume], detection_to_bbox, _ = binder.get_volume_issue_from_page(page, metakat_page)
     BiblioBindEngineBase._finalize_groups(volume)
 
     assert volume.hierarchy == HierarchyType.PERIODICAL
@@ -1286,3 +1286,23 @@ def test_the_title_takes_its_volumes_title_info_group():
     assert [(group.type, group.members) for group in periodical_title.groups] == [
         ("titleInfo", [title.id, subtitle.id]),
     ]
+
+
+def test_the_alto_ids_of_evidence_are_returned_next_to_its_box(metakat_page):
+    binder = _binder()
+    title = DetectionEvidence(
+        text="Kytice", confidence=0.9, bbox=CoreBoundingBox(10, 10, 100, 20), page_key="page-1",
+        alto=AltoRefs(blocks=("TB1",), lines=("TL1",)),
+    )
+    page = _page_result(_titled(
+        title_infos=(BiblioTitleInfo(title=title),),
+        agents=(BiblioAgent(role=AgentRole.AUTHOR, name=_ev("Erben", 0.8)),),
+    ))
+
+    [volume], detection_to_bbox, detection_to_alto = binder.get_volume_issue_from_page(page, metakat_page)
+
+    # Every value has a box; only the one whose ALTO had IDs has references.
+    assert set(detection_to_bbox) == {volume.title[0].id, volume.author[0].id}
+    refs = detection_to_alto[volume.title[0].id]
+    assert (refs.blocks, refs.lines, refs.words) == (["TB1"], ["TL1"], [])
+    assert set(detection_to_alto) == {volume.title[0].id}

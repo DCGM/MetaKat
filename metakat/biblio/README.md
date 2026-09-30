@@ -100,8 +100,9 @@ other key. The result carries no MetaKat UUIDs and no hierarchy - creating
 those belongs to the [bind engine](#available-bind-implementation).
 
 The classes are defined in `metakat/biblio/engines/core/models.py` and built
-on the common `DetectionEvidence` (`text`, `confidence`, `bbox`, `page_key`),
-as the other core results are.
+on the common `DetectionEvidence` (`text`, `confidence`, `bbox`, `page_key`,
+and optionally `alto`, the ID attributes of the ALTO blocks, lines and words
+holding the evidence), as the other core results are.
 
 ### Result model
 
@@ -341,7 +342,8 @@ skipped when it is unmatched, when `input_geometry`,
 `label_for_export` is not a configured label; the last two are logged as
 warnings. Every other region becomes one `DetectionEvidence`: `alto_text`,
 `input_geometry_confidence`, the `input_geometry.bounds` as a `BoundingBox`,
-and the page key. A page on which nothing is read is left out of the result,
+the page key, and in `alto` the aligned words' ALTO block, line and word IDs
+where the ALTO provides them. A page on which nothing is read is left out of the result,
 and a page key returned twice by the aligner is an error.
 
 Each `BiblioType` has one place in the result:
@@ -481,7 +483,8 @@ record it reaches:
 Value(text=evidence.text, confidence=evidence.confidence, id=uuid4())
 ```
 
-and its `(x, y, width, height)` bbox is recorded against the new UUID.
+and its `(x, y, width, height)` bbox is recorded against the new UUID, as are
+its ALTO references when the evidence has any.
 
 Which record a value goes to is the binder's decision, made per reading:
 
@@ -936,12 +939,13 @@ unit.
 
 Candidate construction records geometry for every piece of evidence, but
 consolidation, ProArc resolution, and the emission conditions can all drop the
-element a detection was gathered for. Before writing the geometry maps, the
-binder therefore collects the detection UUIDs still referenced as evidence.
+element a detection was gathered for. Before writing the geometry and ALTO
+maps, the binder therefore collects the detection UUIDs still referenced as
+evidence.
 
 `_referenced_detection_ids` walks every kept element's model fields and collects
 the `id` of every `Value`, whether it stands alone or sits in a list.
-Detections outside that set are removed from both maps and the count is
+Detections outside that set are removed from every map and the count is
 logged. Recognising `Value`s is what keeps the geometry at all: a check that
 missed them would drop every biblio bbox and page mapping, with only that
 count logged.
@@ -952,6 +956,7 @@ The surviving entries are merged into the existing maps:
 |---|---|
 | `MetakatIO.detection_to_bbox[detection_uuid]` | `(x, y, width, height)` of the evidence's `bbox` |
 | `MetakatIO.detection_to_page_mapping[detection_uuid]` | `MetakatPage.id` of the title page the evidence was read on |
+| `MetakatIO.detection_to_alto[detection_uuid]` | `MetakatAltoRefs(blocks, lines, words)` from the evidence's `alto`; only for evidence whose ALTO provided at least one ID |
 
 Existing entries written by earlier components are preserved. The new
 bibliographic elements are prepended to `MetakatIO.elements`, with the title

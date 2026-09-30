@@ -26,7 +26,7 @@ from metakat.common.aux.document_groups import assign_page_indices, lowest_docum
 
 from metakat.schemas.base_objects import MetakatIO, ProarcIO, ObjectItem, ObjectModel, DocumentType, MetakatPage, \
     PageType, MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle, HierarchyType, Value, \
-    GroupType, MetakatGroup
+    GroupType, MetakatGroup, MetakatAltoRefs
 
 logger = logging.getLogger(__name__)
 
@@ -315,7 +315,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
         }
 
         logger.info(f"Creating MetaKatVolume and MetaKatIssue elements from detections")
-        metakat_elements, detection_id_to_detection_bbox, detection_id_to_page_id, anchors = \
+        metakat_elements, detection_id_to_detection_bbox, detection_id_to_page_id, detection_id_to_alto, anchors = \
             self.get_volume_issue_from_result(core_result, page_key_to_metakat_page)
         logger.info(f"Created {len(metakat_elements)} MetaKatVolume and MetaKatIssue elements from detections")
 
@@ -368,6 +368,11 @@ class BiblioBindEngineBase(BiblioBindEngine):
             for detection_id, page_id in detection_id_to_page_id.items()
             if detection_id in referenced_detection_ids
         }
+        detection_id_to_alto = {
+            detection_id: refs
+            for detection_id, refs in detection_id_to_alto.items()
+            if detection_id in referenced_detection_ids
+        }
 
         metakat_io.detection_to_bbox = {
             **(metakat_io.detection_to_bbox or {}),
@@ -377,6 +382,11 @@ class BiblioBindEngineBase(BiblioBindEngine):
             **(metakat_io.detection_to_page_mapping or {}),
             **detection_id_to_page_id,
         }
+        if detection_id_to_alto:
+            metakat_io.detection_to_alto = {
+                **(metakat_io.detection_to_alto or {}),
+                **detection_id_to_alto,
+            }
         logger.info(f"Binding MetaKat elements")
         self.bind(metakat_io, anchors)
         return metakat_io
@@ -947,10 +957,11 @@ class BiblioBindEngineBase(BiblioBindEngine):
         self,
         core_result: BiblioCoreResult,
         page_key_to_metakat_page: dict,
-    ) -> Tuple[List[MetakatElement], dict, dict, Anchors]:
+    ) -> Tuple[List[MetakatElement], dict, dict, dict, Anchors]:
         elements = []
         detection_id_to_detection_bbox = {}
         detection_id_to_page_id = {}
+        detection_id_to_alto = {}
         anchors: Anchors = {}
         for page_result in natsorted(core_result.pages.values(), key=lambda page: page.page_key):
             metakat_page = page_key_to_metakat_page.get(page_result.page_key)
@@ -959,7 +970,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
                     f"Biblio core returned page key {page_result.page_key!r}, "
                     "which is not one of the pages it was given"
                 )
-            page_elements, page_detection_bboxes = self.get_volume_issue_from_page(
+            page_elements, page_detection_bboxes, page_detection_alto = self.get_volume_issue_from_page(
                 page_result,
                 metakat_page,
             )
@@ -967,9 +978,10 @@ class BiblioBindEngineBase(BiblioBindEngine):
             for element in page_elements:
                 anchors[element.id] = metakat_page.id
             detection_id_to_detection_bbox.update(page_detection_bboxes)
+            detection_id_to_alto.update(page_detection_alto)
             for detection_id in page_detection_bboxes:
                 detection_id_to_page_id[detection_id] = metakat_page.id
-        return elements, detection_id_to_detection_bbox, detection_id_to_page_id, anchors
+        return elements, detection_id_to_detection_bbox, detection_id_to_page_id, detection_id_to_alto, anchors
 
     # One page's readings become one candidate volume and one candidate issue.
     # The core decided what was read and how it groups; this decides only
@@ -989,8 +1001,9 @@ class BiblioBindEngineBase(BiblioBindEngine):
         self,
         page_result: BiblioPageResult,
         metakat_page: MetakatPage,
-    ) -> Tuple[List[MetakatElement], dict]:
+    ) -> Tuple[List[MetakatElement], dict, dict]:
         detection_id_to_detection_bbox = {}
+        detection_id_to_alto = {}
 
         def containers(reading: Optional[BiblioReading]):
             for container in (reading.containers() if reading is not None else ()):
@@ -999,6 +1012,12 @@ class BiblioBindEngineBase(BiblioBindEngine):
                     value = Value(text=evidence.text, confidence=evidence.confidence, id=uuid4())
                     bbox = evidence.bbox
                     detection_id_to_detection_bbox[value.id] = (bbox.x, bbox.y, bbox.width, bbox.height)
+                    if not evidence.alto.is_empty():
+                        detection_id_to_alto[value.id] = MetakatAltoRefs(
+                            blocks=list(evidence.alto.blocks),
+                            lines=list(evidence.alto.lines),
+                            words=list(evidence.alto.words),
+                        )
                     values.append((field_name, value, _is_single(container, field_name)))
                 yield container.GROUP_TYPE, values
 
@@ -1030,7 +1049,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 # decide its final parent volume.
                 elements.append(metakat_issue)
 
-        return elements, detection_id_to_detection_bbox
+        return elements, detection_id_to_detection_bbox, detection_id_to_alto
 
     @staticmethod
     def _hierarchy(page_result: BiblioPageResult) -> HierarchyType:
