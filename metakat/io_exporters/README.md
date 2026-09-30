@@ -108,8 +108,10 @@ written value:
       version;
     - `role="engine"` - the engine MetaKat ran, from `MetakatIO.engine`,
       when set;
-  - `confidence scheme="model-score"` - detector and classifier scores are
-    not calibrated probabilities;
+  - `confidence` - a number from 0 to 1, how confident the producer is in
+    the value. How it is computed is the producer's business; the format
+    fixes only the range, which the MetaKat schema enforces on every
+    confidence it holds;
   - `evidence` - `page` is the page it was read on as a `urn:uuid:` URN
     (RFC 4122), and `xywh` the region as a W3C Media Fragments spatial
     dimension, `pixel:x,y,w,h`: whole pixels of the page image from its

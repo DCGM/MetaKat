@@ -209,6 +209,12 @@ class MetakatBaseModel(BaseModel):
     model_config = ConfigDict(use_enum_values=True, extra="forbid", validate_assignment=True)
 
 
+# How confident the producer is in a value, from 0 to 1. What the number
+# means - a detector's score, a classifier's probability - is the producer's
+# business; the format only fixes the range.
+Confidence = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
+
+
 class Value(MetakatBaseModel):
     """One extracted value: the text, how sure we are of it, and its identity.
 
@@ -226,7 +232,7 @@ class Value(MetakatBaseModel):
     """
 
     text: str
-    confidence: float
+    confidence: Confidence
     lang: Optional[str] = None  # iso639-2b
     id: UUID
 
@@ -357,8 +363,8 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     # periodical records in the sample packages carry both "cze" and "pol");
     # `form` is singular because the marcform axis admits one answer per
     # document.
-    language: Optional[List[Tuple[str, float]]] = None  # iso639-2b codes
-    form: Optional[Tuple[FormType, float]] = None
+    language: Optional[List[Tuple[str, Confidence]]] = None  # iso639-2b codes
+    form: Optional[Tuple[FormType, Confidence]] = None
 
     # <note type="statement of responsibility">
     statementOfResponsibility: Optional[List[Value]] = None
@@ -440,8 +446,8 @@ class MetakatPage(MetakatBaseModel):
     # that attaches pages to units, for the page it read the unit's title from.
     representative: bool = False
     pageNumber: Optional[Value] = None
-    pageType: Optional[Tuple[PageType, float]] = None
-    side: Optional[Tuple[PageSideType, float]] = None
+    pageType: Optional[Tuple[PageType, Confidence]] = None
+    side: Optional[Tuple[PageSideType, Confidence]] = None
     imageDim: Optional[MetakatPageDimensions] = None
     altoDim: Optional[MetakatPageDimensions] = None
 
@@ -505,7 +511,7 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     # <genre type="...">. A classifier output, so a confidence but no
     # detection UUID; in practice only articles carry a meaningful genre
     # specialisation.
-    articleGenre: Optional[Tuple[ArticleGenre, float]] = None
+    articleGenre: Optional[Tuple[ArticleGenre, Confidence]] = None
 
     # An internal part has no <originInfo>, so this date has no place in its
     # MODS record and is kept only in the record's provenance. Recording it
@@ -513,7 +519,7 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     dateIssued: Optional[List[Value]] = None
 
     # <language>, a classifier output like articleGenre.
-    language: Optional[List[Tuple[str, float]]] = None  # iso639-2b codes
+    language: Optional[List[Tuple[str, Confidence]]] = None  # iso639-2b codes
 
     # <abstract> and <subject><topic>
     abstract: Optional[List[Value]] = None

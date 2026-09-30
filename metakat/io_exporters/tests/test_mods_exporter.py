@@ -223,7 +223,8 @@ def test_provenance_carries_engine_page_and_box_in_the_declared_space(batch, tmp
         {"type": "software", "role": "application", "name": "MetaKat", "version": "1.0.0"},
         {"type": "software", "role": "engine", "name": "monograph", "version": "v1.5.0"},
     ]
-    assert event.find(f"{{{PROVENANCE_NS}}}confidence").get("scheme") == "model-score"
+    confidence = event.find(f"{{{PROVENANCE_NS}}}confidence")
+    assert dict(confidence.attrib) == {} and 0 <= float(confidence.text) <= 1
     evidence = event.find(f"{{{PROVENANCE_NS}}}evidence")
     # The page as a urn:uuid, the box as a Media Fragments xywh: whole image
     # pixels from the top-left corner, widened to enclose the half pixel.
