@@ -38,6 +38,7 @@ class ChapterPageNumberParser(ABC):
             confidence=evidence.confidence,
             bbox=evidence.bbox,
             page_key=evidence.page_key,
+            alto=evidence.alto,
             kind=kind,
             normalized_items=normalized_items,
         )

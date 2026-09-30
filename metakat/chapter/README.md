@@ -287,7 +287,7 @@ DetectionEvidence(
 | `confidence` | Confidence of the source geometry detection, not necessarily OCR confidence. |
 | `bbox` | Source bounding box. |
 | `page_key` | Stable key of the page containing the evidence. |
-| `alto` | ID attributes of the ALTO `TextBlock`s, `TextLine`s and `String`s holding the evidence's words (`blocks`, `lines`, `words`), each once in reading order and only where the ALTO provides them. Unique only within the page's ALTO file. Optional; the chapter stages do not fill it yet. |
+| `alto` | ID attributes of the ALTO `TextBlock`s, `TextLine`s and `String`s holding the evidence's words (`blocks`, `lines`, `words`), each once in reading order and only where the ALTO provides them. Unique only within the page's ALTO file. Optional; every stage that builds evidence from an aligned region fills it from the region's words, and the TOC page-number parser keeps it from the evidence it parses. |
 
 Pipeline stages use `DetectionEvidence` wherever detected text must retain
 confidence and source geometry.
@@ -2188,9 +2188,12 @@ A valid end can remain present even when the start is missing.
 Each non-null evidence field becomes a one-element list holding a MetaKat
 `Value` - `text`, `confidence`, `lang` (not set) and `id`, a detection UUID.
 The binder creates a new detection UUID, writes its `(x, y, width, height)` to
-`detection_to_bbox`, and writes the source MetaKat page UUID to
-`detection_to_page_mapping`. The same chapter can therefore retain separate
-TOC-title, destination-title, part-number, and page-number geometries.
+`detection_to_bbox`, writes the source MetaKat page UUID to
+`detection_to_page_mapping`, and, when the evidence's `alto` holds any ID,
+writes its ALTO block, line and word IDs to `detection_to_alto`. The same
+chapter can therefore retain separate TOC-title, destination-title,
+part-number, and page-number geometries. Values split from one printed page
+reference share its geometry and ALTO IDs.
 
 A chapter without a resolved start remains in `MetakatIO` with both start and
 end unset. Deciding where a chapter ends belongs to the core engine, which sees

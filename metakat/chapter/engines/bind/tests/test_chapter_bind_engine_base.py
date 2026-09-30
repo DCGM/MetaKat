@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import types
 from unittest import mock
@@ -12,7 +13,7 @@ from metakat.chapter.engines.core.chapter_page_number_parsers import (
     ArabicRomanChapterPageNumberParser,
 )
 from metakat.chapter.engines.core.models import ChapterResult, TocResult
-from metakat.common.models import BoundingBox, PageDimensions
+from metakat.common.models import AltoRefs, BoundingBox, PageDimensions
 from metakat.page_number.engines.core.page_number_parsers import (
     DecoratedPageNumberParser,
 )
@@ -589,7 +590,7 @@ def test_recursive_result_binds_schema_and_detection_provenance(
         "last": pages[2],
     }
 
-    elements, bbox_by_id, page_by_detection = (
+    elements, bbox_by_id, page_by_detection, _ = (
         bind_engine.extract_metakat_elements_from_pipeline(
             result,
             page_by_key,
@@ -639,7 +640,7 @@ def test_explicit_container_parents_all_chapter_roots(bind_engine, evidence):
         ),
     )
 
-    elements, _, _ = bind_engine.extract_metakat_elements_from_pipeline(
+    elements, _, _, _ = bind_engine.extract_metakat_elements_from_pipeline(
         result,
         {"page": page},
         container_id=container_id,
@@ -676,7 +677,7 @@ def test_titleless_chapter_uses_destination_title_evidence(bind_engine, evidence
         ),
     )
 
-    elements, bbox_by_id, page_by_detection = (
+    elements, bbox_by_id, page_by_detection, _ = (
         bind_engine.extract_metakat_elements_from_pipeline(
             result,
             {"page": page},
@@ -721,7 +722,7 @@ def _bind_one_chapter(bind_engine, evidence, printed_pages, *, end_key="last"):
             ),
         ),
     )
-    elements, bbox_by_id, page_by_detection = (
+    elements, bbox_by_id, page_by_detection, _ = (
         bind_engine.extract_metakat_elements_from_pipeline(
             result, pages, container_id=volume_id,
         )
@@ -807,3 +808,38 @@ def test_all_title_readings_of_a_chapter_form_one_title_info_group(
         chapter.titleTocPage[0].id,
         chapter.subTitleTocPage[0].id,
     }
+
+
+def test_values_carry_the_alto_ids_of_the_evidence_they_were_read_from(bind_engine, evidence):
+    batch_id, volume_id = uuid4(), uuid4()
+    pages = {
+        key: MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=index, pageIndex=index + 1, parent_id=volume_id)
+        for index, key in enumerate(("toc", "destination", "last"))
+    }
+    toc_refs = AltoRefs(blocks=("TB1",), lines=("TL1",))
+    result = TocResult(
+        chapters=(
+            ChapterResult(
+                toc_page_key="toc",
+                title_toc_page=dataclasses.replace(evidence("Chapter", "toc"), alto=toc_refs),
+                page_number_toc_page=ArabicRomanChapterPageNumberParser.create(
+                    dataclasses.replace(evidence("12-15", "toc", x=500), alto=AltoRefs(lines=("TL2",)))
+                ),
+                title=evidence("CHAPTER", "destination"),
+                page_start_key="destination",
+                page_end_key="last",
+            ),
+        ),
+    )
+
+    elements, _, _, alto_by_id = bind_engine.extract_metakat_elements_from_pipeline(
+        result, pages, container_id=volume_id,
+    )
+
+    chapter = next(element for element in elements if element.type == "chapter")
+    assert alto_by_id[chapter.titleTocPage[0].id].lines == ["TL1"]
+    # Both ends of the printed range were read from the one reference.
+    start, end = chapter.pageNumberStartTocPage[0], chapter.pageNumberEndTocPage[0]
+    assert alto_by_id[start.id].lines == alto_by_id[end.id].lines == ["TL2"]
+    # A destination title read from an ALTO without IDs has no entry.
+    assert chapter.title[0].id not in alto_by_id

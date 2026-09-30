@@ -32,6 +32,7 @@ from metakat.page_number.engines.core.page_number_parsers import (
 from metakat.schemas.base_objects import (
     DocumentType,
     GroupType,
+    MetakatAltoRefs,
     MetakatChapter,
     MetakatElement,
     MetakatGroup,
@@ -191,7 +192,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 sum(chapter.page_start_key is None for chapter in flat_result),
                 sum(chapter.page_end_key is not None for chapter in flat_result),
             )
-            new_elements, bbox_by_id, page_by_detection = (
+            new_elements, bbox_by_id, page_by_detection, alto_by_id = (
                 self.extract_metakat_elements_from_pipeline(
                     core_result,
                     page_by_key,
@@ -214,6 +215,8 @@ class ChapterBindEngineBase(ChapterBindEngine):
             )
             metakat_io.detection_to_bbox.update(bbox_by_id)
             metakat_io.detection_to_page_mapping.update(page_by_detection)
+            if alto_by_id:
+                metakat_io.detection_to_alto = {**(metakat_io.detection_to_alto or {}), **alto_by_id}
         return metakat_io
 
     @staticmethod
@@ -306,10 +309,11 @@ class ChapterBindEngineBase(ChapterBindEngine):
         page_by_key: dict[str, MetakatPage],
         *,
         container_id: UUID,
-    ) -> Tuple[List[MetakatElement], dict, dict]:
+    ) -> Tuple[List[MetakatElement], dict, dict, dict]:
         elements: list[MetakatElement] = []
         bbox_by_id: dict[UUID, tuple[float, float, float, float]] = {}
         page_by_detection: dict[UUID, UUID] = {}
+        alto_by_id: dict[UUID, MetakatAltoRefs] = {}
 
         def page_index_entries(
             page: MetakatPage | None,
@@ -321,7 +325,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
 
         def new_value(evidence: DetectionEvidence, text: str) -> Value:
             # Every value gets its own id; values read from one region share
-            # its geometry and page.
+            # its geometry, page and ALTO elements.
             source_page = page_by_key.get(evidence.page_key)
             if source_page is None:
                 raise ValueError(
@@ -336,6 +340,12 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 evidence.bbox.height,
             )
             page_by_detection[value_id] = source_page.id
+            if not evidence.alto.is_empty():
+                alto_by_id[value_id] = MetakatAltoRefs(
+                    blocks=list(evidence.alto.blocks),
+                    lines=list(evidence.alto.lines),
+                    words=list(evidence.alto.words),
+                )
             return Value(text=text, confidence=evidence.confidence, id=value_id)
 
         def bind_evidence(
@@ -479,7 +489,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 depth=0,
                 parent_chapter_id=None,
             )
-        return elements, bbox_by_id, page_by_detection
+        return elements, bbox_by_id, page_by_detection, alto_by_id
 
     @staticmethod
     def _chapter_groups(

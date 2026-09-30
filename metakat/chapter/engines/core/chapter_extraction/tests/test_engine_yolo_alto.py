@@ -11,7 +11,7 @@ from metakat.chapter.engines.core.chapter_extraction.engine_yolo_alto import (
     ChapterExtractionEngineYOLOALTO,
 )
 from metakat.chapter.engines.core.models import ChapterPageInput, TocBase
-from metakat.common.models import BoundingBox, PageDimensions
+from metakat.common.models import AltoRefs, BoundingBox, PageDimensions
 from metakat.schemas.base_objects import ChapterType
 
 EXTRACTION_LOGGER = (
@@ -824,3 +824,37 @@ def test_number_only_unit_inherits_preceding_level_across_pages(
     assert inherited.page_number_toc_page.output_text() == "3"
     assert inherited.toc_page_key == "toc-2"
     assert result.chapters[1].title_toc_page.text == "Next root"
+
+
+def _with_alto_ids(region, block, line, word):
+    region.words[0].alto_block_id = block
+    region.words[0].alto_line_id = line
+    region.words[0].alto_word_id = word
+    return region
+
+
+def test_toc_evidence_carries_the_alto_ids_of_its_regions(
+    extraction_engine,
+    alignment_page,
+    region,
+):
+    engine = extraction_engine(
+        None,
+        [
+            alignment_page(
+                "toc",
+                [
+                    _with_alto_ids(region(0, "kapitola", "Chapter", 100, 10), "TB1", "TL1", "S1"),
+                    _with_alto_ids(region(1, "cislo strany", "12-15", 800, 10), "TB1", "TL1", None),
+                    region(2, "kapitola", "No IDs", 100, 60),
+                ],
+            )
+        ],
+    )
+
+    chapters = {chapter.title_toc_page.text: chapter for chapter in engine.process((_toc_page(),)).chapters}
+
+    assert chapters["Chapter"].title_toc_page.alto == AltoRefs(blocks=("TB1",), lines=("TL1",), words=("S1",))
+    # The parsed page reference keeps the ALTO IDs of the evidence it parsed.
+    assert chapters["Chapter"].page_number_toc_page.alto == AltoRefs(blocks=("TB1",), lines=("TL1",))
+    assert chapters["No IDs"].title_toc_page.alto.is_empty()

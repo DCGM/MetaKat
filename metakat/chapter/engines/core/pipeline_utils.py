@@ -6,7 +6,7 @@ from typing import Any
 
 from text_geometry_aligner import AlignmentRegion
 
-from metakat.common.models import BoundingBox, DetectionEvidence
+from metakat.common.models import AltoRefs, BoundingBox, DetectionEvidence
 from metakat.schemas.base_objects import ChapterType
 
 
@@ -73,6 +73,7 @@ def region_to_evidence(
             height=region.input_geometry.bounds.height,
         ),
         page_key=page_key,
+        alto=AltoRefs.from_words(region.words),
     )
 
 

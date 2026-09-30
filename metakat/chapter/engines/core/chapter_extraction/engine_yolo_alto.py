@@ -15,7 +15,7 @@ from metakat.chapter.engines.core.models import (
     TocBase,
     ChapterPageNumberEvidence,
 )
-from metakat.common.models import BoundingBox, DetectionEvidence
+from metakat.common.models import AltoRefs, BoundingBox, DetectionEvidence
 from metakat.chapter.engines.core.pipeline_utils import (
     load_chapter_label_mapping,
     region_label,
@@ -40,6 +40,7 @@ class _ChapterCandidate:
     bbox: BoundingBox
     text: str | None
     confidence: float | None
+    alto: AltoRefs = AltoRefs()
 
     @property
     def is_construction_ready(self) -> bool:
@@ -353,6 +354,7 @@ class ChapterExtractionEngineYOLOALTO:
             confidence=candidate.confidence,
             bbox=candidate.bbox,
             page_key=candidate.page_key,
+            alto=candidate.alto,
         )
 
     def _extract_page_units(
@@ -491,6 +493,7 @@ class ChapterExtractionEngineYOLOALTO:
                     bbox=bbox,
                     text=text,
                     confidence=region.input_geometry_confidence,
+                    alto=AltoRefs.from_words(region.words if region.matched else None),
                 )
             )
 
