@@ -95,7 +95,9 @@ written value:
   container. `selectedEvent` - the event whose value was written.
 - `event` - `id` is the MetaKat `Value.id` (for a classification, the unit id,
   field and label); `action` is `extract` for read text and `classify` for a
-  label chosen by a classifier; `field` is the MetaKat field.
+  label chosen by a classifier; `field` is the MetaKat field. Its children
+  follow the PREMIS event: when, the outcome - the value and how sure - who,
+  and on what:
   - `eventDateTime` - when the event happened: the value read, imported or
     annotated. It comes first, as PREMIS `eventDateTime` does, and holds an
     `xs:dateTime` in UTC to the second, `2026-09-30T10:12:00Z` - the form of
@@ -104,6 +106,10 @@ written value:
     from. `recordCreationDate` is when the MODS was written, not when a value
     was read;
   - `observedValue`, with `lang` when known;
+  - `confidence` - a number from 0 to 1, how confident the producer is in
+    the value. How it is computed is the producer's business; the format
+    fixes only the range, which the MetaKat schema enforces on every
+    confidence it holds;
   - `source` - who produced the value; one per agent, since an event can
     have several, as PREMIS links several agents to one event. `type` is
     from the PREMIS agentType vocabulary (`software`, `person`,
@@ -115,10 +121,6 @@ written value:
       version;
     - `role="engine"` - the engine MetaKat ran, from `MetakatIO.engine`,
       when set;
-  - `confidence` - a number from 0 to 1, how confident the producer is in
-    the value. How it is computed is the producer's business; the format
-    fixes only the range, which the MetaKat schema enforces on every
-    confidence it holds;
   - `evidence` - `page` is the page it was read on as a `urn:uuid:` URN
     (RFC 4122), and `xywh` the region as a W3C Media Fragments spatial
     dimension, `pixel:x,y,w,h`: whole pixels of the page image from its

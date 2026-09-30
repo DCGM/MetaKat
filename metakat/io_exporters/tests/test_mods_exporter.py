@@ -223,6 +223,10 @@ def test_provenance_carries_engine_page_and_box_in_the_declared_space(batch, tmp
     volume = _export(batch, tmp_path)[str(batch.volume.id)]
 
     event = volume.xpath("//mkp:event[mkp:observedValue='Kytice']", namespaces=NS)[0]
+    # PREMIS order: the outcome - value and how sure - then who, then on what.
+    assert [etree.QName(child).localname for child in event] == [
+        "observedValue", "confidence", "source", "source", "evidence",
+    ]
     # Two software agents: MetaKat, and the engine it ran.
     assert [dict(source.attrib) for source in event.findall(f"{{{PROVENANCE_NS}}}source")] == [
         {"type": "software", "role": "application", "name": "MetaKat", "version": "1.0.0"},
