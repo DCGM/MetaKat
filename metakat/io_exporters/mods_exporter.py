@@ -579,11 +579,17 @@ def _source(event: ET.Element, io: MetakatIO) -> None:
         ET.SubElement(event, _p("source"), engine)
 
 
+# The ALTO element each level of MetakatAltoRefs points at.
+_ALTO_ELEMENTS = (("blocks", "TextBlock"), ("lines", "TextLine"), ("words", "String"))
+
+
 def _evidence(event: ET.Element, io: MetakatIO, value_id: UUID) -> None:
     # The page as a URN (RFC 4122) and the box as a W3C Media Fragments
     # spatial dimension, which is defined in exactly the space
     # MetakatIO.bbox_coordinates declares: pixels of the page image, x and y
-    # from its top-left corner, then width and height.
+    # from its top-left corner, then width and height. Then the ALTO elements
+    # the value was read from, by their ID attributes, which are unique only
+    # within that page's ALTO: so they sit inside the evidence naming the page.
     page_id = (io.detection_to_page_mapping or {}).get(value_id)
     if page_id is None:
         return
@@ -591,7 +597,12 @@ def _evidence(event: ET.Element, io: MetakatIO, value_id: UUID) -> None:
     bbox = (io.detection_to_bbox or {}).get(value_id)
     if bbox is not None:
         attributes["xywh"] = _media_fragment_xywh(bbox)
-    ET.SubElement(event, _p("evidence"), attributes)
+    evidence = ET.SubElement(event, _p("evidence"), attributes)
+    refs = (io.detection_to_alto or {}).get(value_id)
+    if refs is not None:
+        for level, element in _ALTO_ELEMENTS:
+            for alto_id in getattr(refs, level):
+                ET.SubElement(evidence, _p("altoRef"), {"element": element, "id": alto_id})
 
 
 def _media_fragment_xywh(bbox) -> str:

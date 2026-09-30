@@ -14,6 +14,7 @@ from metakat.schemas.base_objects import (
     MetakatArticle,
     MetakatBibliographic,
     MetakatChapter,
+    MetakatAltoRefs,
     MetakatEngine,
     MetakatGroup,
     MetakatInternalPart,
@@ -110,6 +111,10 @@ class _Batch:
             elements=[self.volume, self.chapter, self.article, *self.pages],
             detection_to_bbox=self.detection_to_bbox,
             detection_to_page_mapping=self.detection_to_page,
+            # Only the volume title's ALTO had IDs, and not on words.
+            detection_to_alto={
+                v.title[0].id: MetakatAltoRefs(blocks=["TB1"], lines=["TL1", "TL2"]),
+            },
         )
 
     def v(self, text, confidence, page_index, lang=None):
@@ -319,3 +324,19 @@ def test_records_are_written_in_the_schema_order(batch, tmp_path):
         written = [_section_of(node) for node in root if etree.QName(node).localname != "extension"]
         assert written == sorted(written, key=order.index), element.type
         assert etree.QName(root[-1]).localname == "extension"
+
+
+def test_evidence_names_the_alto_elements_the_value_was_read_from(batch, tmp_path):
+    volume = _export(batch, tmp_path)[str(batch.volume.id)]
+
+    title = volume.xpath("//mkp:event[mkp:observedValue='Kytice']/mkp:evidence", namespaces=NS)[0]
+    # Blocks, then lines, then words, each by its ALTO element name and ID.
+    assert [dict(ref.attrib) for ref in title.findall(f"{{{PROVENANCE_NS}}}altoRef")] == [
+        {"element": "TextBlock", "id": "TB1"},
+        {"element": "TextLine", "id": "TL1"},
+        {"element": "TextLine", "id": "TL2"},
+    ]
+    # A value whose ALTO had no IDs keeps just its page and region.
+    subtitle = volume.xpath("//mkp:event[mkp:observedValue='z pověstí národních']/mkp:evidence",
+                            namespaces=NS)[0]
+    assert len(subtitle) == 0 and subtitle.get("xywh")

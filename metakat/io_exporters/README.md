@@ -117,7 +117,17 @@ written value:
     dimension, `pixel:x,y,w,h`: whole pixels of the page image from its
     top-left corner, the space `MetakatIO.bbox_coordinates` declares. Media
     Fragments admits only whole pixels, so a box on half pixels is widened
-    to the smallest one enclosing it.
+    to the smallest one enclosing it. Inside it, one `altoRef` per ALTO
+    element the value was read from, from `MetakatIO.detection_to_alto`:
+    `element` is the ALTO element name (`TextBlock`, `TextLine`, `String`)
+    and `id` its `ID` attribute, copied verbatim - producers name IDs as
+    they like, so the kind of element is never read from the ID. Blocks come
+    first, then lines, then words, each in reading order; a level the ALTO
+    gave no IDs is absent, and a value without any has no `altoRef`. The IDs
+    are unique only within the page's ALTO file, which is why they sit
+    inside the evidence naming the page. `altoRef` is MetaKat's own element,
+    but it maps directly onto METS: `id` is what `mets:area/@BEGIN` holds
+    with `BETYPE="IDREF"`, and the page's ALTO file is its `FILEID`.
 
 `--no-provenance` writes plain MODS without the extension.
 
