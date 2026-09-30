@@ -548,8 +548,8 @@ def _provenance(record: _Record) -> Optional[ET.Element]:
             observed = ET.SubElement(event, _p("observedValue"), {"lang": value.lang} if value.lang else {})
             observed.text = value.text
             ET.SubElement(event, _p("confidence")).text = repr(value.confidence)
-            _source(event, io)
             _evidence(event, io, value.id)
+            _source(event, io)
 
     for item in record.classifications:
         node = ET.SubElement(provenance, _p("assertion"), {
@@ -558,9 +558,9 @@ def _provenance(record: _Record) -> Optional[ET.Element]:
         event = ET.SubElement(node, _p("event"), {"id": item.event_id, "action": "classify", "field": item.field})
         ET.SubElement(event, _p("observedValue")).text = item.label
         ET.SubElement(event, _p("confidence")).text = repr(item.confidence)
-        _source(event, io)
         if item.page_ref is not None:
             ET.SubElement(event, _p("evidence"), {"page": item.page_ref.urn})
+        _source(event, io)
     return extension
 
 

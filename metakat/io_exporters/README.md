@@ -96,8 +96,9 @@ written value:
 - `event` - `id` is the MetaKat `Value.id` (for a classification, the unit id,
   field and label); `action` is `extract` for read text and `classify` for a
   label chosen by a classifier; `field` is the MetaKat field. Its children
-  follow the PREMIS event: when, the outcome - the value and how sure - who,
-  and on what:
+  follow the PREMIS event: when, the outcome, who. The outcome is everything
+  the producer gave - the value, how sure it is, and where on the page it
+  found it:
   - `eventDateTime` - when the event happened: the value read, imported or
     annotated. It comes first, as PREMIS `eventDateTime` does, and holds an
     `xs:dateTime` in UTC to the second, `2026-09-30T10:12:00Z` - the form of
@@ -110,17 +111,6 @@ written value:
     the value. How it is computed is the producer's business; the format
     fixes only the range, which the MetaKat schema enforces on every
     confidence it holds;
-  - `source` - who produced the value; one per agent, since an event can
-    have several, as PREMIS links several agents to one event. `type` is
-    from the PREMIS agentType vocabulary (`software`, `person`,
-    `organization`, `hardware`), `role` says what part the agent played, and
-    every `software` source is identified the same way, by `name` and
-    `version`. The exporter writes two:
-    - `role="application"` - MetaKat itself, from `MetakatIO.application`.
-      Its version is a fixed `1.0.0` until the worker exposes the running
-      version;
-    - `role="engine"` - the engine MetaKat ran, from `MetakatIO.engine`,
-      when set;
   - `evidence` - `page` is the page it was read on as a `urn:uuid:` URN
     (RFC 4122), and `xywh` the region as a W3C Media Fragments spatial
     dimension, `pixel:x,y,w,h`: whole pixels of the page image from its
@@ -136,7 +126,18 @@ written value:
     are unique only within the page's ALTO file, which is why they sit
     inside the evidence naming the page. `altoRef` is MetaKat's own element,
     but it maps directly onto METS: `id` is what `mets:area/@BEGIN` holds
-    with `BETYPE="IDREF"`, and the page's ALTO file is its `FILEID`.
+    with `BETYPE="IDREF"`, and the page's ALTO file is its `FILEID`;
+  - `source` - who produced the value; one per agent, since an event can
+    have several, as PREMIS links several agents to one event. `type` is
+    from the PREMIS agentType vocabulary (`software`, `person`,
+    `organization`, `hardware`), `role` says what part the agent played, and
+    every `software` source is identified the same way, by `name` and
+    `version`. The exporter writes two:
+    - `role="application"` - MetaKat itself, from `MetakatIO.application`.
+      Its version is a fixed `1.0.0` until the worker exposes the running
+      version;
+    - `role="engine"` - the engine MetaKat ran, from `MetakatIO.engine`,
+      when set.
 
 `--no-provenance` writes plain MODS without the extension.
 
