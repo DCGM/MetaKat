@@ -106,6 +106,9 @@ def item_from_work(work: dict, library: str) -> CatalogItem | None:
     pdf_urls = [link["URL"] for link in links if link.get("content-type") == "application/pdf"]
     pdf_urls += [link["URL"] for link in links if link.get("content-type") == "unspecified"
                  and link["URL"].lower().split("?")[0].endswith(".pdf")]
+    # A link for similarity checking is the full text, under any address (".../pdf", "dl/123"); tried last.
+    pdf_urls += [link["URL"] for link in links if link.get("content-type") == "unspecified"
+                 and link.get("intended-application") == "similarity-checking"]
     authors = [", ".join(part for part in (author.get("family"), author.get("given")) if part) or author.get("name", "")
                for author in work.get("author", [])]
     record = {

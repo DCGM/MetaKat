@@ -187,7 +187,9 @@ kinds of interface serve most of them with the same code:
   database) is not followed and the article is recorded as refused with the address it pointed to; a
   journal refused that way twice, with nothing stored, is not selected any more.
 - **Crossref** (`common/crossref.py`): publishers without OAI-PMH register their DOIs with the URL of
-  the article PDF (for similarity checking). All journals of a publisher are harvested by its DOI
+  the article PDF (for similarity checking). A link of unspecified type counts when its address ends
+  in `.pdf` or it is meant for similarity checking (`.../pdf`, `dl/123`); the download keeps only
+  answers that are PDFs. All journals of a publisher are harvested by its DOI
   prefix, single journals by their ISSNs. A journal is identified by its ISSNs; its title is the most
   frequent spelling of `container-title`, so a renamed journal is still two journals. Crossref only
   knows the years since the journal registers DOIs, mostly from 2010 on. Only one process should query

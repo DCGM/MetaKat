@@ -30,6 +30,15 @@ def test_crossref_work_gives_journal_volume_issue_year_and_pdf():
     assert item.landing_url == "http://www.karolinum.cz/doi/10.14712/23363177.2015.64"
 
 
+def test_similarity_checking_link_is_a_pdf_candidate_under_any_address():
+    link = [{"URL": "https://editorial.upce.cz/1804-8048/30/03/1556/pdf", "content-type": "unspecified",
+             "intended-application": "similarity-checking"},
+            {"URL": "https://editorial.upce.cz/1804-8048/30/03/1556", "content-type": "unspecified",
+             "intended-application": "text-mining"}]
+    item = item_from_work(_work("10.46585/sp30031556", ["1804-8048"], link=link), "sites")
+    assert item.pdf_urls == ["https://editorial.upce.cz/1804-8048/30/03/1556/pdf"]
+
+
 class _Publisher(CrossrefSource):
     name = "publisher"
     prefixes = ("10.1",)
