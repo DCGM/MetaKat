@@ -15,7 +15,8 @@ python -m metakat.chapter.download_articles fetch   --source muni_digilib --pdf-
 
 1. `catalog` harvests the library's catalog into `catalog.jsonl`.
 2. `select` picks `--per-journal` items from every journal that are not stored yet and writes
-   them to `selection.tsv` and `selection.html`. Items are spread over the journal's years (one
+   them to `selection.tsv` and `selection.html`. A journal is its id together with its title, so
+   every title of a renamed journal is covered. Items are spread over the journal's years (one
    pick is its median year); `--min-year-gap` keeps new picks that many years away from every
    item of the journal already stored, so repeated runs add samples from other periods.
 3. `fetch` stores every selected item: the PDF, its first page and a metadata JSON. PDFs found in
@@ -47,4 +48,5 @@ at 300 dpi (`"method": "rendered"`). The `dpi` field records the resolution eith
 
 | `--source` | Library | Notes |
 |---|---|---|
+| `dml_cz` | [Czech Digital Mathematics Library](https://dml.cz/) | OAI-PMH in the EuDML JATS format (`eudml-article2`): journal, volume, issue, pages, keywords, MSC codes, translated titles and the article PDF, downloaded directly. Harvesting without a set misses about half of the journals, so every set is harvested on its own. Proceedings and book collections are not published in the article format and are not harvested; neither is *Rozhledy matematicko-fyzikální*, whose set returns no records. In old volumes an article may start in the middle of a page, below the end of the previous one. |
 | `muni_digilib` | [Digital Library of the Faculty of Arts, Masaryk University](https://digilib.phil.muni.cz/) | OAI-PMH (oai_dc) covers 11 of the 54 journals; records name the journal and year only, no volume or issue. Files are behind a Cloudflare Turnstile human check, so they are downloaded by hand from `selection.html` and passed to `fetch --pdf-dir`. The original scan (`-source.pdf`) is preferred where one exists. |

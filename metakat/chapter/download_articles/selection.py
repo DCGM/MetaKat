@@ -7,15 +7,23 @@ from collections.abc import Iterable, Mapping, Sequence
 from metakat.chapter.download_articles.models import CatalogItem
 
 
+JournalKey = tuple[str | None, str | None]
+
+
+def journal_key(item: CatalogItem) -> JournalKey:
+    """A journal is its id together with its title: a renamed journal usually got a new layout too."""
+    return item.journal_id, item.journal_title
+
+
 def select_items(
     items: Iterable[CatalogItem],
     per_journal: int = 1,
     type_preference: Sequence[str] = (),
     min_year_gap: int = 0,
-    already_selected: Mapping[str, Sequence[int | None]] | None = None,
+    already_selected: Mapping[JournalKey, Sequence[int | None]] | None = None,
     seed: int = 0,
 ) -> list[CatalogItem]:
-    """Pick up to ``per_journal`` new items from every journal.
+    """Pick up to ``per_journal`` new items from every journal (see ``journal_key``).
 
     Covering every journal comes first, so each journal gets its quota independently.
 
@@ -32,15 +40,15 @@ def select_items(
     already_selected = already_selected or {}
     rng = random.Random(seed)
 
-    by_journal: dict[str, list[CatalogItem]] = defaultdict(list)
+    by_journal: dict[JournalKey, list[CatalogItem]] = defaultdict(list)
     for item in items:
         if item.journal_id is not None:
-            by_journal[item.journal_id].append(item)
+            by_journal[journal_key(item)].append(item)
 
     selected = []
-    for journal_id in sorted(by_journal):
-        candidates = _preferred_candidates(by_journal[journal_id], type_preference)
-        years = list(already_selected.get(journal_id, ()))
+    for key in sorted(by_journal, key=lambda k: (k[0], k[1] or "")):
+        candidates = _preferred_candidates(by_journal[key], type_preference)
+        years = list(already_selected.get(key, ()))
         picks = []
 
         dated: dict[int, list[CatalogItem]] = defaultdict(list)

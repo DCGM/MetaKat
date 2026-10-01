@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -25,24 +26,32 @@ class OaiRecord:
     sets: list[str]
     # Dublin Core element name -> values, in document order, stripped, empty values dropped.
     dc: dict[str, list[str]]
+    # The record's metadata element, for formats richer than oai_dc.
+    metadata: ET.Element | None = None
 
 
-def http_get(url: str, timeout: float = 120, retries: int = 5, backoff: float = 5) -> bytes:
+def http_get(url: str, timeout: float = 120, retries: int = 5, backoff: float = 10) -> bytes:
+    """GET with retries. Requests are sequential and callers pause between them; a server that asks
+    to slow down (429/503) is waited for as long as its Retry-After says, at least ``backoff``."""
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     for attempt in range(1, retries + 1):
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 return response.read()
         except Exception as error:
-            if attempt == retries:
+            if attempt == retries or (isinstance(error, urllib.error.HTTPError) and error.code in (403, 404, 410)):
                 raise
-            logger.warning(f"GET {url} failed ({error}), attempt {attempt}/{retries}")
-            time.sleep(backoff * attempt)
+            wait = backoff * attempt
+            if isinstance(error, urllib.error.HTTPError) and error.code in (429, 503):
+                retry_after = error.headers.get("Retry-After", "")
+                wait = max(wait, float(retry_after) if retry_after.isdigit() else 0)
+            logger.warning(f"GET {url} failed ({error}), waiting {wait:.0f} s, attempt {attempt}/{retries}")
+            time.sleep(wait)
     raise AssertionError("unreachable")
 
 
 def parse_records(xml: bytes) -> tuple[list[OaiRecord], str | None]:
-    """Parse one ListRecords response into its oai_dc records and the resumption token."""
+    """Parse one ListRecords response into its records and the resumption token."""
     root = ET.fromstring(xml)
     error = root.find("oai:error", _NS)
     if error is not None:
@@ -69,14 +78,29 @@ def parse_records(xml: bytes) -> tuple[list[OaiRecord], str | None]:
             datestamp=header.findtext("oai:datestamp", namespaces=_NS),
             sets=[s.text for s in header.iterfind("oai:setSpec", _NS)],
             dc=dc,
+            metadata=next(iter(metadata), None) if metadata is not None else None,
         ))
 
     token = root.findtext("oai:ListRecords/oai:resumptionToken", namespaces=_NS)
     return records, (token.strip() if token and token.strip() else None)
 
 
+def list_sets(base_url: str) -> list[tuple[str, str]]:
+    """Return the (setSpec, setName) pairs of an OAI-PMH repository."""
+    sets = []
+    url = f"{base_url}?verb=ListSets"
+    while url:
+        root = ET.fromstring(http_get(url))
+        for element in root.iterfind("oai:ListSets/oai:set", _NS):
+            sets.append((element.findtext("oai:setSpec", namespaces=_NS), element.findtext("oai:setName", namespaces=_NS)))
+        token = root.findtext("oai:ListSets/oai:resumptionToken", namespaces=_NS)
+        url = f"{base_url}?{urllib.parse.urlencode({'verb': 'ListSets', 'resumptionToken': token.strip()})}" \
+            if token and token.strip() else None
+    return sets
+
+
 def iter_records(base_url: str, metadata_prefix: str = "oai_dc", set_spec: str | None = None,
-                 delay: float = 0.5) -> Iterator[OaiRecord]:
+                 delay: float = 1.0) -> Iterator[OaiRecord]:
     """Yield every non-deleted record of an OAI-PMH repository, following resumption tokens."""
     params = {"verb": "ListRecords", "metadataPrefix": metadata_prefix}
     if set_spec:

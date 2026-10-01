@@ -9,6 +9,7 @@ from pathlib import Path
 
 from metakat.chapter.download_articles.first_page import extract_first_page
 from metakat.chapter.download_articles.models import CatalogItem, StoredArticle
+from metakat.chapter.download_articles.selection import JournalKey, journal_key
 
 SELECTION_COLUMNS = ["item_id", "journal_id", "journal_title", "volume", "issue", "year", "item_type", "title", "pdf_url"]
 
@@ -51,11 +52,11 @@ class ArticleStore:
         return [StoredArticle.model_validate_json(path.read_text(encoding="utf-8"))
                 for path in sorted(self.metadata_dir.glob("*.json"))]
 
-    def stored_years(self) -> dict[str, list[int | None]]:
-        years: dict[str, list[int | None]] = defaultdict(list)
+    def stored_years(self) -> dict[JournalKey, list[int | None]]:
+        years: dict[JournalKey, list[int | None]] = defaultdict(list)
         for article in self.stored():
             if article.item.journal_id is not None:
-                years[article.item.journal_id].append(article.item.year)
+                years[journal_key(article.item)].append(article.item.year)
         return dict(years)
 
     def write_selection(self, items: list[CatalogItem]) -> None:
@@ -79,17 +80,24 @@ class ArticleStore:
         with open(self.selection_path, encoding="utf-8", newline="") as file:
             return [row["item_id"] for row in csv.DictReader(file, delimiter="\t")]
 
-    def store(self, item: CatalogItem, pdf_bytes: bytes, pdf_url: str | None) -> StoredArticle:
-        """Store the PDF, its first page image and the metadata describing both."""
+    def stored_pdf(self, item_id: str) -> bytes | None:
+        path = self.pdf_dir / f"{item_id}.pdf"
+        return path.read_bytes() if path.exists() else None
+
+    def store(self, item: CatalogItem, pdf_bytes: bytes, pdf_url: str | None, page_index: int = 0) -> StoredArticle:
+        """Store the PDF, the image of its title page (``page_index``) and the metadata describing both."""
         for directory in (self.pdf_dir, self.images_dir, self.metadata_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
-        image_bytes, extension, image = extract_first_page(pdf_bytes)
+        image_bytes, extension, image = extract_first_page(pdf_bytes, page_index)
+        for old_image in self.images_dir.glob(f"{item.item_id}.*"):
+            old_image.unlink()
         image_path = self.images_dir / f"{item.item_id}.{extension}"
         pdf_path = self.pdf_dir / f"{item.item_id}.pdf"
         pdf_path.write_bytes(pdf_bytes)
         image_path.write_bytes(image_bytes)
         image.file = str(image_path.relative_to(self.dir))
+        image.page = page_index + 1
 
         article = StoredArticle(
             item=item, pdf_file=str(pdf_path.relative_to(self.dir)), pdf_url=pdf_url, image=image,

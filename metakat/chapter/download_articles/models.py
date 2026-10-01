@@ -35,6 +35,8 @@ class FirstPageImage(BaseModel):
     """How the stored title page image was obtained from the article PDF."""
 
     file: str
+    # 1-based page of the article PDF the image shows.
+    page: int = 1
     width: int
     height: int
     # "embedded": the page's single scanned image, stored byte for byte.

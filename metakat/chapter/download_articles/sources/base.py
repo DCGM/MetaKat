@@ -35,6 +35,10 @@ class Source(ABC):
             raise DownloadBlocked(f"{url} did not return a PDF")
         return data
 
+    def title_page_index(self, pdf_bytes: bytes) -> int:
+        """Index of the article's first page in its PDF, for libraries that prepend cover sheets."""
+        return 0
+
     def local_pdf_names(self, item: CatalogItem) -> list[str]:
         """File names a browser gives the item's PDFs, in ``pdf_urls`` order."""
         return [url.rsplit("/", 1)[-1] for url in item.pdf_urls]
