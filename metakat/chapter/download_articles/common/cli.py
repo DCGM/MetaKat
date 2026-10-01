@@ -87,7 +87,8 @@ def select(source: Source, store: ArticleStore, args) -> None:
     walls: dict = {}
     if source.moving_wall:
         for item in catalog:
-            if item.item_id in unavailable and item.year is not None:
+            if (item.item_id in unavailable and item.year is not None
+                    and source.starts_wall(unavailable[item.item_id].get("reason") or "")):
                 key = journal_key(item)
                 walls[key] = min(walls.get(key, item.year), item.year)
         if walls:

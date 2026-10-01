@@ -151,7 +151,8 @@ of type `volume`; `select` picks volumes by period like articles. `fetch` finds 
 article through its contents pages (`common/toc.py`) and stores that page:
 
 1. The volume's pages and issues are listed, in reading order.
-2. The words of every page typed `TableOfContents` are read with their boxes from the page's ALTO,
+2. The words of every page typed `TableOfContents` (where no page is, of the first and last 8 pages,
+   keeping those with 5 or more entries matching pages of the volume) are read with their boxes from the page's ALTO,
    or, where KNAV has none, by OCR of the page image ([EasyOCR](https://github.com/JaidedAI/EasyOCR),
    an optional dependency: `pip install easyocr`).
 3. Words are joined into lines and a line is split at wide gaps (columns of an index, a title and
@@ -168,7 +169,7 @@ article through its contents pages (`common/toc.py`) and stores that page:
 The stored item keeps the volume's metadata, with the issue of the page found; it has no title, and
 `record` holds the page (`first_page`, `page_number`), the entries' text as read (`toc_entries`),
 the contents pages and how many start pages were found. A volume without a matching entry is
-recorded as refused. Annual indexes (Vesmír) list every short note too, so their entries cover most
+recorded as unavailable; since KNAV did not refuse it, it starts no moving wall. Annual indexes (Vesmír) list every short note too, so their entries cover most
 pages. Page lists and contents words are kept in `knav/toc/`, so KNAV is asked and OCR run once.
 
 ## Journals outside Kramerius

@@ -32,6 +32,14 @@ SUBSECTION = re.compile(r"^\W*\d+\.(\d|\s)")
 # Pages from an article's start to the next one found: shorter are news and notes, longer a gap of
 # entries the contents page (or its OCR) misses.
 ARTICLE_PAGES = range(3, 61)
+# A volume without pages typed as contents: its first and last pages read, and those with entries
+# pointing to at least this many pages of the volume, mostly in ascending order, taken as contents pages.
+UNTYPED_CONTENTS_PAGES = 8
+MIN_UNTYPED_CONTENTS_ENTRIES = 5
+ASCENDING_SHARE = 0.8
+# The reason recorded for a volume whose contents pages point to no page: not a refusal of KNAV,
+# so it starts no moving wall.
+NO_ARTICLE_FOUND = "no entry matches a page"
 # Licences under which KNAV refuses a volume's pages to anonymous users (out of commerce, on site only).
 RESTRICTED_LICENSES = {"dnnto", "dnntt", "onsite"}
 PAGE_FIELDS = ["pid", "page.number", "page.type", "own_parent.pid", "own_pid_path", "own_model_path",
@@ -137,14 +145,19 @@ class KnavSource(KrameriusSource):
         cache.mkdir(parents=True, exist_ok=True)
         volume = _cached(cache / f"{item.item_id}.json", lambda: self.volume_structure(item.record_id))
         pages = physical_order(item.record_id, volume["pages"], volume["parents"])
-        contents = []
-        for page in pages:
-            if (page.page_type or "").lower() == "tableofcontents":
-                words = _cached(cache / f"{page.pid.removeprefix('uuid:')}.json", lambda: self.page_words(page.pid))
-                contents.append((page, toc_entries([Word(*word) for word in words])))
+
+        def read(page: Page) -> tuple[Page, list]:
+            words = _cached(cache / f"{page.pid.removeprefix('uuid:')}.json", lambda: self.page_words(page.pid))
+            return page, toc_entries([Word(*word) for word in words])
+
+        contents = [read(page) for page in pages if (page.page_type or "").lower() == "tableofcontents"]
+        if not contents:
+            # No page is typed as contents: the contents or index is usually among the first or last pages.
+            ends = pages[:UNTYPED_CONTENTS_PAGES] + pages[UNTYPED_CONTENTS_PAGES:][-UNTYPED_CONTENTS_PAGES:]
+            contents = [entry for entry in map(read, ends) if looks_like_contents(entry, pages)]
         starts = start_pages(contents, pages)
         if not starts:
-            raise DownloadBlocked(f"{item.record_id}: {len(contents)} contents pages, no entry matches a page")
+            raise DownloadBlocked(f"{item.record_id}: {len(contents)} contents pages, {NO_ARTICLE_FOUND}")
         articles = [start for start in starts if not SUBSECTION.match(start.entries[0].text)] or starts
         articles = [start for start in articles if start.span in ARTICLE_PAGES] or articles
         start = articles[len(articles) // 2]
@@ -198,6 +211,9 @@ class KnavSource(KrameriusSource):
             return True
         return super().is_available(item)
 
+    def starts_wall(self, reason: str) -> bool:
+        return NO_ARTICLE_FOUND not in reason
+
     def is_cheap(self, item: CatalogItem) -> bool:
         return bool(item.record.get("local_pdf"))
 
@@ -236,6 +252,16 @@ def read_download_errors(logs) -> dict[str, str]:
                 elif current and (match := re.search(r"returned error: (\d{3})", line)):
                     errors[current] = match.group(1)
     return errors
+
+
+def looks_like_contents(contents: tuple[Page, list], pages: list[Page]) -> bool:
+    """Whether a page not typed as contents is one: enough of its entries point to pages of the
+    volume, mostly in ascending order (a bibliography or an index cites pages in no order)."""
+    starts = start_pages([contents], pages)
+    found = {start.page.pid: index for index, start in enumerate(starts)}
+    order = [found[start.page.pid] for entry in contents[1] for start in starts if entry in start.entries]
+    ascending = sum(1 for first, second in zip(order, order[1:]) if second > first)
+    return len(starts) >= MIN_UNTYPED_CONTENTS_ENTRIES and ascending >= ASCENDING_SHARE * (len(order) - 1)
 
 
 def read_periodicals(path: Path) -> list[str]:

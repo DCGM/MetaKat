@@ -1,5 +1,6 @@
 import json
 
+from metakat.chapter.download_articles.common.source import DownloadBlocked
 from metakat.chapter.download_articles.knav.source import KnavSource, index_local_pdfs, read_download_errors
 
 ROOT, VOLUME, ISSUE = "uuid:root", "uuid:vol", "uuid:issue"
@@ -108,5 +109,42 @@ def test_the_article_of_a_volume_is_found_through_its_contents_page(tmp_path):
     assert item.record["toc_entries"] == ["Article 2"] and item.record["contents_pages"] == ["uuid:toc"]
     assert item.record["article_start_pages_found"] == ["4"] and item.record["pages_to_next_start"] == ["3"]
     assert (item.issue, item.date) == ("4", "12.1994")
+
+
+def test_contents_pages_are_recognised_among_the_last_pages_when_none_is_typed(tmp_path):
+    source = _source(tmp_path)
+    cache = tmp_path / "knav" / "toc"
+    cache.mkdir(parents=True)
+    pages = [{"pid": f"uuid:p{n}", "page.number": str(n), "page.type": "NormalPage", "own_parent.pid": VOLUME,
+              "rels_ext_index.sort": n, "own_pid_path": f"{ROOT}/{VOLUME}/uuid:p{n}",
+              "own_model_path": "periodical/periodicalvolume/page"} for n in range(1, 41)]
+    (cache / "vol.json").write_text(json.dumps({"parents": list(PARENTS.values()), "pages": pages}))
+    contents = [[0, 40 * n, 100, 40 * n + 20, f"Article {n}"] for n in range(1, 40, 6)]
+    contents += [[500, 40 * n, 520, 40 * n + 20, str(n)] for n in range(1, 40, 6)]
+    (cache / "p40.json").write_text(json.dumps(contents))
+    for n in [*range(1, 9), *range(34, 40)]:
+        # Other pages cite a page or two, as running text does.
+        (cache / f"p{n}.json").write_text(json.dumps([[0, 0, 100, 20, "see"], [500, 0, 520, 20, "13"]]))
+    # A bibliography cites many pages, in no order.
+    bibliography = [[[0, 40 * k, 100, 40 * k + 20, f"Work {k}"], [500, 40 * k, 520, 40 * k + 20, str(n)]]
+                    for k, n in enumerate((30, 4, 22, 9, 35, 2, 17))]
+    (cache / "p33.json").write_text(json.dumps([word for line in bibliography for word in line]))
+    item = source.volume_item("root", {"pid": VOLUME, "date_range_start.year": 1994})
+    source.locate_article(item)
+    assert item.record["contents_pages"] == ["uuid:p40"] and item.record["article_start_pages_found"] == ["7"]
+
+
+def test_a_volume_without_matching_contents_is_no_refusal_of_knav(tmp_path):
+    source = _source(tmp_path)
+    cache = tmp_path / "knav" / "toc"
+    cache.mkdir(parents=True)
+    (cache / "vol.json").write_text(json.dumps({"parents": list(PARENTS.values()), "pages": []}))
+    item = source.volume_item("root", {"pid": VOLUME, "date_range_start.year": 1994})
+    try:
+        source.locate_article(item)
+        raise AssertionError("no article can be found")
+    except DownloadBlocked as error:
+        assert not source.starts_wall(str(error))
+    assert source.starts_wall("HTTP Error 403: Forbidden")
 
 

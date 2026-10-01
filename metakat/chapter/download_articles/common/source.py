@@ -54,6 +54,11 @@ class Source(ABC):
         """Whether the item's full text is expected to be downloadable at all."""
         return bool(item.pdf_urls)
 
+    def starts_wall(self, reason: str) -> bool:
+        """Whether an item recorded as unavailable for ``reason`` starts a moving wall (``moving_wall``);
+        failures of the sampler's own, rather than refusals of the library, do not."""
+        return True
+
     def is_cheap(self, item: CatalogItem) -> bool:
         """Whether the item can be stored without asking the library, e.g. it was downloaded before."""
         return False
