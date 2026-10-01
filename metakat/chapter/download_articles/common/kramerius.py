@@ -143,7 +143,9 @@ class KrameriusSource(Source):
     def download(self, item: CatalogItem) -> Download:
         if item.pdf_urls:
             return super().download(item)
-        page = first_page_pid(self.kramerius, item.record_id, item.record.get("parent", [None])[0])
+        # Articles found through a contents page are the page itself.
+        page = (item.record.get("first_page") or [None])[0] or first_page_pid(
+            self.kramerius, item.record_id, item.record.get("parent", [None])[0])
         url = self.kramerius.image_url(page)
         data = http_get(url)
         extension = image_extension(data)

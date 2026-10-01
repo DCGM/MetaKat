@@ -88,6 +88,7 @@ Each library gets its own folder under `--root` (default
 <library>/images/<item_id>.*    its title page
 <library>/metadata/<item_id>.json
 <library>/previews/
+<library>/toc/                  page lists and contents page words (KNAV volumes without article records)
 <library>/review.csv            journal verdicts from common/review.py
 <library>/review_items.csv      verdicts of the single picks
 ```
@@ -111,7 +112,7 @@ resolution where it is known.
 | `--source` | Library | Notes |
 |---|---|---|
 | `dml_cz` | [Czech Digital Mathematics Library](https://dml.cz/) | OAI-PMH in the EuDML JATS format (`eudml-article2`): journal, volume, issue, pages, keywords, MSC codes, translated titles and the article PDF. Harvesting without a set misses about half of the journals, so every set is harvested on its own. Proceedings and book collections are not published in the article format and are not harvested; neither is *Rozhledy matematicko-fyzikální*, whose set returns no records. Every PDF starts with a DML-CZ cover sheet, so the title page is page 2. The newest volumes are for registered users only (a moving wall): from the first refused year of a journal its later years are not selected. In old volumes an article may start in the middle of a page, below the end of the previous one. |
-| `knav` | [Digital Library of the Czech Academy of Sciences](https://kramerius.lib.cas.cz/) | Every article of every periodical from the Kramerius search index, with its volume and issue numbers. Born-digital articles are one PDF each; scanned articles have no file of their own, and their title page is the image of the first page they are on. PDFs downloaded earlier into `title.automatic_pick/knav` are reused and preferred, and the logs of those downloads mark articles refused before (403), so neither costs a request. The newest issues of many journals and some whole journals are licensed, so a refusal works as a moving wall: the journal's later years are taken only from earlier downloads. Contents pages, indexes and similar parts catalogued as articles are never picked. |
+| `knav` | [Digital Library of the Czech Academy of Sciences](https://kramerius.lib.cas.cz/) | Every article of every periodical from the Kramerius search index, with its volume and issue numbers, and the articles of volumes without article records found through their contents pages ([below](#knav-volumes-without-article-records)). Born-digital articles are one PDF each; scanned articles have no file of their own, and their title page is the image of the first page they are on. PDFs downloaded earlier into `title.automatic_pick/knav` are reused and preferred, and the logs of those downloads mark articles refused before (403), so neither costs a request. The newest issues of many journals and some whole journals are licensed, so a refusal works as a moving wall: the journal's later years are taken only from earlier downloads. Contents pages, indexes and similar parts catalogued as articles are never picked. |
 | `muni_digilib` | [Digital Library of the Faculty of Arts, Masaryk University](https://digilib.phil.muni.cz/) | OAI-PMH (oai_dc) covers 11 of the 54 journals; records name the journal and year only, no volume or issue. Files are behind a Cloudflare Turnstile human check, so they are downloaded by hand from `selection.html` and passed to `fetch --pdf-dir`. The original scan (`-source.pdf`) is preferred where one exists. |
 
 ## Articles in Kramerius
@@ -139,6 +140,36 @@ selected.
 | `mzk` | [Moravian Library](https://www.mzk.cz/) | Articles not held by KNAV: about 15,000 in 99 journals and magazines (2026-10), every one under the out-of-commerce or on-site licence (`dnnto`, `dnntt`, `onsite`) and refused to anonymous users (403), so nothing is selected. The public MZK articles are the KNAV copies and Lidové noviny. |
 | `cbvk` | [South Bohemian Research Library](https://www.cbvk.cz/) | Regional periodicals, town newsletters, diocesan and society bulletins. Many articles have no links to their pages; their first page is the page of their issue numbered as the start page in the article's MODS. |
 | `nkp` | [National Library](https://www.nkp.cz/) | Internal parts of issues; nearly all are in newspapers (left out) or licensed military journals. The public ones are in 9 short-lived periodicals, mostly Pilsen magazines of 1884–1910. |
+
+### KNAV volumes without article records
+
+The KNAV list of periodicals (sheet "Časopisy bez metadat článků") names periodicals whose articles
+were not catalogued in some or all volumes: scanned as issues and pages only (Vesmír before 1998,
+Organon F before 2009, Umění, Byzantinoslavica, ...). `knav/unsegmented_periodicals.tsv` lists them.
+`catalog` lists their volumes and adds every volume of a year without article records as one item
+of type `volume`; `select` picks volumes by period like articles. `fetch` finds the volume's
+article through its contents pages (`common/toc.py`) and stores that page:
+
+1. The volume's pages and issues are listed, in reading order.
+2. The words of every page typed `TableOfContents` are read with their boxes from the page's ALTO,
+   or, where KNAV has none, by OCR of the page image ([EasyOCR](https://github.com/JaidedAI/EasyOCR),
+   an optional dependency: `pip install easyocr`).
+3. Words are joined into lines and a line is split at wide gaps (columns of an index, a title and
+   its right-aligned number); a segment ending in a number is an entry starting on that page.
+4. An entry's number is looked up among the printed page numbers (`[12]` and `(12)`, unprinted
+   numbers, count as `12`) of the contents page's own issue first, then of the whole volume; an
+   entry matching no page or several (pagination restarting every issue) is dropped, and so are
+   matches on contents, blank or advertisement pages.
+
+5. Of the start pages found, the one with the most pages before the next start is the volume's
+   article: a main article rather than a review or a short note. Entries numbered like sections of
+   a longer text ("1.4 The impact ...") are left out.
+
+The stored item keeps the volume's metadata, with the issue of the page found; it has no title, and
+`record` holds the page (`first_page`, `page_number`), the entries' text as read (`toc_entries`),
+the contents pages and how many start pages were found. A volume without a matching entry is
+recorded as refused. Annual indexes (Vesmír) list every short note too, so their entries cover most
+pages. Page lists and contents words are kept in `knav/toc/`, so KNAV is asked and OCR run once.
 
 ## Journals outside Kramerius
 
