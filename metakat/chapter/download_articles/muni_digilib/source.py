@@ -3,9 +3,9 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-from metakat.chapter.download_articles.models import CatalogItem
-from metakat.chapter.download_articles.oai import OaiRecord, iter_records
-from metakat.chapter.download_articles.sources.base import Source
+from metakat.chapter.download_articles.common.models import CatalogItem
+from metakat.chapter.download_articles.common.oai import OaiRecord, iter_records
+from metakat.chapter.download_articles.common.source import Source
 
 OAI_URL = "https://digilib.phil.muni.cz/oai/request"
 

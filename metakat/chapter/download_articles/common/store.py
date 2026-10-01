@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import csv
 import html
+import io
 import json
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from metakat.chapter.download_articles.first_page import extract_first_page
-from metakat.chapter.download_articles.models import CatalogItem, StoredArticle
-from metakat.chapter.download_articles.selection import JournalKey, journal_key
+from PIL import Image
+
+from metakat.chapter.download_articles.common.first_page import extract_first_page
+from metakat.chapter.download_articles.common.models import CatalogItem, FirstPageImage, StoredArticle
+from metakat.chapter.download_articles.common.selection import JournalKey, journal_key
 
 SELECTION_COLUMNS = ["item_id", "journal_id", "journal_title", "volume", "issue", "year", "item_type", "title", "pdf_url"]
 
@@ -88,21 +91,32 @@ class ArticleStore:
 
     def store(self, item: CatalogItem, pdf_bytes: bytes, pdf_url: str | None, page_index: int = 0) -> StoredArticle:
         """Store the PDF, the image of its title page (``page_index``) and the metadata describing both."""
-        for directory in (self.pdf_dir, self.images_dir, self.metadata_dir):
-            directory.mkdir(parents=True, exist_ok=True)
-
         image_bytes, extension, image = extract_first_page(pdf_bytes, page_index)
+        self.pdf_dir.mkdir(parents=True, exist_ok=True)
+        pdf_path = self.pdf_dir / f"{item.item_id}.pdf"
+        pdf_path.write_bytes(pdf_bytes)
+        image.page = page_index + 1
+        return self._store_image(item, image_bytes, extension, image, str(pdf_path.relative_to(self.dir)), pdf_url)
+
+    def store_image(self, item: CatalogItem, image_bytes: bytes, extension: str, url: str) -> StoredArticle:
+        """Store a title page the library serves as an image, as served."""
+        with Image.open(io.BytesIO(image_bytes)) as decoded:
+            width, height = decoded.size
+        image = FirstPageImage(file="", width=width, height=height, method="page image")
+        return self._store_image(item, image_bytes, extension, image, None, url)
+
+    def _store_image(self, item: CatalogItem, image_bytes: bytes, extension: str, image: FirstPageImage,
+                     pdf_file: str | None, url: str | None) -> StoredArticle:
+        for directory in (self.images_dir, self.metadata_dir):
+            directory.mkdir(parents=True, exist_ok=True)
         for old_image in self.images_dir.glob(f"{item.item_id}.*"):
             old_image.unlink()
         image_path = self.images_dir / f"{item.item_id}.{extension}"
-        pdf_path = self.pdf_dir / f"{item.item_id}.pdf"
-        pdf_path.write_bytes(pdf_bytes)
         image_path.write_bytes(image_bytes)
         image.file = str(image_path.relative_to(self.dir))
-        image.page = page_index + 1
 
         article = StoredArticle(
-            item=item, pdf_file=str(pdf_path.relative_to(self.dir)), pdf_url=pdf_url, image=image,
+            item=item, pdf_file=pdf_file, pdf_url=url, image=image,
             stored_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         )
         metadata_path = self.metadata_dir / f"{item.item_id}.json"

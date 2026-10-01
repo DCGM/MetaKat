@@ -39,8 +39,9 @@ class FirstPageImage(BaseModel):
     page: int = 1
     width: int
     height: int
-    # "embedded": the page's single scanned image, stored byte for byte.
+    # "embedded": the page's single scanned image, stored as extracted from the PDF.
     # "rendered": the page rendered at ``dpi``, the scan's own resolution when it has one.
+    # "page image": the library serves the page as an image, stored as served.
     method: str
     dpi: float | None = None
 
@@ -49,7 +50,8 @@ class StoredArticle(BaseModel):
     """Metadata written next to every stored title page."""
 
     item: CatalogItem
-    pdf_file: str
+    # None when the library serves the title page as an image rather than a PDF.
+    pdf_file: str | None = None
     pdf_url: str | None = None
     image: FirstPageImage
     stored_at: str

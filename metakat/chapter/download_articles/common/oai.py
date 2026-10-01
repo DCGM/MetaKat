@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 import logging
-import time
-import urllib.error
 import urllib.parse
-import urllib.request
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+from metakat.chapter.download_articles.common.http import http_get
 
-USER_AGENT = "MetaKat-article-sampler/0.1"
+logger = logging.getLogger(__name__)
 
 _NS = {
     "oai": "http://www.openarchives.org/OAI/2.0/",
@@ -28,26 +25,6 @@ class OaiRecord:
     dc: dict[str, list[str]]
     # The record's metadata element, for formats richer than oai_dc.
     metadata: ET.Element | None = None
-
-
-def http_get(url: str, timeout: float = 120, retries: int = 5, backoff: float = 10) -> bytes:
-    """GET with retries. Requests are sequential and callers pause between them; a server that asks
-    to slow down (429/503) is waited for as long as its Retry-After says, at least ``backoff``."""
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    for attempt in range(1, retries + 1):
-        try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                return response.read()
-        except Exception as error:
-            if attempt == retries or (isinstance(error, urllib.error.HTTPError) and error.code in (403, 404, 410)):
-                raise
-            wait = backoff * attempt
-            if isinstance(error, urllib.error.HTTPError) and error.code in (429, 503):
-                retry_after = error.headers.get("Retry-After", "")
-                wait = max(wait, float(retry_after) if retry_after.isdigit() else 0)
-            logger.warning(f"GET {url} failed ({error}), waiting {wait:.0f} s, attempt {attempt}/{retries}")
-            time.sleep(wait)
-    raise AssertionError("unreachable")
 
 
 def parse_records(xml: bytes) -> tuple[list[OaiRecord], str | None]:
@@ -99,8 +76,7 @@ def list_sets(base_url: str) -> list[tuple[str, str]]:
     return sets
 
 
-def iter_records(base_url: str, metadata_prefix: str = "oai_dc", set_spec: str | None = None,
-                 delay: float = 1.0) -> Iterator[OaiRecord]:
+def iter_records(base_url: str, metadata_prefix: str = "oai_dc", set_spec: str | None = None) -> Iterator[OaiRecord]:
     """Yield every non-deleted record of an OAI-PMH repository, following resumption tokens."""
     params = {"verb": "ListRecords", "metadataPrefix": metadata_prefix}
     if set_spec:
@@ -115,4 +91,3 @@ def iter_records(base_url: str, metadata_prefix: str = "oai_dc", set_spec: str |
         if not token:
             break
         url = f"{base_url}?{urllib.parse.urlencode({'verb': 'ListRecords', 'resumptionToken': token})}"
-        time.sleep(delay)

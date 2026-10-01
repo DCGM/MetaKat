@@ -5,7 +5,7 @@ import io
 import pymupdf
 from PIL import Image
 
-from metakat.chapter.download_articles.models import FirstPageImage
+from metakat.chapter.download_articles.common.models import FirstPageImage
 
 # A single image covering at least this share of the page is treated as the page scan; scans are
 # often placed inside page margins, so it is well below the whole page.

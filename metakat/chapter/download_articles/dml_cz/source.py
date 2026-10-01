@@ -6,9 +6,9 @@ from collections.abc import Iterable
 
 import pymupdf
 
-from metakat.chapter.download_articles.models import CatalogItem
-from metakat.chapter.download_articles.oai import OaiRecord, iter_records, list_sets
-from metakat.chapter.download_articles.sources.base import Source
+from metakat.chapter.download_articles.common.models import CatalogItem
+from metakat.chapter.download_articles.common.oai import OaiRecord, iter_records, list_sets
+from metakat.chapter.download_articles.common.source import Source
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ class DmlCzSource(Source):
     """
 
     name = "dml.cz"
+    moving_wall = True
     # Research articles first; "other" also holds volume title pages, "contents" is never picked.
     type_preference = ("math", "physics", "astronomy", "chemistry", "informatics", "history", "politics",
                        "editorial", "review", "news", "other")

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import random
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 
-from metakat.chapter.download_articles.models import CatalogItem
+from metakat.chapter.download_articles.common.models import CatalogItem
 
 
 JournalKey = tuple[str | None, str | None]
@@ -81,6 +81,7 @@ def select_by_period(
     type_preference: Sequence[str] = (),
     already_selected: Mapping[JournalKey, Sequence[int | None]] | None = None,
     seed: int = 0,
+    cheap: Callable[[CatalogItem], bool] | None = None,
 ) -> list[CatalogItem]:
     """Pick new items so that every journal has its first and last year and one item per ``period`` years.
 
@@ -88,7 +89,12 @@ def select_by_period(
     or in an earlier run (``already_selected``), gets no other; an empty one gets an item from its
     year closest to the period's middle. Within a year, ``type_preference`` decides as in
     ``select_items``. Items without a year are never picked.
+
+    ``cheap`` marks items that cost the library no request (e.g. downloaded before): a period takes
+    the year closest to its middle among years with a cheap item when it has any, and a year takes a
+    cheap item of the preferred type when it has one.
     """
+    cheap = cheap or (lambda item: False)
     already_selected = already_selected or {}
     rng = random.Random(seed)
 
@@ -106,8 +112,12 @@ def select_by_period(
         years = sorted(by_year)
         covered = {y for y in already_selected.get(key, ()) if y is not None}
 
+        def has_cheap(year: int) -> bool:
+            return any(cheap(item) for item in by_year[year])
+
         def pick(year: int) -> None:
-            selected.append(rng.choice(by_year[year]))
+            candidates = [item for item in by_year[year] if cheap(item)] or by_year[year]
+            selected.append(rng.choice(candidates))
             covered.add(year)
 
         for year in (years[0], years[-1]):
@@ -117,7 +127,7 @@ def select_by_period(
             in_period = [y for y in years if start <= y < start + period]
             if in_period and not any(start <= y < start + period for y in covered):
                 middle = start + (period - 1) / 2
-                pick(min(in_period, key=lambda y: (abs(y - middle), y)))
+                pick(min(in_period, key=lambda y: (not has_cheap(y), abs(y - middle), y)))
     return selected
 
 
