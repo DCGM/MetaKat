@@ -89,16 +89,19 @@ def select(source: Source, store: ArticleStore, args) -> None:
             logger.info(f"Moving walls: {', '.join(f'{k[1]} {y}' for k, y in sorted(walls.items(), key=str))}")
 
     # Items behind a wall stay selectable when they cost no request (e.g. downloaded before).
-    items = [item for item in catalog
-             if source.is_available(item) and not store.is_stored(item.item_id)
-             and item.item_id not in unavailable
-             and (source.is_cheap(item)
-                  or not (item.year is not None and item.year >= walls.get(journal_key(item), item.year + 1)))]
+    stored_ids = {article.item.item_id for article in store.stored()}
+    available = [item for item in catalog
+                 if item.item_id in stored_ids
+                 or (source.is_available(item) and item.item_id not in unavailable
+                     and (source.is_cheap(item)
+                          or not (item.year is not None and item.year >= walls.get(journal_key(item), item.year + 1))))]
     if args.period:
-        selected = select_by_period(items, args.period, type_preference=source.type_preference,
-                                    already_selected=store.stored_years(), seed=args.seed, cheap=source.is_cheap)
+        selected = select_by_period(available, args.period, type_preference=source.type_preference,
+                                    already_selected=store.stored_years(), seed=args.seed, cheap=source.is_cheap,
+                                    stored_ids=stored_ids)
     else:
-        selected = select_items(items, per_journal=args.per_journal, type_preference=source.type_preference,
+        selected = select_items([item for item in available if item.item_id not in stored_ids],
+                                per_journal=args.per_journal, type_preference=source.type_preference,
                                 min_year_gap=args.min_year_gap, already_selected=store.stored_years(), seed=args.seed)
     store.write_selection(selected)
     cheap = sum(1 for item in selected if source.is_cheap(item))

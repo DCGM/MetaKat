@@ -74,6 +74,15 @@ def test_period_selection_adds_first_last_and_one_per_period():
     assert next(i for i in selected if i.year == 1957).item_type == "Article"
 
 
+def test_period_selection_keeps_first_year_once_its_only_item_is_stored():
+    items = [_item(str(y), "A", y) for y in range(1999, 2010)]
+    first = select_by_period(items, 5)
+    assert sorted(i.year for i in first) == [1999, 2006, 2009]
+    stored = {i.item_id for i in first}
+    again = select_by_period(items, 5, already_selected={("A", None): [i.year for i in first]}, stored_ids=stored)
+    assert again == []
+
+
 def test_period_selection_prefers_items_without_a_request():
     items = [_item(str(y), "A", y) for y in range(1950, 1965)] + [_item("1950c", "A", 1950), _item("1956c", "A", 1956)]
     selected = select_by_period(items, 5, cheap=lambda item: item.item_id.endswith("c"))

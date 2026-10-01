@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence, Set
 
 from metakat.chapter.download_articles.common.models import CatalogItem
 
@@ -82,8 +82,12 @@ def select_by_period(
     already_selected: Mapping[JournalKey, Sequence[int | None]] | None = None,
     seed: int = 0,
     cheap: Callable[[CatalogItem], bool] | None = None,
+    stored_ids: Set[str] = frozenset(),
 ) -> list[CatalogItem]:
     """Pick new items so that every journal has its first and last year and one item per ``period`` years.
+
+    ``items`` are all the available items, stored ones included, so that a journal's first and last
+    year and its periods do not move as items get stored; items in ``stored_ids`` are never picked.
 
     Periods are counted from the journal's first year. A period that already has an item, picked now
     or in an earlier run (``already_selected``), gets no other; an empty one gets an item from its
@@ -105,11 +109,14 @@ def select_by_period(
 
     selected = []
     for key in sorted(by_journal, key=lambda k: (k[0], k[1] or "")):
+        all_years = sorted(year for year, year_items in by_journal[key].items()
+                           if _preferred_candidates(year_items, type_preference))
         by_year = {year: candidates for year, year_items in by_journal[key].items()
-                   if (candidates := _preferred_candidates(sorted(year_items, key=lambda i: i.item_id), type_preference))}
-        if not by_year:
+                   if (candidates := _preferred_candidates(
+                       sorted((i for i in year_items if i.item_id not in stored_ids), key=lambda i: i.item_id),
+                       type_preference))}
+        if not all_years:
             continue
-        years = sorted(by_year)
         covered = {y for y in already_selected.get(key, ()) if y is not None}
 
         def has_cheap(year: int) -> bool:
@@ -120,11 +127,11 @@ def select_by_period(
             selected.append(rng.choice(candidates))
             covered.add(year)
 
-        for year in (years[0], years[-1]):
-            if year not in covered:
+        for year in (all_years[0], all_years[-1]):
+            if year not in covered and year in by_year:
                 pick(year)
-        for start in range(years[0], years[-1] + 1, period):
-            in_period = [y for y in years if start <= y < start + period]
+        for start in range(all_years[0], all_years[-1] + 1, period):
+            in_period = [y for y in by_year if start <= y < start + period]
             if in_period and not any(start <= y < start + period for y in covered):
                 middle = start + (period - 1) / 2
                 pick(min(in_period, key=lambda y: (not has_cheap(y), abs(y - middle), y)))
