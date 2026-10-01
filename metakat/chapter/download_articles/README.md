@@ -50,7 +50,7 @@ python -m metakat.chapter.download_articles preview --source dml_cz
 3. `fetch` stores every selected item: the PDF, its title page and a metadata JSON. PDFs found in
    `--pdf-dir` (under the name the library serves them with), or kept from earlier downloads, are
    used first; libraries that allow it are downloaded from otherwise. Items the library refuses
-   are recorded in `unavailable.tsv` and not selected again.
+   are recorded in `unavailable.tsv` and neither requested nor selected again.
 4. `preview` renders phone-sized contact sheets into `previews/`: `overview_NN.jpg` with one title
    page per journal and `timelines/` with every stored title page of a journal in year order.
 

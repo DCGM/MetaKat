@@ -121,6 +121,8 @@ def select(source: Source, store: ArticleStore, args) -> None:
 def fetch(source: Source, store: ArticleStore, pdf_dir: Path | None, reextract: bool = False) -> None:
     catalog = {item.item_id: item for item in store.read_catalog()}
     previous = {article.item.item_id: article for article in store.stored()}
+    # Items refused by an earlier fetch of the same selection are not requested again.
+    refused = store.unavailable()
     stored, missing, failed = 0, [], []
     for item_id in store.read_selection():
         item = catalog[item_id]
@@ -133,7 +135,7 @@ def fetch(source: Source, store: ArticleStore, pdf_dir: Path | None, reextract: 
             download = Download(stored_pdf, previous[item_id].pdf_url if item_id in previous else None)
         if download is None:
             download = source.local_pdf(item, pdf_dir)
-        if download is None and not source.manual_download:
+        if download is None and not source.manual_download and item_id not in refused:
             try:
                 download = source.download(item)
             except (DownloadBlocked, OSError) as error:
