@@ -6,7 +6,7 @@ from PIL import Image
 from metakat.chapter.download_articles.first_page import extract_first_page
 from metakat.chapter.download_articles.models import CatalogItem
 from metakat.chapter.download_articles.oai import parse_records
-from metakat.chapter.download_articles.selection import select_items
+from metakat.chapter.download_articles.selection import select_by_period, select_items
 from metakat.chapter.download_articles.sources.dml_cz import DmlCzSource
 from metakat.chapter.download_articles.sources.dml_cz import catalog_from_records as dml_catalog_from_records
 from metakat.chapter.download_articles.sources.muni_digilib import MuniDigilibSource, catalog_from_records
@@ -160,6 +160,15 @@ def test_store_writes_pdf_image_and_metadata(tmp_path):
     assert store.is_stored("x1")
     assert (store.dir / article.image.file).exists() and (store.dir / article.pdf_file).exists()
     assert store.stored_years() == {("A", None): [1960]}
+
+
+def test_period_selection_adds_first_last_and_one_per_period():
+    items = [_item(str(y), "A", y) for y in range(1950, 1973) if y != 1966]
+    items += [_item("1957r", "A", 1957, "Reviews")]
+    selected = select_by_period(items, 5, type_preference=("Article", "Reviews"),
+                                already_selected={("A", None): [1961]})
+    assert sorted(i.year for i in selected) == [1950, 1957, 1967, 1972]
+    assert next(i for i in selected if i.year == 1957).item_type == "Article"
 
 
 def test_selection_covers_every_title_of_a_renamed_journal():

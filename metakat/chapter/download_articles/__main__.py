@@ -13,7 +13,7 @@ import time
 from collections import Counter
 from pathlib import Path
 
-from metakat.chapter.download_articles.selection import journal_key, select_items
+from metakat.chapter.download_articles.selection import journal_key, select_by_period, select_items
 from metakat.chapter.download_articles.sources import SOURCES, DownloadBlocked
 from metakat.chapter.download_articles.store import ArticleStore
 
@@ -30,6 +30,9 @@ def parse_args():
     parser.add_argument("--per-journal", default=1, type=int, help="select: new items per journal.")
     parser.add_argument("--min-year-gap", default=0, type=int,
                         help="select: minimum distance in years from every item already picked in the journal.")
+    parser.add_argument("--period", type=int,
+                        help="select: instead of --per-journal, give every journal its first and last year and "
+                             "one item per this many years, counting items already stored.")
     parser.add_argument("--seed", default=0, type=int)
     parser.add_argument("--pdf-dir", type=Path, help="fetch: folder with PDFs saved by hand.")
     parser.add_argument("--delay", default=2.0, type=float,
@@ -58,11 +61,28 @@ def main():
         logger.info(f"Item types: {Counter(item.item_type for item in items).most_common()}")
 
     elif args.command == "select":
-        items = [item for item in store.read_catalog()
-                 if source.is_available(item) and not store.is_stored(item.item_id)]
-        selected = select_items(items, per_journal=args.per_journal, type_preference=source.type_preference,
-                                min_year_gap=args.min_year_gap, already_selected=store.stored_years(),
-                                seed=args.seed)
+        # Libraries withhold their newest volumes (a moving wall): from the first year a journal's
+        # item was refused on, its later years are not picked either.
+        walls: dict = {}
+        catalog = store.read_catalog()
+        unavailable = store.unavailable()
+        for item in catalog:
+            if item.item_id in unavailable and item.year is not None:
+                key = journal_key(item)
+                walls[key] = min(walls.get(key, item.year), item.year)
+        items = [item for item in catalog
+                 if source.is_available(item) and not store.is_stored(item.item_id)
+                 and item.item_id not in unavailable
+                 and not (item.year is not None and item.year >= walls.get(journal_key(item), item.year + 1))]
+        if walls:
+            logger.info(f"Moving walls: {', '.join(f'{k[1]} {y}' for k, y in sorted(walls.items(), key=str))}")
+        if args.period:
+            selected = select_by_period(items, args.period, type_preference=source.type_preference,
+                                        already_selected=store.stored_years(), seed=args.seed)
+        else:
+            selected = select_items(items, per_journal=args.per_journal, type_preference=source.type_preference,
+                                    min_year_gap=args.min_year_gap, already_selected=store.stored_years(),
+                                    seed=args.seed)
         store.write_selection(selected)
         logger.info(f"Selected {len(selected)} items from {len({journal_key(i) for i in selected})} journals "
                     f"-> {store.selection_path}")
@@ -92,6 +112,7 @@ def fetch(source, store, pdf_dir, delay, reextract=False):
                     pdf_bytes, pdf_url = (pdf_dir / name).read_bytes(), url
                     break
 
+        refused = None
         if pdf_bytes is None and not source.manual_download:
             for url in item.pdf_urls:
                 try:
@@ -99,11 +120,15 @@ def fetch(source, store, pdf_dir, delay, reextract=False):
                     break
                 except (DownloadBlocked, OSError) as error:
                     logger.warning(f"{item_id}: {error}")
+                    if isinstance(error, DownloadBlocked) or getattr(error, "code", None) in (401, 403, 404, 410):
+                        refused = str(error)
                 finally:
                     time.sleep(delay)
 
         if pdf_bytes is None:
             missing.append(item_id)
+            if refused:
+                store.mark_unavailable(item, refused)
             continue
         try:
             article = store.store(item, pdf_bytes, pdf_url, source.title_page_index(pdf_bytes))

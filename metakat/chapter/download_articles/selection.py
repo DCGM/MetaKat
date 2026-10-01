@@ -75,6 +75,52 @@ def select_items(
     return selected
 
 
+def select_by_period(
+    items: Iterable[CatalogItem],
+    period: int,
+    type_preference: Sequence[str] = (),
+    already_selected: Mapping[JournalKey, Sequence[int | None]] | None = None,
+    seed: int = 0,
+) -> list[CatalogItem]:
+    """Pick new items so that every journal has its first and last year and one item per ``period`` years.
+
+    Periods are counted from the journal's first year. A period that already has an item, picked now
+    or in an earlier run (``already_selected``), gets no other; an empty one gets an item from its
+    year closest to the period's middle. Within a year, ``type_preference`` decides as in
+    ``select_items``. Items without a year are never picked.
+    """
+    already_selected = already_selected or {}
+    rng = random.Random(seed)
+
+    by_journal: dict[JournalKey, dict[int, list[CatalogItem]]] = defaultdict(lambda: defaultdict(list))
+    for item in items:
+        if item.journal_id is not None and item.year is not None:
+            by_journal[journal_key(item)][item.year].append(item)
+
+    selected = []
+    for key in sorted(by_journal, key=lambda k: (k[0], k[1] or "")):
+        by_year = {year: candidates for year, year_items in by_journal[key].items()
+                   if (candidates := _preferred_candidates(sorted(year_items, key=lambda i: i.item_id), type_preference))}
+        if not by_year:
+            continue
+        years = sorted(by_year)
+        covered = {y for y in already_selected.get(key, ()) if y is not None}
+
+        def pick(year: int) -> None:
+            selected.append(rng.choice(by_year[year]))
+            covered.add(year)
+
+        for year in (years[0], years[-1]):
+            if year not in covered:
+                pick(year)
+        for start in range(years[0], years[-1] + 1, period):
+            in_period = [y for y in years if start <= y < start + period]
+            if in_period and not any(start <= y < start + period for y in covered):
+                middle = start + (period - 1) / 2
+                pick(min(in_period, key=lambda y: (abs(y - middle), y)))
+    return selected
+
+
 def _preferred_candidates(items: list[CatalogItem], type_preference: Sequence[str]) -> list[CatalogItem]:
     if not type_preference:
         return items

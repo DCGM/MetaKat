@@ -22,6 +22,7 @@ class ArticleStore:
         <root>/<library>/catalog.jsonl         every catalog item, one JSON object per line
         <root>/<library>/selection.tsv         the items picked by the last ``select`` run
         <root>/<library>/selection.html        the same items as links, for libraries downloaded by hand
+        <root>/<library>/unavailable.tsv       items the library did not serve (e.g. a moving wall)
         <root>/<library>/pdf/<item_id>.pdf     the article PDF as downloaded
         <root>/<library>/images/<item_id>.*    its first page at the provided resolution
         <root>/<library>/metadata/<item_id>.json
@@ -32,6 +33,7 @@ class ArticleStore:
         self.catalog_path = self.dir / "catalog.jsonl"
         self.selection_path = self.dir / "selection.tsv"
         self.selection_html_path = self.dir / "selection.html"
+        self.unavailable_path = self.dir / "unavailable.tsv"
         self.pdf_dir = self.dir / "pdf"
         self.images_dir = self.dir / "images"
         self.metadata_dir = self.dir / "metadata"
@@ -106,6 +108,22 @@ class ArticleStore:
         metadata_path = self.metadata_dir / f"{item.item_id}.json"
         metadata_path.write_text(json.dumps(article.model_dump(), ensure_ascii=False, indent=2), encoding="utf-8")
         return article
+
+    def mark_unavailable(self, item: CatalogItem, reason: str) -> None:
+        """Remember an item the library would not serve, so later selections avoid it and its period."""
+        self.dir.mkdir(parents=True, exist_ok=True)
+        new_file = not self.unavailable_path.exists()
+        with open(self.unavailable_path, "a", encoding="utf-8", newline="") as file:
+            writer = csv.writer(file, delimiter="\t")
+            if new_file:
+                writer.writerow(["item_id", "journal_id", "journal_title", "year", "reason"])
+            writer.writerow([item.item_id, item.journal_id, item.journal_title, item.year, reason])
+
+    def unavailable(self) -> dict[str, dict[str, str]]:
+        if not self.unavailable_path.exists():
+            return {}
+        with open(self.unavailable_path, encoding="utf-8", newline="") as file:
+            return {row["item_id"]: row for row in csv.DictReader(file, delimiter="\t")}
 
     def is_stored(self, item_id: str) -> bool:
         return (self.metadata_dir / f"{item_id}.json").exists()

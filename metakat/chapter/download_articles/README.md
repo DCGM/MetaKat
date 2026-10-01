@@ -10,6 +10,7 @@ far enough apart in time.
 ```bash
 python -m metakat.chapter.download_articles catalog --source muni_digilib
 python -m metakat.chapter.download_articles select  --source muni_digilib --per-journal 1
+python -m metakat.chapter.download_articles select  --source dml_cz --period 5
 python -m metakat.chapter.download_articles fetch   --source muni_digilib --pdf-dir ~/Downloads/muni
 ```
 
@@ -19,6 +20,9 @@ python -m metakat.chapter.download_articles fetch   --source muni_digilib --pdf-
    every title of a renamed journal is covered. Items are spread over the journal's years (one
    pick is its median year); `--min-year-gap` keeps new picks that many years away from every
    item of the journal already stored, so repeated runs add samples from other periods.
+   With `--period N` the selection instead gives every journal its first and last year and one
+   item per N years counted from its first year; periods that already have a stored item are
+   left alone, empty ones get an item from the year closest to the period's middle.
 3. `fetch` stores every selected item: the PDF, its first page and a metadata JSON. PDFs found in
    `--pdf-dir` (under the name the library serves them with) are used first; libraries that allow
    it are downloaded from otherwise.
