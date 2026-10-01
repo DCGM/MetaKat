@@ -46,11 +46,13 @@ class KnavSource(Source):
     file of their own, and their title page is the image of the first page they are on.
 
     PDFs downloaded earlier into ``title.automatic_pick/knav`` are reused, and the logs of those
-    downloads tell which articles were refused, so neither costs a request. KNAV refuses by document
-    licence rather than by year, so there is no moving wall.
+    downloads tell which articles were refused, so neither costs a request. KNAV refuses the newest
+    issues of many journals and whole journals under licence, so a refusal is treated as a moving
+    wall: the journal's later years are only taken from earlier downloads.
     """
 
     name = "knav"
+    moving_wall = True
 
     def __init__(self, pick_dirs=AUTOMATIC_PICK_DIRS, pick_logs=AUTOMATIC_PICK_LOGS):
         self.pick_dirs = pick_dirs

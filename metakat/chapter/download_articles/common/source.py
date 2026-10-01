@@ -33,7 +33,7 @@ class Source(ABC):
     # then never requests files itself and only ingests PDFs saved by hand.
     manual_download: bool = False
     # True when the library withholds its newest volumes: a journal's years from its first refused
-    # item on are then not selected. Libraries that refuse by document licence keep it False.
+    # item on are then not selected, except items that cost no request (``is_cheap``).
     moving_wall: bool = False
 
     @abstractmethod

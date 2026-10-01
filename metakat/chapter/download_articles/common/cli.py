@@ -88,10 +88,12 @@ def select(source: Source, store: ArticleStore, args) -> None:
         if walls:
             logger.info(f"Moving walls: {', '.join(f'{k[1]} {y}' for k, y in sorted(walls.items(), key=str))}")
 
+    # Items behind a wall stay selectable when they cost no request (e.g. downloaded before).
     items = [item for item in catalog
              if source.is_available(item) and not store.is_stored(item.item_id)
              and item.item_id not in unavailable
-             and not (item.year is not None and item.year >= walls.get(journal_key(item), item.year + 1))]
+             and (source.is_cheap(item)
+                  or not (item.year is not None and item.year >= walls.get(journal_key(item), item.year + 1)))]
     if args.period:
         selected = select_by_period(items, args.period, type_preference=source.type_preference,
                                     already_selected=store.stored_years(), seed=args.seed, cheap=source.is_cheap)
