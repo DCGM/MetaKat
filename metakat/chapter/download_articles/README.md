@@ -17,6 +17,7 @@ cvut_journals/   journals of the Czech Technical University (OJS)
 dml_cz/          Czech Digital Mathematics Library
 journal_sites/   single-journal sites found in Crossref by ISSN
 knav/            Kramerius of the Library of the Czech Academy of Sciences
+landing_pages/   journals found in Crossref by ISSN, PDFs named by their article pages
 muni_digilib/    Digital Library of the Faculty of Arts, Masaryk University
 muni_journals/   journals of Masaryk University (OJS)
 mzk/             Kramerius of the Moravian Library
@@ -58,7 +59,7 @@ python -m metakat.chapter.download_articles preview --source dml_cz
    journals to trust:
 
    ```bash
-   python -m metakat.chapter.download_articles.common.review /mnt/kolosus/data/smart_digiline/articles/{knav,dml.cz,cbvk,nkp,journals.muni.cz,ojs.cvut.cz,ojs_sites,cuni,agriculturejournals.cz,upol,journal_sites}
+   python -m metakat.chapter.download_articles.common.review /mnt/kolosus/data/smart_digiline/articles/{knav,dml.cz,cbvk,nkp,journals.muni.cz,ojs.cvut.cz,ojs_sites,cuni,agriculturejournals.cz,upol,journal_sites,landing_pages}
    ```
 
    A window (OpenCV) first shows every stored title page of a journal in year order, labelled with
@@ -199,14 +200,19 @@ kinds of interface serve most of them with the same code:
 The journals were found in the Directory of Open Access Journals (Czech journals, 2026-10): of 169, 34
 are in the libraries above and about 115 on the platforms and sites below. About 20 small journals on
 WordPress, Drupal and similar sites have neither OAI-PMH nor PDF links in Crossref and are not
-harvested.
+harvested. The registers of Czech journals (the government lists of peer-reviewed periodicals RVVI 2008 and
+2015, ERIH PLUS 2023, OpenAlex) add 86 journals with PDF links in Crossref (`journal_sites`) and,
+of 105 without, 6 on OJS (`ojs_sites`) and 15 whose article pages name the PDF (`landing_pages`);
+about 70 others are on sites of their own (the National Museum, prolekare.cz, ...) and about 15
+are gone or refuse requests.
 
 | `--source` | Publisher | Notes |
 |---|---|---|
 | `muni_journals` | [Masaryk University](https://journals.muni.cz/) (OJS) | 26,540 articles in 49 journals (2026-10). The 22 Faculty of Arts journals (journals.phil.muni.cz, e.g. Religio, Theatralia, Opera Slavica) redirect their files to the Faculty's digital library, which serves people only; they are refused, and their PDF addresses are in `unavailable.tsv` for downloading by hand (see `muni_digilib`). Czech Journal of Political Science keeps older volumes in CEEOL. Citation lists, proceedings and book series are not harvested. |
 | `cvut_journals` | [Czech Technical University](https://ojs.cvut.cz/) (OJS) | 4,925 articles in 10 journals. Applications of Structural Fire Engineering (conference) cites no year and is not picked. |
-| `ojs_sites` | single-journal OJS sites | 2,174 articles in 7 journals whose Crossref records lack PDF links (JERES, Applied and Computational Mechanics, Theology and Philosophy of Education, IJATES, AntropoWebzin, Advances in Military Technology, AUC Studia Territorialia). |
+| `ojs_sites` | single-journal OJS sites | 3,670 articles in 13 journals whose Crossref records lack PDF links (JERES, Applied and Computational Mechanics, Theology and Philosophy of Education, IJATES, AntropoWebzin, Advances in Military Technology, AUC Studia Territorialia; from the registers: Česká a slovenská psychiatrie, Rozhledy v chirurgii, Akustika, Law, Business and Sustainability Herald, Global Prosperity, Middle European Scientific Bulletin). Česká a slovenská psychiatrie and Rozhledy v chirurgii serve files only after a login. |
 | `cuni` | [Charles University](https://karolinum.cz/) (Crossref, prefix 10.14712) | 14,004 articles in 46 journals: Karolinum Press (the AUC series, Orbis Scholae, ...), ojs.cuni.cz and the faculties' journal sites; 12,268 with a PDF link. |
 | `agriculturejournals` | [Czech Academy of Agricultural Sciences](https://www.agriculturejournals.cz/) (Crossref, prefix 10.17221) | 14,005 articles in 11 journals, 1999–2026. The sites answer requests 2 s apart with 429 now and then, so requests are 5 s apart. |
 | `upol` | [Palacký University Olomouc](https://www.upol.cz/) (Crossref, prefix 10.5507) | 7,120 articles in 24 journals, 2000–2026. |
-| `journal_sites` | single-journal sites (Crossref, by ISSN) | The other Czech journals with PDF links in Crossref: 37 from DOAJ and 86 from the government list of peer-reviewed periodicals (RVVI 2008 and 2015), ERIH PLUS and OpenAlex, of universities, institutes, museums, societies and medical publishers (Solen, Galen, Care Comm); 122 journals (129 titles, counting renames), 49,219 articles, 43,176 with a PDF link. Articles whose DOI one of the libraries above holds are left to it. The register comparison is in `registers/czech_journals.tsv` under `--root`. |
+| `journal_sites` | single-journal sites (Crossref, by ISSN) | The other Czech journals with PDF links in Crossref: 37 from DOAJ and 86 from the government list of peer-reviewed periodicals (RVVI 2008 and 2015), ERIH PLUS and OpenAlex, of universities, institutes, museums, societies and medical publishers (Solen, Galen, Care Comm); 122 journals (129 titles, counting renames), 49,219 articles, 47,042 with a PDF link. Articles whose DOI one of the libraries above holds are left to it. The register comparison is in `registers/czech_journals.tsv` under `--root`. |
+| `landing_pages` | single-journal sites (Crossref, by ISSN, PDF from the article page) | Register journals without PDF links in Crossref whose article pages name the PDF in `citation_pdf_url` (or are the PDF): 15 journals (17 titles) such as Geografie (from 1960), Acta Veterinaria Brno (from 1978), Agris on-line, Lifelong Learning, Bulletin Mineralogie Petrologie, and the DSpace of the University of West Bohemia (Castellologica bohemica, Kuděj, MEMO); 5,378 articles. A pick costs two requests, the page and the PDF. |

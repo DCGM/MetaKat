@@ -22,7 +22,7 @@ from collections import Counter, defaultdict
 
 from metakat.chapter.download_articles.common.http import http_get
 from metakat.chapter.download_articles.common.models import CatalogItem
-from metakat.chapter.download_articles.common.source import NOT_ARTICLE, Source
+from metakat.chapter.download_articles.common.source import NOT_ARTICLE, Download, DownloadBlocked, Source
 from metakat.chapter.download_articles.common.store import ArticleStore
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,9 @@ class CrossrefSource(Source):
     issns: tuple[tuple[str, ...], ...] = ()
     # Libraries harvested before this one: articles whose DOI is in their catalogs are left to them.
     exclude_libraries: tuple[str, ...] = ()
+    # Articles without a PDF link are downloaded from the address their landing page names in
+    # ``citation_pdf_url`` (the meta tag for Google Scholar).
+    landing_pdf: bool = False
 
     def build_catalog(self) -> list[CatalogItem]:
         excluded = self.excluded_dois()
@@ -81,7 +84,32 @@ class CrossrefSource(Source):
         return dois
 
     def is_available(self, item: CatalogItem) -> bool:
-        return bool(item.pdf_urls) and not (item.title and NOT_ARTICLE.match(item.title))
+        return (bool(item.pdf_urls or (self.landing_pdf and item.landing_url))
+                and not (item.title and NOT_ARTICLE.match(item.title)))
+
+    def download(self, item: CatalogItem) -> Download:
+        if item.pdf_urls or not self.landing_pdf:
+            return super().download(item)
+        page = http_get(item.landing_url)
+        # Some publishers register the PDF itself as the landing page.
+        if page.startswith(b"%PDF"):
+            return Download(page, item.landing_url)
+        url = citation_pdf_url(page.decode("utf-8", "replace"), item.landing_url)
+        if url is None:
+            raise DownloadBlocked(f"{item.landing_url} names no citation_pdf_url")
+        return Download(self.download_pdf(url), url)
+
+
+_CITATION_PDF = re.compile(r'<meta\s[^>]*name="citation_pdf_url"[^>]*>', re.IGNORECASE)
+_CONTENT = re.compile(r'content="([^"]+)"', re.IGNORECASE)
+
+
+def citation_pdf_url(page: str, base: str) -> str | None:
+    """The PDF address a landing page names for Google Scholar, made absolute against ``base``."""
+    for tag in _CITATION_PDF.findall(page):
+        if content := _CONTENT.search(tag):
+            return urllib.parse.urljoin(base, html.unescape(content.group(1)))
+    return None
 
 
 def iter_works(query: str):

@@ -99,3 +99,33 @@ def test_journal_is_asked_for_by_its_next_issn_when_crossref_lacks_one(tmp_path,
     source = Sites()
     source.root = tmp_path
     assert [item.record_id for item in source.build_catalog()] == ["10.2/R"]
+
+
+def test_citation_pdf_url_in_either_attribute_order_is_made_absolute():
+    page = ('<head><meta name="citation_title" content="T">'
+            '<meta content="/bitstreams/1/download?x=1&amp;y=2" name="citation_pdf_url"/></head>')
+    assert crossref.citation_pdf_url(page, "https://dspace.zcu.cz/items/1") == \
+        "https://dspace.zcu.cz/bitstreams/1/download?x=1&y=2"
+    assert crossref.citation_pdf_url('<meta name="citation_pdf_url" content="https://a.cz/1.pdf">', "") == \
+        "https://a.cz/1.pdf"
+    assert crossref.citation_pdf_url("<meta name='description' content='x'>", "https://a.cz") is None
+
+
+def test_article_without_a_pdf_link_is_downloaded_from_its_landing_page(monkeypatch):
+    class Landing(CrossrefSource):
+        name = "landing"
+        landing_pdf = True
+
+    work = _work("10.4/L", ["1804-1930"], link=[])
+    work["resource"] = {"primary": {"URL": "https://online.agris.cz/article/1"}}
+    item = item_from_work(work, "landing")
+    pages = {"https://online.agris.cz/article/1": b'<meta name="citation_pdf_url" content="/files/1.pdf">',
+             "https://online.agris.cz/files/1.pdf": b"%PDF-1.7"}
+    monkeypatch.setattr(crossref, "http_get", lambda url: pages[url])
+    monkeypatch.setattr(CrossrefSource, "download_pdf", lambda self, url: pages[url])
+    assert Landing().is_available(item) and not _Publisher().is_available(item)
+    download = Landing().download(item)
+    assert (download.url, download.data) == ("https://online.agris.cz/files/1.pdf", b"%PDF-1.7")
+    # A landing page that is the PDF itself.
+    pages["https://online.agris.cz/article/1"] = b"%PDF-1.4"
+    assert Landing().download(item).data == b"%PDF-1.4"

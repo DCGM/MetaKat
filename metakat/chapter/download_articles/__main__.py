@@ -6,6 +6,7 @@ from metakat.chapter.download_articles.cvut_journals.source import CvutJournalsS
 from metakat.chapter.download_articles.dml_cz.source import DmlCzSource
 from metakat.chapter.download_articles.journal_sites.source import JournalSitesSource
 from metakat.chapter.download_articles.knav.source import KnavSource
+from metakat.chapter.download_articles.landing_pages.source import LandingPagesSource
 from metakat.chapter.download_articles.muni_digilib.source import MuniDigilibSource
 from metakat.chapter.download_articles.muni_journals.source import MuniJournalsSource
 from metakat.chapter.download_articles.mzk.source import MzkSource
@@ -21,6 +22,7 @@ SOURCES = {
     "dml_cz": DmlCzSource,
     "journal_sites": JournalSitesSource,
     "knav": KnavSource,
+    "landing_pages": LandingPagesSource,
     "muni_digilib": MuniDigilibSource,
     "muni_journals": MuniJournalsSource,
     "mzk": MzkSource,
