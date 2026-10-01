@@ -42,7 +42,7 @@ def parse_args(sources: dict[str, type[Source]]):
     parser.add_argument("--pdf-dir", type=Path, help="fetch: folder with PDFs saved by hand.")
     parser.add_argument("--delay", type=float,
                         help="Minimum seconds between two requests to the library; requests are never parallel. "
-                             "Default 1 for catalog, 2 for fetch.")
+                             "Default 1 for catalog, 2 for fetch, more for libraries that ask for it.")
     parser.add_argument("--reextract", action="store_true",
                         help="fetch: extract the title page again for selected items already stored, from their stored PDF.")
     parser.add_argument("--logging-level", default=logging.INFO)
@@ -55,9 +55,9 @@ def main(sources: dict[str, type[Source]]):
                         level=args.logging_level)
     logging.Formatter.converter = time.gmtime
     logger.info(" ".join(sys.argv))
-    http.set_min_interval(args.delay if args.delay is not None else (2.0 if args.command == "fetch" else 1.0))
-
     source = sources[args.source]()
+    default_delay = max(2.0 if args.command == "fetch" else 1.0, source.min_interval)
+    http.set_min_interval(args.delay if args.delay is not None else default_delay)
     source.root = Path(args.root)
     store = ArticleStore(args.root, source.name)
 

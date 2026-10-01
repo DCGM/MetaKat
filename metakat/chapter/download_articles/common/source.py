@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
 from metakat.chapter.download_articles.common.http import http_get
 from metakat.chapter.download_articles.common.models import CatalogItem
+
+# Contents pages, indexes and similar parts catalogued as articles, never picked.
+NOT_ARTICLE = re.compile(
+    r"^\W*(obsah|contents?|table of contents|inhalt|sommaire|содержание|tiráž|impressum|rejstřík|index|"
+    r"errata|oprava|obálka|cover|reklam\w*|inzer\w*|inserat\w*|anzeigen?|annonc\w*|advertisements?)\b", re.IGNORECASE)
 
 
 class DownloadBlocked(RuntimeError):
@@ -35,6 +41,8 @@ class Source(ABC):
     # True when the library withholds its newest volumes: a journal's years from its first refused
     # item on are then not selected, except items that cost no request (``is_cheap``).
     moving_wall: bool = False
+    # Least seconds between two requests for a library that refuses faster ones (HTTP 429).
+    min_interval: float = 0.0
     # The output root holding every library's folder; set by the command line.
     root: Path | None = None
 

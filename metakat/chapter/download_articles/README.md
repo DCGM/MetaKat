@@ -8,14 +8,19 @@ per few years, since journals change their title page layout over time.
 ## Layout
 
 ```
-common/          shared code: catalog model, HTTP, OAI-PMH, Kramerius, selection, storage, first
-                 page extraction, previews and the command line
+common/          shared code: catalog model, HTTP, OAI-PMH, Kramerius, Open Journal Systems, Crossref,
+                 selection, storage, first page extraction, previews, review and the command line
+agriculturejournals/  journals of the Czech Academy of Agricultural Sciences (Crossref)
 cbvk/            Kramerius of the South Bohemian Research Library
+cuni/            journals of Charles University: Karolinum, ojs.cuni.cz, faculty sites (Crossref)
+cvut_journals/   journals of the Czech Technical University (OJS)
 dml_cz/          Czech Digital Mathematics Library
 knav/            Kramerius of the Library of the Czech Academy of Sciences
 muni_digilib/    Digital Library of the Faculty of Arts, Masaryk University
+muni_journals/   journals of Masaryk University (OJS)
 mzk/             Kramerius of the Moravian Library
 nkp/             Kramerius of the National Library of the Czech Republic
+upol/            journals of Palacký University Olomouc (Crossref)
 ```
 
 Every library folder holds its `source.py` (a `common.source.Source`) and its tests; new libraries
@@ -130,3 +135,32 @@ selected.
 | `mzk` | [Moravian Library](https://www.mzk.cz/) | Articles not held by KNAV: about 15,000 in 99 journals and magazines (2026-10), every one under the out-of-commerce or on-site licence (`dnnto`, `dnntt`, `onsite`) and refused to anonymous users (403), so nothing is selected. The public MZK articles are the KNAV copies and Lidové noviny. |
 | `cbvk` | [South Bohemian Research Library](https://www.cbvk.cz/) | Regional periodicals, town newsletters, diocesan and society bulletins. Many articles have no links to their pages; their first page is the page of their issue numbered as the start page in the article's MODS. |
 | `nkp` | [National Library](https://www.nkp.cz/) | Internal parts of issues; nearly all are in newspapers (left out) or licensed military journals. The public ones are in 9 short-lived periodicals, mostly Pilsen magazines of 1884–1910. |
+
+## Journals outside Kramerius
+
+Czech journals published by universities and societies keep their articles on their own sites. Two
+kinds of interface serve them all with the same code:
+
+- **Open Journal Systems** (`common/ojs.py`): the platform's OAI-PMH gives every article with its
+  journal and section (the record's set `journal:section`), the citation ("Religio; Vol 12 No 1
+  (2004); 5-26") and its galleys, downloaded from `.../article/download/<article>/<galley>`. The year
+  is taken from the citation only; the record's date is often the date of upload. Items of review,
+  news, editorial and similar sections are picked only from years without a research article. A
+  galley that redirects to another site (a digital library behind a human check, a paid database) is
+  not followed and the article is recorded as refused; a journal refused that way twice, with nothing
+  stored, is not selected any more.
+- **Crossref** (`common/crossref.py`): publishers without OAI-PMH register their DOIs with the URL of
+  the article PDF (for similarity checking). All journals of a publisher are harvested by its DOI
+  prefix. A journal is identified by its ISSNs. Only one process should query Crossref at a time: it
+  answers parallel anonymous requests with 429.
+
+The journals were found in the Directory of Open Access Journals (Czech journals, 2026-10): of 169, 34
+are in the libraries above, the others are on the platforms below or on single-journal sites.
+
+| `--source` | Publisher | Notes |
+|---|---|---|
+| `muni_journals` | [Masaryk University](https://journals.muni.cz/) (OJS) | The Faculty of Arts journals (journals.phil.muni.cz) redirect their files to its digital library, which serves people only; they are refused, see `muni_digilib`. Some journals keep older volumes in CEEOL (refused). Citation lists, proceedings and book series are not harvested. |
+| `cvut_journals` | [Czech Technical University](https://ojs.cvut.cz/) (OJS) | |
+| `cuni` | [Charles University](https://karolinum.cz/) (Crossref, prefix 10.14712) | Karolinum Press, ojs.cuni.cz and the faculties' journal sites. |
+| `agriculturejournals` | [Czech Academy of Agricultural Sciences](https://www.agriculturejournals.cz/) (Crossref, prefix 10.17221) | |
+| `upol` | [Palacký University Olomouc](https://www.upol.cz/) (Crossref, prefix 10.5507) | |

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import urllib.parse
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
@@ -27,9 +28,14 @@ class OaiRecord:
     metadata: ET.Element | None = None
 
 
+# Control characters XML 1.0 forbids, which some repositories pass through from their metadata.
+_INVALID_XML = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f]|&#(?:x0*[0-8bcef]|x0*1[0-9a-f]|0*(?:[0-8]|1[124-9]|2[0-9]|3[01]));",
+                          re.IGNORECASE)
+
+
 def parse_records(xml: bytes) -> tuple[list[OaiRecord], str | None]:
     """Parse one ListRecords response into its records and the resumption token."""
-    root = ET.fromstring(xml)
+    root = ET.fromstring(_INVALID_XML.sub(b"", xml))
     error = root.find("oai:error", _NS)
     if error is not None:
         if error.get("code") == "noRecordsMatch":

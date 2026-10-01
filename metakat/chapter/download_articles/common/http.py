@@ -14,16 +14,26 @@ _min_interval = 1.0
 _last_request = 0.0
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_no_redirect_opener = urllib.request.build_opener(_NoRedirect)
+
+
 def set_min_interval(seconds: float) -> None:
     global _min_interval
     _min_interval = seconds
 
 
-def http_get(url: str, timeout: float = 120, retries: int = 5, backoff: float = 10) -> bytes:
+def http_get(url: str, timeout: float = 120, retries: int = 5, backoff: float = 10,
+             follow_redirects: bool = True) -> bytes:
     """GET with retries, at most one request per ``set_min_interval`` seconds.
 
     A server that asks to slow down (429/503) is waited for as long as its Retry-After says, at least
-    ``backoff`` seconds times the attempt. Refusals (401/403/404/410) are raised at once.
+    ``backoff`` seconds times the attempt. Refusals (400/401/403/404/410) are raised at once, and so are
+    redirects when ``follow_redirects`` is off (an ``HTTPError`` whose ``Location`` header says where).
     """
     global _last_request
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
@@ -31,11 +41,12 @@ def http_get(url: str, timeout: float = 120, retries: int = 5, backoff: float = 
         time.sleep(max(0.0, _last_request + _min_interval - time.monotonic()))
         _last_request = time.monotonic()
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            open_url = urllib.request.urlopen if follow_redirects else _no_redirect_opener.open
+            with open_url(request, timeout=timeout) as response:
                 return response.read()
         except Exception as error:
             code = getattr(error, "code", None)
-            if attempt == retries or code in (401, 403, 404, 410):
+            if attempt == retries or code in (301, 302, 303, 307, 308, 400, 401, 403, 404, 410):
                 raise
             wait = backoff * attempt
             if code in (429, 503):

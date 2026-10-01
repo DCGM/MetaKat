@@ -14,7 +14,7 @@ import urllib.parse
 
 from metakat.chapter.download_articles.common.http import http_get
 from metakat.chapter.download_articles.common.models import CatalogItem
-from metakat.chapter.download_articles.common.source import Download, DownloadBlocked, Source
+from metakat.chapter.download_articles.common.source import NOT_ARTICLE, Download, DownloadBlocked, Source
 from metakat.chapter.download_articles.common.store import ArticleStore
 
 logger = logging.getLogger(__name__)
@@ -29,11 +29,6 @@ ARTICLE_FIELDS = ["pid", "own_pid_path", "own_model_path", "own_parent.pid", "ro
                   "titles.search", "authors.search", "languages.facet", "keywords.search", "date.str",
                   "date_range_start.year", "accessibility", "licenses.facet", "ds.img_full.mime", "count_page"]
 PARENT_FIELDS = ["pid", "model", "part.number.str", "date.str", "title.search", "date_range_start.year"]
-
-# Contents pages, indexes and similar parts catalogued as articles, never picked.
-NOT_ARTICLE = re.compile(
-    r"^\W*(obsah|contents?|table of contents|inhalt|sommaire|содержание|tiráž|impressum|rejstřík|index|"
-    r"errata|oprava|obálka|cover|reklam\w*|inzer\w*|inserat\w*|anzeigen?|annonc\w*|advertisements?)\b", re.IGNORECASE)
 
 
 class Kramerius:
