@@ -7,7 +7,10 @@ from metakat.chapter.download_articles.common.models import CatalogItem
 from metakat.chapter.download_articles.common.preview import sheet_layout
 from metakat.chapter.download_articles.common.review import (
     APPROVED,
+    BY_ITEM,
+    BY_JOURNAL,
     REJECTED,
+    ItemReviewLog,
     ReviewLog,
     Session,
     load_sheet,
@@ -29,45 +32,86 @@ def _store_with_journals(tmp_path):
     return store
 
 
+def _session(store, review_all=False):
+    return Session(stored_journals(store), ReviewLog.load(store), ItemReviewLog.load(store), review_all)
+
+
+def _position(session):
+    return session.journal.title, None if session.article is None else session.article.item.item_id
+
+
+def _rows(path, key):
+    with open(path, newline="", encoding="utf-8") as file:
+        return {row[key]: row for row in csv.DictReader(file)}
+
+
 def test_journals_are_ordered_by_first_year_with_pages_in_year_order(tmp_path):
     journals = stored_journals(_store_with_journals(tmp_path))
     assert [j.title for j in journals] == ["Journal A", "Journal B", "Journal C"]
     assert [a.item.year for a in journals[1].articles] == [1960, 1990]
 
 
-def test_keys_record_verdicts_and_a_new_session_resumes(tmp_path):
+def test_approved_journal_is_reviewed_pick_by_pick_and_rejected_one_takes_its_picks(tmp_path):
     store = _store_with_journals(tmp_path)
-    journals = stored_journals(store)
-    session = Session(journals, ReviewLog.load(store))
+    session = _session(store)
+    session.handle("y")                       # Journal A approved -> its only pick
+    assert _position(session) == ("Journal A", "A1950")
+    session.handle("y")                       # pick approved -> Journal B as a whole
+    assert _position(session) == ("Journal B", None)
+    session.handle("n")                       # Journal B rejected with both picks -> Journal C
+    assert _position(session) == ("Journal C", None)
     session.handle("y")
-    session.handle("n")
+    session.handle("n")                       # C2000 rejected
     session.handle("b")
-    assert session.journal.title == "Journal B"
+    assert _position(session) == ("Journal C", "C2000")
+    session.handle("b")                       # before the first pick: the journal again
+    assert _position(session) == ("Journal C", None)
     session.handle("q")
     assert session.done
 
-    with open(store.dir / "review.csv", newline="", encoding="utf-8") as file:
-        rows = {row["journal_title"]: row for row in csv.DictReader(file)}
-    assert rows["Journal A"]["verdict"] == APPROVED and rows["Journal B"]["verdict"] == REJECTED
-    assert rows["Journal B"]["samples"] == "2" and rows["Journal B"]["first_year"] == "1960"
-
-    resumed = Session(journals, ReviewLog.load(store))
-    assert resumed.journal.title == "Journal C"
-    resumed.handle(" ")
-    assert resumed.done and ReviewLog.load(store).verdict(journals[2]) is None
-    assert Session(journals, ReviewLog.load(store), review_all=True).journal.title == "Journal A"
+    journals = _rows(store.dir / "review.csv", "journal_title")
+    assert journals["Journal A"]["verdict"] == APPROVED and journals["Journal B"]["verdict"] == REJECTED
+    assert journals["Journal B"]["samples"] == "2" and journals["Journal B"]["first_year"] == "1960"
+    picks = _rows(store.dir / "review_items.csv", "item_id")
+    assert (picks["A1950"]["verdict"], picks["A1950"]["by"]) == (APPROVED, BY_ITEM)
+    assert all((picks[i]["verdict"], picks[i]["by"]) == (REJECTED, BY_JOURNAL) for i in ("B1960", "B1990"))
+    assert (picks["C2000"]["verdict"], picks["C2000"]["by"]) == (REJECTED, BY_ITEM)
+    assert picks["B1990"]["year"] == "1990" and picks["B1990"]["image"] == "images/B1990.jpg"
 
 
-def test_clearing_a_verdict_and_finished_libraries(tmp_path):
+def test_new_session_resumes_inside_an_approved_journal(tmp_path):
     store = _store_with_journals(tmp_path)
-    journals = stored_journals(store)
-    session = Session(journals, ReviewLog.load(store))
-    for key in "yyy":
+    session = _session(store)
+    for key in "yyn":                         # A and its pick approved, B rejected
         session.handle(key)
-    assert session.done and Session(journals, ReviewLog.load(store)).done
-    again = Session(journals, ReviewLog.load(store), review_all=True)
+    session.handle("y")                       # C approved, no pick reviewed
+    session.handle("s")                       # C2000 skipped
+    session.handle("y")                       # C2005 approved
+    session.handle("q")
+
+    resumed = _session(store)
+    assert _position(resumed) == ("Journal C", "C2000")
+    resumed.handle("y")
+    assert _position(resumed) == ("Journal C", "C2010")
+    resumed.handle("j")                       # leave the picks: C was the last journal
+    assert resumed.done
+    assert _position(_session(store)) == ("Journal C", "C2010")
+    assert _position(_session(store, review_all=True)) == ("Journal A", None)
+
+
+def test_reapproving_a_rejected_journal_reopens_its_picks(tmp_path):
+    store = _store_with_journals(tmp_path)
+    session = _session(store)
+    session.handle("n")                       # A rejected with its pick
+    assert session.items.verdict(session.journals[0].articles[0]) == REJECTED
+    again = _session(store, review_all=True)
+    again.handle("y")
+    assert _position(again) == ("Journal A", "A1950")
+    assert again.items.verdict(again.article) is None
     again.handle("u")
-    assert Session(journals, ReviewLog.load(store)).journal.title == "Journal A"
+    again.handle("b")
+    again.handle("u")                         # clear the journal verdict too
+    assert _position(_session(store)) == ("Journal A", None)
 
 
 def test_sheet_fits_its_tiles_and_is_cached(tmp_path):

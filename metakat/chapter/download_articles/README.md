@@ -54,12 +54,18 @@ python -m metakat.chapter.download_articles preview --source dml_cz
    python -m metakat.chapter.download_articles.common.review /mnt/kolosus/data/smart_digiline/articles/{knav,dml.cz,cbvk,nkp}
    ```
 
-   A window (OpenCV) shows every stored title page of a journal in year order, labelled with year,
-   volume/issue and article title. `y` approves, `n` rejects, space skips, `b` goes back, `u` clears
-   the verdict, `q`/Esc quits; clicking a page shows it enlarged. Verdicts are written after every
-   key into `<library>/review.csv` (journal id and title, samples, first and last year, `approved` or
-   `rejected`, time); the next session starts at the first journal without a verdict, `--all` shows
-   every journal again. Journal sheets are cached in `<library>/previews/journals/`.
+   A window (OpenCV) first shows every stored title page of a journal in year order, labelled with
+   year, volume/issue and article title; clicking a page shows it enlarged. `y` approves the journal
+   and goes through its picks one by one, enlarged; `n` rejects the journal together with all its
+   picks and goes to the next journal. On a pick, `y`/`n` approves or rejects it, `j` leaves the
+   rest of the picks for later. Everywhere, space skips, `b` goes back, `u` clears the verdict and
+   `q`/Esc quits. Verdicts are written after every key: journals into `<library>/review.csv`
+   (journal id and title, samples, first and last year, `approved`/`rejected`, time) and picks into
+   `<library>/review_items.csv` (item id, journal, year, volume, issue, title, image, verdict and
+   `by`: `item` for a pick's own verdict, `journal` when it was rejected with its journal). The next
+   session continues at the first journal without a verdict, or inside an approved journal at its
+   first pick without one; `--all` goes through everything again. Journal sheets are cached in
+   `<library>/previews/journals/`.
 
 Requests are never parallel and at least `--delay` seconds apart (default 1 s for `catalog`, 2 s
 for `fetch`); a server asking to slow down (429/503) is waited for as long as it asks.
@@ -76,6 +82,7 @@ Each library gets its own folder under `--root` (default
 <library>/metadata/<item_id>.json
 <library>/previews/
 <library>/review.csv            journal verdicts from common/review.py
+<library>/review_items.csv      verdicts of the single picks
 ```
 
 The metadata JSON holds the catalog item (journal, volume, issue, year, title, authors, type,
