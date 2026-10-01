@@ -142,3 +142,21 @@ def test_store_keeps_page_image_as_served_and_previews_render(tmp_path):
     names = sorted(p.relative_to(store.dir).as_posix() for p in previews)
     assert names == ["previews/overview_01.jpg", "previews/timelines/01_A.jpg",
                      "previews/timelines/02_short_lived.jpg"]
+
+
+def test_http_get_escapes_non_ascii_urls_and_keeps_escapes(monkeypatch):
+    from metakat.chapter.download_articles.common import http
+
+    requested = []
+
+    class Response(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(http.urllib.request, "urlopen",
+                        lambda request, timeout: requested.append(request.full_url) or Response(b"%PDF"))
+    http.http_get("https://karolinum.cz/data/clanek/2665/Philo%20Graecolatina_pultrová.pdf?x=1&y=2")
+    assert requested == ["https://karolinum.cz/data/clanek/2665/Philo%20Graecolatina_pultrov%C3%A1.pdf?x=1&y=2"]

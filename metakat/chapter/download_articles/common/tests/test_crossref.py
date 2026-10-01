@@ -1,4 +1,5 @@
 import json
+import urllib.error
 import urllib.parse
 
 from metakat.chapter.download_articles.common import crossref
@@ -59,3 +60,33 @@ def test_catalog_pages_with_the_cursor_groups_issns_and_leaves_known_dois(tmp_pa
     # Two of three works spell the title in capitals.
     assert {journals[doi] for doi in ("10.1/A", "10.1/B", "10.1/C")} == {("1802-4637+2336-3177", "ORBIS SCHOLAE")}
     assert journals["10.1/D"] == ("1212-8570", "Studia theologica")
+
+
+def test_titles_lose_markup_and_spellings_differing_in_punctuation_are_one_journal():
+    works = [_work("10.3/1", ["1213-1962"], title="Transactions of the VŠB - Technical University"),
+             _work("10.3/2", ["1213-1962"], title="Transactions of the VŠB – Technical University"),
+             _work("10.3/3", ["1213-1962"], title="Transactions of the VŠB – Technical University"),
+             _work("10.3/4", ["2570-7434"], title="Business &amp; IT")]
+    works[0]["title"] = ["The <i>Ostrava</i> &amp; Opava"]
+    items = [item_from_work(work, "sites") for work in works]
+    crossref.unify_journal_titles(items)
+    assert items[0].title == "The Ostrava & Opava" and items[3].journal_title == "Business & IT"
+    assert {item.journal_title for item in items[:3]} == {"Transactions of the VŠB – Technical University"}
+
+
+def test_journal_is_asked_for_by_its_next_issn_when_crossref_lacks_one(tmp_path, monkeypatch):
+    def fake_get(url):
+        if "/journals/1805-9600/" in url:
+            raise urllib.error.HTTPError(url, 404, "Not Found", None, None)
+        assert "/journals/1210-2512/" in url
+        return json.dumps({"message": {"items": [_work("10.2/R", ["1210-2512"], title="Radioengineering")],
+                                       "next-cursor": None}}).encode()
+
+    class Sites(CrossrefSource):
+        name = "sites"
+        issns = (("1805-9600", "1210-2512"),)
+
+    monkeypatch.setattr(crossref, "http_get", fake_get)
+    source = Sites()
+    source.root = tmp_path
+    assert [item.record_id for item in source.build_catalog()] == ["10.2/R"]

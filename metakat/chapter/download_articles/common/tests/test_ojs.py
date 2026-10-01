@@ -5,7 +5,7 @@ import pytest
 
 from metakat.chapter.download_articles.common import ojs
 from metakat.chapter.download_articles.common.models import CatalogItem
-from metakat.chapter.download_articles.common.oai import parse_records
+from metakat.chapter.download_articles.common.oai import OaiRecord, parse_records
 from metakat.chapter.download_articles.common.ojs import OjsSource, item_from_record
 from metakat.chapter.download_articles.common.source import DownloadBlocked
 from metakat.chapter.download_articles.common.store import ArticleStore
@@ -61,7 +61,7 @@ def test_ojs_record_gives_journal_volume_issue_year_section_and_galley():
 
 class _Platform(OjsSource):
     name = "platform"
-    oai_url = "https://journals.example.cz/index/oai"
+    oai_urls = ("https://journals.example.cz/index/oai",)
 
 
 def _redirect(location):
@@ -113,3 +113,10 @@ def test_control_characters_in_records_are_dropped():
     page = OJS_PAGE.replace(b"Religion and Power", b"Religion\x0b and&#x1; Power&#10;")
     records, _ = parse_records(page)
     assert records[0].dc["title"] == ["Náboženství a moc", "Religion and Power"]
+
+
+def test_older_ojs_citation_gives_issue_and_year():
+    record = OaiRecord("oai:antropoweb.cz:article/7", None, ["webzin:ST"],
+                       {"source": ["AntropoWebzin; AntropoWebzin 1/2013; 3-16"], "date": ["2013-04-30"]})
+    item = item_from_record(record, "lib", {"webzin": "AntropoWebzin"}, {"webzin:ST": "Studie"})
+    assert (item.volume, item.issue, item.year, item.pages) == (None, "1", 2013, "3-16")

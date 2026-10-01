@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import argparse
 import logging
+import socket
+import ssl
 import sys
 import time
 from collections import Counter
@@ -23,6 +25,8 @@ from metakat.chapter.download_articles.common.source import Download, DownloadBl
 from metakat.chapter.download_articles.common.store import ArticleStore
 
 DEFAULT_ROOT = "/mnt/kolosus/data/smart_digiline/articles"
+# Failures meaning the file's host is gone (unknown name, a certificate of another site), not a hiccup.
+DEAD_HOST_ERRORS = (socket.gaierror, ssl.SSLCertVerificationError)
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +137,8 @@ def fetch(source: Source, store: ArticleStore, pdf_dir: Path | None, reextract: 
                 download = source.download(item)
             except (DownloadBlocked, OSError) as error:
                 logger.warning(f"{item_id}: {error}")
-                if isinstance(error, DownloadBlocked) or getattr(error, "code", None) in (401, 403, 404, 410):
+                if (isinstance(error, DownloadBlocked) or getattr(error, "code", None) in (401, 403, 404, 410)
+                        or isinstance(getattr(error, "reason", None), DEAD_HOST_ERRORS)):
                     store.mark_unavailable(item, str(error))
         if download is None:
             missing.append(item_id)

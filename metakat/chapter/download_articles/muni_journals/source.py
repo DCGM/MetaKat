@@ -9,7 +9,7 @@ class MuniJournalsSource(OjsSource):
     """
 
     name = "journals.muni.cz"
-    oai_url = "https://journals.muni.cz/index/oai"
+    oai_urls = ("https://journals.muni.cz/index/oai",)
     hosts = ("journals.muni.cz", "journals.phil.muni.cz")
     # Citation lists, conference proceedings, book series and a book prize.
     skip_sets = frozenset({"citedby", "eurocomb", "lawpublishing", "cenakvb"})

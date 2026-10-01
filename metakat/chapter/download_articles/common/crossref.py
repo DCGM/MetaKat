@@ -12,8 +12,11 @@ listed together make one journal); its title is the most frequent spelling of it
 """
 from __future__ import annotations
 
+import html
 import json
 import logging
+import re
+import urllib.error
 import urllib.parse
 from collections import Counter, defaultdict
 
@@ -43,14 +46,24 @@ class CrossrefSource(Source):
     def build_catalog(self) -> list[CatalogItem]:
         excluded = self.excluded_dois()
         works: dict[str, dict] = {}
-        queries = [f"/prefixes/{prefix}/works" for prefix in self.prefixes]
-        queries += [f"/journals/{journal[0]}/works" for journal in self.issns]
-        for query in queries:
-            count = 0
-            for work in iter_works(query):
-                works.setdefault(work["DOI"].lower(), work)
-                count += 1
-            logger.info(f"{query}: {count} articles")
+        # A journal is asked for by each of its ISSNs until Crossref knows one.
+        queries = [[f"/prefixes/{prefix}/works"] for prefix in self.prefixes]
+        queries += [[f"/journals/{issn}/works" for issn in journal] for journal in self.issns]
+        for alternatives in queries:
+            for query in alternatives:
+                try:
+                    found = list(iter_works(query))
+                except urllib.error.HTTPError as error:
+                    if error.code != 404:
+                        raise
+                    logger.info(f"{query}: unknown to Crossref")
+                    continue
+                for work in found:
+                    works.setdefault(work["DOI"].lower(), work)
+                logger.info(f"{query}: {len(found)} articles")
+                break
+            else:
+                logger.warning(f"Nothing found for {', '.join(alternatives)}")
         items = [item for doi, work in works.items() if doi not in excluded
                  and (item := item_from_work(work, self.name)) is not None]
         logger.info(f"{len(works)} articles, {len(works.keys() & excluded)} left to {', '.join(self.exclude_libraries)}")
@@ -111,10 +124,10 @@ def item_from_work(work: dict, library: str) -> CatalogItem | None:
         library=library,
         item_id=work["DOI"].lower().replace("/", "_"),
         record_id=work["DOI"],
-        title=(work.get("title") or [None])[0],
+        title=_plain((work.get("title") or [None])[0]),
         item_type=work.get("type"),
         journal_id="+".join(issns),
-        journal_title=(work.get("container-title") or [None])[0],
+        journal_title=_plain((work.get("container-title") or [None])[0]),
         volume=work.get("volume"),
         issue=work.get("issue"),
         year=date[0] if date else None,
@@ -150,9 +163,20 @@ def group_journals(items: list[CatalogItem]) -> None:
 
 
 def unify_journal_titles(items: list[CatalogItem]) -> None:
-    """Give the items of a journal spelled in several letter cases its most frequent spelling."""
+    """Give the items of a journal spelled with other letter case or punctuation its most frequent spelling."""
     spellings: dict[tuple, Counter] = defaultdict(Counter)
+
+    def key(item: CatalogItem) -> tuple:
+        return item.journal_id, re.sub(r"\W+", " ", (item.journal_title or "").casefold()).strip()
+
     for item in items:
-        spellings[item.journal_id, (item.journal_title or "").casefold()][item.journal_title] += 1
+        spellings[key(item)][item.journal_title] += 1
     for item in items:
-        item.journal_title = spellings[item.journal_id, (item.journal_title or "").casefold()].most_common(1)[0][0]
+        item.journal_title = spellings[key(item)].most_common(1)[0][0]
+
+
+def _plain(text: str | None) -> str | None:
+    """Text without the markup and character entities publishers deposit (``<i>``, ``&amp;``)."""
+    if text is None:
+        return None
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", "", text)).split()) or None

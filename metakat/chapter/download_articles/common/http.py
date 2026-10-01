@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,8 @@ def http_get(url: str, timeout: float = 120, retries: int = 5, backoff: float = 
     redirects when ``follow_redirects`` is off (an ``HTTPError`` whose ``Location`` header says where).
     """
     global _last_request
+    # Publishers link files with non-ASCII names (e.g. "Pultrová.pdf"); escape them, keep existing escapes.
+    url = urllib.parse.quote(url, safe=":/?#[]@!$&'()*+,;=%~")
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     for attempt in range(1, retries + 1):
         time.sleep(max(0.0, _last_request + _min_interval - time.monotonic()))

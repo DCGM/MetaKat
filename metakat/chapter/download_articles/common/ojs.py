@@ -37,29 +37,38 @@ OTHER_SECTION = re.compile(
     r"errat|interview|rozhovor|annotation|anotac|miscellan|varia|bibliograf|conference|konferen|jubile|výroč",
     re.IGNORECASE)
 
+# Sets OJS adds besides its journals (DRIVER guidelines).
+NOT_JOURNAL_SETS = frozenset({"driver"})
+
 _ISSN = re.compile(r"^\d{4}-\d{3}[\dXx]$")
 _GALLEY = re.compile(r"/article/view/[^/]+/[^/]+$")
 
 
 class OjsSource(Source):
-    """Every journal of one OJS installation; subclasses set the name and the OAI-PMH address."""
+    """Every journal of OJS installations; subclasses set the name and the OAI-PMH addresses.
 
-    oai_url: str
+    One installation may hold many journals (a university platform), or a library may be several
+    single-journal installations.
+    """
+
+    oai_urls: tuple[str, ...] = ()
     # Journal sets that are not journals (proceedings, book series, ...).
     skip_sets: frozenset[str] = frozenset()
-    # Hosts besides the OAI-PMH host and the galley's own host that serve the platform's files.
+    # Hosts besides the OAI-PMH hosts and the galley's own host that serve the platform's files.
     hosts: tuple[str, ...] = ()
     type_preference = ("article", "other")
 
     def build_catalog(self) -> list[CatalogItem]:
-        sets = dict(list_sets(self.oai_url))
-        journals = {spec: name for spec, name in sets.items() if ":" not in spec and spec not in self.skip_sets}
-        logger.info(f"{len(journals)} journals: {', '.join(sorted(journals.values()))}")
         items: dict[str, CatalogItem] = {}
-        for record in iter_records(self.oai_url):
-            item = item_from_record(record, self.name, journals, sets)
-            if item is not None:
-                items.setdefault(item.item_id, item)
+        for oai_url in self.oai_urls:
+            sets = dict(list_sets(oai_url))
+            journals = {spec: name for spec, name in sets.items()
+                        if ":" not in spec and spec not in self.skip_sets | NOT_JOURNAL_SETS}
+            logger.info(f"{oai_url}: {len(journals)} journals: {', '.join(sorted(journals.values()))}")
+            for record in iter_records(oai_url):
+                item = item_from_record(record, self.name, journals, sets)
+                if item is not None:
+                    items.setdefault(item.item_id, item)
         counts = Counter(item.journal_title for item in items.values())
         no_file = Counter(item.journal_title for item in items.values() if not item.pdf_urls)
         for title, count in sorted(counts.items()):
@@ -87,7 +96,7 @@ class OjsSource(Source):
 
     def download_pdf(self, url: str) -> bytes:
         """Download a galley, following redirects only within the platform."""
-        allowed = {urlparse(self.oai_url).netloc, urlparse(url).netloc, *self.hosts}
+        allowed = {urlparse(url).netloc, *(urlparse(oai_url).netloc for oai_url in self.oai_urls), *self.hosts}
         for _ in range(5):
             try:
                 data = http_get(url, follow_redirects=False)
@@ -126,6 +135,10 @@ def item_from_record(record: OaiRecord, library: str, journals: dict[str, str],
         volume = _first(r"\bVol\.?\s*([^\s(:;]+)", number)
         issue = _first(r"\bNo\.?\s*([^\s(:;]+)", number)
         found_year = _first(r"\((\d{4})\)", number)
+        # Older OJS cite an issue as "AntropoWebzin 1/2013".
+        if found_year is None and (match := re.search(r"\b(\d{1,2})/((?:18|19|20)\d\d)\b", number)):
+            issue = issue or match.group(1)
+            found_year = match.group(2)
         year = int(found_year) if found_year else None
         pages = parts[2] if len(parts) > 2 and parts[2] else None
 

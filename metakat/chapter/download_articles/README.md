@@ -15,11 +15,13 @@ cbvk/            Kramerius of the South Bohemian Research Library
 cuni/            journals of Charles University: Karolinum, ojs.cuni.cz, faculty sites (Crossref)
 cvut_journals/   journals of the Czech Technical University (OJS)
 dml_cz/          Czech Digital Mathematics Library
+journal_sites/   single-journal sites found in Crossref by ISSN
 knav/            Kramerius of the Library of the Czech Academy of Sciences
 muni_digilib/    Digital Library of the Faculty of Arts, Masaryk University
 muni_journals/   journals of Masaryk University (OJS)
 mzk/             Kramerius of the Moravian Library
 nkp/             Kramerius of the National Library of the Czech Republic
+ojs_sites/       single-journal Open Journal Systems sites
 upol/            journals of Palacký University Olomouc (Crossref)
 ```
 
@@ -56,7 +58,7 @@ python -m metakat.chapter.download_articles preview --source dml_cz
    journals to trust:
 
    ```bash
-   python -m metakat.chapter.download_articles.common.review /mnt/kolosus/data/smart_digiline/articles/{knav,dml.cz,cbvk,nkp}
+   python -m metakat.chapter.download_articles.common.review /mnt/kolosus/data/smart_digiline/articles/{knav,dml.cz,cbvk,nkp,journals.muni.cz,ojs.cvut.cz,ojs_sites,cuni,agriculturejournals.cz,upol,journal_sites}
    ```
 
    A window (OpenCV) first shows every stored title page of a journal in year order, labelled with
@@ -139,28 +141,36 @@ selected.
 ## Journals outside Kramerius
 
 Czech journals published by universities and societies keep their articles on their own sites. Two
-kinds of interface serve them all with the same code:
+kinds of interface serve most of them with the same code:
 
-- **Open Journal Systems** (`common/ojs.py`): the platform's OAI-PMH gives every article with its
-  journal and section (the record's set `journal:section`), the citation ("Religio; Vol 12 No 1
-  (2004); 5-26") and its galleys, downloaded from `.../article/download/<article>/<galley>`. The year
-  is taken from the citation only; the record's date is often the date of upload. Items of review,
-  news, editorial and similar sections are picked only from years without a research article. A
-  galley that redirects to another site (a digital library behind a human check, a paid database) is
-  not followed and the article is recorded as refused; a journal refused that way twice, with nothing
-  stored, is not selected any more.
+- **Open Journal Systems** (`common/ojs.py`): OAI-PMH gives every article with its journal and section
+  (the record's set `journal:section`), the citation ("Religio; Vol 12 No 1 (2004); 5-26", in older
+  installations "AntropoWebzin 1/2013") and its galleys, downloaded from
+  `.../article/download/<article>/<galley>`. The year is taken from the citation only, since the
+  record's date is often the date of upload; articles whose citation has no year are not picked.
+  Items of review, news, editorial and similar sections are picked only from years without a research
+  article. A galley that redirects to another site (a digital library behind a human check, a paid
+  database) is not followed and the article is recorded as refused with the address it pointed to; a
+  journal refused that way twice, with nothing stored, is not selected any more.
 - **Crossref** (`common/crossref.py`): publishers without OAI-PMH register their DOIs with the URL of
   the article PDF (for similarity checking). All journals of a publisher are harvested by its DOI
-  prefix. A journal is identified by its ISSNs. Only one process should query Crossref at a time: it
-  answers parallel anonymous requests with 429.
+  prefix, single journals by their ISSNs. A journal is identified by its ISSNs; its title is the most
+  frequent spelling of `container-title`, so a renamed journal is still two journals. Crossref only
+  knows the years since the journal registers DOIs, mostly from 2010 on. Only one process should query
+  Crossref at a time: it answers parallel anonymous requests with 429. Some deposited links are dead
+  (old De Gruyter addresses, hosts that no longer exist); those articles are recorded as refused.
 
 The journals were found in the Directory of Open Access Journals (Czech journals, 2026-10): of 169, 34
-are in the libraries above, the others are on the platforms below or on single-journal sites.
+are in the libraries above and about 115 on the platforms and sites below. About 20 small journals on
+WordPress, Drupal and similar sites have neither OAI-PMH nor PDF links in Crossref and are not
+harvested.
 
 | `--source` | Publisher | Notes |
 |---|---|---|
-| `muni_journals` | [Masaryk University](https://journals.muni.cz/) (OJS) | The Faculty of Arts journals (journals.phil.muni.cz) redirect their files to its digital library, which serves people only; they are refused, see `muni_digilib`. Some journals keep older volumes in CEEOL (refused). Citation lists, proceedings and book series are not harvested. |
-| `cvut_journals` | [Czech Technical University](https://ojs.cvut.cz/) (OJS) | |
-| `cuni` | [Charles University](https://karolinum.cz/) (Crossref, prefix 10.14712) | Karolinum Press, ojs.cuni.cz and the faculties' journal sites. |
-| `agriculturejournals` | [Czech Academy of Agricultural Sciences](https://www.agriculturejournals.cz/) (Crossref, prefix 10.17221) | |
-| `upol` | [Palacký University Olomouc](https://www.upol.cz/) (Crossref, prefix 10.5507) | |
+| `muni_journals` | [Masaryk University](https://journals.muni.cz/) (OJS) | 26,540 articles in 49 journals (2026-10). The 22 Faculty of Arts journals (journals.phil.muni.cz, e.g. Religio, Theatralia, Opera Slavica) redirect their files to the Faculty's digital library, which serves people only; they are refused, and their PDF addresses are in `unavailable.tsv` for downloading by hand (see `muni_digilib`). Czech Journal of Political Science keeps older volumes in CEEOL. Citation lists, proceedings and book series are not harvested. |
+| `cvut_journals` | [Czech Technical University](https://ojs.cvut.cz/) (OJS) | 4,925 articles in 10 journals. Applications of Structural Fire Engineering (conference) cites no year and is not picked. |
+| `ojs_sites` | single-journal OJS sites | 2,174 articles in 7 journals whose Crossref records lack PDF links (JERES, Applied and Computational Mechanics, Theology and Philosophy of Education, IJATES, AntropoWebzin, Advances in Military Technology, AUC Studia Territorialia). |
+| `cuni` | [Charles University](https://karolinum.cz/) (Crossref, prefix 10.14712) | 14,004 articles in 46 journals: Karolinum Press (the AUC series, Orbis Scholae, ...), ojs.cuni.cz and the faculties' journal sites; 12,268 with a PDF link. |
+| `agriculturejournals` | [Czech Academy of Agricultural Sciences](https://www.agriculturejournals.cz/) (Crossref, prefix 10.17221) | 14,005 articles in 11 journals, 1999–2026. The sites answer requests 2 s apart with 429 now and then, so requests are 5 s apart. |
+| `upol` | [Palacký University Olomouc](https://www.upol.cz/) (Crossref, prefix 10.5507) | 7,120 articles in 24 journals, 2000–2026. |
+| `journal_sites` | single-journal sites (Crossref, by ISSN) | The other DOAJ journals with PDF links in Crossref: 37 journals of other universities, institutes and societies. Articles whose DOI one of the libraries above holds are left to it. |
