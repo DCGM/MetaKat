@@ -117,6 +117,29 @@ def test_first_page_renders_born_digital_page():
     assert (image.width, image.height) == (1190, 1684)
 
 
+def _page_with_images(*placements):
+    document = pymupdf.open()
+    page = document.new_page(width=595, height=842)
+    page.insert_text((72, 72), "Title")
+    for rect, size in placements:
+        buffer = io.BytesIO()
+        Image.new("L", size, 128).save(buffer, format="PNG")
+        page.insert_image(pymupdf.Rect(*rect), stream=buffer.getvalue())
+    return document.tobytes()
+
+
+def test_rendered_page_resolution_is_kept_between_default_and_maximum():
+    # A 2000 px photo 1.4 inch wide asks for 1440 dpi, a 100 px one for 72 dpi.
+    _, _, image = extract_first_page(_page_with_images(((72, 300, 172, 400), (2000, 2000))))
+    assert image.method == "rendered" and image.dpi == 600
+    _, _, image = extract_first_page(_page_with_images(((72, 300, 172, 400), (100, 100))))
+    assert image.dpi == 300
+    # A text block scanned at 450 dpi, cropped to a third of the page, keeps its resolution.
+    _, _, image = extract_first_page(_page_with_images(((100, 150, 495, 600), (2469, 2813)),
+                                                       ((100, 650, 495, 700), (2469, 313))))
+    assert abs(image.dpi - 450) < 2
+
+
 def test_store_writes_pdf_image_and_metadata(tmp_path):
     store = ArticleStore(tmp_path, "lib")
     item = _item("x1", "A", 1960)

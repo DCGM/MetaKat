@@ -12,6 +12,8 @@ from metakat.chapter.download_articles.common.models import FirstPageImage
 SCAN_COVERAGE = 0.5
 # Pages without any scan (born-digital PDFs) have no resolution of their own.
 DEFAULT_RENDER_DPI = 300
+# A small sharp photo or logo on a born-digital page would ask for 1000-2000 dpi.
+MAX_RENDER_DPI = 600
 
 # Formats stored as extracted; PyMuPDF already converts fax, JBIG2 and raw images to lossless PNG.
 _EMBEDDED_EXTENSIONS = {"jpeg": "jpg", "jpg": "jpg", "png": "png", "jpx": "jp2", "jp2": "jp2", "tiff": "tif", "tif": "tif"}
@@ -22,9 +24,9 @@ def extract_first_page(pdf_bytes: bytes, page_index: int = 0,
     """Return a page of a PDF as image bytes, their file extension and how they were obtained.
 
     A scanned page is kept at the resolution it was scanned at: a single upright scan covering most
-    of the page is stored as extracted, without the page margins around it; any other scanned page
-    is rendered at the highest resolution of its images. A page without images is rendered at
-    ``default_dpi``.
+    of the page is stored as extracted, without the page margins around it; any other page is
+    rendered at the highest resolution of its images, but at least ``default_dpi`` (born-digital
+    pages, perhaps with a coarse figure) and at most ``MAX_RENDER_DPI`` (a sharp photo or logo).
     """
     with pymupdf.open(stream=pdf_bytes, filetype="pdf") as document:
         if page_index >= document.page_count:
@@ -54,10 +56,11 @@ def extract_first_page(pdf_bytes: bytes, page_index: int = 0,
                     dpi=round(extracted["width"] / (bbox.width / 72), 1),
                 )
 
-        if scans:
-            dpi = max(width / (bbox.width / 72) for _, width, _, bbox in scans)
-        else:
-            dpi = default_dpi
+        # The sharpest image is the scan's resolution (scans may be cropped to the text block or cut in
+        # strips). On a born-digital page it may be a figure or a logo of any resolution, so the page
+        # gets at least ``default_dpi`` and, whatever the figure, at most ``MAX_RENDER_DPI``.
+        dpi = max([default_dpi] + [width / (bbox.width / 72) for _, width, _, bbox in scans])
+        dpi = min(dpi, MAX_RENDER_DPI)
         pixmap = page.get_pixmap(dpi=round(dpi), colorspace=pymupdf.csRGB, alpha=False)
         image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
         buffer = io.BytesIO()

@@ -99,8 +99,10 @@ languages, rights, source URLs and the harvested record) and how the image was o
 
 Images are kept at the resolution the library provides. When the title page is one upright scan
 covering most of the page, the scan is stored as extracted, without the page margins around it
-(`"method": "embedded"`). Any other scanned page is rendered at the highest resolution of its
-images, and a born-digital page without images at 300 dpi (`"method": "rendered"`). Page images
+(`"method": "embedded"`). Any other page is rendered at the highest resolution of its images
+(scans cropped to the text block or cut in strips), but at least 300 dpi, for born-digital pages
+with or without a coarse figure, and at most 600 dpi, since a small sharp photo or logo on a
+born-digital page would ask for 1000–2000 dpi (`"method": "rendered"`). Page images
 served by the library are stored as served (`"method": "page image"`). The `dpi` field records the
 resolution where it is known.
 
@@ -173,4 +175,4 @@ harvested.
 | `cuni` | [Charles University](https://karolinum.cz/) (Crossref, prefix 10.14712) | 14,004 articles in 46 journals: Karolinum Press (the AUC series, Orbis Scholae, ...), ojs.cuni.cz and the faculties' journal sites; 12,268 with a PDF link. |
 | `agriculturejournals` | [Czech Academy of Agricultural Sciences](https://www.agriculturejournals.cz/) (Crossref, prefix 10.17221) | 14,005 articles in 11 journals, 1999–2026. The sites answer requests 2 s apart with 429 now and then, so requests are 5 s apart. |
 | `upol` | [Palacký University Olomouc](https://www.upol.cz/) (Crossref, prefix 10.5507) | 7,120 articles in 24 journals, 2000–2026. |
-| `journal_sites` | single-journal sites (Crossref, by ISSN) | The other DOAJ journals with PDF links in Crossref: 37 journals of other universities, institutes and societies. Articles whose DOI one of the libraries above holds are left to it. |
+| `journal_sites` | single-journal sites (Crossref, by ISSN) | The other DOAJ journals with PDF links in Crossref: 37 journals (42 titles, counting renames) of other universities, institutes and societies; 20,666 articles. Articles whose DOI one of the libraries above holds are left to it. |
