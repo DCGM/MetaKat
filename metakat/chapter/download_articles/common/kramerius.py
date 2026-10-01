@@ -33,7 +33,7 @@ PARENT_FIELDS = ["pid", "model", "part.number.str", "date.str", "title.search", 
 # Contents pages, indexes and similar parts catalogued as articles, never picked.
 NOT_ARTICLE = re.compile(
     r"^\W*(obsah|contents?|table of contents|inhalt|sommaire|содержание|tiráž|impressum|rejstřík|index|"
-    r"errata|oprava|obálka|cover|reklam\w*|inzer\w*|inserat\w*|anzeigen?|advertisements?)\b", re.IGNORECASE)
+    r"errata|oprava|obálka|cover|reklam\w*|inzer\w*|inserat\w*|anzeigen?|annonc\w*|advertisements?)\b", re.IGNORECASE)
 
 
 class Kramerius:
