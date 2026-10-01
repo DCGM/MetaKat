@@ -1,9 +1,4 @@
-from metakat.chapter.download_articles.knav.source import (
-    KnavSource,
-    index_local_pdfs,
-    item_from_docs,
-    read_download_errors,
-)
+from metakat.chapter.download_articles.knav.source import KnavSource, index_local_pdfs, read_download_errors
 
 ROOT, VOLUME, ISSUE = "uuid:root", "uuid:vol", "uuid:issue"
 PARENTS = {
@@ -21,22 +16,24 @@ def _doc(pid, **fields):
 
 
 def test_item_from_docs_reads_volume_issue_and_earlier_downloads():
-    pdf = item_from_docs(_doc("uuid:a1", **{"ds.img_full.mime": "application/pdf", "authors.search": ["Lukeš, Š."]}),
-                         PARENTS, {"a1": "/pick/issue/a1.pdf"}, {})
+    source = KnavSource(pick_dirs=(), pick_logs=())
+    source.local, source.errors = {"a1": "/pick/issue/a1.pdf"}, {"a2": "404", "a3": "403"}
+    pdf = source.item_from_docs(
+        _doc("uuid:a1", **{"ds.img_full.mime": "application/pdf", "authors.search": ["Lukeš, Š."]}), PARENTS)
     assert (pdf.item_id, pdf.journal_id, pdf.journal_title) == ("a1", "root", "Folia parasitologica")
     assert (pdf.volume, pdf.issue, pdf.year, pdf.date) == ("41", "4", 1994, "12.1994")
     assert pdf.item_type == "pdf" and pdf.pdf_urls[0].endswith("/items/uuid:a1/image")
     assert pdf.authors == ["Lukeš, Š."] and pdf.record["local_pdf"] == ["/pick/issue/a1.pdf"]
-    source = KnavSource(pick_dirs=(), pick_logs=())
     assert source.is_available(pdf) and source.is_cheap(pdf)
 
-    scan = item_from_docs(_doc("uuid:a2", accessibility="public"), PARENTS, {}, {"a2": "404"})
+    scan = source.item_from_docs(_doc("uuid:a2", accessibility="public"), PARENTS)
     assert scan.item_type == "scan" and scan.pdf_urls == []
     assert source.is_available(scan) and not source.is_cheap(scan)
 
-    refused = item_from_docs(_doc("uuid:a3", **{"ds.img_full.mime": "application/pdf"}), PARENTS, {}, {"a3": "403"})
-    contents = item_from_docs(_doc("uuid:a4", **{"title.search": "Obsah"}), PARENTS, {}, {})
-    assert not source.is_available(refused) and not source.is_available(contents)
+    refused = source.item_from_docs(_doc("uuid:a3", **{"ds.img_full.mime": "application/pdf"}), PARENTS)
+    contents = source.item_from_docs(_doc("uuid:a4", **{"title.search": "Obsah"}), PARENTS)
+    private = source.item_from_docs(_doc("uuid:a5", accessibility="private"), PARENTS)
+    assert not any(source.is_available(item) for item in (refused, contents, private))
 
 
 def test_earlier_downloads_are_indexed_from_folders_and_logs(tmp_path):

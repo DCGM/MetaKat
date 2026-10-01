@@ -35,6 +35,8 @@ class Source(ABC):
     # True when the library withholds its newest volumes: a journal's years from its first refused
     # item on are then not selected, except items that cost no request (``is_cheap``).
     moving_wall: bool = False
+    # The output root holding every library's folder; set by the command line.
+    root: Path | None = None
 
     @abstractmethod
     def build_catalog(self) -> list[CatalogItem]:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import shutil
 import textwrap
@@ -127,6 +128,36 @@ def _timelines(store, journals, out: Path) -> list[Path]:
         sheet.save(path, quality=80)
         files.append(path)
     return files
+
+
+SHEET_CAPTION, SHEET_HEAD = 60, 56
+
+
+def sheet_layout(count: int, aspect: float = 16 / 9) -> tuple[tuple[int, int], list[tuple[int, int, int, int]]]:
+    """Size of a journal sheet with ``count`` tiles, about ``aspect`` wide, and the box of every tile."""
+    cell_width, cell_height = TILE_WIDTH + PAD, TILE_HEIGHT + SHEET_CAPTION + PAD
+    columns = max(1, min(count, math.ceil(math.sqrt(aspect * count * cell_height / cell_width))))
+    rows = max(1, math.ceil(count / columns))
+    boxes = [(PAD + (k % columns) * cell_width, SHEET_HEAD + (k // columns) * cell_height, TILE_WIDTH, TILE_HEIGHT)
+             for k in range(count)]
+    return (columns * cell_width + PAD, SHEET_HEAD + rows * cell_height + PAD), boxes
+
+
+def journal_sheet(store: ArticleStore, title: str, articles: list[StoredArticle]) -> Image.Image:
+    """Every stored title page of one journal in the given order, with year, volume/issue and article title."""
+    size, boxes = sheet_layout(len(articles))
+    sheet = Image.new("RGB", size, "white")
+    draw = ImageDraw.Draw(sheet)
+    years = [a.item.year for a in articles if a.item.year]
+    span = f"{min(years)}–{max(years)}" if years else "?"
+    draw.text((PAD, 10), f"{title[:110]}  ·  {len(articles)} samples  ·  {span}", font=_font(30, bold=True),
+              fill="black")
+    label_font, title_font = _font(22, bold=True), _font(19)
+    for article, (x, y, width, height) in zip(articles, boxes):
+        _tile(sheet, draw, store, article, x, y, width, height, label_font)
+        draw.text((x + 4, y + height + 30), textwrap.shorten(article.item.title or "", 30, placeholder="…"),
+                  font=title_font, fill=(70, 70, 70))
+    return sheet
 
 
 def _slug(title: str) -> str:

@@ -58,6 +58,7 @@ def main(sources: dict[str, type[Source]]):
     http.set_min_interval(args.delay if args.delay is not None else (2.0 if args.command == "fetch" else 1.0))
 
     source = sources[args.source]()
+    source.root = Path(args.root)
     store = ArticleStore(args.root, source.name)
 
     if args.command == "catalog":
