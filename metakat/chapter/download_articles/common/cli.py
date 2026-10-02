@@ -152,7 +152,7 @@ def fetch(source: Source, store: ArticleStore, pdf_dir: Path | None, reextract: 
 
         try:
             if download.kind == "pdf":
-                article = store.store(item, download.data, download.url, source.title_page_index(download.data))
+                article = store.store(item, download.data, download.url, source.title_page_index(download.data, download.url))
             else:
                 article = store.store_image(item, download.data, download.kind, download.url)
         except Exception as error:

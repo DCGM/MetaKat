@@ -1,5 +1,7 @@
 import urllib.error
 
+import pymupdf
+
 from metakat.chapter.download_articles.common.models import CatalogItem
 from metakat.chapter.download_articles.common.oai import parse_records
 from metakat.chapter.download_articles.common.store import ArticleStore
@@ -77,6 +79,27 @@ def test_ojs_journals_kept_here_join_the_catalog_with_the_known_file_first(tmp_p
     assert items["theatralia-1"].library == "digilib.phil.muni.cz"
     assert items["theatralia-1"].pdf_urls[0] == "https://digilib.phil.muni.cz/x/T1.pdf"
     assert items["theatralia-2"].pdf_urls == article.pdf_urls
+
+
+def test_saved_files_are_found_by_link_name_or_handle_and_title_page_skips_the_cover(tmp_path):
+    two_pages = pymupdf.open()
+    two_pages.new_page()
+    two_pages.new_page()
+    (tmp_path / "AH2026-1-12.pdf").write_bytes(two_pages.tobytes())
+    (tmp_path / "128139.pdf").write_bytes(two_pages.tobytes())
+    (tmp_path / "108207-source.pdf").write_bytes(two_pages.tobytes())
+    source = MuniDigilibSource()
+
+    def item(url):
+        return CatalogItem(library="digilib.phil.muni.cz", item_id="x", record_id="x", pdf_urls=[url])
+
+    new = source.local_pdf(item("https://digilib.phil.muni.cz/en/_flysystem/fedora/pdf/AH2026-1-12.pdf"), tmp_path)
+    old = source.local_pdf(item("https://digilib.phil.muni.cz/bitstream/handle/11222.digilib/128139/2_AH_35.pdf"),
+                           tmp_path)
+    scan = source.local_pdf(item("https://x/pdf_secondary/108207-source.pdf"), tmp_path)
+    assert old.url.endswith("2_AH_35.pdf")
+    assert source.title_page_index(new.data, new.url) == 1 and source.title_page_index(old.data, old.url) == 1
+    assert source.title_page_index(scan.data, scan.url) == 0
 
 
 def test_picked_ojs_links_are_resolved_to_the_file_here(monkeypatch):

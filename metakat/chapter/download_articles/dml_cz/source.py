@@ -35,7 +35,7 @@ class DmlCzSource(Source):
     type_preference = ("math", "physics", "astronomy", "chemistry", "informatics", "history", "politics",
                        "editorial", "review", "news", "other")
 
-    def title_page_index(self, pdf_bytes: bytes) -> int:
+    def title_page_index(self, pdf_bytes: bytes, url: str | None = None) -> int:
         """DML-CZ stamps its PDFs with a cover sheet (citation, persistent URL, terms of use)."""
         with pymupdf.open(stream=pdf_bytes, filetype="pdf") as document:
             text = document[0].get_text() if document.page_count > 1 else ""

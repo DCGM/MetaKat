@@ -5,13 +5,16 @@ import re
 import urllib.error
 from collections import Counter
 from collections.abc import Iterable
+from pathlib import Path
 from urllib.parse import urljoin, urlparse
+
+import pymupdf
 
 from metakat.chapter.download_articles.common.http import http_get
 from metakat.chapter.download_articles.common.models import CatalogItem
 from metakat.chapter.download_articles.common.oai import OaiRecord, iter_records
 from metakat.chapter.download_articles.common.ojs import HOSTED_ELSEWHERE, REDIRECT_CODES
-from metakat.chapter.download_articles.common.source import Source
+from metakat.chapter.download_articles.common.source import Download, Source
 from metakat.chapter.download_articles.common.store import ArticleStore
 
 logger = logging.getLogger(__name__)
@@ -20,6 +23,7 @@ OAI_URL = "https://digilib.phil.muni.cz/oai/request"
 HOST = "digilib.phil.muni.cz"
 # The Faculty of Arts journals on journals.phil.muni.cz (OJS) keep their files in this library.
 OJS_LIBRARY = "journals.muni.cz"
+_BITSTREAM = re.compile(r"/bitstream/handle/11222\.digilib/(\d+)/")
 
 # Rights statements of records whose full text is not served.
 UNAVAILABLE_RIGHTS = {"embargoed access", "fulltext is not accessible"}
@@ -86,6 +90,23 @@ class MuniDigilibSource(Source):
 
     def is_available(self, item: CatalogItem) -> bool:
         return bool(item.pdf_urls) and not UNAVAILABLE_RIGHTS & {r.lower() for r in item.rights}
+
+    def local_pdf(self, item: CatalogItem, pdf_dir: Path | None) -> Download | None:
+        found = super().local_pdf(item, pdf_dir)
+        if found is not None or pdf_dir is None:
+            return found
+        # The library serves .../bitstream/handle/11222.digilib/<handle>/<name>.pdf as <handle>.pdf.
+        for url in item.pdf_urls:
+            if (handle := _BITSTREAM.search(url)) and (path := pdf_dir / f"{handle.group(1)}.pdf").exists():
+                return Download(path.read_bytes(), url)
+        return None
+
+    def title_page_index(self, pdf_bytes: bytes, url: str | None = None) -> int:
+        """The library puts a cover sheet before the article; its original scans (-source.pdf) have none."""
+        if url and url.lower().endswith("-source.pdf"):
+            return 0
+        with pymupdf.open(stream=pdf_bytes, filetype="pdf") as document:
+            return 1 if document.page_count > 1 else 0
 
 
 def catalog_from_records(records: Iterable[OaiRecord]) -> list[CatalogItem]:

@@ -95,6 +95,7 @@ class Source(ABC):
             raise DownloadBlocked(f"{url} did not return a PDF")
         return data
 
-    def title_page_index(self, pdf_bytes: bytes) -> int:
-        """Index of the article's first page in its PDF, for libraries that prepend cover sheets."""
+    def title_page_index(self, pdf_bytes: bytes, url: str | None = None) -> int:
+        """Index of the article's first page in its PDF (served from ``url``), for libraries that prepend
+        cover sheets."""
         return 0
