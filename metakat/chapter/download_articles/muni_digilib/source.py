@@ -1,13 +1,25 @@
 from __future__ import annotations
 
+import logging
 import re
+import urllib.error
+from collections import Counter
 from collections.abc import Iterable
+from urllib.parse import urljoin, urlparse
 
+from metakat.chapter.download_articles.common.http import http_get
 from metakat.chapter.download_articles.common.models import CatalogItem
 from metakat.chapter.download_articles.common.oai import OaiRecord, iter_records
+from metakat.chapter.download_articles.common.ojs import HOSTED_ELSEWHERE, REDIRECT_CODES
 from metakat.chapter.download_articles.common.source import Source
+from metakat.chapter.download_articles.common.store import ArticleStore
+
+logger = logging.getLogger(__name__)
 
 OAI_URL = "https://digilib.phil.muni.cz/oai/request"
+HOST = "digilib.phil.muni.cz"
+# The Faculty of Arts journals on journals.phil.muni.cz (OJS) keep their files in this library.
+OJS_LIBRARY = "journals.muni.cz"
 
 # Rights statements of records whose full text is not served.
 UNAVAILABLE_RIGHTS = {"embargoed access", "fulltext is not accessible"}
@@ -16,18 +28,61 @@ UNAVAILABLE_RIGHTS = {"embargoed access", "fulltext is not accessible"}
 class MuniDigilibSource(Source):
     """Digital Library of the Faculty of Arts, Masaryk University (digilib.phil.muni.cz).
 
-    The OAI-PMH interface publishes oai_dc only, and only part of the library (11 of its 54
+    The OAI-PMH interface publishes oai_dc only, and only part of the library (20 of its 54
     journals in 2026-10). An article record links its journal, never a volume or issue, so only
-    the year is known. Every file is behind a Cloudflare Turnstile human check, hence downloads
-    are done by hand from ``selection.html``.
+    the year is known. The Faculty of Arts journals on OJS (journals.phil.muni.cz) that keep their
+    files here are taken from the catalog of ``journals.muni.cz``, which recorded them as hosted
+    here; a journal the OAI-PMH interface already has is left to it. Every file is behind a
+    Cloudflare Turnstile human check, hence downloads are done by hand from ``selection.html``;
+    the OJS links of the picked articles are first resolved to the file here (``resolve_links``).
     """
 
     name = "digilib.phil.muni.cz"
-    type_preference = ("Article", "Anniversary Article Obituary", "Editorial", "Reviews", "Chapter", "News")
+    # OAI-PMH record types, then the OJS ones.
+    type_preference = ("Article", "article", "Anniversary Article Obituary", "Editorial", "Reviews", "Chapter",
+                       "News", "other")
     manual_download = True
 
     def build_catalog(self) -> list[CatalogItem]:
-        return catalog_from_records(iter_records(OAI_URL))
+        items = catalog_from_records(iter_records(OAI_URL))
+        return items + self.ojs_items({_title_key(item.journal_title) for item in items})
+
+    def ojs_items(self, known_journals: set[str]) -> list[CatalogItem]:
+        """The articles of the OJS journals recorded as hosted here, the file's address first where known."""
+        store = ArticleStore(self.root, OJS_LIBRARY)
+        hosted = {item_id: row for item_id, row in store.unavailable().items()
+                  if row["reason"].startswith(f"{HOSTED_ELSEWHERE} {HOST}")}
+        journals = {row["journal_id"] for row in hosted.values()}
+        items = []
+        for item in store.read_catalog():
+            if item.journal_id not in journals or _title_key(item.journal_title) in known_journals:
+                continue
+            item = item.model_copy(update={"library": self.name})
+            if item.item_id in hosted:
+                item.pdf_urls = [hosted[item.item_id]["reason"].split(": ", 1)[1], *item.pdf_urls]
+            items.append(item)
+        logger.info(f"{len(items)} articles of {len({i.journal_id for i in items})} journals on OJS")
+        return items
+
+    def resolve_links(self, items: list[CatalogItem]) -> bool:
+        changed = False
+        for item in items:
+            if not item.pdf_urls or urlparse(item.pdf_urls[0]).netloc == HOST:
+                continue
+            try:
+                http_get(item.pdf_urls[0], follow_redirects=False)
+                continue
+            except urllib.error.HTTPError as error:
+                location = error.headers.get("Location") if error.code in REDIRECT_CODES else None
+            except OSError as error:
+                logger.warning(f"{item.item_id}: {error}")
+                continue
+            if location and urlparse(urljoin(item.pdf_urls[0], location)).netloc == HOST:
+                item.pdf_urls = [urljoin(item.pdf_urls[0], location), *item.pdf_urls]
+                changed = True
+            else:
+                logger.warning(f"{item.item_id}: {item.pdf_urls[0]} does not lead to {HOST}")
+        return changed
 
     def is_available(self, item: CatalogItem) -> bool:
         return bool(item.pdf_urls) and not UNAVAILABLE_RIGHTS & {r.lower() for r in item.rights}
@@ -38,6 +93,8 @@ def catalog_from_records(records: Iterable[OaiRecord]) -> list[CatalogItem]:
     by_handle = {handle: record for record in records if (handle := _handle(record))}
     # Journals, series and books are the records without a file of their own.
     containers = {handle for handle, record in by_handle.items() if not _pdf_urls(record)}
+    # A review links the reviewed book besides its journal; the journal is the container most records link.
+    links = Counter(handle for record in records for handle in set(_related_handles(record)) if handle in containers)
 
     items = []
     for record in records:
@@ -45,7 +102,8 @@ def catalog_from_records(records: Iterable[OaiRecord]) -> list[CatalogItem]:
         handle = _handle(record)
         if not pdf_urls or handle is None:
             continue
-        journal_handle = next((h for h in _related_handles(record) if h in containers), None)
+        journal_handle = max((h for h in _related_handles(record) if h in containers), key=links.__getitem__,
+                             default=None)
         journal = by_handle.get(journal_handle)
         dc = record.dc
         date = (dc.get("date") or [None])[0]
@@ -68,6 +126,10 @@ def catalog_from_records(records: Iterable[OaiRecord]) -> list[CatalogItem]:
             record=dc,
         ))
     return items
+
+
+def _title_key(title: str | None) -> str:
+    return re.sub(r"\W+", " ", (title or "").casefold()).strip()
 
 
 def _handle(record: OaiRecord) -> str | None:

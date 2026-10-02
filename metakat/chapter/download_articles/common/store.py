@@ -73,13 +73,22 @@ class ArticleStore:
                 writer.writerow([item.item_id, item.journal_id, item.journal_title, item.volume, item.issue,
                                  item.year, item.item_type, item.title, item.pdf_urls[0] if item.pdf_urls else ""])
 
-        rows = "\n".join(
-            f'<li><a href="{html.escape(item.pdf_urls[0])}">{html.escape(item.item_id)}</a> '
-            f'{html.escape(item.journal_title or "")} ({item.year or "?"}): {html.escape(item.title or "")}</li>'
-            for item in items if item.pdf_urls
-        )
+        # One list per journal, in year order, for downloading by hand.
+        journals: dict[str, list[CatalogItem]] = {}
+        for item in items:
+            if item.pdf_urls:
+                journals.setdefault(item.journal_title or item.journal_id or "?", []).append(item)
+        sections = []
+        for title in sorted(journals, key=str.casefold):
+            rows = "\n".join(
+                f'<li>{item.year or "?"}: <a href="{html.escape(item.pdf_urls[0])}">'
+                f'{html.escape(item.pdf_urls[0].rsplit("/", 1)[-1])}</a> {html.escape(item.title or "")}</li>'
+                for item in sorted(journals[title], key=lambda i: (i.year or 0, i.item_id)))
+            sections.append(f"<h2>{html.escape(title)} ({len(journals[title])})</h2>\n<ol>\n{rows}\n</ol>")
+        count = sum(len(group) for group in journals.values())
         self.selection_html_path.write_text(
-            f'<!doctype html><meta charset="utf-8"><title>Selection</title><ol>\n{rows}\n</ol>\n', encoding="utf-8")
+            f'<!doctype html><meta charset="utf-8"><title>Selection</title>\n'
+            f"<p>{count} files from {len(journals)} journals.</p>\n" + "\n".join(sections) + "\n", encoding="utf-8")
 
     def read_selection(self) -> list[str]:
         with open(self.selection_path, encoding="utf-8", newline="") as file:

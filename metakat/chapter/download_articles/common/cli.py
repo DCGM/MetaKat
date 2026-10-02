@@ -109,6 +109,9 @@ def select(source: Source, store: ArticleStore, args) -> None:
         selected = select_items([item for item in available if item.item_id not in stored_ids],
                                 per_journal=args.per_journal, type_preference=source.type_preference,
                                 min_year_gap=args.min_year_gap, already_selected=store.stored_years(), seed=args.seed)
+    # Files saved by hand are matched by the name of their link, so links must point at the files.
+    if source.manual_download and source.resolve_links(selected):
+        store.write_catalog(catalog)
     store.write_selection(selected)
     cheap = sum(1 for item in selected if source.is_cheap(item))
     logger.info(f"Selected {len(selected)} items from {len({journal_key(i) for i in selected})} journals, "

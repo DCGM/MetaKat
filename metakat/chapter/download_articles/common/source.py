@@ -59,6 +59,12 @@ class Source(ABC):
         failures of the sampler's own, rather than refusals of the library, do not."""
         return True
 
+    def resolve_links(self, items: list[CatalogItem]) -> bool:
+        """Before a selection for downloading by hand is written: put the address of the file itself first
+        in ``pdf_urls`` of items whose links redirect, so that the saved files are found by name. Returns
+        whether any item changed (the catalog is then written again)."""
+        return False
+
     def is_cheap(self, item: CatalogItem) -> bool:
         """Whether the item can be stored without asking the library, e.g. it was downloaded before."""
         return False
