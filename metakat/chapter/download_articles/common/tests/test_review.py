@@ -203,6 +203,10 @@ def test_clicking_a_page_reviews_the_picks_from_it_on_in_order(tmp_path):
     assert _position(session) == ("Journal C", "C2010")
     session.handle("left")
     assert _position(session) == ("Journal C", "C2005")
+    session.handle("esc")                                     # on a pick: back to the journal's sheet
+    assert _position(session) == ("Journal C", None) and not session.done
+    session.handle("esc")                                     # on a sheet: quit
+    assert session.done and session.quit
 
 
 def test_arrow_keys_are_not_read_as_letters():

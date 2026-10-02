@@ -16,14 +16,14 @@ The picks of an approved journal are then shown one at a time, enlarged:
 
     y  approve the pick    n  reject the pick    space  skip    ←/b  back (before the first pick: the
     journal)    →  next pick (after the last: the next journal)    u  clear verdict
-    j  leave the picks, go to the next journal    q / Esc  quit
+    j  leave the picks, go to the next journal    Esc  back to the journal sheet    q  quit
 
 Verdicts are saved after every key: journals into ``<library>/review.csv``, picks into
 ``<library>/review_items.csv`` (``by`` tells a pick's own verdict from one inherited from a rejected
 journal). A new session starts at the first journal without a verdict, or inside an approved
 journal at its first pick without a verdict; ``--all`` goes through everything again. The window
 stays open when everything is reviewed (the header says ALL REVIEWED), so that verdicts can still be
-checked and changed; only q / Esc quits, and Enter goes on to the next library folder given. Journal
+checked and changed; only q (or Esc on a journal sheet) quits, and Enter goes on to the next library folder given. Journal
 sheets are cached in ``<library>/previews/journals/``.
 """
 from __future__ import annotations
@@ -201,7 +201,9 @@ class Session:
         return next((k for k, a in enumerate(self.journal.articles) if not self.items.verdict(a)), 0)
 
     def handle(self, key: str) -> None:
-        if key in ("q", "esc"):
+        if key == "esc" and self.item is not None:
+            self.item, self.revisit = None, False         # from a pick back to its journal's sheet
+        elif key in ("q", "esc"):
             self.done = self.quit = True
         elif key == "enter":
             self.done = True
@@ -457,7 +459,7 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                 lines = [f"{position}  pick {item + 1}/{len(journal.articles)}  {(verdict or 'no verdict').upper()}"
                          f"  ·  {data.year or '?'}  v{data.volume or '?'}/{data.issue or '?'}  {data.title or ''}"[:150],
                          f"{journal.title[:70]}  ·  y approve · n reject · ←/→ picks · space skip · u clear · "
-                         f"j next journal · q quit"]
+                         f"j next journal · Esc journal sheet · q quit"]
             cv2.imshow(WINDOW, _compose(shown, lines, verdict))
             if anchor is not None:
                 _place_window(cv2, anchor)

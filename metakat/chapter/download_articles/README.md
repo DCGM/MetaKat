@@ -70,7 +70,8 @@ python -m metakat.chapter.download_articles preview --source dml_cz
    `n` rejects the journal together with all its picks and goes to the next journal; `u` clears the
    journal and its picks. On a pick, `y`/`n` approves or rejects it, `u` clears it, `j` leaves the
    rest of the picks for later. Everywhere, ←/→ (or `,`/`.`) go to the previous/next journal or
-   pick, space skips, Enter goes on to the next library folder and `q`/Esc quits; with everything
+   pick, space skips, Enter goes on to the next library folder, Esc on a pick returns to its journal
+   sheet and `q` (or Esc on a sheet) quits; with everything
    reviewed the window stays open for checking. Verdicts are written after every key: journals into
    `<library>/review.csv`
    (journal id and title, samples, first and last year, `approved`/`rejected`, time) and picks into
