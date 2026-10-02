@@ -14,6 +14,7 @@ from metakat.chapter.download_articles.common.review import (
     ItemReviewLog,
     ReviewLog,
     Session,
+    _key_name,
     load_sheet,
     mark_verdicts,
     sheet_path,
@@ -114,6 +115,62 @@ def test_reapproving_a_rejected_journal_reopens_its_picks(tmp_path):
     again.handle("b")
     again.handle("u")                         # clear the journal verdict too
     assert _position(_session(store)) == ("Journal A", None)
+
+
+def test_approving_a_journal_with_every_pick_judged_goes_through_its_picks_again(tmp_path):
+    store = _store_with_journals(tmp_path)
+    session = _session(store)
+    session.handle("n")                       # A rejected
+    session.handle("y")                       # B approved, both picks judged
+    session.handle("y")
+    session.handle("n")
+    assert _position(session) == ("Journal C", None)
+    session.handle("left")                    # back on B's sheet
+    session.handle("y")                       # every pick has a verdict: all of them again, not the next journal
+    assert _position(session) == ("Journal B", "B1960")
+    session.handle("y")
+    assert _position(session) == ("Journal B", "B1990")
+    session.handle("y")
+    assert _position(session) == ("Journal C", None)
+
+
+def test_clearing_a_journal_clears_its_picks_too(tmp_path):
+    store = _store_with_journals(tmp_path)
+    session = _session(store)
+    session.handle("right")                   # B's sheet
+    session.handle("y")
+    session.handle("y")
+    session.handle("n")
+    session.handle("left")                    # C's sheet -> back to B's
+    assert _position(session) == ("Journal B", None)
+    session.handle("u")
+    assert session.log.verdict(session.journal) is None
+    assert all(session.items.verdict(a) is None for a in session.journal.articles)
+    session.handle("y")
+    assert _position(session) == ("Journal B", "B1960")
+
+
+def test_arrows_list_journals_and_picks_in_order(tmp_path):
+    store = _store_with_journals(tmp_path)
+    session = _session(store)
+    session.handle("left")
+    assert _position(session) == ("Journal A", None)          # stays at the first
+    session.handle("right")
+    session.handle("right")
+    session.handle("right")
+    assert _position(session) == ("Journal C", None)          # stays at the last
+    session.handle("left")
+    session.handle("y")
+    session.handle("right")
+    assert _position(session) == ("Journal B", "B1990")
+    session.handle("right")                                   # after the last pick: the next journal's sheet
+    assert _position(session) == ("Journal C", None)
+
+
+def test_arrow_keys_are_not_read_as_letters():
+    assert [_key_name(code) for code in (65361, 65363, 0x1000012, 2555904)] == ["left", "right", "left", "right"]
+    assert _key_name(0x100000 | 65361) == "left" and _key_name(0x100000 | ord("y")) == "y"
+    assert _key_name(65505) is None and _key_name(ord("Q")) == "q" and _key_name(-1) is None
 
 
 def test_sheet_fits_its_tiles_and_is_cached(tmp_path):

@@ -4,15 +4,19 @@
 
 A window first shows every stored title page of one journal in year order:
 
-    y  approve the journal and review its picks one by one
+    y  approve the journal and review its picks one by one: those without a verdict, or all of
+       them again when every one has a verdict
     n  reject the journal and all its picks, go to the next journal
-    space  skip    b  previous journal    u  clear verdict    q / Esc  quit
+    ←/→  previous/next journal, reviewed or not    space  next journal left to review
+    u  clear the verdicts of the journal and all its picks    q / Esc  quit
     click a page to see it enlarged, any key returns
+    the corner of each page shows its verdict: green approved, red rejected, grey none
 
 The picks of an approved journal are then shown one at a time, enlarged:
 
-    y  approve the pick    n  reject the pick    space  skip    b  back (before the first pick: the journal)
-    u  clear verdict       j  leave the picks, go to the next journal    q / Esc  quit
+    y  approve the pick    n  reject the pick    space  skip    ←/b  back (before the first pick: the
+    journal)    →  next pick (after the last: the next journal)    u  clear verdict
+    j  leave the picks, go to the next journal    q / Esc  quit
 
 Verdicts are saved after every key: journals into ``<library>/review.csv``, picks into
 ``<library>/review_items.csv`` (``by`` tells a pick's own verdict from one inherited from a rejected
@@ -163,6 +167,8 @@ class Session:
     def __init__(self, journals: list[Journal], log: ReviewLog, items: ItemReviewLog, review_all: bool = False):
         self.journals, self.log, self.items, self.review_all = journals, log, items, review_all
         self.index, self.item, self.done = 0, None, not journals
+        # True while going through every pick of a journal approved again with all its picks judged.
+        self.revisit = False
         if journals and not review_all:
             start = next((k for k, j in enumerate(journals) if self._unfinished(j)), None)
             if start is None:
@@ -201,18 +207,23 @@ class Session:
             self.log.set(journal, APPROVED)
             # Picks rejected only together with the journal are open for review again.
             self.items.set([a for a in journal.articles if self.items.by(a) == BY_JOURNAL], None)
+            # The picks without a verdict; when every pick has one, all of them again.
+            self.revisit = all(self.items.verdict(a) for a in journal.articles)
             self.item = self._first_open_item()
         elif key == "n":
             self.log.set(journal, REJECTED)
             self.items.set(journal.articles, REJECTED, by=BY_JOURNAL)
             self._next_journal()
         elif key == "u":
+            # The journal is reviewed from scratch: its verdict and those of all its picks are cleared.
             self.log.set(journal, None)
-            self.items.set([a for a in journal.articles if self.items.by(a) == BY_JOURNAL], None)
+            self.items.set(journal.articles, None)
         elif key in (" ", "s"):
             self._next_journal()
-        elif key == "b":
-            self.index = max(0, self.index - 1)
+        elif key in ("b", "left"):
+            self._show_journal(self.index - 1)
+        elif key == "right":
+            self._show_journal(self.index + 1)
 
     def _handle_item(self, key: str) -> None:
         if key in ("y", "n"):
@@ -222,16 +233,26 @@ class Session:
             self.items.set([self.article], None)
         elif key in (" ", "s"):
             self._next_item()
-        elif key == "b":
+        elif key in ("b", "left"):
             self.item = None if self.item == 0 else self.item - 1
+        elif key == "right":
+            if self.item + 1 < len(self.journal.articles):
+                self.item += 1
+            else:
+                self._show_journal(self.index + 1)
         elif key == "j":
             self._next_journal()
 
+    def _show_journal(self, index: int) -> None:
+        """The sheet of the journal at ``index`` (clamped), whatever its verdicts."""
+        self.index, self.item, self.revisit = max(0, min(index, len(self.journals) - 1)), None, False
+
     def _next_item(self) -> None:
-        """The next pick of the journal (without a verdict, unless reviewing all), else the next journal."""
+        """The next pick of the journal (without a verdict, unless reviewing all or revisiting), else the
+        next journal."""
         following = range(self.item + 1, len(self.journal.articles))
-        item = next((k for k in following
-                     if self.review_all or not self.items.verdict(self.journal.articles[k])), None)
+        item = next((k for k in following if self.review_all or self.revisit
+                     or not self.items.verdict(self.journal.articles[k])), None)
         if item is None:
             self._next_journal()
         else:
@@ -240,7 +261,7 @@ class Session:
     def _next_journal(self) -> None:
         """The next journal (with something left to review, unless reviewing all); an approved one
         opens at its first pick without a verdict."""
-        self.item = None
+        self.item, self.revisit = None, False
         following = range(self.index + 1, len(self.journals))
         index = next((k for k in following if self.review_all or self._unfinished(self.journals[k])), None)
         if index is None:
@@ -315,9 +336,21 @@ def _fit(image: Image.Image, max_width: int, max_height: int) -> tuple[Image.Ima
     return image, scale
 
 
+# Arrow key codes of ``cv2.waitKeyEx`` with the GTK, Qt and Windows backends. Their low byte must not
+# be read as a letter: GTK's left arrow (65361) ends in 81, "Q".
+ARROW_KEYS = {65361: "left", 65363: "right", 0x1000012: "left", 0x1000014: "right", 2424832: "left",
+              2555904: "right"}
+
+
 def _key_name(code: int) -> str | None:
     if code < 0:
         return None
+    # GTK sets a bit for Num Lock (0x100000) on every key.
+    for key in (code, code & 0xFFFF):
+        if key in ARROW_KEYS:
+            return ARROW_KEYS[key]
+    if code & 0xFFFF > 0xFF:
+        return None                 # other special keys (Shift, F1, ...)
     code &= 0xFF
     if code == 27:
         return "esc"
@@ -329,7 +362,7 @@ def _key_name(code: int) -> str | None:
 def _wait_key(cv2, clicks: list) -> str | None:
     """The next key, or None when the window was clicked."""
     while not clicks:
-        key = _key_name(cv2.waitKey(50))
+        key = _key_name(cv2.waitKeyEx(50))
         if key:
             return key
         if cv2.getWindowProperty(WINDOW, cv2.WND_PROP_VISIBLE) < 1:
@@ -387,8 +420,8 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                 shown = mark_verdicts(shown, scale, journal, items)
                 verdict = log.verdict(journal)
                 lines = [f"{position}  JOURNAL {(verdict or 'no verdict').upper()}  ·  {MARK_LEGEND}",
-                         "y approve and review picks · n reject journal and picks · space skip · b back · u clear · "
-                         "q quit · click enlarges"]
+                         "y review picks · n reject journal and picks · ←/→ journals · space next open · "
+                         "u clear journal and picks · q quit · click enlarges"]
             else:
                 article, item = session.article, session.item
                 shown, scale = page_of(index, item).result(), None
@@ -400,7 +433,7 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                 data = article.item
                 lines = [f"{position}  pick {item + 1}/{len(journal.articles)}  {(verdict or 'no verdict').upper()}"
                          f"  ·  {data.year or '?'}  v{data.volume or '?'}/{data.issue or '?'}  {data.title or ''}"[:150],
-                         f"{journal.title[:70]}  ·  y approve · n reject · space skip · b back · u clear · "
+                         f"{journal.title[:70]}  ·  y approve · n reject · ←/→ picks · space skip · u clear · "
                          f"j next journal · q quit"]
             cv2.imshow(WINDOW, _compose(shown, lines, verdict))
 
