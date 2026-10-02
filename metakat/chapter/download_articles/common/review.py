@@ -473,7 +473,7 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int, c
     round_number = current_round(log, items)
     session = Session(journals, log, items, review_all)
     if session.done:
-        print(f"{directory}: no stored journals")
+        print(f"{directory}: no journals to show (none stored, or all rejected in closed rounds)")
         return True
 
     clicks: list[tuple[int, int]] = []
