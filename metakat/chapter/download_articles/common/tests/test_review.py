@@ -9,11 +9,13 @@ from metakat.chapter.download_articles.common.review import (
     APPROVED,
     BY_ITEM,
     BY_JOURNAL,
+    MARK_COLOURS,
     REJECTED,
     ItemReviewLog,
     ReviewLog,
     Session,
     load_sheet,
+    mark_verdicts,
     sheet_path,
     stored_journals,
 )
@@ -123,3 +125,20 @@ def test_sheet_fits_its_tiles_and_is_cached(tmp_path):
     journal = stored_journals(store)[2]
     sheet = load_sheet(store, journal)
     assert sheet.size == sheet_layout(3)[0] and sheet_path(store, journal).exists()
+
+
+def test_sheet_marks_every_tile_with_its_pick_verdict(tmp_path):
+    store = _store_with_journals(tmp_path)
+    journal = stored_journals(store)[2]                       # C: 2000, 2005, 2010
+    items = ItemReviewLog.load(store)
+    items.set([journal.articles[0]], APPROVED)
+    items.set([journal.articles[1]], REJECTED)
+    sheet = load_sheet(store, journal)
+    scale = 0.5
+    marked = mark_verdicts(sheet.resize((round(sheet.width * scale), round(sheet.height * scale))), scale, journal,
+                           items)
+    _, boxes = sheet_layout(3)
+    corners = [marked.getpixel((round((x + w) * scale) - 3, round(y * scale) + 1)) for x, y, w, _ in boxes]
+    assert corners == [MARK_COLOURS[APPROVED, BY_ITEM], MARK_COLOURS[REJECTED, BY_ITEM], MARK_COLOURS[None, None]]
+    assert load_sheet(store, journal).getpixel((boxes[0][0] + boxes[0][2] - 3, boxes[0][1] + 1)) != \
+        MARK_COLOURS[APPROVED, BY_ITEM]                     # the cached sheet stays unmarked

@@ -267,6 +267,26 @@ def load_sheet(store: ArticleStore, journal: Journal) -> Image.Image:
         return image.convert("RGB")
 
 
+# Corner marks of the tiles on a journal sheet: a pick's own verdict, one inherited from its rejected
+# journal, or none yet (skipped or not reached).
+MARK_COLOURS = {(APPROVED, BY_ITEM): (40, 170, 70), (REJECTED, BY_ITEM): (215, 40, 40),
+                (REJECTED, BY_JOURNAL): (170, 110, 110), (None, None): (160, 160, 160)}
+MARK_LEGEND = "corner: green approved · red rejected · dull red with journal · grey no verdict"
+
+
+def mark_verdicts(sheet: Image.Image, scale: float, journal: Journal, items: ItemReviewLog) -> Image.Image:
+    """A copy of the (scaled) journal sheet with every tile's pick verdict as a triangle in its top right corner."""
+    marked = sheet.copy()
+    draw = ImageDraw.Draw(marked)
+    _, boxes = sheet_layout(len(journal.articles))
+    for article, (x, y, width, _) in zip(journal.articles, boxes):
+        verdict = items.verdict(article)
+        colour = MARK_COLOURS.get((verdict, items.by(article) if verdict else None), MARK_COLOURS[None, None])
+        right, top, size = (x + width) * scale, y * scale, max(16.0, 0.22 * width * scale)
+        draw.polygon([(right - size, top), (right, top), (right, top + size)], fill=colour, outline="white")
+    return marked
+
+
 def load_page(store: ArticleStore, article: StoredArticle, max_width: int, max_height: int) -> Image.Image:
     with Image.open(store.dir / article.image.file) as image:
         return _fit(image.convert("RGB"), max_width, max_height - HEADER_HEIGHT)[0]
@@ -364,8 +384,9 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                 if journal.articles:
                     page_of(index, 0)
                 shown, scale = _fit(sheet, max_width, max_height - HEADER_HEIGHT)
+                shown = mark_verdicts(shown, scale, journal, items)
                 verdict = log.verdict(journal)
-                lines = [f"{position}  JOURNAL {(verdict or 'no verdict').upper()}",
+                lines = [f"{position}  JOURNAL {(verdict or 'no verdict').upper()}  ·  {MARK_LEGEND}",
                          "y approve and review picks · n reject journal and picks · space skip · b back · u clear · "
                          "q quit · click enlarges"]
             else:
