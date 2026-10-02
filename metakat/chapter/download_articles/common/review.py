@@ -14,7 +14,8 @@ A window first shows every stored title page of one journal in year order:
 
 The picks of an approved journal are then shown one at a time, enlarged:
 
-    y  approve the pick    n  reject the pick    space  skip    ←/b  back (before the first pick: the
+    y  approve the pick    n  reject the pick    (after the last pick: the journal sheet again)
+    space  skip    ←/b  back (before the first pick: the
     journal)    →  next pick (after the last: the next journal)    u  clear verdict
     j  leave the picks, go to the next journal    Esc  back to the journal sheet    q  quit
 
@@ -265,12 +266,12 @@ class Session:
 
     def _next_item(self) -> None:
         """The next pick of the journal (without a verdict, unless reviewing all or revisiting), else the
-        next journal."""
+        journal's sheet again, to see its verdicts before going on."""
         following = range(self.item + 1, len(self.journal.articles))
         item = next((k for k in following if self.review_all or self.revisit
                      or not self.items.verdict(self.journal.articles[k])), None)
         if item is None:
-            self._next_journal()
+            self.item, self.revisit = None, False
         else:
             self.item = item
 

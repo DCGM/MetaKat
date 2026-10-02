@@ -68,7 +68,8 @@ python -m metakat.chapter.download_articles preview --source dml_cz
    like any pick. `y` approves the journal and goes through
    its picks one by one, enlarged (those without a verdict, or all again when every one has one);
    `n` rejects the journal together with all its picks and goes to the next journal; `u` clears the
-   journal and its picks. On a pick, `y`/`n` approves or rejects it, `u` clears it, `j` leaves the
+   journal and its picks. On a pick, `y`/`n` approves or rejects it (after the last one the journal sheet
+   is shown again), `u` clears it, `j` leaves the
    rest of the picks for later. Everywhere, ←/→ (or `,`/`.`) go to the previous/next journal or
    pick, space skips, Enter goes on to the next library folder, Esc on a pick returns to its journal
    sheet and `q` (or Esc on a sheet) quits; with everything

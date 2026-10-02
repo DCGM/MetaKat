@@ -60,7 +60,9 @@ def test_approved_journal_is_reviewed_pick_by_pick_and_rejected_one_takes_its_pi
     session = _session(store)
     session.handle("y")                       # Journal A approved -> its only pick
     assert _position(session) == ("Journal A", "A1950")
-    session.handle("y")                       # pick approved -> Journal B as a whole
+    session.handle("y")                       # the last pick approved -> Journal A's sheet again
+    assert _position(session) == ("Journal A", None)
+    session.handle(" ")                       # the next journal left to review
     assert _position(session) == ("Journal B", None)
     session.handle("n")                       # Journal B rejected with both picks -> Journal C
     assert _position(session) == ("Journal C", None)
@@ -86,7 +88,7 @@ def test_approved_journal_is_reviewed_pick_by_pick_and_rejected_one_takes_its_pi
 def test_new_session_resumes_inside_an_approved_journal(tmp_path):
     store = _store_with_journals(tmp_path)
     session = _session(store)
-    for key in "yyn":                         # A and its pick approved, B rejected
+    for key in "yy n":                        # A and its pick approved, B rejected
         session.handle(key)
     session.handle("y")                       # C approved, no pick reviewed
     session.handle("s")                       # C2000 skipped
@@ -105,15 +107,17 @@ def test_new_session_resumes_inside_an_approved_journal(tmp_path):
 def test_a_reviewed_library_stays_open_for_checking_until_quit_or_enter(tmp_path):
     store = _store_with_journals(tmp_path)
     session = _session(store)
-    for key in "yynn":                        # A approved with its pick, B and C rejected
+    for key in "yy nn":                       # A approved with its pick, B and C rejected
         session.handle(key)
     assert session.complete and not session.done and _position(session) == ("Journal C", None)
     reopened = _session(store)
     assert not reopened.done and _position(reopened) == ("Journal A", None)
     reopened.handle("y")                      # every pick judged: A's pick again
     assert _position(reopened) == ("Journal A", "A1950")
-    reopened.handle("n")                      # changed to rejected; nothing left: the next journal in order
-    assert _position(reopened) == ("Journal B", None) and not reopened.done
+    reopened.handle("n")                      # changed to rejected; the last pick: A's sheet again
+    assert _position(reopened) == ("Journal A", None) and not reopened.done
+    reopened.handle(" ")                      # nothing left to review: the next journal in order
+    assert _position(reopened) == ("Journal B", None)
     reopened.handle("enter")
     assert reopened.done and not reopened.quit
     quitting = _session(store)
@@ -144,14 +148,13 @@ def test_approving_a_journal_with_every_pick_judged_goes_through_its_picks_again
     session.handle("y")                       # B approved, both picks judged
     session.handle("y")
     session.handle("n")
-    assert _position(session) == ("Journal C", None)
-    session.handle("left")                    # back on B's sheet
+    assert _position(session) == ("Journal B", None)          # after its last pick: B's sheet
     session.handle("y")                       # every pick has a verdict: all of them again, not the next journal
     assert _position(session) == ("Journal B", "B1960")
     session.handle("y")
     assert _position(session) == ("Journal B", "B1990")
     session.handle("y")
-    assert _position(session) == ("Journal C", None)
+    assert _position(session) == ("Journal B", None)
 
 
 def test_clearing_a_journal_clears_its_picks_too(tmp_path):
@@ -160,8 +163,7 @@ def test_clearing_a_journal_clears_its_picks_too(tmp_path):
     session.handle("right")                   # B's sheet
     session.handle("y")
     session.handle("y")
-    session.handle("n")
-    session.handle("left")                    # C's sheet -> back to B's
+    session.handle("n")                       # B's last pick: B's sheet again
     assert _position(session) == ("Journal B", None)
     session.handle("u")
     assert session.log.verdict(session.journal) is None
