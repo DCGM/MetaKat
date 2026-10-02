@@ -171,6 +171,7 @@ def test_arrow_keys_are_not_read_as_letters():
     assert [_key_name(code) for code in (65361, 65363, 0x1000012, 2555904)] == ["left", "right", "left", "right"]
     assert _key_name(0x100000 | 65361) == "left" and _key_name(0x100000 | ord("y")) == "y"
     assert _key_name(65505) is None and _key_name(ord("Q")) == "q" and _key_name(-1) is None
+    assert [_key_name(ord(c)) for c in ",<.>"] == ["left", "left", "right", "right"]
 
 
 def test_sheet_fits_its_tiles_and_is_cached(tmp_path):

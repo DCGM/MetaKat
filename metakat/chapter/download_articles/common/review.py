@@ -7,7 +7,7 @@ A window first shows every stored title page of one journal in year order:
     y  approve the journal and review its picks one by one: those without a verdict, or all of
        them again when every one has a verdict
     n  reject the journal and all its picks, go to the next journal
-    ←/→  previous/next journal, reviewed or not    space  next journal left to review
+    ←/→ (or ,/.)  previous/next journal, reviewed or not    space  next journal left to review
     u  clear the verdicts of the journal and all its picks    q / Esc  quit
     click a page to see it enlarged, any key returns
     the corner of each page shows its verdict: green approved, red rejected, grey none
@@ -352,6 +352,11 @@ def _key_name(code: int) -> str | None:
     if code & 0xFFFF > 0xFF:
         return None                 # other special keys (Shift, F1, ...)
     code &= 0xFF
+    # "," and "." (the "<" and ">" keys) move like the arrows.
+    if chr(code) in ",<":
+        return "left"
+    if chr(code) in ".>":
+        return "right"
     if code == 27:
         return "esc"
     if code == 8:
@@ -383,9 +388,9 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
         return True
 
     clicks: list[tuple[int, int]] = []
-    cv2.namedWindow(WINDOW, cv2.WINDOW_AUTOSIZE)
-    cv2.setMouseCallback(WINDOW, lambda event, x, y, *_: clicks.append((x, y))
-                         if event == cv2.EVENT_LBUTTONDOWN else None)
+    _open_window(cv2, clicks)
+    # Where the image of a re-created window is to be put back, once it is shown.
+    anchor: tuple[int, int] | None = None
     page_height = max_height
     with ThreadPoolExecutor(max_workers=2) as prefetch:
         sheets: dict = {}
@@ -420,7 +425,7 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                 shown = mark_verdicts(shown, scale, journal, items)
                 verdict = log.verdict(journal)
                 lines = [f"{position}  JOURNAL {(verdict or 'no verdict').upper()}  ·  {MARK_LEGEND}",
-                         "y review picks · n reject journal and picks · ←/→ journals · space next open · "
+                         "y review picks · n reject journal and picks · ←/→ or ,/. journals · space next open · "
                          "u clear journal and picks · q quit · click enlarges"]
             else:
                 article, item = session.article, session.item
@@ -436,6 +441,9 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                          f"{journal.title[:70]}  ·  y approve · n reject · ←/→ picks · space skip · u clear · "
                          f"j next journal · q quit"]
             cv2.imshow(WINDOW, _compose(shown, lines, verdict))
+            if anchor is not None:
+                _place_window(cv2, anchor)
+                anchor = None
 
             key = _wait_key(cv2, clicks)
             if key is None:
@@ -444,6 +452,7 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                 if scale is not None:
                     _enlarge(cv2, store, journal, (x / scale, (y - HEADER_HEIGHT) / scale), max_width, max_height,
                              clicks)
+                anchor = _reopen_window(cv2, clicks)
                 continue
             session.handle(key)
             if key in ("q", "esc"):
@@ -457,6 +466,35 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
           f"{len(journals)}; picks {pick_counts[APPROVED]} approved, {pick_counts[REJECTED]} rejected of "
           f"{len(picks)} -> {log.path}, {items.path}")
     return True
+
+
+def _open_window(cv2, clicks: list) -> None:
+    cv2.namedWindow(WINDOW, cv2.WINDOW_AUTOSIZE)
+    cv2.setMouseCallback(WINDOW, lambda event, x, y, *_: clicks.append((x, y))
+                         if event == cv2.EVENT_LBUTTONDOWN else None)
+
+
+def _reopen_window(cv2, clicks: list) -> tuple[int, int]:
+    """A new window in place of the shown one; returns where its image was.
+
+    With OpenCV's Qt backend a click gives the image view the keyboard focus, and the view then takes
+    the arrow keys for scrolling (letters still reach the window, OpenCV issue #1695). Only a new
+    window has the focus again.
+    """
+    x, y, _, _ = cv2.getWindowImageRect(WINDOW)
+    cv2.destroyWindow(WINDOW)
+    cv2.waitKey(1)
+    _open_window(cv2, clicks)
+    return x, y
+
+
+def _place_window(cv2, image_position: tuple[int, int]) -> None:
+    """Move the window so that its image is at ``image_position`` (the window frame lies above it)."""
+    cv2.moveWindow(WINDOW, *image_position)
+    cv2.waitKey(1)
+    x, y, _, _ = cv2.getWindowImageRect(WINDOW)
+    if (x, y) != image_position:
+        cv2.moveWindow(WINDOW, 2 * image_position[0] - x, 2 * image_position[1] - y)
 
 
 def _enlarge(cv2, store: ArticleStore, journal: Journal, point: tuple[float, float], max_width: int,
