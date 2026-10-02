@@ -45,6 +45,9 @@ class CrossrefSource(Source):
     # Articles without a PDF link are downloaded from the address their landing page names in
     # ``citation_pdf_url`` (the meta tag for Google Scholar).
     landing_pdf: bool = False
+    # PDF addresses taken from a landing page that names no ``citation_pdf_url``: the sites' own
+    # files, not the other PDFs an article page may link (e.g. cited works).
+    landing_pdf_link: re.Pattern | None = None
 
     def build_catalog(self) -> list[CatalogItem]:
         excluded = self.excluded_dois()
@@ -94,7 +97,10 @@ class CrossrefSource(Source):
         # Some publishers register the PDF itself as the landing page.
         if page.startswith(b"%PDF"):
             return Download(page, item.landing_url)
-        url = citation_pdf_url(page.decode("utf-8", "replace"), item.landing_url)
+        text = page.decode("utf-8", "replace")
+        url = citation_pdf_url(text, item.landing_url)
+        if url is None and self.landing_pdf_link and (link := self.landing_pdf_link.search(text)):
+            url = html.unescape(link.group(0))
         if url is None:
             raise DownloadBlocked(f"{item.landing_url} names no citation_pdf_url")
         return Download(self.download_pdf(url), url)

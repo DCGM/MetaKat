@@ -1,4 +1,5 @@
 import json
+import re
 import urllib.error
 import urllib.parse
 
@@ -129,3 +130,9 @@ def test_article_without_a_pdf_link_is_downloaded_from_its_landing_page(monkeypa
     # A landing page that is the PDF itself.
     pages["https://online.agris.cz/article/1"] = b"%PDF-1.4"
     assert Landing().download(item).data == b"%PDF-1.4"
+    # A page without citation_pdf_url: the site's own file, not a cited work.
+    Landing.landing_pdf_link = re.compile(r"https://eujem\.cz/wp-content/uploads/[^\"]+\.pdf")
+    pages["https://online.agris.cz/article/1"] = (b'<a href="https://cdn.mises.org/Road.pdf">'
+                                                   b'<a href="https://eujem.cz/wp-content/uploads/2026/04.pdf">')
+    pages["https://eujem.cz/wp-content/uploads/2026/04.pdf"] = b"%PDF-1.5"
+    assert Landing().download(item).url == "https://eujem.cz/wp-content/uploads/2026/04.pdf"

@@ -21,6 +21,7 @@ landing_pages/   journals found in Crossref by ISSN, PDFs named by their article
 muni_digilib/    Digital Library of the Faculty of Arts, Masaryk University
 muni_journals/   journals of Masaryk University (OJS)
 mzk/             Kramerius of the Moravian Library
+national_museum/ periodicals of the National Museum in Prague (publikace.nm.cz)
 nkp/             Kramerius of the National Library of the Czech Republic
 ojs_sites/       single-journal Open Journal Systems sites
 upol/            journals of Palacký University Olomouc (Crossref)
@@ -59,7 +60,7 @@ python -m metakat.chapter.download_articles preview --source dml_cz
    journals to trust:
 
    ```bash
-   python -m metakat.chapter.download_articles.common.review /mnt/kolosus/data/smart_digiline/articles/{knav,dml.cz,cbvk,nkp,journals.muni.cz,ojs.cvut.cz,ojs_sites,cuni,agriculturejournals.cz,upol,journal_sites,landing_pages}
+   python -m metakat.chapter.download_articles.common.review /mnt/kolosus/data/smart_digiline/articles/{knav,dml.cz,cbvk,nkp,journals.muni.cz,ojs.cvut.cz,ojs_sites,cuni,agriculturejournals.cz,upol,journal_sites,landing_pages,national_museum}
    ```
 
    A window (OpenCV) first shows every stored title page of a journal in year order, labelled with
@@ -202,9 +203,11 @@ are in the libraries above and about 115 on the platforms and sites below. About
 WordPress, Drupal and similar sites have neither OAI-PMH nor PDF links in Crossref and are not
 harvested. The registers of Czech journals (the government lists of peer-reviewed periodicals RVVI 2008 and
 2015, ERIH PLUS 2023, OpenAlex) add 86 journals with PDF links in Crossref (`journal_sites`) and,
-of 105 without, 6 on OJS (`ojs_sites`) and 15 whose article pages name the PDF (`landing_pages`);
-about 70 others are on sites of their own (the National Museum, prolekare.cz, ...) and about 15
-are gone or refuse requests.
+of 105 without, 6 on OJS (`ojs_sites`), 34 whose article pages name or are the PDF
+(`landing_pages`) and 10 of the National Museum (`national_museum`). The medical journals on the
+prolekare.cz platform (Care Comm, the Czech Medical Association) are left out: their articles are
+shown only after declaring oneself a healthcare professional. About 25 others are on sites of their
+own without a link to the PDF, and about 15 are gone or refuse requests.
 
 | `--source` | Publisher | Notes |
 |---|---|---|
@@ -215,4 +218,5 @@ are gone or refuse requests.
 | `agriculturejournals` | [Czech Academy of Agricultural Sciences](https://www.agriculturejournals.cz/) (Crossref, prefix 10.17221) | 14,005 articles in 11 journals, 1999–2026. The sites answer requests 2 s apart with 429 now and then, so requests are 5 s apart. |
 | `upol` | [Palacký University Olomouc](https://www.upol.cz/) (Crossref, prefix 10.5507) | 7,120 articles in 24 journals, 2000–2026. |
 | `journal_sites` | single-journal sites (Crossref, by ISSN) | The other Czech journals with PDF links in Crossref: 37 from DOAJ and 86 from the government list of peer-reviewed periodicals (RVVI 2008 and 2015), ERIH PLUS and OpenAlex, of universities, institutes, museums, societies and medical publishers (Solen, Galen, Care Comm); 122 journals (129 titles, counting renames), 49,219 articles, 47,042 with a PDF link. Articles whose DOI one of the libraries above holds are left to it. The register comparison is in `registers/czech_journals.tsv` under `--root`. |
-| `landing_pages` | single-journal sites (Crossref, by ISSN, PDF from the article page) | Register journals without PDF links in Crossref whose article pages name the PDF in `citation_pdf_url` (or are the PDF): 15 journals (17 titles) such as Geografie (from 1960), Acta Veterinaria Brno (from 1978), Agris on-line, Lifelong Learning, Bulletin Mineralogie Petrologie, and the DSpace of the University of West Bohemia (Castellologica bohemica, Kuděj, MEMO); 5,378 articles. A pick costs two requests, the page and the PDF. |
+| `landing_pages` | single-journal sites (Crossref, by ISSN, PDF from the article page) | Register journals without PDF links in Crossref whose article pages name the PDF in `citation_pdf_url`, are the PDF, or link the site's own file (`landing_pdf_link`): 34 journals such as Geografie (from 1960), Acta Veterinaria Brno (from 1978), Agris on-line, Lifelong Learning, Klinická onkologie, the DSpace of the University of West Bohemia (Castellologica bohemica, Kuděj, MEMO), the University of Ostrava (Studia Slavica, Studia Romanistica, ...), sociosphera.com, Aussiger Beiträge (UJEP repository) and the three journals of Enigma Corporation; 8,321 articles. A pick costs two requests, the page and the PDF. |
+| `national_museum` | [National Museum](https://publikace.nm.cz/periodicke-publikace) | 7,159 articles in 14 periodicals (Acta Musei Nationalis Pragae – Historia and Historia litterarum, Annals of the Náprstek Museum, Lynx, Fossil Imprint, Journal of the National Museum, Numismatické listy, Muzeum, ...), from the issue pages; the article page links the PDF. Older volumes are listed with abstracts only; such articles are refused but start no moving wall. European Journal of Taxonomy is published elsewhere and left out. |

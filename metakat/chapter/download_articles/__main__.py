@@ -10,6 +10,7 @@ from metakat.chapter.download_articles.landing_pages.source import LandingPagesS
 from metakat.chapter.download_articles.muni_digilib.source import MuniDigilibSource
 from metakat.chapter.download_articles.muni_journals.source import MuniJournalsSource
 from metakat.chapter.download_articles.mzk.source import MzkSource
+from metakat.chapter.download_articles.national_museum.source import NationalMuseumSource
 from metakat.chapter.download_articles.nkp.source import NkpSource
 from metakat.chapter.download_articles.ojs_sites.source import OjsSitesSource
 from metakat.chapter.download_articles.upol.source import UpolSource
@@ -26,6 +27,7 @@ SOURCES = {
     "muni_digilib": MuniDigilibSource,
     "muni_journals": MuniJournalsSource,
     "mzk": MzkSource,
+    "national_museum": NationalMuseumSource,
     "nkp": NkpSource,
     "ojs_sites": OjsSitesSource,
     "upol": UpolSource,
