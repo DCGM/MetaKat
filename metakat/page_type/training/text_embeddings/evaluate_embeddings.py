@@ -68,6 +68,10 @@ def parse_arguments(argv=None):
     parser.add_argument('--embeddings-dir', type=Path, required=True,
                         help='Embedding output directory holding lmdb/ and meta.json.')
     parser.add_argument('--text-lmdb', type=Path, required=True, help='Source page-text LMDB.')
+    parser.add_argument('--embedding-key', default='{key}',
+                        help='Embedding LMDB key of a sample page, formatted from its sample columns; e.g. '
+                             '"{doc}.images/{page_id}.jpg" for the image embeddings, which are keyed by '
+                             'image path (default: the page-text key).')
     parser.add_argument('--output-dir', type=Path, default=None,
                         help='Report directory (default: <embeddings-dir>/evaluation).')
     parser.add_argument('--min-train-per-class', type=int, default=30,
@@ -85,7 +89,7 @@ def parse_arguments(argv=None):
 
 # ---------------------------------------------------------------------------- data
 
-def load_pages(sample_path: Path, embeddings_lmdb: Path, text_lmdb: Path, dtype: str):
+def load_pages(sample_path: Path, embeddings_lmdb: Path, text_lmdb: Path, dtype: str, embedding_key: str = '{key}'):
     sample = pd.read_csv(sample_path, sep='\t', dtype=str, keep_default_na=False)
     sample = sample.sort_values('key', kind='stable').reset_index(drop=True)
     logger.info(f'Sample: {len(sample)} pages, {sample["split"].value_counts().to_dict()}')
@@ -95,8 +99,8 @@ def load_pages(sample_path: Path, embeddings_lmdb: Path, text_lmdb: Path, dtype:
     # locked read: the embedding LMDB may still be written by a running job
     env = lmdb.open(str(embeddings_lmdb), readonly=True, readahead=False)
     with env.begin() as txn:
-        for i, key in enumerate(sample['key']):
-            value = txn.get(key.encode('utf-8'))
+        for i, row in enumerate(sample.to_dict('records')):
+            value = txn.get(embedding_key.format(**row).encode('utf-8'))
             if value is not None:
                 embeddings.append(np.frombuffer(value, dtype=dtype))
                 present[i] = True
@@ -316,7 +320,7 @@ def main(argv=None):
     rng = np.random.default_rng(args.seed)
     meta = json.loads((args.embeddings_dir / 'meta.json').read_text(encoding='utf-8'))
     sample, embeddings, texts, missing = load_pages(
-        args.sample, args.embeddings_dir / 'lmdb', args.text_lmdb, meta['dtype'])
+        args.sample, args.embeddings_dir / 'lmdb', args.text_lmdb, meta['dtype'], args.embedding_key)
     embeddings /= np.maximum(np.linalg.norm(embeddings, axis=1, keepdims=True), 1e-12)
 
     split = sample['split'].to_numpy()

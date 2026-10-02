@@ -1,3 +1,4 @@
+import lmdb
 import numpy as np
 import pandas as pd
 import pytest
@@ -6,6 +7,7 @@ from metakat.page_type.training.text_embeddings.evaluate_embeddings import (
     LAYOUT_FEATURES,
     knn_predict,
     layout_features,
+    load_pages,
     position_features,
     score,
 )
@@ -56,3 +58,18 @@ def test_score_averages_f1_over_classes_present_in_the_set():
     assert set(result['per_class']) == {'A', 'B'}
     assert result['macro_f1'] == pytest.approx((2 / 3 + 2 / 3) / 2)
     assert result['accuracy'] == pytest.approx(2 / 3)
+
+
+def test_load_pages_finds_image_embeddings_by_a_key_template(tmp_path):
+    pd.DataFrame({'key': ['mzk_a', 'mzk_b'], 'library': 'mzk', 'page_id': ['a', 'b'], 'doc': 'mzk/d1',
+                  'split': 'train'}).to_csv(tmp_path / 'sample.tsv', sep='\t', index=False)
+    for name, items in {'emb': {b'mzk/d1.images/b.jpg': np.ones(4, dtype=np.float16).tobytes()},
+                        'text': {b'mzk_b': 'page b'.encode()}}.items():
+        env = lmdb.open(str(tmp_path / name))
+        with env.begin(write=True) as txn:
+            for key, value in items.items():
+                txn.put(key, value)
+        env.close()
+    sample, embeddings, texts, _ = load_pages(tmp_path / 'sample.tsv', tmp_path / 'emb', tmp_path / 'text',
+                                              'float16', '{doc}.images/{page_id}.jpg')
+    assert list(sample['key']) == ['mzk_b'] and embeddings.shape == (1, 4) and texts == ['page b']

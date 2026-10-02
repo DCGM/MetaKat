@@ -60,17 +60,18 @@ def _write_images(images, files):
         (images / path).write_bytes(b'')
 
 
-def test_file_list_keys_are_library_and_page_uuid_in_key_order(tmp_path):
+def test_file_list_keys_are_relative_paths_in_key_order(tmp_path):
     images = tmp_path / 'images'
     _write_images(images, ['mzk/doc1.images/b.jpg', 'mzk/doc2.images/a.JPG', 'mzk/doc2.images/skip.png',
                            'cuni_fsv/doc3.images/c.jpg', 'cuni/doc4.images/d.jpeg'])
     list_path = tmp_path / 'file_list.tsv'
     assert build_file_list(images, {'.jpg', '.jpeg'}, list_path) == 4
     keys, paths = read_file_list(list_path, None, None)
-    assert [k.decode() for k in keys] == ['cuni_d', 'cuni_fsv_c', 'mzk_a', 'mzk_b']
-    assert paths[2].decode() == 'mzk/doc2.images/a.JPG'
-    keys, _ = read_file_list(list_path, b'cuni_fsv_c', 1)
-    assert [k.decode() for k in keys] == ['mzk_a']
+    expected = ['cuni/doc4.images/d.jpeg', 'cuni_fsv/doc3.images/c.jpg', 'mzk/doc1.images/b.jpg',
+                'mzk/doc2.images/a.JPG']
+    assert [k.decode() for k in keys] == expected and [p.decode() for p in paths] == expected
+    keys, _ = read_file_list(list_path, b'cuni_fsv/doc3.images/c.jpg', 1)
+    assert [k.decode() for k in keys] == ['mzk/doc1.images/b.jpg']
 
 
 def test_images_directly_in_a_library_are_skipped(tmp_path, caplog):
@@ -80,9 +81,6 @@ def test_images_directly_in_a_library_are_skipped(tmp_path, caplog):
     assert 'Skipped 1 images directly in mzk/' in caplog.text
 
 
-@pytest.mark.parametrize('files', [['mzk/doc1.images/a.jpg', 'mzk/doc1.images/a.jpeg'],
-                                   ['mzk/doc1.images/a.jpg', 'mzk/doc2.images/a.jpg']])
-def test_duplicate_keys_are_refused(tmp_path, files):
-    _write_images(tmp_path / 'images', files)
-    with pytest.raises(SystemExit, match='twice'):
-        build_file_list(tmp_path / 'images', {'.jpg', '.jpeg'}, tmp_path / 'file_list.tsv')
+def test_a_page_in_two_documents_gets_two_keys(tmp_path):
+    _write_images(tmp_path / 'images', ['mzk/doc1.images/a.jpg', 'mzk/doc2.images/a.jpg'])
+    assert build_file_list(tmp_path / 'images', {'.jpg', '.jpeg'}, tmp_path / 'file_list.tsv') == 2

@@ -2,8 +2,10 @@
 
 Input: an image directory with one subdirectory per library, which holds one
 subdirectory per document (<document-uuid>.images) with the page images as
-<page-uuid>.jpg; the key of each page is "{library}_{page-uuid}", the same as
-in the page-text LMDB and the text embeddings. Output: <output-root>/<model-name>/
+<page-uuid>.jpg; the key of each page is its path relative to the image
+directory, "<library>/<document>/<page-uuid>.jpg". (The page-text LMDB keys
+pages as "{library}_{page-uuid}" instead, which is not unique for images: a page
+shared by two documents is stored under both.) Output: <output-root>/<model-name>/
 with the same layout as the text embeddings (see
 text_embeddings/embedding_inference.py):
 
@@ -139,8 +141,8 @@ def _is_image(entry, extensions) -> bool:
 def build_file_list(image_dir: Path, extensions, list_path: Path) -> int:
     """Lists <image-dir>/<library>/<document>/<page-uuid>.<ext> into a key-sorted "key<TAB>relative path" file.
 
-    The key leaves out the document, as the page-text LMDB does. Images lying directly in a library
-    directory are not pages of a document and are skipped (with a warning).
+    The key is the relative path itself. Images lying directly in a library directory are not pages
+    of a document and are skipped (with a warning).
     """
     entries = []
     for library in sorted(e.name for e in os.scandir(image_dir) if e.is_dir()):
@@ -154,17 +156,13 @@ def build_file_list(image_dir: Path, extensions, list_path: Path) -> int:
                 with os.scandir(document.path) as it:
                     for entry in it:
                         if _is_image(entry, extensions):
-                            stem = os.path.splitext(entry.name)[0]
-                            entries.append((f'{library}_{stem}', f'{library}/{document.name}/{entry.name}'))
+                            path = f'{library}/{document.name}/{entry.name}'
+                            entries.append((path, path))
                             count += 1
         logger.info(f'Listed {count} images in {documents} documents of {library}')
         if skipped:
             logger.warning(f'Skipped {skipped} images directly in {library}/, outside any document directory')
     entries.sort()
-    duplicates = [a for a, b in zip(entries, entries[1:]) if a[0] == b[0]]
-    if duplicates:
-        raise SystemExit(f'{len(duplicates)} keys occur twice (the same page uuid in two documents or with two '
-                         f'extensions) in {image_dir}, e.g. {duplicates[0][1]}.')
     temp_path = list_path.with_name(list_path.name + '.tmp')
     with temp_path.open('w', encoding='utf-8') as f:
         for key, path in entries:
@@ -292,7 +290,7 @@ def main(argv=None):
         'dim': dim,
         'source_images': str(args.image_dir.resolve()),
         'source_entries': total,
-        'key_format': '{library}_{page-uuid}: library directory and image file name stem (document left out)',
+        'key_format': '<library>/<document>/<page-uuid>.<ext>: image path relative to source_images',
         'value_format': f'raw {args.dtype} bytes, np.frombuffer(value, dtype="{args.dtype}")',
     }
     check_or_write_meta(output_dir / 'meta.json', meta, FIXED_META_FIELDS)
