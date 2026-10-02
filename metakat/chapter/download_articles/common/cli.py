@@ -163,6 +163,10 @@ def fetch(source: Source, store: ArticleStore, pdf_dir: Path | None, reextract: 
                 if (isinstance(error, DownloadBlocked) or getattr(error, "code", None) in (401, 403, 404, 410)
                         or isinstance(getattr(error, "reason", None), DEAD_HOST_ERRORS)):
                     store.mark_unavailable(item, str(error))
+            except Exception as error:
+                # A failure of the sampler's own (e.g. a missing optional dependency), not a refusal: the
+                # item stays selectable and the other items are still fetched.
+                logger.exception(f"{item_id}: {error!r}")
         if download is None:
             missing.append(item_id)
             continue
