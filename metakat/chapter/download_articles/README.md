@@ -82,6 +82,13 @@ python -m metakat.chapter.download_articles preview --source dml_cz
    first pick without one; `--all` goes through everything again. Journal sheets are cached in
    `<library>/previews/journals/`.
 
+   Apart from its verdict, a pick can be marked as a review of someone's work (a book, an exhibition,
+   tests): `r` on a pick marks or unmarks it, shown as a triangle in the top left corner of its tile
+   (blue). Marks can be guessed beforehand (`review_by` = `auto`, pale blue, with `review_note` telling
+   what the guess rests on); a session also stops at every pick with a guess not yet looked at, and a
+   verdict given to the pick confirms its mark as shown (`review_by` = `item`). The columns `review`
+   (`yes`/`no`), `review_by` and `review_note` are in `review_items.csv`.
+
 6. The review goes in rounds, until only approved picks are left. A finished round is closed, its
    rejected picks are replaced and the next review shows the approved picks and the new ones:
 

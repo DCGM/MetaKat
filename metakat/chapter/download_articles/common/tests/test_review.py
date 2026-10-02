@@ -7,10 +7,12 @@ from metakat.chapter.download_articles.common.models import CatalogItem
 from metakat.chapter.download_articles.common.preview import sheet_layout
 from metakat.chapter.download_articles.common.review import (
     APPROVED,
+    BY_AUTO,
     BY_ITEM,
     BY_JOURNAL,
     MARK_COLOURS,
     REJECTED,
+    REVIEW_COLOURS,
     ItemReviewLog,
     ReviewLog,
     Session,
@@ -287,3 +289,59 @@ def test_closed_round_leaves_out_its_rejections_and_its_rejected_picks_get_repla
     assert close_round(log, items) == 2
     assert [a.item.item_id for a in review_journals(store, log, items)[1].articles] == ["C2001", "C2010"]
     assert _rows(store.dir / "review_items.csv", "item_id")["C2005"]["round"] == "2"
+
+
+def test_r_toggles_the_review_mark_and_verdicts_keep_it(tmp_path):
+    store = _store_with_journals(tmp_path)
+    session = _session(store)
+    session.handle("y")                       # Journal A approved -> its pick
+    session.handle("r")
+    assert _position(session) == ("Journal A", "A1950")       # stays on the pick
+    assert session.items.is_review(session.article) and session.items.review_by(session.article) == BY_ITEM
+    session.handle("y")                       # approved, still a review
+    rows = _rows(store.dir / "review_items.csv", "item_id")
+    assert (rows["A1950"]["verdict"], rows["A1950"]["review"], rows["A1950"]["review_by"]) == (APPROVED, "yes", BY_ITEM)
+    session.open_pick(0)
+    session.handle("u")                       # the verdict cleared, the mark stays
+    assert session.items.verdict(session.article) is None and session.items.is_review(session.article)
+    session.handle("r")
+    assert session.items.is_review(session.article) is False
+    assert _rows(store.dir / "review_items.csv", "item_id")["A1950"]["review"] == "no"
+
+
+def test_guessed_review_marks_are_visited_and_confirmed_by_a_verdict(tmp_path):
+    store = _store_with_journals(tmp_path)
+    session = _session(store)
+    for key in "yy yyy yyyy":                 # everything approved
+        session.handle(key)
+    assert session.complete
+    items = ItemReviewLog.load(store)
+    c2005 = stored_journals(store)[2].articles[1]
+    items.set_review([c2005], True, BY_AUTO, note="title")
+    resumed = _session(store)
+    assert not resumed.complete and _position(resumed) == ("Journal C", "C2005")
+    assert resumed.items.review_note(resumed.article) == "title"
+    resumed.handle("y")                       # seen: the guess stands, no longer a guess
+    assert resumed.items.is_review(c2005) and resumed.items.review_by(c2005) == BY_ITEM and resumed.complete
+
+    items = ItemReviewLog.load(store)
+    items.set_review([c2005], True, BY_AUTO)
+    wrong = _session(store)
+    wrong.handle("r")                         # a wrong guess: unmarked, then judged
+    wrong.handle("y")
+    assert wrong.items.is_review(c2005) is False and wrong.items.review_by(c2005) == BY_ITEM and wrong.complete
+
+
+def test_sheet_marks_reviews_in_the_other_corner(tmp_path):
+    store = _store_with_journals(tmp_path)
+    journal = stored_journals(store)[2]                       # C: 2000, 2005, 2010
+    items = ItemReviewLog.load(store)
+    items.set_review([journal.articles[0]], True)
+    items.set_review([journal.articles[1]], True, BY_AUTO)
+    items.set_review([journal.articles[2]], False)
+    sheet = load_sheet(store, journal)
+    marked = mark_verdicts(sheet, 1.0, journal, items)
+    _, boxes = sheet_layout(3)
+    corners = [marked.getpixel((x + 3, y + 1)) for x, y, _, _ in boxes]
+    assert corners[:2] == [REVIEW_COLOURS[BY_ITEM], REVIEW_COLOURS[BY_AUTO]]
+    assert corners[2] == sheet.getpixel((boxes[2][0] + 3, boxes[2][1] + 1))     # not a review: no mark

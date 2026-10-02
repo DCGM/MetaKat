@@ -10,7 +10,8 @@ A window first shows every stored title page of one journal in year order:
     ←/→ (or ,/.)  previous/next journal, reviewed or not    space  next journal left to review
     u  clear the verdicts of the journal and all its picks    Enter  next library    q / Esc  quit
     click a page to review the picks from it on: shown enlarged, y / n go on to the next pick in order
-    the corner of each page shows its verdict: green approved, red rejected, grey none
+    the top right corner of each page shows its verdict: green approved, red rejected, grey none;
+    the top left one marks a review of someone's work: blue, pale blue while only guessed
 
 The picks of an approved journal are then shown one at a time, enlarged:
 
@@ -18,11 +19,15 @@ The picks of an approved journal are then shown one at a time, enlarged:
     space  skip    ←/b  back (before the first pick: the
     journal)    →  next pick (after the last: the next journal)    u  clear verdict
     j  leave the picks, go to the next journal    Esc  back to the journal sheet    q  quit
+    r  mark / unmark the pick as a review (of a book, an exhibition, ...); stays on the pick
 
 Verdicts are saved after every key: journals into ``<library>/review.csv``, picks into
 ``<library>/review_items.csv`` (``by`` tells a pick's own verdict from one inherited from a rejected
-journal). A new session starts at the first journal without a verdict, or inside an approved
-journal at its first pick without a verdict; ``--all`` goes through everything again. The window
+journal), together with the review mark (``review`` yes/no, ``review_by``: ``auto`` for a guess not
+yet looked at, ``item`` once set or seen, ``review_note``: what the guess rests on). A verdict given to
+a pick confirms its review mark as shown. A new session starts at the first journal without a verdict,
+or inside an approved journal at its first pick without a verdict or with a guessed review mark not yet
+confirmed; ``--all`` goes through everything again. The window
 stays open when everything is reviewed (the header says ALL REVIEWED), so that verdicts can still be
 checked and changed; only q (or Esc on a journal sheet) quits, and Enter goes on to the next library folder given. Journal
 sheets are cached in ``<library>/previews/journals/``.
@@ -63,9 +68,11 @@ REVIEW_FILE, ITEM_REVIEW_FILE = "review.csv", "review_items.csv"
 JOURNAL_FIELDS = ["journal_id", "journal_title", "samples", "first_year", "last_year", "verdict", "reviewed_at",
                   "round"]
 ITEM_FIELDS = ["item_id", "journal_id", "journal_title", "year", "volume", "issue", "title", "image", "verdict",
-               "by", "reviewed_at", "round"]
+               "by", "reviewed_at", "round", "review", "review_by", "review_note"]
+# The review mark of a pick (a review of someone's work) is kept apart from its verdict.
+REVIEW_COLUMNS = ("review", "review_by", "review_note")
 APPROVED, REJECTED = "approved", "rejected"
-BY_ITEM, BY_JOURNAL = "item", "journal"
+BY_ITEM, BY_JOURNAL, BY_AUTO = "item", "journal", "auto"
 HEADER_HEIGHT = 64
 WINDOW = "MetaKat journal review"
 
@@ -217,16 +224,51 @@ class ItemReviewLog(_CsvLog):
     def closed(self, article: StoredArticle) -> bool:
         return self._closed(article.item.item_id)
 
+    def is_review(self, article: StoredArticle) -> bool | None:
+        """Whether the pick is marked as a review of someone's work; None when it was never marked."""
+        return {"yes": True, "no": False}.get((self.rows.get(article.item.item_id) or {}).get("review") or "")
+
+    def review_by(self, article: StoredArticle) -> str | None:
+        """``auto`` for a guessed mark nobody has looked at yet, ``item`` for one set or seen in the review."""
+        return (self.rows.get(article.item.item_id) or {}).get("review_by") or None
+
+    def review_note(self, article: StoredArticle) -> str:
+        return (self.rows.get(article.item.item_id) or {}).get("review_note") or ""
+
     def set(self, articles: list[StoredArticle], verdict: str | None, by: str = BY_ITEM) -> None:
+        """Set the verdict of the picks; their review marks stay."""
         for article in articles:
-            item = article.item
-            self.rows[item.item_id] = {
-                "item_id": item.item_id, "journal_id": item.journal_id or "", "journal_title": item.journal_title or "",
-                "year": item.year or "", "volume": item.volume or "", "issue": item.issue or "",
-                "title": item.title or "", "image": article.image.file, "verdict": verdict or "",
-                "by": by if verdict else "", "reviewed_at": time.strftime("%Y-%m-%dT%H:%M:%S") if verdict else "",
-            }
+            old = self.rows.get(article.item.item_id) or {}
+            self.rows[article.item.item_id] = {
+                **self._describe(article), "verdict": verdict or "", "by": by if verdict else "",
+                "reviewed_at": time.strftime("%Y-%m-%dT%H:%M:%S") if verdict else "",
+                **{column: old.get(column) or "" for column in REVIEW_COLUMNS}}
         self.save()
+
+    def set_review(self, articles: list[StoredArticle], review: bool | None, by: str = BY_ITEM,
+                   note: str | None = None) -> None:
+        """Mark the picks as reviews or not (None clears the mark); their verdicts stay. ``note`` (kept when
+        None) tells what a guess rests on."""
+        for article in articles:
+            row = self.rows.setdefault(article.item.item_id, {**self._describe(article), "verdict": "", "by": "",
+                                                              "reviewed_at": ""})
+            row["review"] = "" if review is None else "yes" if review else "no"
+            row["review_by"] = "" if review is None else by
+            if note is not None or review is None:
+                row["review_note"] = note or ""
+        self.save()
+
+    def confirm_review(self, article: StoredArticle) -> None:
+        """The pick's guessed review mark was seen and stands: it is no longer a guess."""
+        if self.review_by(article) == BY_AUTO:
+            self.set_review([article], self.is_review(article), BY_ITEM)
+
+    @staticmethod
+    def _describe(article: StoredArticle) -> dict:
+        item = article.item
+        return {"item_id": item.item_id, "journal_id": item.journal_id or "", "journal_title": item.journal_title or "",
+                "year": item.year or "", "volume": item.volume or "", "issue": item.issue or "",
+                "title": item.title or "", "image": article.image.file}
 
 
 class Session:
@@ -251,7 +293,8 @@ class Session:
 
     @property
     def complete(self) -> bool:
-        """Whether every journal and every pick of an approved journal has a verdict."""
+        """Whether every journal and every pick of an approved journal has a verdict and no guessed review
+        mark left to confirm."""
         return not any(self._unfinished(j) for j in self.journals)
 
     @property
@@ -264,10 +307,14 @@ class Session:
 
     def _unfinished(self, journal: Journal) -> bool:
         verdict = self.log.verdict(journal)
-        return not verdict or (verdict == APPROVED and any(not self.items.verdict(a) for a in journal.articles))
+        return not verdict or (verdict == APPROVED and any(self._open(a) for a in journal.articles))
+
+    def _open(self, article: StoredArticle) -> bool:
+        """Whether the pick is left to look at: it has no verdict, or a guessed review mark not yet seen."""
+        return not self.items.verdict(article) or self.items.review_by(article) == BY_AUTO
 
     def _first_open_item(self) -> int:
-        return next((k for k, a in enumerate(self.journal.articles) if not self.items.verdict(a)), 0)
+        return next((k for k, a in enumerate(self.journal.articles) if self._open(a)), 0)
 
     def handle(self, key: str) -> None:
         if key == "esc" and self.item is not None:
@@ -287,8 +334,8 @@ class Session:
             self.log.set(journal, APPROVED)
             # Picks rejected only together with the journal are open for review again.
             self.items.set([a for a in journal.articles if self.items.by(a) == BY_JOURNAL], None)
-            # The picks without a verdict; when every pick has one, all of them again.
-            self.revisit = all(self.items.verdict(a) for a in journal.articles)
+            # The picks left to look at; when there are none, all of them again.
+            self.revisit = not any(self._open(a) for a in journal.articles)
             self.item = self._first_open_item()
         elif key == "n":
             self.log.set(journal, REJECTED)
@@ -308,7 +355,10 @@ class Session:
     def _handle_item(self, key: str) -> None:
         if key in ("y", "n"):
             self.items.set([self.article], APPROVED if key == "y" else REJECTED)
+            self.items.confirm_review(self.article)
             self._next_item()
+        elif key == "r":
+            self.items.set_review([self.article], not self.items.is_review(self.article), BY_ITEM)
         elif key == "u":
             self.items.set([self.article], None)
         elif key in (" ", "s"):
@@ -337,7 +387,7 @@ class Session:
         journal's sheet again, to see its verdicts before going on."""
         following = range(self.item + 1, len(self.journal.articles))
         item = next((k for k in following if self.review_all or self.revisit
-                     or not self.items.verdict(self.journal.articles[k])), None)
+                     or self._open(self.journal.articles[k])), None)
         if item is None:
             self.item, self.revisit = None, False
         else:
@@ -378,19 +428,25 @@ def load_sheet(store: ArticleStore, journal: Journal) -> Image.Image:
 # journal, or none yet (skipped or not reached).
 MARK_COLOURS = {(APPROVED, BY_ITEM): (40, 170, 70), (REJECTED, BY_ITEM): (215, 40, 40),
                 (REJECTED, BY_JOURNAL): (170, 110, 110), (None, None): (160, 160, 160)}
-MARK_LEGEND = "corner: green approved · red rejected · dull red with journal · grey no verdict"
+# Top left corner: the review mark, set or seen in the review, or only guessed; none when not a review.
+REVIEW_COLOURS = {BY_ITEM: (40, 90, 230), BY_AUTO: (160, 190, 250)}
+MARK_LEGEND = "right: green ok · red rejected · grey open  left: blue review · pale blue guess"
 
 
 def mark_verdicts(sheet: Image.Image, scale: float, journal: Journal, items: ItemReviewLog) -> Image.Image:
-    """A copy of the (scaled) journal sheet with every tile's pick verdict as a triangle in its top right corner."""
+    """A copy of the (scaled) journal sheet with every tile's pick verdict as a triangle in its top right corner
+    and its review mark, if any, in its top left one."""
     marked = sheet.copy()
     draw = ImageDraw.Draw(marked)
     _, boxes = sheet_layout(len(journal.articles))
     for article, (x, y, width, _) in zip(journal.articles, boxes):
         verdict = items.verdict(article)
         colour = MARK_COLOURS.get((verdict, items.by(article) if verdict else None), MARK_COLOURS[None, None])
-        right, top, size = (x + width) * scale, y * scale, max(16.0, 0.22 * width * scale)
+        left, right, top, size = x * scale, (x + width) * scale, y * scale, max(16.0, 0.22 * width * scale)
         draw.polygon([(right - size, top), (right, top), (right, top + size)], fill=colour, outline="white")
+        if items.is_review(article):
+            review_colour = REVIEW_COLOURS[BY_AUTO if items.review_by(article) == BY_AUTO else BY_ITEM]
+            draw.polygon([(left, top), (left + size, top), (left, top + size)], fill=review_colour, outline="white")
     return marked
 
 
@@ -526,10 +582,15 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int, c
                     sheet_of(index + 1)
                 verdict = items.verdict(article)
                 data = article.item
+                review_mark = ""
+                if items.is_review(article):
+                    review_mark = ("  REVIEW? (guess: " + items.review_note(article)[:40] + ")"
+                                   if items.review_by(article) == BY_AUTO else "  REVIEW")
                 lines = [f"{position}  pick {item + 1}/{len(journal.articles)}  {(verdict or 'no verdict').upper()}"
-                         f"  ·  {data.year or '?'}  v{data.volume or '?'}/{data.issue or '?'}  {data.title or ''}"[:150],
-                         f"{journal.title[:70]}  ·  y approve · n reject · ←/→ picks · space skip · u clear · "
-                         f"j next journal · Esc journal sheet · q quit"]
+                         f"{review_mark}  ·  {data.year or '?'}  v{data.volume or '?'}/{data.issue or '?'}  "
+                         f"{data.title or ''}"[:170],
+                         f"{journal.title[:60]}  ·  y approve · n reject · r review mark · ←/→ picks · space skip · "
+                         f"u clear · j next journal · Esc sheet · q quit"]
             cv2.imshow(WINDOW, _compose(shown, lines, verdict))
             if anchor is not None:
                 _place_window(cv2, anchor)
@@ -553,9 +614,11 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int, c
     journal_counts = {v: sum(1 for j in journals if log.verdict(j) == v) for v in (APPROVED, REJECTED)}
     picks = [a for j in journals for a in j.articles]
     pick_counts = {v: sum(1 for a in picks if items.verdict(a) == v) for v in (APPROVED, REJECTED)}
+    reviews = [a for a in picks if items.is_review(a)]
     print(f"{directory}: journals {journal_counts[APPROVED]} approved, {journal_counts[REJECTED]} rejected of "
           f"{len(journals)}; picks {pick_counts[APPROVED]} approved, {pick_counts[REJECTED]} rejected of "
-          f"{len(picks)} -> {log.path}, {items.path}")
+          f"{len(picks)}; {len(reviews)} marked as reviews "
+          f"({sum(1 for a in reviews if items.review_by(a) == BY_AUTO)} guesses not seen) -> {log.path}, {items.path}")
     return True
 
 
