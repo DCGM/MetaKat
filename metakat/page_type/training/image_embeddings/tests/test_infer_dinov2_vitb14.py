@@ -54,24 +54,35 @@ def test_load_image_resizes_any_aspect_ratio(tmp_path, size, mode):
     assert array.shape == (224, 224, 3) and array.dtype == np.uint8
 
 
-def test_file_list_keys_are_library_and_uuid_in_key_order(tmp_path):
+def _write_images(images, files):
+    for path in files:
+        (images / path).parent.mkdir(parents=True, exist_ok=True)
+        (images / path).write_bytes(b'')
+
+
+def test_file_list_keys_are_library_and_page_uuid_in_key_order(tmp_path):
     images = tmp_path / 'images'
-    for library, names in {'mzk': ['b.jpg', 'a.JPG', 'skip.png'], 'cuni_fsv': ['c.jpg'], 'cuni': ['d.jpeg']}.items():
-        (images / library).mkdir(parents=True)
-        for name in names:
-            (images / library / name).write_bytes(b'')
+    _write_images(images, ['mzk/doc1.images/b.jpg', 'mzk/doc2.images/a.JPG', 'mzk/doc2.images/skip.png',
+                           'cuni_fsv/doc3.images/c.jpg', 'cuni/doc4.images/d.jpeg'])
     list_path = tmp_path / 'file_list.tsv'
     assert build_file_list(images, {'.jpg', '.jpeg'}, list_path) == 4
     keys, paths = read_file_list(list_path, None, None)
     assert [k.decode() for k in keys] == ['cuni_d', 'cuni_fsv_c', 'mzk_a', 'mzk_b']
-    assert paths[2].decode() == 'mzk/a.JPG'
+    assert paths[2].decode() == 'mzk/doc2.images/a.JPG'
     keys, _ = read_file_list(list_path, b'cuni_fsv_c', 1)
     assert [k.decode() for k in keys] == ['mzk_a']
 
 
-def test_duplicate_keys_are_refused(tmp_path):
-    (tmp_path / 'images' / 'mzk').mkdir(parents=True)
-    for name in ('a.jpg', 'a.jpeg'):
-        (tmp_path / 'images' / 'mzk' / name).write_bytes(b'')
+def test_images_directly_in_a_library_are_skipped(tmp_path, caplog):
+    images = tmp_path / 'images'
+    _write_images(images, ['mzk/loose.jpg', 'mzk/doc1', 'mzk/doc1.images/a.jpg'])
+    assert build_file_list(images, {'.jpg', '.jpeg'}, tmp_path / 'file_list.tsv') == 1
+    assert 'Skipped 1 images directly in mzk/' in caplog.text
+
+
+@pytest.mark.parametrize('files', [['mzk/doc1.images/a.jpg', 'mzk/doc1.images/a.jpeg'],
+                                   ['mzk/doc1.images/a.jpg', 'mzk/doc2.images/a.jpg']])
+def test_duplicate_keys_are_refused(tmp_path, files):
+    _write_images(tmp_path / 'images', files)
     with pytest.raises(SystemExit, match='twice'):
         build_file_list(tmp_path / 'images', {'.jpg', '.jpeg'}, tmp_path / 'file_list.tsv')
