@@ -9,7 +9,7 @@ A window first shows every stored title page of one journal in year order:
     n  reject the journal and all its picks, go to the next journal
     ←/→ (or ,/.)  previous/next journal, reviewed or not    space  next journal left to review
     u  clear the verdicts of the journal and all its picks    Enter  next library    q / Esc  quit
-    click a page to see it enlarged, any key returns
+    click a page to review the picks from it on: shown enlarged, y / n go on to the next pick in order
     the corner of each page shows its verdict: green approved, red rejected, grey none
 
 The picks of an approved journal are then shown one at a time, enlarged:
@@ -252,6 +252,11 @@ class Session:
         elif key == "j":
             self._next_journal()
 
+    def open_pick(self, item: int) -> None:
+        """Review the picks of the shown journal from ``item`` on, in order (a page clicked on its sheet);
+        the journal's own verdict stays as it is."""
+        self.item, self.revisit = item, True
+
     def _show_journal(self, index: int) -> None:
         """The sheet of the journal at ``index`` (clamped), whatever its verdicts."""
         self.index, self.item, self.revisit = max(0, min(index, len(self.journals) - 1)), None, False
@@ -439,7 +444,7 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                 verdict = log.verdict(journal)
                 lines = [f"{position}  JOURNAL {(verdict or 'no verdict').upper()}  ·  {MARK_LEGEND}",
                          "y review picks · n reject journal and picks · ←/→ or ,/. journals · space next open · "
-                         "u clear journal and picks · Enter next library · q quit · click enlarges"]
+                         "u clear journal and picks · Enter next library · q quit · click a page to review it"]
             else:
                 article, item = session.article, session.item
                 shown, scale = page_of(index, item).result(), None
@@ -463,8 +468,9 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                 x, y = clicks.pop()
                 clicks.clear()
                 if scale is not None:
-                    _enlarge(cv2, store, journal, (x / scale, (y - HEADER_HEIGHT) / scale), max_width, max_height,
-                             clicks)
+                    pick = tile_at(journal, (x / scale, (y - HEADER_HEIGHT) / scale))
+                    if pick is not None:
+                        session.open_pick(pick)
                 anchor = _reopen_window(cv2, clicks)
                 continue
             session.handle(key)
@@ -510,18 +516,11 @@ def _place_window(cv2, image_position: tuple[int, int]) -> None:
         cv2.moveWindow(WINDOW, 2 * image_position[0] - x, 2 * image_position[1] - y)
 
 
-def _enlarge(cv2, store: ArticleStore, journal: Journal, point: tuple[float, float], max_width: int,
-             max_height: int, clicks: list) -> None:
+def tile_at(journal: Journal, point: tuple[float, float]) -> int | None:
+    """The index of the pick whose tile on the journal's sheet (unscaled) contains ``point``."""
     _, boxes = sheet_layout(len(journal.articles))
-    for article, (x, y, width, height) in zip(journal.articles, boxes):
-        if x <= point[0] < x + width and y <= point[1] < y + height:
-            item = article.item
-            lines = [f"{item.year}  v{item.volume or '?'}/{item.issue or '?'}  {item.title or ''}"[:120],
-                     "any key or click returns"]
-            cv2.imshow(WINDOW, _compose(load_page(store, article, max_width, max_height), lines, None))
-            _wait_key(cv2, clicks)
-            clicks.clear()
-            return
+    return next((k for k, (x, y, width, height) in enumerate(boxes)
+                 if x <= point[0] < x + width and y <= point[1] < y + height), None)
 
 
 def main():

@@ -64,7 +64,8 @@ python -m metakat.chapter.download_articles preview --source dml_cz
 
    A window (OpenCV) first shows every stored title page of a journal in year order, labelled with
    year, volume/issue and article title, with each pick's verdict in its corner (green approved, red
-   rejected, grey none); clicking a page shows it enlarged. `y` approves the journal and goes through
+   rejected, grey none); clicking a page opens the picks from that one on, in order, to be judged
+   like any pick. `y` approves the journal and goes through
    its picks one by one, enlarged (those without a verdict, or all again when every one has one);
    `n` rejects the journal together with all its picks and goes to the next journal; `u` clears the
    journal and its picks. On a pick, `y`/`n` approves or rejects it, `u` clears it, `j` leaves the

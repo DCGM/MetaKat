@@ -19,6 +19,7 @@ from metakat.chapter.download_articles.common.review import (
     mark_verdicts,
     sheet_path,
     stored_journals,
+    tile_at,
 )
 from metakat.chapter.download_articles.common.store import ArticleStore
 
@@ -184,6 +185,24 @@ def test_arrows_list_journals_and_picks_in_order(tmp_path):
     assert _position(session) == ("Journal B", "B1990")
     session.handle("right")                                   # after the last pick: the next journal's sheet
     assert _position(session) == ("Journal C", None)
+
+
+def test_clicking_a_page_reviews_the_picks_from_it_on_in_order(tmp_path):
+    store = _store_with_journals(tmp_path)
+    session = _session(store)
+    session.handle("right")
+    session.handle("right")                                   # C's sheet: 2000, 2005, 2010
+    _, boxes = sheet_layout(3)
+    x, y, width, height = boxes[1]
+    assert tile_at(session.journal, (x + width / 2, y + height / 2)) == 1
+    assert tile_at(session.journal, (0, 0)) is None           # the sheet's title, no page
+    session.items.set([session.journal.articles[2]], REJECTED)
+    session.open_pick(1)
+    assert _position(session) == ("Journal C", "C2005") and session.log.verdict(session.journal) is None
+    session.handle("y")                                       # the next pick in order, judged or not
+    assert _position(session) == ("Journal C", "C2010")
+    session.handle("left")
+    assert _position(session) == ("Journal C", "C2005")
 
 
 def test_arrow_keys_are_not_read_as_letters():
