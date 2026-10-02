@@ -1,6 +1,7 @@
 import pytest
 
 from metakat.chapter.download_articles.common.kramerius import (
+    RESTRICTED,
     first_page_pid,
     is_newspaper,
     item_from_docs,
@@ -9,7 +10,6 @@ from metakat.chapter.download_articles.common.kramerius import (
 from metakat.chapter.download_articles.common.models import CatalogItem
 from metakat.chapter.download_articles.common.source import DownloadBlocked
 from metakat.chapter.download_articles.common.store import ArticleStore
-from metakat.chapter.download_articles.cbvk.source import CbvkSource
 from metakat.chapter.download_articles.nkp.source import NkpSource
 
 
@@ -54,12 +54,11 @@ def test_first_page_of_unlinked_article_comes_from_mods_start_page():
 def test_libraries_leave_shared_articles_to_earlier_libraries(tmp_path):
     ArticleStore(tmp_path, "knav").write_catalog([CatalogItem(library="knav", item_id="a1", record_id="uuid:a1")])
     ArticleStore(tmp_path, "mzk").write_catalog([CatalogItem(library="mzk", item_id="a2", record_id="uuid:a2")])
-    source = CbvkSource()
-    source.root = tmp_path
-    assert source.excluded_ids() == {"a1", "a2"}
     source = NkpSource()
     source.root = tmp_path
+    assert source.excluded_ids() == {"a1", "a2"}
     assert NkpSource.article_query.startswith("model:internalpart")
+    source.root = tmp_path / "empty"
     with pytest.raises(FileNotFoundError):
         source.excluded_ids()
 
@@ -73,3 +72,12 @@ def test_cdk_item_keeps_parent_and_periodical_structure():
     assert (item.journal_id, item.volume, item.issue, item.date) == ("r", "18", "3", "03.1936")
     assert item.record["parent"] == ["uuid:i"] and item.record["issues_per_volume"] == ["12.5"]
     assert item.landing_url == "https://landing/uuid:a" and NkpSource().is_available(item)
+
+
+def test_items_under_restricted_licences_are_never_selected_and_start_no_wall():
+    item = CatalogItem(library="nkp", item_id="a", record_id="uuid:a", rights=["public"],
+                       record={"accessibility": ["public"]})
+    assert NkpSource().is_available(item)
+    for licence in ("dnnto", "dnntt", "onsite"):
+        assert not NkpSource().is_available(item.model_copy(update={"rights": ["public", licence]}))
+    assert not NkpSource().starts_wall(f"{RESTRICTED}: dnnto") and NkpSource().starts_wall("HTTP Error 403")

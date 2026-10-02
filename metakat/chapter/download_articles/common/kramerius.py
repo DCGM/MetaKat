@@ -1,7 +1,7 @@
 """Articles of periodicals in a Kramerius 7 digital library (KNAV, or any library in the Czech Digital Library).
 
 Kramerius catalogues an article as its own record only where the library described the periodical at
-article level: as ``model:article`` (KNAV, MZK, ČBVK) or as an ``internalpart`` of an issue (NKP). Kramerius
+article level: as ``model:article`` (KNAV, MZK) or as an ``internalpart`` of an issue (NKP). Kramerius
 does not tell newspapers from journals, so a periodical with 40 or more issues per volume, or catalogued
 as a newspaper, counts as a newspaper and is left out.
 """
@@ -29,6 +29,17 @@ ARTICLE_FIELDS = ["pid", "own_pid_path", "own_model_path", "own_parent.pid", "ro
                   "titles.search", "authors.search", "languages.facet", "keywords.search", "date.str",
                   "date_range_start.year", "accessibility", "licenses.facet", "ds.img_full.mime", "count_page"]
 PARENT_FIELDS = ["pid", "model", "part.number.str", "date.str", "title.search", "date_range_start.year"]
+
+# Licences of works the libraries may show only to registered users (out of commerce, DNNT) or on
+# their premises. Their terms forbid downloading, so items under any of them are never selected,
+# even when a library serves some of their pages anonymously.
+RESTRICTED_LICENSES = frozenset({"dnnto", "dnntt", "onsite"})
+# The reason recorded for such items in unavailable.tsv: a licence of the item, not a moving wall.
+RESTRICTED = "restricted licence"
+
+
+def is_restricted(item: CatalogItem) -> bool:
+    return bool(RESTRICTED_LICENSES & set(item.rights))
 
 
 class Kramerius:
@@ -135,10 +146,13 @@ class KrameriusSource(Source):
         return item_from_docs(doc, parents, self.name, self.api, self.landing_url, periodical)
 
     def is_available(self, item: CatalogItem) -> bool:
-        if item.title and NOT_ARTICLE.match(item.title):
+        if item.title and NOT_ARTICLE.match(item.title) or is_restricted(item):
             return False
         # Anonymous users get public items only.
         return item.record.get("accessibility") != ["private"]
+
+    def starts_wall(self, reason: str) -> bool:
+        return RESTRICTED not in reason
 
     def download(self, item: CatalogItem) -> Download:
         if item.pdf_urls:

@@ -13,4 +13,4 @@ class NkpSource(KrameriusSource):
     api = "https://api.kramerius7.nkp.cz/search/api/client/v7.0"
     landing_url = "https://kramerius7.nkp.cz/uuid/"
     article_query = "model:internalpart AND own_model_path:periodical*"
-    exclude_libraries = ("knav", "mzk", "cbvk")
+    exclude_libraries = ("knav", "mzk")

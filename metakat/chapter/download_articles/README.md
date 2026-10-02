@@ -11,7 +11,6 @@ per few years, since journals change their title page layout over time.
 common/          shared code: catalog model, HTTP, OAI-PMH, Kramerius, Open Journal Systems, Crossref,
                  selection, storage, first page extraction, previews, review and the command line
 agriculturejournals/  journals of the Czech Academy of Agricultural Sciences (Crossref)
-cbvk/            Kramerius of the South Bohemian Research Library
 cuni/            journals of Charles University: Karolinum, ojs.cuni.cz, faculty sites (Crossref)
 cvut_journals/   journals of the Czech Technical University (OJS)
 dml_cz/          Czech Digital Mathematics Library
@@ -60,7 +59,7 @@ python -m metakat.chapter.download_articles preview --source dml_cz
    journals to trust:
 
    ```bash
-   python -m metakat.chapter.download_articles.common.review /mnt/kolosus/data/smart_digiline/articles/{knav,dml.cz,cbvk,nkp,journals.muni.cz,ojs.cvut.cz,ojs_sites,cuni,agriculturejournals.cz,upol,journal_sites,landing_pages,national_museum}
+   python -m metakat.chapter.download_articles.common.review /mnt/kolosus/data/smart_digiline/articles/{knav,dml.cz,nkp,journals.muni.cz,ojs.cvut.cz,ojs_sites,cuni,agriculturejournals.cz,upol,journal_sites,landing_pages,national_museum}
    ```
 
    A window (OpenCV) first shows every stored title page of a journal in year order, labelled with
@@ -133,14 +132,20 @@ Journals have 1–25 issues per volume.
 Every library is read from its own Kramerius (`common.kramerius.KrameriusSource`); the ČDK search
 was used only to find which libraries hold articles. Libraries share digitised periodicals under the
 same pids, so each library leaves the articles already in the catalog of a library sampled before it
-to that library, in the order KNAV, MZK, ČBVK, NKP; catalog them in this order. KFBZ, ZČM, NTK and
-SVKKL serve no or a couple of articles to the public and have no folder. Only public articles are
-selected.
+to that library, in the order KNAV, MZK, NKP; catalog them in this order. KFBZ, ZČM, NTK and
+SVKKL serve no or a couple of articles to the public and have no folder. ČBVK was sampled and dropped
+(2026-10): its articles are mostly regional newsletters and bulletins rather than journal articles.
+Only public articles are selected.
+
+Items under the out-of-commerce or on-site licences (`dnnto`, `dnntt`, `onsite` in `licenses.facet`)
+are never selected, even when the library serves some of their pages anonymously: the licences allow
+registered users to read them, not to download them. Title pages stored before this rule are deleted
+and recorded in `unavailable.tsv` as "restricted licence ...; not to be used" (19 in KNAV, 2026-10);
+such records start no moving wall.
 
 | `--source` | Library | Notes |
 |---|---|---|
 | `mzk` | [Moravian Library](https://www.mzk.cz/) | Articles not held by KNAV: about 15,000 in 99 journals and magazines (2026-10), every one under the out-of-commerce or on-site licence (`dnnto`, `dnntt`, `onsite`) and refused to anonymous users (403), so nothing is selected. The public MZK articles are the KNAV copies and Lidové noviny. |
-| `cbvk` | [South Bohemian Research Library](https://www.cbvk.cz/) | Regional periodicals, town newsletters, diocesan and society bulletins. Many articles have no links to their pages; their first page is the page of their issue numbered as the start page in the article's MODS. |
 | `nkp` | [National Library](https://www.nkp.cz/) | Internal parts of issues; nearly all are in newspapers (left out) or licensed military journals. The public ones are in 9 short-lived periodicals, mostly Pilsen magazines of 1884–1910. |
 
 ### KNAV volumes without article records

@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Callable
 
 from metakat.chapter.download_articles.common.http import http_get
-from metakat.chapter.download_articles.common.kramerius import NOT_ARTICLE, PARENT_FIELDS, KrameriusSource
+from metakat.chapter.download_articles.common.kramerius import (NOT_ARTICLE, PARENT_FIELDS, KrameriusSource,
+                                                               is_restricted)
 from metakat.chapter.download_articles.common.models import CatalogItem
 from metakat.chapter.download_articles.common.source import Download, DownloadBlocked
 from metakat.chapter.download_articles.common.store import ArticleStore
@@ -40,8 +41,6 @@ ASCENDING_SHARE = 0.8
 # The reason recorded for a volume whose contents pages point to no page: not a refusal of KNAV,
 # so it starts no moving wall.
 NO_ARTICLE_FOUND = "no entry matches a page"
-# Licences under which KNAV refuses a volume's pages to anonymous users (out of commerce, on site only).
-RESTRICTED_LICENSES = {"dnnto", "dnntt", "onsite"}
 PAGE_FIELDS = ["pid", "page.number", "page.type", "own_parent.pid", "own_pid_path", "own_model_path",
                "rels_ext_index.sort", "accessibility", "root.title"]
 
@@ -204,7 +203,8 @@ class KnavSource(KrameriusSource):
     def is_available(self, item: CatalogItem) -> bool:
         if item.record.get("previous_download_error") == ["403"]:
             return False
-        if item.item_type == "volume" and RESTRICTED_LICENSES & set(item.rights):
+        # Under a restricted licence even when KNAV serves its PDF or an earlier download has it.
+        if is_restricted(item):
             return False
         if item.pdf_urls and not (item.title and NOT_ARTICLE.match(item.title)):
             # KNAV serves the PDFs of many private articles too; it tells which by refusing the rest.
@@ -212,7 +212,7 @@ class KnavSource(KrameriusSource):
         return super().is_available(item)
 
     def starts_wall(self, reason: str) -> bool:
-        return NO_ARTICLE_FOUND not in reason
+        return NO_ARTICLE_FOUND not in reason and super().starts_wall(reason)
 
     def is_cheap(self, item: CatalogItem) -> bool:
         return bool(item.record.get("local_pdf"))

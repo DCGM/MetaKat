@@ -1,5 +1,4 @@
 from metakat.chapter.download_articles.agriculturejournals.source import AgricultureJournalsSource
-from metakat.chapter.download_articles.cbvk.source import CbvkSource
 from metakat.chapter.download_articles.common.cli import main
 from metakat.chapter.download_articles.cuni.source import CuniSource
 from metakat.chapter.download_articles.cvut_journals.source import CvutJournalsSource
@@ -17,7 +16,6 @@ from metakat.chapter.download_articles.upol.source import UpolSource
 
 SOURCES = {
     "agriculturejournals": AgricultureJournalsSource,
-    "cbvk": CbvkSource,
     "cuni": CuniSource,
     "cvut_journals": CvutJournalsSource,
     "dml_cz": DmlCzSource,
