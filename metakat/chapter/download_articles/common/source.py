@@ -12,6 +12,13 @@ from metakat.chapter.download_articles.common.models import CatalogItem
 NOT_ARTICLE = re.compile(
     r"^\W*(obsah|contents?|table of contents|inhalt|sommaire|содержание|tiráž|impressum|rejstřík|index|"
     r"errata|oprava|obálka|cover|reklam\w*|inzer\w*|inserat\w*|anzeigen?|annonc\w*|advertisements?)\b", re.IGNORECASE)
+# Other parts often catalogued as articles whose first page is rarely an article's title page; a
+# replacement for a rejected pick avoids them (``Source.is_unlikely``).
+UNLIKELY_ARTICLE = re.compile(
+    r"^\W*(titulní list|title page|(přední |zadní |vnitřní )?obálka|(instructions|information|guidelines|notes?) "
+    r"(for|to) (the )?(authors?|contributors|subscribers|readers)|pokyny (pro|k) (autory|autorům|přispěvatel\w*)|"
+    r"informace pro (autory|předplatitele|čtenáře)|summary|summaries|editorial|úvodník|úvodem|na úvod|"
+    r"předmluva|foreword|preface|vorwort|in memoriam|nekrolog\w*|obituary|personalia)\b", re.IGNORECASE)
 
 
 class DownloadBlocked(RuntimeError):
@@ -64,6 +71,11 @@ class Source(ABC):
         in ``pdf_urls`` of items whose links redirect, so that the saved files are found by name. Returns
         whether any item changed (the catalog is then written again)."""
         return False
+
+    def is_unlikely(self, item: CatalogItem) -> bool:
+        """Whether the item's title names a part that is rarely an article (a title leaf, a contents page,
+        instructions for authors, ...); replacements for rejected picks avoid such items."""
+        return bool(item.title and (NOT_ARTICLE.match(item.title) or UNLIKELY_ARTICLE.match(item.title)))
 
     def is_cheap(self, item: CatalogItem) -> bool:
         """Whether the item can be stored without asking the library, e.g. it was downloaded before."""

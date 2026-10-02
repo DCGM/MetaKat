@@ -26,6 +26,19 @@ journal at its first pick without a verdict; ``--all`` goes through everything a
 stays open when everything is reviewed (the header says ALL REVIEWED), so that verdicts can still be
 checked and changed; only q (or Esc on a journal sheet) quits, and Enter goes on to the next library folder given. Journal
 sheets are cached in ``<library>/previews/journals/``.
+
+The review goes in rounds, until only approved picks are left:
+
+    python -m metakat.chapter.download_articles.common.review --close-round .../articles/knav [...]
+    python -m metakat.chapter.download_articles select --source knav --replace
+    python -m metakat.chapter.download_articles fetch  --source knav
+
+``--close-round`` stamps every verdict given so far with the round's number (column ``round``). From
+then on a review leaves out what a closed round rejected: rejected journals, rejected picks and
+journals left with no pick (``--closed`` shows them again). ``select --replace`` picks another item of
+the same journal and year (or the closest one) for every pick rejected on its own, and ``fetch``
+stores them; the next review shows the approved picks and the new ones, which have no verdict. A
+verdict changed later belongs to the round then going on.
 """
 from __future__ import annotations
 
@@ -47,9 +60,10 @@ from metakat.chapter.download_articles.common.selection import journal_key
 from metakat.chapter.download_articles.common.store import ArticleStore
 
 REVIEW_FILE, ITEM_REVIEW_FILE = "review.csv", "review_items.csv"
-JOURNAL_FIELDS = ["journal_id", "journal_title", "samples", "first_year", "last_year", "verdict", "reviewed_at"]
+JOURNAL_FIELDS = ["journal_id", "journal_title", "samples", "first_year", "last_year", "verdict", "reviewed_at",
+                  "round"]
 ITEM_FIELDS = ["item_id", "journal_id", "journal_title", "year", "volume", "issue", "title", "image", "verdict",
-               "by", "reviewed_at"]
+               "by", "reviewed_at", "round"]
 APPROVED, REJECTED = "approved", "rejected"
 BY_ITEM, BY_JOURNAL = "item", "journal"
 HEADER_HEIGHT = 64
@@ -80,6 +94,50 @@ def stored_journals(store: ArticleStore) -> list[Journal]:
     return sorted(journals, key=lambda j: (min(j.years, default=0), j.title))
 
 
+def review_journals(store: ArticleStore, log: ReviewLog, items: ItemReviewLog, closed: bool = False) -> list[Journal]:
+    """The journals and picks a review shows: those of ``stored_journals`` without the rejections of closed
+    rounds (``close_round``), and without journals left with no pick; ``closed`` shows them all."""
+    journals = []
+    for journal in stored_journals(store):
+        if not closed and log.verdict(journal) == REJECTED and log.closed(journal):
+            continue
+        articles = [a for a in journal.articles if closed or not (items.verdict(a) == REJECTED and items.closed(a))]
+        if articles:
+            journals.append(Journal(journal.key, articles))
+    return journals
+
+
+def current_round(log: ReviewLog, items: ItemReviewLog) -> int:
+    """The number of the review round going on: one after the last closed one."""
+    return 1 + max((int(row.get("round") or 0) for review_log in (log, items) for row in review_log.rows.values()),
+                   default=0)
+
+
+def close_round(log: ReviewLog, items: ItemReviewLog) -> int:
+    """Close the current round: every verdict given in it gets the round's number and is final, so that
+    later rounds no longer show its rejections. A verdict changed later belongs to the round then going on
+    again. Picks without a verdict stay open. Returns the number of the closed round."""
+    number = current_round(log, items)
+    for review_log in (log, items):
+        opened = [row for row in review_log.rows.values() if row.get("verdict") and not row.get("round")]
+        for row in opened:
+            row["round"] = number
+        if opened:
+            review_log.save()
+    return number
+
+
+def to_replace(store: ArticleStore) -> list[StoredArticle]:
+    """The picks rejected on their own (not with their journal) in a closed round, in journals not rejected,
+    that have no stored replacement yet (``ArticleStore.replacements``)."""
+    log, items = ReviewLog.load(store), ItemReviewLog.load(store)
+    replacements = store.replacements()
+    return [article for journal in stored_journals(store) if log.verdict(journal) != REJECTED
+            for article in journal.articles
+            if items.verdict(article) == REJECTED and items.by(article) == BY_ITEM and items.closed(article)
+            and not store.is_stored(replacements.get(article.item.item_id, ""))]
+
+
 class _CsvLog:
     """A CSV of verdicts keyed by some of its columns, rewritten whole after every change."""
 
@@ -95,6 +153,10 @@ class _CsvLog:
 
     def _key(self, row: dict):
         raise NotImplementedError
+
+    def _closed(self, key) -> bool:
+        """Whether the verdict under ``key`` belongs to a closed round."""
+        return bool((self.rows.get(key) or {}).get("round"))
 
     def save(self) -> None:
         temporary = self.path.with_suffix(".csv.tmp")
@@ -119,6 +181,9 @@ class ReviewLog(_CsvLog):
 
     def verdict(self, journal: Journal) -> str | None:
         return (self.rows.get(journal.key) or {}).get("verdict") or None
+
+    def closed(self, journal: Journal) -> bool:
+        return self._closed(journal.key)
 
     def set(self, journal: Journal, verdict: str | None) -> None:
         years = journal.years
@@ -148,6 +213,9 @@ class ItemReviewLog(_CsvLog):
 
     def by(self, article: StoredArticle) -> str | None:
         return (self.rows.get(article.item.item_id) or {}).get("by") or None
+
+    def closed(self, article: StoredArticle) -> bool:
+        return self._closed(article.item.item_id)
 
     def set(self, articles: list[StoredArticle], verdict: str | None, by: str = BY_ITEM) -> None:
         for article in articles:
@@ -395,13 +463,14 @@ def _wait_key(cv2, clicks: list) -> str | None:
     return None
 
 
-def review(directory: Path, review_all: bool, max_width: int, max_height: int) -> bool:
+def review(directory: Path, review_all: bool, max_width: int, max_height: int, closed: bool = False) -> bool:
     """Review one library folder; returns False when the reviewer quit."""
     import cv2
 
     store = ArticleStore(directory.parent, directory.name)
-    journals = stored_journals(store)
     log, items = ReviewLog.load(store), ItemReviewLog.load(store)
+    journals = review_journals(store, log, items, closed)
+    round_number = current_round(log, items)
     session = Session(journals, log, items, review_all)
     if session.done:
         print(f"{directory}: no stored journals")
@@ -434,7 +503,7 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                 for key in [k for k in cache if abs((k if isinstance(k, int) else k[0]) - index) > 1]:
                     del cache[key]
             reviewed = sum(1 for j in journals if log.verdict(j))
-            position = (f"{directory.name}  [{index + 1}/{len(journals)}, "
+            position = (f"{directory.name} round {round_number}  [{index + 1}/{len(journals)}, "
                         f"{'ALL REVIEWED' if session.complete else f'{reviewed} reviewed'}]")
             if session.item is None:
                 sheet = sheet_of(index).result()
@@ -526,15 +595,34 @@ def tile_at(journal: Journal, point: tuple[float, float]) -> int | None:
                  if x <= point[0] < x + width and y <= point[1] < y + height), None)
 
 
+def close(directory: Path) -> None:
+    """Close the review round of one library folder and tell what it decided."""
+    store = ArticleStore(directory.parent, directory.name)
+    log, items = ReviewLog.load(store), ItemReviewLog.load(store)
+    number = close_round(log, items)
+    picks = [a for j in stored_journals(store) for a in j.articles]
+    counts = {v: sum(1 for a in picks if items.verdict(a) == v) for v in (APPROVED, REJECTED)}
+    print(f"{directory}: round {number} closed; picks {counts[APPROVED]} approved, {counts[REJECTED]} rejected, "
+          f"{len(picks) - sum(counts.values())} without a verdict of {len(picks)}; "
+          f"{len(to_replace(store))} rejected picks to replace (select --replace)")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("directories", nargs="+", type=Path, help="Library folders, e.g. .../articles/knav")
     parser.add_argument("--all", action="store_true", help="Go through every journal and pick again.")
+    parser.add_argument("--closed", action="store_true",
+                        help="Show the rejections of closed rounds too, to change them.")
+    parser.add_argument("--close-round", action="store_true",
+                        help="Close the review round of every folder (no window): its verdicts become final and "
+                             "its rejections are no longer shown.")
     parser.add_argument("--max-width", type=int, default=1900, help="Window size limit in pixels.")
     parser.add_argument("--max-height", type=int, default=1050)
     args = parser.parse_args()
     for directory in args.directories:
-        if not review(directory.resolve(), args.all, args.max_width, args.max_height):
+        if args.close_round:
+            close(directory.resolve())
+        elif not review(directory.resolve(), args.all, args.max_width, args.max_height, args.closed):
             break
 
 

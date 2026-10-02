@@ -15,6 +15,8 @@ from metakat.chapter.download_articles.common.models import CatalogItem, FirstPa
 from metakat.chapter.download_articles.common.selection import JournalKey, journal_key
 
 SELECTION_COLUMNS = ["item_id", "journal_id", "journal_title", "volume", "issue", "year", "item_type", "title", "pdf_url"]
+REPLACEMENT_COLUMNS = ["item_id", "replaces", "journal_id", "journal_title", "year", "replaces_year", "title",
+                       "replaces_title"]
 
 
 class ArticleStore:
@@ -26,6 +28,7 @@ class ArticleStore:
         <root>/<library>/selection.tsv         the items picked by the last ``select`` run
         <root>/<library>/selection.html        the same items as links, for libraries downloaded by hand
         <root>/<library>/unavailable.tsv       items the library did not serve (e.g. a moving wall)
+        <root>/<library>/replacements.tsv      which item was picked to replace which rejected one
         <root>/<library>/pdf/<item_id>.pdf     the article PDF as downloaded
         <root>/<library>/images/<item_id>.*    its first page at the provided resolution
         <root>/<library>/metadata/<item_id>.json
@@ -37,6 +40,7 @@ class ArticleStore:
         self.selection_path = self.dir / "selection.tsv"
         self.selection_html_path = self.dir / "selection.html"
         self.unavailable_path = self.dir / "unavailable.tsv"
+        self.replacements_path = self.dir / "replacements.tsv"
         self.pdf_dir = self.dir / "pdf"
         self.images_dir = self.dir / "images"
         self.metadata_dir = self.dir / "metadata"
@@ -147,6 +151,31 @@ class ArticleStore:
             return {}
         with open(self.unavailable_path, encoding="utf-8", newline="") as file:
             return {row["item_id"]: row for row in csv.DictReader(file, delimiter="\t")}
+
+    def replacements(self) -> dict[str, str]:
+        """Rejected item id -> the id of the item picked to replace it."""
+        if not self.replacements_path.exists():
+            return {}
+        with open(self.replacements_path, encoding="utf-8", newline="") as file:
+            return {row["replaces"]: row["item_id"] for row in csv.DictReader(file, delimiter="\t")}
+
+    def write_replacements(self, pairs: list[tuple[CatalogItem, CatalogItem]]) -> None:
+        """Record (rejected, replacement) pairs; a rejected item's earlier replacement is kept only when
+        it is stored and the item gets no new one."""
+        rows = {}
+        if self.replacements_path.exists():
+            with open(self.replacements_path, encoding="utf-8", newline="") as file:
+                rows = {row["replaces"]: row for row in csv.DictReader(file, delimiter="\t")
+                        if self.is_stored(row["item_id"])}
+        for old, new in pairs:
+            rows[old.item_id] = {"item_id": new.item_id, "replaces": old.item_id, "journal_id": new.journal_id,
+                                 "journal_title": new.journal_title, "year": new.year, "replaces_year": old.year,
+                                 "title": new.title, "replaces_title": old.title}
+        self.dir.mkdir(parents=True, exist_ok=True)
+        with open(self.replacements_path, "w", encoding="utf-8", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=REPLACEMENT_COLUMNS, delimiter="\t")
+            writer.writeheader()
+            writer.writerows(rows.values())
 
     def is_stored(self, item_id: str) -> bool:
         return (self.metadata_dir / f"{item_id}.json").exists()

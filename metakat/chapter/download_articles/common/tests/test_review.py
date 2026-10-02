@@ -15,11 +15,15 @@ from metakat.chapter.download_articles.common.review import (
     ReviewLog,
     Session,
     _key_name,
+    close_round,
+    current_round,
     load_sheet,
     mark_verdicts,
+    review_journals,
     sheet_path,
     stored_journals,
     tile_at,
+    to_replace,
 )
 from metakat.chapter.download_articles.common.store import ArticleStore
 
@@ -244,3 +248,42 @@ def test_sheet_marks_every_tile_with_its_pick_verdict(tmp_path):
     assert corners == [MARK_COLOURS[APPROVED, BY_ITEM], MARK_COLOURS[REJECTED, BY_ITEM], MARK_COLOURS[None, None]]
     assert load_sheet(store, journal).getpixel((boxes[0][0] + boxes[0][2] - 3, boxes[0][1] + 1)) != \
         MARK_COLOURS[APPROVED, BY_ITEM]                     # the cached sheet stays unmarked
+
+
+def test_closed_round_leaves_out_its_rejections_and_its_rejected_picks_get_replacements(tmp_path):
+    store = _store_with_journals(tmp_path)
+    session = _session(store)
+    for key in "yy nyny":                     # A and its pick approved, B rejected with both picks,
+        session.handle(key)                   # C approved: C2000 rejected, C2005 approved, C2010 open
+    log, items = ReviewLog.load(store), ItemReviewLog.load(store)
+    assert current_round(log, items) == 1 and review_journals(store, log, items) == stored_journals(store)
+
+    assert close_round(log, items) == 1
+    log, items = ReviewLog.load(store), ItemReviewLog.load(store)
+    assert current_round(log, items) == 2
+    rows = _rows(store.dir / "review_items.csv", "item_id")
+    assert rows["C2000"]["round"] == rows["B1960"]["round"] == "1" and "C2010" not in rows
+    shown = review_journals(store, log, items)
+    assert [(j.title, [a.item.item_id for a in j.articles]) for j in shown] == [
+        ("Journal A", ["A1950"]), ("Journal C", ["C2005", "C2010"])]
+    assert review_journals(store, log, items, closed=True) == stored_journals(store)
+    assert _position(Session(shown, log, items)) == ("Journal C", "C2010")   # the open pick
+    assert [a.item.item_id for a in to_replace(store)] == ["C2000"]          # not B's, rejected with B
+
+    # A replacement picked but not stored yet still leaves C2000 to replace; once stored it does not,
+    # and the next review shows it without a verdict.
+    rejected = stored_journals(store)[2].articles[0].item
+    new = rejected.model_copy(update={"item_id": "C2001", "record_id": "C2001", "year": 2001})
+    store.write_replacements([(rejected, new)])
+    assert store.replacements() == {"C2000": "C2001"} and len(to_replace(store)) == 1
+    store.store_image(new, (store.dir / "images" / "C2000.jpg").read_bytes(), "jpg", None)
+    assert to_replace(store) == []
+    shown = review_journals(store, log, items)
+    assert [a.item.item_id for a in shown[1].articles] == ["C2001", "C2005", "C2010"]
+
+    # A verdict changed later belongs to the round going on: the rejected pick stays shown until it closes.
+    items.set([shown[1].articles[1]], REJECTED)
+    assert [a.item.item_id for a in review_journals(store, log, items)[1].articles] == ["C2001", "C2005", "C2010"]
+    assert close_round(log, items) == 2
+    assert [a.item.item_id for a in review_journals(store, log, items)[1].articles] == ["C2001", "C2010"]
+    assert _rows(store.dir / "review_items.csv", "item_id")["C2005"]["round"] == "2"

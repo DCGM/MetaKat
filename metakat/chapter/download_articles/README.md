@@ -82,6 +82,30 @@ python -m metakat.chapter.download_articles preview --source dml_cz
    first pick without one; `--all` goes through everything again. Journal sheets are cached in
    `<library>/previews/journals/`.
 
+6. The review goes in rounds, until only approved picks are left. A finished round is closed, its
+   rejected picks are replaced and the next review shows the approved picks and the new ones:
+
+   ```bash
+   python -m metakat.chapter.download_articles.common.review --close-round /mnt/kolosus/data/smart_digiline/articles/{knav,dml.cz,...}
+   python -m metakat.chapter.download_articles select --source knav --replace
+   python -m metakat.chapter.download_articles fetch  --source knav
+   python -m metakat.chapter.download_articles.common.review /mnt/kolosus/data/smart_digiline/articles/{knav,dml.cz,...}
+   ```
+
+   `--close-round` writes the round's number into the `round` column of every verdict given so far;
+   such verdicts are final, and reviews no longer show the rejected journals and picks of closed
+   rounds, nor journals left with no pick (`--closed` shows them again). Picks without a verdict stay
+   open. `select --replace` picks a replacement for every pick rejected on its own (not with its
+   journal) in a closed round that has no stored replacement yet: an item of the same journal from the
+   same year, or else the closest year (the earlier one on a tie), never one stored before, with the
+   library's type preference. Items whose title names a part that is rarely an article (title leaf,
+   cover, instructions for authors, summary, editorial, preface, obituary; `Source.is_unlikely`) are
+   taken only when nothing else is left, and an item with the rejected one's title only when its year
+   has no other. The pairs go to `<library>/replacements.tsv`; `fetch` then stores the selection as
+   usual. A replacement that the library refuses is replaced by the next `select --replace`. A verdict
+   changed in a later round belongs to that round. When a closed round left nothing to replace and
+   nothing open, the review shows the final selection: only approved picks, all reviewed.
+
 Requests are never parallel and at least `--delay` seconds apart (default 1 s for `catalog`, 2 s
 for `fetch`); a server asking to slow down (429/503) is waited for as long as it asks.
 
@@ -99,6 +123,7 @@ Each library gets its own folder under `--root` (default
 <library>/toc/                  page lists and contents page words (KNAV volumes without article records)
 <library>/review.csv            journal verdicts from common/review.py
 <library>/review_items.csv      verdicts of the single picks
+<library>/replacements.tsv      replacements picked for rejected picks (select --replace)
 ```
 
 The metadata JSON holds the catalog item (journal, volume, issue, year, title, authors, type,

@@ -138,6 +138,54 @@ def select_by_period(
     return selected
 
 
+def select_replacements(
+    items: Iterable[CatalogItem],
+    rejected: Iterable[CatalogItem],
+    type_preference: Sequence[str] = (),
+    seed: int = 0,
+    cheap: Callable[[CatalogItem], bool] | None = None,
+    unlikely: Callable[[CatalogItem], bool] | None = None,
+    excluded_ids: Set[str] = frozenset(),
+) -> list[tuple[CatalogItem, CatalogItem]]:
+    """Pick another item of the same journal for every rejected one; returns (rejected, replacement) pairs.
+
+    The replacement comes from the rejected item's year, else from the closest year (the earlier one on a
+    tie), so that the journal keeps its spread over the years; years with only ``unlikely`` items (e.g.
+    titles naming a non-article) come after all others. Items in ``excluded_ids`` (e.g. every stored
+    one, rejected ones included) and items without a year are never picked, nor is one item picked
+    twice. Within a year ``type_preference`` decides as in ``select_items``; then items that are not
+    ``unlikely``, that have another title than the rejected one and that are ``cheap`` are preferred, in
+    this order. A rejected item whose journal has nothing left gets no pair.
+    """
+    cheap = cheap or (lambda item: False)
+    unlikely = unlikely or (lambda item: False)
+    rng = random.Random(seed)
+
+    by_journal: dict[JournalKey, dict[int, list[CatalogItem]]] = defaultdict(lambda: defaultdict(list))
+    for item in items:
+        if item.journal_id is not None and item.year is not None and item.item_id not in excluded_ids:
+            by_journal[journal_key(item)][item.year].append(item)
+
+    taken: set[str] = set()
+    pairs = []
+    for old in sorted(rejected, key=lambda i: (i.journal_id or "", i.journal_title or "", i.year or 0, i.item_id)):
+        by_year = {year: candidates for year, year_items in by_journal.get(journal_key(old), {}).items()
+                   if (candidates := _preferred_candidates(
+                       sorted((i for i in year_items if i.item_id not in taken), key=lambda i: i.item_id),
+                       type_preference))}
+        if not by_year:
+            continue
+        year = min(by_year, key=lambda y: (all(unlikely(i) for i in by_year[y]),
+                                           abs(y - old.year) if old.year is not None else 0, y))
+        candidates = by_year[year]
+        for better in (lambda i: not unlikely(i), lambda i: i.title != old.title, cheap):
+            candidates = [i for i in candidates if better(i)] or candidates
+        new = rng.choice(candidates)
+        taken.add(new.item_id)
+        pairs.append((old, new))
+    return pairs
+
+
 def _preferred_candidates(items: list[CatalogItem], type_preference: Sequence[str]) -> list[CatalogItem]:
     if not type_preference:
         return items

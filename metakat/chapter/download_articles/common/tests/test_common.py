@@ -7,7 +7,8 @@ from metakat.chapter.download_articles.common.first_page import extract_first_pa
 from metakat.chapter.download_articles.common.models import CatalogItem
 from metakat.chapter.download_articles.common.oai import parse_records
 from metakat.chapter.download_articles.common.preview import render_previews
-from metakat.chapter.download_articles.common.selection import select_by_period, select_items
+from metakat.chapter.download_articles.common.selection import select_by_period, select_items, select_replacements
+from metakat.chapter.download_articles.common.source import NOT_ARTICLE, UNLIKELY_ARTICLE
 from metakat.chapter.download_articles.common.store import ArticleStore
 
 OAI_PAGE = b"""<?xml version="1.0"?>
@@ -89,6 +90,33 @@ def test_period_selection_prefers_items_without_a_request():
     # First and last years stay, the first one with its cheap item; the 1955-1959 period takes the
     # cheap 1956 over the middle 1957.
     assert sorted(i.item_id for i in selected) == ["1950c", "1956c", "1964"]
+
+
+def test_replacements_come_from_the_same_journal_and_closest_year():
+    items = [_item(i, "A", y) for i, y in (("a1950", 1950), ("a1953", 1953), ("a1957", 1957), ("a1960x", 1960))]
+    items += [_item("b1950", "B", 1950)]
+    rejected = [_item("r1955", "A", 1955), _item("r1956", "A", 1956), _item("rC", "C", 1950)]
+    pairs = select_replacements(items, rejected, excluded_ids={"a1960x"})
+    # 1955: 1953 and 1957 are as close, the earlier wins; 1956 then takes 1957. C has nothing left.
+    assert [(old.item_id, new.item_id) for old, new in pairs] == [("r1955", "a1953"), ("r1956", "a1957")]
+
+
+def test_replacements_avoid_unlikely_items_and_the_rejected_title():
+    def titled(item_id, year, title):
+        item = _item(item_id, "A", year)
+        item.title = title
+        return item
+
+    def unlikely(item):
+        return bool(NOT_ARTICLE.match(item.title) or UNLIKELY_ARTICLE.match(item.title))
+
+    rejected = titled("r", 1990, "Titulní list")
+    items = [titled("t", 1990, "Titulní list"), titled("i", 1990, "Instructions for authors"),
+             titled("a", 1992, "Antioxidanty")]
+    # A farther year with a likely article beats the same year with title leaves only.
+    assert [new.item_id for _, new in select_replacements(items, [rejected], unlikely=unlikely)] == ["a"]
+    # With only unlikely items left, the closest year still gives one, with another title if it can.
+    assert [new.item_id for _, new in select_replacements(items[:2], [rejected], unlikely=unlikely)] == ["i"]
 
 
 def test_first_page_keeps_scan_bytes_at_native_resolution():

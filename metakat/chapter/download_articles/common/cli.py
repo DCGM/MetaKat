@@ -2,6 +2,7 @@
 
     python -m metakat.chapter.download_articles catalog --source dml_cz
     python -m metakat.chapter.download_articles select  --source dml_cz --period 5
+    python -m metakat.chapter.download_articles select  --source dml_cz --replace
     python -m metakat.chapter.download_articles fetch   --source dml_cz [--pdf-dir DIR]
     python -m metakat.chapter.download_articles preview --source dml_cz
 
@@ -20,7 +21,9 @@ from pathlib import Path
 
 from metakat.chapter.download_articles.common import http
 from metakat.chapter.download_articles.common.preview import render_previews
-from metakat.chapter.download_articles.common.selection import journal_key, select_by_period, select_items
+from metakat.chapter.download_articles.common.review import to_replace
+from metakat.chapter.download_articles.common.selection import (journal_key, select_by_period, select_items,
+                                                                 select_replacements)
 from metakat.chapter.download_articles.common.source import Download, DownloadBlocked, Source
 from metakat.chapter.download_articles.common.store import ArticleStore
 
@@ -42,6 +45,9 @@ def parse_args(sources: dict[str, type[Source]]):
     parser.add_argument("--period", type=int,
                         help="select: instead of --per-journal, give every journal its first and last year and "
                              "one item per this many years, counting items already stored.")
+    parser.add_argument("--replace", action="store_true",
+                        help="select: instead, one replacement for every pick rejected in a closed review round "
+                             "(common/review.py --close-round), from its journal and the closest year.")
     parser.add_argument("--seed", default=0, type=int)
     parser.add_argument("--pdf-dir", type=Path, help="fetch: folder with PDFs saved by hand.")
     parser.add_argument("--delay", type=float,
@@ -101,7 +107,18 @@ def select(source: Source, store: ArticleStore, args) -> None:
                  or (source.is_available(item) and item.item_id not in unavailable
                      and (source.is_cheap(item)
                           or not (item.year is not None and item.year >= walls.get(journal_key(item), item.year + 1))))]
-    if args.period:
+    if args.replace:
+        rejected = [article.item for article in to_replace(store)]
+        pairs = select_replacements(available, rejected, type_preference=source.type_preference, seed=args.seed,
+                                    cheap=source.is_cheap, unlikely=source.is_unlikely, excluded_ids=stored_ids)
+        store.write_replacements(pairs)
+        selected = [new for _, new in pairs]
+        replaced = {old.item_id for old, _ in pairs}
+        for item in rejected:
+            if item.item_id not in replaced:
+                logger.warning(f"{item.item_id}: nothing left to replace it in {item.journal_title} {item.year}")
+        logger.info(f"Replacements for {len(pairs)} of {len(rejected)} rejected picks -> {store.replacements_path}")
+    elif args.period:
         selected = select_by_period(available, args.period, type_preference=source.type_preference,
                                     already_selected=store.stored_years(), seed=args.seed, cheap=source.is_cheap,
                                     stored_ids=stored_ids)
