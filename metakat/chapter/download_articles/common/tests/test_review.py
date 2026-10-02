@@ -96,9 +96,28 @@ def test_new_session_resumes_inside_an_approved_journal(tmp_path):
     assert _position(resumed) == ("Journal C", "C2000")
     resumed.handle("y")
     assert _position(resumed) == ("Journal C", "C2010")
-    resumed.handle("j")                       # leave the picks: C was the last journal
-    assert resumed.done
+    resumed.handle("j")                       # leave the picks: C was the last journal and stays shown
+    assert not resumed.done and _position(resumed) == ("Journal C", None)
     assert _position(_session(store)) == ("Journal C", "C2010")
+
+
+def test_a_reviewed_library_stays_open_for_checking_until_quit_or_enter(tmp_path):
+    store = _store_with_journals(tmp_path)
+    session = _session(store)
+    for key in "yynn":                        # A approved with its pick, B and C rejected
+        session.handle(key)
+    assert session.complete and not session.done and _position(session) == ("Journal C", None)
+    reopened = _session(store)
+    assert not reopened.done and _position(reopened) == ("Journal A", None)
+    reopened.handle("y")                      # every pick judged: A's pick again
+    assert _position(reopened) == ("Journal A", "A1950")
+    reopened.handle("n")                      # changed to rejected; nothing left: the next journal in order
+    assert _position(reopened) == ("Journal B", None) and not reopened.done
+    reopened.handle("enter")
+    assert reopened.done and not reopened.quit
+    quitting = _session(store)
+    quitting.handle("esc")
+    assert quitting.done and quitting.quit
     assert _position(_session(store, review_all=True)) == ("Journal A", None)
 
 

@@ -63,11 +63,15 @@ python -m metakat.chapter.download_articles preview --source dml_cz
    ```
 
    A window (OpenCV) first shows every stored title page of a journal in year order, labelled with
-   year, volume/issue and article title; clicking a page shows it enlarged. `y` approves the journal
-   and goes through its picks one by one, enlarged; `n` rejects the journal together with all its
-   picks and goes to the next journal. On a pick, `y`/`n` approves or rejects it, `j` leaves the
-   rest of the picks for later. Everywhere, space skips, `b` goes back, `u` clears the verdict and
-   `q`/Esc quits. Verdicts are written after every key: journals into `<library>/review.csv`
+   year, volume/issue and article title, with each pick's verdict in its corner (green approved, red
+   rejected, grey none); clicking a page shows it enlarged. `y` approves the journal and goes through
+   its picks one by one, enlarged (those without a verdict, or all again when every one has one);
+   `n` rejects the journal together with all its picks and goes to the next journal; `u` clears the
+   journal and its picks. On a pick, `y`/`n` approves or rejects it, `u` clears it, `j` leaves the
+   rest of the picks for later. Everywhere, ←/→ (or `,`/`.`) go to the previous/next journal or
+   pick, space skips, Enter goes on to the next library folder and `q`/Esc quits; with everything
+   reviewed the window stays open for checking. Verdicts are written after every key: journals into
+   `<library>/review.csv`
    (journal id and title, samples, first and last year, `approved`/`rejected`, time) and picks into
    `<library>/review_items.csv` (item id, journal, year, volume, issue, title, image, verdict and
    `by`: `item` for a pick's own verdict, `journal` when it was rejected with its journal). The next

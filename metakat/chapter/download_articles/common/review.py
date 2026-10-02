@@ -8,7 +8,7 @@ A window first shows every stored title page of one journal in year order:
        them again when every one has a verdict
     n  reject the journal and all its picks, go to the next journal
     ←/→ (or ,/.)  previous/next journal, reviewed or not    space  next journal left to review
-    u  clear the verdicts of the journal and all its picks    q / Esc  quit
+    u  clear the verdicts of the journal and all its picks    Enter  next library    q / Esc  quit
     click a page to see it enlarged, any key returns
     the corner of each page shows its verdict: green approved, red rejected, grey none
 
@@ -21,8 +21,10 @@ The picks of an approved journal are then shown one at a time, enlarged:
 Verdicts are saved after every key: journals into ``<library>/review.csv``, picks into
 ``<library>/review_items.csv`` (``by`` tells a pick's own verdict from one inherited from a rejected
 journal). A new session starts at the first journal without a verdict, or inside an approved
-journal at its first pick without a verdict; ``--all`` goes through everything again. Journal sheets
-are cached in ``<library>/previews/journals/``.
+journal at its first pick without a verdict; ``--all`` goes through everything again. The window
+stays open when everything is reviewed (the header says ALL REVIEWED), so that verdicts can still be
+checked and changed; only q / Esc quits, and Enter goes on to the next library folder given. Journal
+sheets are cached in ``<library>/previews/journals/``.
 """
 from __future__ import annotations
 
@@ -166,17 +168,22 @@ class Session:
 
     def __init__(self, journals: list[Journal], log: ReviewLog, items: ItemReviewLog, review_all: bool = False):
         self.journals, self.log, self.items, self.review_all = journals, log, items, review_all
-        self.index, self.item, self.done = 0, None, not journals
+        # The session ends only on q / Esc (``quit``) or Enter (the next library), never by itself: with
+        # everything reviewed, the journals are still shown to be checked or changed.
+        self.index, self.item, self.done, self.quit = 0, None, not journals, False
         # True while going through every pick of a journal approved again with all its picks judged.
         self.revisit = False
         if journals and not review_all:
             start = next((k for k, j in enumerate(journals) if self._unfinished(j)), None)
-            if start is None:
-                self.done = True
-            else:
+            if start is not None:
                 self.index = start
                 if log.verdict(self.journal) == APPROVED:
                     self.item = self._first_open_item()
+
+    @property
+    def complete(self) -> bool:
+        """Whether every journal and every pick of an approved journal has a verdict."""
+        return not any(self._unfinished(j) for j in self.journals)
 
     @property
     def journal(self) -> Journal:
@@ -195,6 +202,8 @@ class Session:
 
     def handle(self, key: str) -> None:
         if key in ("q", "esc"):
+            self.done = self.quit = True
+        elif key == "enter":
             self.done = True
         elif self.item is None:
             self._handle_journal(key)
@@ -259,16 +268,17 @@ class Session:
             self.item = item
 
     def _next_journal(self) -> None:
-        """The next journal (with something left to review, unless reviewing all); an approved one
-        opens at its first pick without a verdict."""
+        """The next journal with something left to review, after this one or else before it; an approved
+        one opens at its first pick without a verdict. With nothing left (or reviewing all), the next
+        journal in order, as a whole; the last one stays."""
         self.item, self.revisit = None, False
-        following = range(self.index + 1, len(self.journals))
-        index = next((k for k in following if self.review_all or self._unfinished(self.journals[k])), None)
+        others = [*range(self.index + 1, len(self.journals)), *range(self.index)]
+        index = None if self.review_all else next((k for k in others if self._unfinished(self.journals[k])), None)
         if index is None:
-            self.done = True
+            self.index = min(self.index + 1, len(self.journals) - 1)
             return
         self.index = index
-        if not self.review_all and self.log.verdict(self.journal) == APPROVED:
+        if self.log.verdict(self.journal) == APPROVED:
             self.item = self._first_open_item()
 
 
@@ -359,6 +369,8 @@ def _key_name(code: int) -> str | None:
         return "right"
     if code == 27:
         return "esc"
+    if code in (10, 13):
+        return "enter"
     if code == 8:
         return "b"
     return chr(code).lower() if 32 <= code < 127 else None
@@ -384,7 +396,7 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
     log, items = ReviewLog.load(store), ItemReviewLog.load(store)
     session = Session(journals, log, items, review_all)
     if session.done:
-        print(f"{directory}: {len(journals)} journals, nothing to review")
+        print(f"{directory}: no stored journals")
         return True
 
     clicks: list[tuple[int, int]] = []
@@ -414,7 +426,8 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                 for key in [k for k in cache if abs((k if isinstance(k, int) else k[0]) - index) > 1]:
                     del cache[key]
             reviewed = sum(1 for j in journals if log.verdict(j))
-            position = f"{directory.name}  [{index + 1}/{len(journals)}, {reviewed} reviewed]"
+            position = (f"{directory.name}  [{index + 1}/{len(journals)}, "
+                        f"{'ALL REVIEWED' if session.complete else f'{reviewed} reviewed'}]")
             if session.item is None:
                 sheet = sheet_of(index).result()
                 if index + 1 < len(journals):
@@ -426,7 +439,7 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                 verdict = log.verdict(journal)
                 lines = [f"{position}  JOURNAL {(verdict or 'no verdict').upper()}  ·  {MARK_LEGEND}",
                          "y review picks · n reject journal and picks · ←/→ or ,/. journals · space next open · "
-                         "u clear journal and picks · q quit · click enlarges"]
+                         "u clear journal and picks · Enter next library · q quit · click enlarges"]
             else:
                 article, item = session.article, session.item
                 shown, scale = page_of(index, item).result(), None
@@ -455,7 +468,7 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int) -
                 anchor = _reopen_window(cv2, clicks)
                 continue
             session.handle(key)
-            if key in ("q", "esc"):
+            if session.quit:
                 cv2.destroyAllWindows()
                 return False
     cv2.destroyAllWindows()
