@@ -20,11 +20,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Interactive PDF output (--output-metakat-pdf): the base install plus the
-# renderer, and nothing else. metakat/tools/create_interactive_pdf.py reaches
-# only the schemas and the document grouping helper, so a processed batch can
-# be rendered without any engine or model runtime present.
-pdf = ["PyMuPDF==1.27.2.3"]
+# Visualization, with no engine or model runtime present: the interactive PDF
+# output (--output-metakat-pdf, metakat/tools/create_interactive_pdf.py, which
+# reaches only the schemas and the document grouping helper, so a processed
+# batch can be rendered anywhere), and metakat/chapter/download_articles, which
+# samples article title pages from digital libraries and shows them in a review
+# window. PyMuPDF renders and reads PDFs, OpenCV and numpy show the window.
+# Fetching a KNAV volume whose contents page has no ALTO also needs easyocr,
+# left out here: it brings torch and its own OpenCV build.
+vis = [
+    "PyMuPDF==1.27.2.3",
+    "numpy==1.26.4",
+    "opencv-python==4.8.0.76",
+]
 
 # The deep-learning runtime, declared once and shared by [inference] and
 # [train], which both need it. This is an internal grouping rather than a tier
@@ -57,13 +65,14 @@ inference = [
 ]
 
 # metakat/worker/docapi is a thin wrapper around the pipeline: the engines it
-# runs, the PDF exporter it writes when STORE_METAKAT_PDF is set, and the
-# DocAPI client it polls for jobs.
+# runs, the PDF exporter it writes when STORE_METAKAT_PDF is set (from [vis],
+# whose numpy and OpenCV are the ones [inference] pins), and the DocAPI client
+# it polls for jobs.
 #
 # doc-api's own worker extra keeps the API service's stack -- SQLAlchemy,
 # asyncpg, alembic, uvicorn -- out of the install.
 worker = [
-    "metakat[inference,pdf]",
+    "metakat[inference,vis]",
     "doc-api[worker]",
 ]
 
@@ -76,17 +85,6 @@ train = [
     "accelerate==1.14.0",
     "scikit-learn==1.3.2",
     "safe-gpu==2.0.0",
-    "numpy==1.26.4",
-    "opencv-python==4.8.0.76",
-]
-
-# metakat/chapter/download_articles: sampling article title pages from digital
-# libraries (catalog, select, fetch, preview) and the review window over them.
-# PyMuPDF reads the PDFs, OpenCV and numpy show the review window. Fetching a
-# KNAV volume whose contents page has no ALTO also needs easyocr, left out here:
-# it brings torch and its own OpenCV build.
-articles = [
-    "metakat[pdf]",
     "numpy==1.26.4",
     "opencv-python==4.8.0.76",
 ]

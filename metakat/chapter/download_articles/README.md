@@ -32,10 +32,10 @@ are registered in `__main__.py`.
 ## Install
 
 ```bash
-pip install -e ".[articles]"     # Python 3.12; add ,dev for the tests
+pip install -e ".[vis]"     # Python 3.12; add ,dev for the tests
 ```
 
-`articles` is MetaKat's base install with PyMuPDF, numpy and OpenCV (the review window), and no
+`vis` is MetaKat's base install with PyMuPDF, numpy and OpenCV (the review window), and no
 torch. Fetching a KNAV volume whose contents page has no ALTO also needs `easyocr`.
 
 ## Usage
