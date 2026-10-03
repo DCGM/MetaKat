@@ -352,3 +352,17 @@ def test_sheet_marks_reviews_in_the_other_corner(tmp_path):
     corners = [marked.getpixel((x + 3, y + 1)) for x, y, _, _ in boxes]
     assert corners[:2] == [REVIEW_COLOURS[BY_ITEM], REVIEW_COLOURS[BY_AUTO]]
     assert corners[2] == sheet.getpixel((boxes[2][0] + 3, boxes[2][1] + 1))     # not a review: no mark
+
+
+def test_undecided_shows_only_picks_left_to_decide(tmp_path):
+    store = _store_with_journals(tmp_path)
+    session = _session(store)
+    for key in "yy yyy":                      # A and B approved with all their picks
+        session.handle(key)
+    log, items = ReviewLog.load(store), ItemReviewLog.load(store)
+    b1990 = stored_journals(store)[1].articles[1]
+    items.set_review([b1990], True, BY_AUTO)  # a guess not yet confirmed
+    shown = review_journals(store, log, items, undecided=True)
+    assert [(j.title, [a.item.item_id for a in j.articles]) for j in shown] == [
+        ("Journal B", ["B1990"]), ("Journal C", ["C2000", "C2005", "C2010"])]
+    assert _position(Session(shown, log, items)) == ("Journal B", "B1990")

@@ -88,7 +88,7 @@ python -m metakat.chapter.download_articles preview --source dml_cz
    `<library>/review_items.csv` (item id, journal, year, volume, issue, title, image, verdict and
    `by`: `item` for a pick's own verdict, `journal` when it was rejected with its journal). The next
    session continues at the first journal without a verdict, or inside an approved journal at its
-   first pick without one; `--all` goes through everything again. Journal sheets are cached in
+   first pick without one; `--all` goes through everything again, `--undecided` shows only the picks left to decide (no verdict or an unconfirmed review guess) and only the journals that have some. Journal sheets are cached in
    `<library>/previews/journals/`.
 
    Apart from its verdict, a pick can be marked as a review of someone's work (a book, an exhibition,

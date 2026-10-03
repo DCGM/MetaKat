@@ -28,7 +28,8 @@ journal), together with the review mark (``review`` yes/no, ``review_by``: ``aut
 yet looked at, ``item`` once set or seen, ``review_note``: what the guess rests on). A verdict given to
 a pick confirms its review mark as shown. A new session starts at the first journal without a verdict,
 or inside an approved journal at its first pick without a verdict or with a guessed review mark not yet
-confirmed; ``--all`` goes through everything again. The window
+confirmed; ``--all`` goes through everything again, ``--undecided`` shows only the picks left to decide
+(no verdict or an unconfirmed guess) and only the journals that have some. The window
 stays open when everything is reviewed (the header says ALL REVIEWED), so that verdicts can still be
 checked and changed; only q (or Esc on a journal sheet) quits, and Enter goes on to the next library folder given. Journal
 sheets are cached in ``<library>/previews/journals/``.
@@ -102,14 +103,18 @@ def stored_journals(store: ArticleStore) -> list[Journal]:
     return sorted(journals, key=lambda j: (min(j.years, default=0), j.title))
 
 
-def review_journals(store: ArticleStore, log: ReviewLog, items: ItemReviewLog, closed: bool = False) -> list[Journal]:
+def review_journals(store: ArticleStore, log: ReviewLog, items: ItemReviewLog, closed: bool = False,
+                    undecided: bool = False) -> list[Journal]:
     """The journals and picks a review shows: those of ``stored_journals`` without the rejections of closed
-    rounds (``close_round``), and without journals left with no pick; ``closed`` shows them all."""
+    rounds (``close_round``), and without journals left with no pick; ``closed`` shows them all.
+    ``undecided`` keeps only the picks left to look at: without a verdict, or with a guessed review mark."""
     journals = []
     for journal in stored_journals(store):
         if not closed and log.verdict(journal) == REJECTED and log.closed(journal):
             continue
         articles = [a for a in journal.articles if closed or not (items.verdict(a) == REJECTED and items.closed(a))]
+        if undecided:
+            articles = [a for a in articles if not items.verdict(a) or items.review_by(a) == BY_AUTO]
         if articles:
             journals.append(Journal(journal.key, articles))
     return journals
@@ -522,13 +527,14 @@ def _wait_key(cv2, clicks: list) -> str | None:
     return None
 
 
-def review(directory: Path, review_all: bool, max_width: int, max_height: int, closed: bool = False) -> bool:
+def review(directory: Path, review_all: bool, max_width: int, max_height: int, closed: bool = False,
+           undecided: bool = False) -> bool:
     """Review one library folder; returns False when the reviewer quit."""
     import cv2
 
     store = ArticleStore(directory.parent, directory.name)
     log, items = ReviewLog.load(store), ItemReviewLog.load(store)
-    journals = review_journals(store, log, items, closed)
+    journals = review_journals(store, log, items, closed, undecided)
     round_number = current_round(log, items)
     session = Session(journals, log, items, review_all)
     if session.done:
@@ -679,6 +685,10 @@ def main():
     parser.add_argument("--all", action="store_true", help="Go through every journal and pick again.")
     parser.add_argument("--closed", action="store_true",
                         help="Show the rejections of closed rounds too, to change them.")
+    parser.add_argument("--undecided", action="store_true",
+                        help="Show only the picks left to decide: without a verdict or with a guessed review mark "
+                             "not yet confirmed. Journals without such picks are left out; n on a journal rejects "
+                             "only the picks shown.")
     parser.add_argument("--close-round", action="store_true",
                         help="Close the review round of every folder (no window): its verdicts become final and "
                              "its rejections are no longer shown.")
@@ -688,7 +698,7 @@ def main():
     for directory in args.directories:
         if args.close_round:
             close(directory.resolve())
-        elif not review(directory.resolve(), args.all, args.max_width, args.max_height, args.closed):
+        elif not review(directory.resolve(), args.all, args.max_width, args.max_height, args.closed, args.undecided):
             break
 
 
