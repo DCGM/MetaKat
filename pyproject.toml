@@ -80,6 +80,17 @@ train = [
     "opencv-python==4.8.0.76",
 ]
 
+# metakat/chapter/download_articles: sampling article title pages from digital
+# libraries (catalog, select, fetch, preview) and the review window over them.
+# PyMuPDF reads the PDFs, OpenCV and numpy show the review window. Fetching a
+# KNAV volume whose contents page has no ALTO also needs easyocr, left out here:
+# it brings torch and its own OpenCV build.
+articles = [
+    "metakat[pdf]",
+    "numpy==1.26.4",
+    "opencv-python==4.8.0.76",
+]
+
 dev = [
     "pytest>=8.3",
     "pytest-cov>=5.0",

@@ -29,6 +29,15 @@ upol/            journals of Palacký University Olomouc (Crossref)
 Every library folder holds its `source.py` (a `common.source.Source`) and its tests; new libraries
 are registered in `__main__.py`.
 
+## Install
+
+```bash
+pip install -e ".[articles]"     # Python 3.12; add ,dev for the tests
+```
+
+`articles` is MetaKat's base install with PyMuPDF, numpy and OpenCV (the review window), and no
+torch. Fetching a KNAV volume whose contents page has no ALTO also needs `easyocr`.
+
 ## Usage
 
 ```bash
