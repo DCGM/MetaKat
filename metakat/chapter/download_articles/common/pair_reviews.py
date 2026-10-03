@@ -236,7 +236,12 @@ def stage(source: Source, store: ArticleStore, pdf_dir: Path | None = None, seed
             else:
                 chosen.append((slot, *slot.candidates[0]))
     if source.manual_download:
-        staging.write_selection([item for _, item, _, _ in chosen])
+        # Files saved by hand are matched by the name of their link, so links must point at the files.
+        picked = [item for _, item, _, _ in chosen]
+        if source.resolve_links(picked):
+            resolved = {item.item_id: item for item in picked}
+            store.write_catalog([resolved.get(item.item_id, item) for item in store.read_catalog()])
+        staging.write_selection(picked)
         if pdf_dir is None:
             logger.info(f"{len(chosen)} candidates to save by hand: open {staging.selection_html_path}, save the "
                         f"PDFs into one folder and run stage again with --pdf-dir")
