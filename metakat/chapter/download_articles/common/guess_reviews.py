@@ -39,7 +39,7 @@ KNAV = "knav"
 KNAV_API = "https://kramerius.lib.cas.cz/search/api/client/v7.0"
 GENRE_CACHE = "kramerius_genres.json"
 
-NOT_REVIEW = re.compile(r"recenzovan|peer.?review|review (article|paper|study)|review articles|review papers|"
+NOT_REVIEW = re.compile(r"recenzovan|peer.?review|review[- ]?(articles?|papers?|stud(y|ies))|review \(only|"
                         r"reviewed", re.I)
 REVIEW_VALUE = re.compile(r"recenz|rezension|recension|buchbesprech|book ?reviews?|knižní recenze|^reviews?\b|"
                           r"\breviews?$|anotac|annotation|panorama knih|muzejní kritika|^book$", re.I)

@@ -20,6 +20,7 @@ from collections import Counter
 from pathlib import Path
 
 from metakat.chapter.download_articles.common import http
+from metakat.chapter.download_articles.common.models import CatalogItem, StoredArticle
 from metakat.chapter.download_articles.common.preview import render_previews
 from metakat.chapter.download_articles.common.review import to_replace
 from metakat.chapter.download_articles.common.selection import (journal_key, select_by_period, select_items,
@@ -86,8 +87,9 @@ def main(sources: dict[str, type[Source]]):
             logger.info(f"Preview: {path}")
 
 
-def select(source: Source, store: ArticleStore, args) -> None:
-    catalog = store.read_catalog()
+def available_items(source: Source, store: ArticleStore, catalog: list[CatalogItem]) -> list[CatalogItem]:
+    """The catalog items a selection may take: stored ones, and those the library is expected to serve,
+    neither refused before nor behind a moving wall (unless they cost no request)."""
     unavailable = store.unavailable()
     # From the first year a journal's item was refused on, a moving wall withholds its later years too.
     walls: dict = {}
@@ -102,11 +104,17 @@ def select(source: Source, store: ArticleStore, args) -> None:
 
     # Items behind a wall stay selectable when they cost no request (e.g. downloaded before).
     stored_ids = {article.item.item_id for article in store.stored()}
-    available = [item for item in catalog
-                 if item.item_id in stored_ids
-                 or (source.is_available(item) and item.item_id not in unavailable
-                     and (source.is_cheap(item)
-                          or not (item.year is not None and item.year >= walls.get(journal_key(item), item.year + 1))))]
+    return [item for item in catalog
+            if item.item_id in stored_ids
+            or (source.is_available(item) and item.item_id not in unavailable
+                and (source.is_cheap(item)
+                     or not (item.year is not None and item.year >= walls.get(journal_key(item), item.year + 1))))]
+
+
+def select(source: Source, store: ArticleStore, args) -> None:
+    catalog = store.read_catalog()
+    available = available_items(source, store, catalog)
+    stored_ids = {article.item.item_id for article in store.stored()}
     if args.replace:
         rejected = [article.item for article in to_replace(store)]
         pairs = select_replacements(available, rejected, type_preference=source.type_preference, seed=args.seed,
@@ -145,45 +153,59 @@ def fetch(source: Source, store: ArticleStore, pdf_dir: Path | None, reextract: 
     refused = store.unavailable()
     stored, missing, failed = 0, [], []
     for item_id in store.read_selection():
-        item = catalog[item_id]
         if store.is_stored(item_id) and not reextract:
             continue
-
-        download = None
-        stored_pdf = store.stored_pdf(item_id)
-        if stored_pdf is not None:
-            download = Download(stored_pdf, previous[item_id].pdf_url if item_id in previous else None)
-        if download is None:
-            download = source.local_pdf(item, pdf_dir)
-        if download is None and not source.manual_download and item_id not in refused:
-            try:
-                download = source.download(item)
-            except (DownloadBlocked, OSError) as error:
-                logger.warning(f"{item_id}: {error}")
-                if (isinstance(error, DownloadBlocked) or getattr(error, "code", None) in (401, 403, 404, 410)
-                        or isinstance(getattr(error, "reason", None), DEAD_HOST_ERRORS)):
-                    store.mark_unavailable(item, str(error))
-            except Exception as error:
-                # A failure of the sampler's own (e.g. a missing optional dependency), not a refusal: the
-                # item stays selectable and the other items are still fetched.
-                logger.exception(f"{item_id}: {error!r}")
-        if download is None:
+        outcome = fetch_item(source, store, catalog[item_id], pdf_dir, previous.get(item_id), refused)
+        if outcome == MISSING:
             missing.append(item_id)
-            continue
-
-        try:
-            if download.kind == "pdf":
-                article = store.store(item, download.data, download.url, source.title_page_index(download.data, download.url))
-            else:
-                article = store.store_image(item, download.data, download.kind, download.url)
-        except Exception as error:
-            logger.error(f"{item_id}: cannot extract the title page: {error}")
+        elif outcome == FAILED:
             failed.append(item_id)
-            continue
-        stored += 1
-        logger.info(f"{item_id}: {article.image.file} page {article.image.page} "
-                    f"{article.image.width}x{article.image.height} ({article.image.method}, {article.image.dpi} dpi)")
+        else:
+            stored += 1
 
     logger.info(f"Stored {stored}, missing {len(missing)}, failed {len(failed)}")
     if missing:
         logger.info(f"Missing: {' '.join(missing)}")
+
+
+STORED, MISSING, FAILED = "stored", "missing", "failed"
+
+
+def fetch_item(source: Source, store: ArticleStore, item: CatalogItem, pdf_dir: Path | None = None,
+               previous: StoredArticle | None = None, refused=frozenset(),
+               refusals: ArticleStore | None = None) -> str:
+    """Store one item into ``store``: from its stored PDF, a PDF on disk or the library. A refusal is recorded
+    in ``refusals`` (default ``store``), so that it is not requested again. Returns STORED, MISSING or FAILED."""
+    item_id = item.item_id
+    download = None
+    stored_pdf = store.stored_pdf(item_id)
+    if stored_pdf is not None:
+        download = Download(stored_pdf, previous.pdf_url if previous else None)
+    if download is None:
+        download = source.local_pdf(item, pdf_dir)
+    if download is None and not source.manual_download and item_id not in refused:
+        try:
+            download = source.download(item)
+        except (DownloadBlocked, OSError) as error:
+            logger.warning(f"{item_id}: {error}")
+            if (isinstance(error, DownloadBlocked) or getattr(error, "code", None) in (401, 403, 404, 410)
+                    or isinstance(getattr(error, "reason", None), DEAD_HOST_ERRORS)):
+                (refusals or store).mark_unavailable(item, str(error))
+        except Exception as error:
+            # A failure of the sampler's own (e.g. a missing optional dependency), not a refusal: the
+            # item stays selectable and the other items are still fetched.
+            logger.exception(f"{item_id}: {error!r}")
+    if download is None:
+        return MISSING
+
+    try:
+        if download.kind == "pdf":
+            article = store.store(item, download.data, download.url, source.title_page_index(download.data, download.url))
+        else:
+            article = store.store_image(item, download.data, download.kind, download.url)
+    except Exception as error:
+        logger.error(f"{item_id}: cannot extract the title page: {error}")
+        return FAILED
+    logger.info(f"{item_id}: {article.image.file} page {article.image.page} "
+                f"{article.image.width}x{article.image.height} ({article.image.method}, {article.image.dpi} dpi)")
+    return STORED
