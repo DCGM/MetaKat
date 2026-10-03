@@ -19,7 +19,8 @@ The picks of an approved journal are then shown one at a time, enlarged:
     space  skip    ←/b  back (before the first pick: the
     journal)    →  next pick (after the last: the next journal)    u  clear verdict
     j  leave the picks, go to the next journal    Esc  back to the journal sheet    q  quit
-    r  mark / unmark the pick as a review (of a book, an exhibition, ...); stays on the pick
+    r  mark / unmark the pick as a review (of a book, an exhibition, ...); on a guess, r first confirms
+       it (twice: not a review); stays on the pick
 
 Verdicts are saved after every key: journals into ``<library>/review.csv``, picks into
 ``<library>/review_items.csv`` (``by`` tells a pick's own verdict from one inherited from a rejected
@@ -358,7 +359,9 @@ class Session:
             self.items.confirm_review(self.article)
             self._next_item()
         elif key == "r":
-            self.items.set_review([self.article], not self.items.is_review(self.article), BY_ITEM)
+            # A guess is far more often right than wrong: r first confirms it, then toggles.
+            guessed = self.items.review_by(self.article) == BY_AUTO
+            self.items.set_review([self.article], guessed or not self.items.is_review(self.article), BY_ITEM)
         elif key == "u":
             self.items.set([self.article], None)
         elif key in (" ", "s"):

@@ -92,7 +92,7 @@ python -m metakat.chapter.download_articles preview --source dml_cz
    `<library>/previews/journals/`.
 
    Apart from its verdict, a pick can be marked as a review of someone's work (a book, an exhibition,
-   tests): `r` on a pick marks or unmarks it, shown as a triangle in the top left corner of its tile
+   tests): `r` on a pick marks or unmarks it (on a guess it first confirms it, so a wrong guess takes `r` twice), shown as a triangle in the top left corner of its tile
    (blue). Marks can be guessed beforehand (`review_by` = `auto`, pale blue, with `review_note` telling
    what the guess rests on); a session also stops at every pick with a guess not yet looked at, and a
    verdict given to the pick confirms its mark as shown (`review_by` = `item`). The columns `review`

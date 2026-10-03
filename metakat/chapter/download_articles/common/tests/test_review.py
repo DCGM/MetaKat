@@ -326,8 +326,15 @@ def test_guessed_review_marks_are_visited_and_confirmed_by_a_verdict(tmp_path):
 
     items = ItemReviewLog.load(store)
     items.set_review([c2005], True, BY_AUTO)
+    confirmed = _session(store)
+    confirmed.handle("r")                     # r on a guess confirms it rather than switching it off
+    assert confirmed.items.is_review(c2005) and confirmed.items.review_by(c2005) == BY_ITEM
+
+    items = ItemReviewLog.load(store)
+    items.set_review([c2005], True, BY_AUTO)
     wrong = _session(store)
-    wrong.handle("r")                         # a wrong guess: unmarked, then judged
+    wrong.handle("r")
+    wrong.handle("r")                         # a wrong guess: confirmed, then unmarked, then judged
     wrong.handle("y")
     assert wrong.items.is_review(c2005) is False and wrong.items.review_by(c2005) == BY_ITEM and wrong.complete
 
