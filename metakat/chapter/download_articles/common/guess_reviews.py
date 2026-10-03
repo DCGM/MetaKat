@@ -5,7 +5,7 @@
 
 The evidence:
 
-* metadata: a ``type`` or ``section`` naming reviews (Recenze, Reviews, Buchbesprechungen, Muzejní
+* metadata: a ``type``, ``section`` or catalogued Kramerius genre (``genres``, DIKDA) naming reviews (Recenze, Reviews, Buchbesprechungen, Muzejní
   kritika, ...; not "Recenzovaný článek" / "peer-reviewed", which mean refereed, nor "review article",
   a survey), the item type ``review`` of dml.cz, the keyword ``recenze`` of KNAV;
 * KNAV: the article's genre in Kramerius (Recenze, Recensions, Reviews, Anotace), asked for 50 picks a
@@ -63,7 +63,7 @@ TOP_LINES = 12
 
 def metadata_evidence(item: CatalogItem) -> list[str]:
     found = []
-    for field in ("type", "section"):
+    for field in ("type", "section", "genres"):
         for value in item.record.get(field, []):
             if REVIEW_VALUE.search(value) and not NOT_REVIEW.search(value):
                 found.append(f"{field}: {value}")

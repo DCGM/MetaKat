@@ -13,6 +13,7 @@ common/          shared code: catalog model, HTTP, OAI-PMH, Kramerius, Open Jour
 agriculturejournals/  journals of the Czech Academy of Agricultural Sciences (Crossref)
 cuni/            journals of Charles University: Karolinum, ojs.cuni.cz, faculty sites (Crossref)
 cvut_journals/   journals of the Czech Technical University (OJS)
+dikda/           Kramerius of the Slovak National Library (DIKDA)
 dml_cz/          Czech Digital Mathematics Library
 journal_sites/   single-journal sites found in Crossref by ISSN
 knav/            Kramerius of the Library of the Czech Academy of Sciences
@@ -199,6 +200,7 @@ such records start no moving wall.
 |---|---|---|
 | `mzk` | [Moravian Library](https://www.mzk.cz/) | Articles not held by KNAV: about 15,000 in 99 journals and magazines (2026-10), every one under the out-of-commerce or on-site licence (`dnnto`, `dnntt`, `onsite`) and refused to anonymous users (403), so nothing is selected. The public MZK articles are the KNAV copies and Lidové noviny. |
 | `nkp` | [National Library](https://www.nkp.cz/) | Internal parts of issues; nearly all are in newspapers (left out) or licensed military journals. The public ones are in 9 short-lived periodicals, mostly Pilsen magazines of 1884–1910. |
+| `dikda` | [Slovak National Library](https://dikda.snk.sk/) (DIKDA) | Slovak periodicals at article level (`model:article`): 705,908 articles, of which 7,968 in 33 periodicals are public (2026-10); the rest are for paying users (`paying_users`) or the library's premises (`only_in_library`), and only the public ones are catalogued. Kramerius calls the public ones `accessibility: private`, so availability goes by the licence. Page images are tiles only (`/items/<pid>/image` answers 404) and are taken from IIIF at full size. Most public articles are in *Les* (1973–2005), *Cirkevné listy* (1887–1946) and *Slovenské pohľady* (1851–1964); the poems, prose and plays of the literary journals (by their Kramerius genre) are never selected, and the genre *Recenzie* counts as evidence of a review. |
 
 ### KNAV volumes without article records
 

@@ -27,7 +27,8 @@ NEWSPAPER_GENRES = {"newspaper", "noviny", "regionální noviny", "regionální 
 
 ARTICLE_FIELDS = ["pid", "own_pid_path", "own_model_path", "own_parent.pid", "root.title", "title.search",
                   "titles.search", "authors.search", "languages.facet", "keywords.search", "date.str",
-                  "date_range_start.year", "accessibility", "licenses.facet", "ds.img_full.mime", "count_page"]
+                  "date_range_start.year", "accessibility", "licenses.facet", "ds.img_full.mime", "count_page",
+                  "genres.facet"]
 PARENT_FIELDS = ["pid", "model", "part.number.str", "date.str", "title.search", "date_range_start.year"]
 
 # Licences of works the libraries may show only to registered users (out of commerce, DNNT) or on
@@ -43,11 +44,16 @@ def is_restricted(item: CatalogItem) -> bool:
 
 
 class Kramerius:
-    """The client API of one Kramerius 7 instance; ``fq`` restricts every search (e.g. to one library)."""
+    """The client API of one Kramerius 7 instance; ``fq`` restricts every search (e.g. to one library).
 
-    def __init__(self, api: str, fq: str | None = None):
+    ``iiif`` is the library's IIIF image service, for libraries that serve page images only as tiles
+    (``/items/<pid>/image`` answers 404); the full image is then asked from IIIF.
+    """
+
+    def __init__(self, api: str, fq: str | None = None, iiif: str | None = None):
         self.api = api
         self.fq = fq
+        self.iiif = iiif
 
     def search(self, query: str, fields: list[str], rows: int, start: int = 0, sort: str | None = None,
                filtered: bool = True) -> list[dict]:
@@ -82,6 +88,8 @@ class Kramerius:
         return http_get(f"{self.api}/items/{pid}/metadata/mods").decode("utf-8", "replace")
 
     def image_url(self, pid: str) -> str:
+        if self.iiif:
+            return f"{self.iiif}/{pid}/full/max/0/default.jpg"
         return f"{self.api}/items/{pid}/image"
 
     def _get(self, params: dict) -> dict:
@@ -98,6 +106,8 @@ class KrameriusSource(Source):
     api: str
     # Restricts every search, e.g. to one library of the Czech Digital Library.
     fq: str | None = None
+    # The IIIF image service, where page images are served as tiles only.
+    iiif: str | None = None
     # The records that are articles.
     article_query = "model:article AND own_model_path:periodical*"
     # Item pages for people: landing_url + pid.
@@ -108,7 +118,7 @@ class KrameriusSource(Source):
     exclude_libraries: tuple[str, ...] = ()
 
     def __init__(self):
-        self.kramerius = Kramerius(self.api, self.fq)
+        self.kramerius = Kramerius(self.api, self.fq, self.iiif)
 
     def build_catalog(self) -> list[CatalogItem]:
         excluded = self.excluded_ids()
@@ -220,6 +230,7 @@ def item_from_docs(doc: dict, parents: dict[str, dict], library: str, api: str, 
     record = {
         "titles": doc.get("titles.search", []),
         "keywords": doc.get("keywords.search", []),
+        "genres": doc.get("genres.facet", []),
         "own_model_path": [doc.get("own_model_path", "")],
         "parent": [doc["own_parent.pid"]] if doc.get("own_parent.pid") else [],
         "accessibility": [doc["accessibility"]] if doc.get("accessibility") else [],

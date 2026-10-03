@@ -2,6 +2,7 @@ from metakat.chapter.download_articles.agriculturejournals.source import Agricul
 from metakat.chapter.download_articles.common.cli import main
 from metakat.chapter.download_articles.cuni.source import CuniSource
 from metakat.chapter.download_articles.cvut_journals.source import CvutJournalsSource
+from metakat.chapter.download_articles.dikda.source import DikdaSource
 from metakat.chapter.download_articles.dml_cz.source import DmlCzSource
 from metakat.chapter.download_articles.journal_sites.source import JournalSitesSource
 from metakat.chapter.download_articles.knav.source import KnavSource
@@ -18,6 +19,7 @@ SOURCES = {
     "agriculturejournals": AgricultureJournalsSource,
     "cuni": CuniSource,
     "cvut_journals": CvutJournalsSource,
+    "dikda": DikdaSource,
     "dml_cz": DmlCzSource,
     "journal_sites": JournalSitesSource,
     "knav": KnavSource,
