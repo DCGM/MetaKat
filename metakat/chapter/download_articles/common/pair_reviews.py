@@ -16,8 +16,9 @@ picks. Journals without such a sign only get articles for their review picks.
 Candidates for a slot come from the same journal and year, never items stored, tried or refused
 before, nor items whose title names a non-article (``Source.is_unlikely``) or KNAV volumes. For a
 review the best evidence comes first: metadata, then a book citation in the title, then an
-"Author Name: Title" title, then (only where the catalog does not mark reviews completely, and for
-KNAV only in years without any genre) items without any sign, tried on the strength of their OCR. For
+"Author Name: Title" title, then items without any sign, tried on the strength of their OCR, but only
+in journals where the random sample hit a review (reviews are common there), where the catalog does
+not mark reviews completely, and for KNAV only in years without any genre. For
 an article, items without any sign of a review, preferring those that cost no request.
 
 ``stage`` fetches the next candidate of every open slot (at most ``MAX_ATTEMPTS`` per slot) into the
@@ -198,7 +199,9 @@ def plan(source: Source, store: ArticleStore, seed: int = 0) -> list[JournalPlan
                 pool = candidates_by_year[year][:]
                 rng.shuffle(pool)
                 if want == REVIEW:
-                    probe = (store.dir.name not in COMPLETE_METADATA
+                    # Items without any sign are tried only where reviews are common enough for the random
+                    # sample to have hit one, and where the catalog does not already tell them apart.
+                    probe = (evidence["review picks"] > 0 and store.dir.name not in COMPLETE_METADATA
                              and not (store.dir.name == KNAV and year in genre_years))
                     ranked = [(i, *scores[i.item_id]) for i in pool if scores[i.item_id][0] > NONE or probe]
                     ranked.sort(key=lambda c: (-c[1], not source.is_cheap(c[0])))
