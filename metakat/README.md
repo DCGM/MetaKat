@@ -123,6 +123,7 @@ checkout. With any prerequisite in place, install the tier itself:
 pip install -e "."             # read or write MetakatIO, nothing else
 pip install -e ".[pdf]"        # render an interactive PDF, no engine present
 pip install -e ".[inference]"  # the pipeline through process_batch
+pip install -e ".[vlm]"        # the pipeline plus the engines reading pages with a VLM
 pip install -e ".[worker]"     # the DocAPI worker in metakat/worker/docapi
 pip install -e ".[train]"      # training and evaluation in metakat/page_type/nets
 pip install -e ".[dev]"        # the test suite
@@ -201,6 +202,7 @@ documentation for each available implementation.
 3. [`biblio`](biblio/README.md#purpose)
    - [`core`](biblio/README.md#available-core-implementation)
      - [`biblio_core_engine_yolo`](biblio/README.md#engine-yolo--alto-biblio_core_engine_yolo)
+     - [`biblio_core_engine_vlm`](biblio/README.md#engine-vision-language-model-biblio_core_engine_vlm)
    - [`bind`](biblio/README.md#available-bind-implementation)
      - [`biblio_bind_engine_base`](biblio/README.md#engine-base-biblio_bind_engine_base)
 4. [`chapter`](chapter/README.md#purpose)

@@ -1306,3 +1306,21 @@ def test_the_alto_ids_of_evidence_are_returned_next_to_its_box(metakat_page):
     refs = detection_to_alto[volume.title[0].id]
     assert (refs.blocks, refs.lines, refs.words) == (["TB1"], ["TL1"], [])
     assert set(detection_to_alto) == {volume.title[0].id}
+
+
+def test_a_value_without_a_box_keeps_its_page(metakat_page):
+    binder = _binder()
+    located = _ev("Kytice", 0.95)
+    unlocated = DetectionEvidence(text="z pověstí národních", confidence=0.95, bbox=None, page_key="page-1")
+    core_result = BiblioCoreResult(pages={"page-1": _page_result(
+        BiblioReading(title_infos=(BiblioTitleInfo(title=located, sub_title=unlocated),)),
+    )})
+
+    [volume, *_], detection_to_bbox, detection_to_page, _, _ = binder.get_volume_issue_from_result(
+        core_result, {"page-1": metakat_page},
+    )
+
+    title, sub_title = volume.title[0], volume.subTitle[0]
+    # Only the located value has a box; both know the page they were read on.
+    assert set(detection_to_bbox) == {title.id}
+    assert detection_to_page[title.id] == detection_to_page[sub_title.id] == metakat_page.id

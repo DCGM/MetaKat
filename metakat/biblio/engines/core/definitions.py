@@ -19,6 +19,12 @@ biblio_core_engines = {
         requires=('ultralytics', 'text_geometry_aligner'),
         extra='inference',
     ),
+    'biblio_core_engine_vlm': EngineEntry(
+        module='metakat.biblio.engines.core.biblio_core_engine_vlm',
+        attribute='BiblioCoreEngineVLM',
+        requires=('openai', 'jsonschema', 'jinja2', 'text_geometry_aligner', 'ortools'),
+        extra='vlm',
+    ),
 }
 
 def load_biblio_core_engine(config: Mapping[str, Any]) -> BiblioCoreEngine:

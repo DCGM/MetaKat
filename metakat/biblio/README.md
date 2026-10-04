@@ -14,6 +14,7 @@
   - [YOLO + ALTO](#engine-yolo--alto-biblio_core_engine_yolo)
     - [Label configuration](#label-configuration)
     - [Reading a page](#reading-a-page)
+  - [Vision-language model](#engine-vision-language-model-biblio_core_engine_vlm)
 - [Available bind implementation](#available-bind-implementation)
   - [Base](#engine-base-biblio_bind_engine_base)
   - [Binding flow](#binding-flow)
@@ -102,7 +103,8 @@ those belongs to the [bind engine](#available-bind-implementation).
 The classes are defined in `metakat/biblio/engines/core/models.py` and built
 on the common `DetectionEvidence` (`text`, `confidence`, `bbox`, `page_key`,
 and optionally `alto`, the ID attributes of the ALTO blocks, lines and words
-holding the evidence), as the other core results are.
+holding the evidence), as the other core results are. `bbox` is `None` when
+the core knows the page a value was read on but not where on it.
 
 ### Result model
 
@@ -260,11 +262,12 @@ The bind engine owns the complete handoff:
 
 ## Available core implementation
 
-The registered core implementation is:
+The registered core implementations are:
 
 | Config `name` | Implementation |
 |---|---|
 | `biblio_core_engine_yolo` | YOLO geometry aligned with ALTO text. |
+| `biblio_core_engine_vlm` | A vision-language model reading the page image and its ALTO text; its values located in the ALTO afterwards. |
 
 ### Engine: YOLO + ALTO (`biblio_core_engine_yolo`)
 
@@ -387,6 +390,84 @@ by the one thing a page tells it - that it was printed together:
 Configuring a label is what makes a type reachable. A `BiblioType` absent from
 `labels` is never read, so the hierarchy and issue behaviour it drives stays
 inactive for that engine.
+
+### Engine: vision-language model (`biblio_core_engine_vlm`)
+
+This engine asks a vision-language model for each page's bibliographic data,
+through the shared client in [`metakat/common/vlm`](../common/vlm/README.md),
+so any model behind an OpenAI-compatible API can read the title pages:
+OpenAI, OpenRouter (which also serves Anthropic, Google, Qwen and others), or
+a local vLLM. It is selected like any core engine, so a job can switch to it
+in its configuration override.
+
+#### Configuration
+
+```json
+{
+  "name": "biblio_core_engine_vlm",
+  "vlm": {
+    "api_url": "https://openrouter.ai/api/v1",
+    "model": "qwen/qwen3-vl-235b-a22b-instruct",
+    "api_key_env": "OPENROUTER_API_KEY",
+    "response_format": "schema",
+    "max_attempts": 3
+  },
+  "confidence": 0.95
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `vlm` | The model to call and how to ask it for JSON; every option is in the [client README](../common/vlm/README.md#configuration). |
+| `confidence` | The confidence every value gets, from 0 to 1; default `0.95`. The model gives none per value. |
+| `system_prompt_path`, `user_prompt_path`, `schema_path` | Optional replacements of the prompts and schema in `engines/core/vlm/`, resolved against the engine directory like every `_path`. |
+
+#### Reading a page
+
+For each page the engine:
+
+1. reads the page's ALTO and writes its text into the system prompt
+   (`{{ ocr }}`): a line per `TextLine`, a blank line between `TextBlock`s;
+   the prompt also receives the schema as `{{ schema }}`, so the two cannot
+   drift apart;
+2. sends the system prompt and the user prompt with the page image attached,
+   and gets the reply as JSON validated against `vlm/schema.json`;
+3. locates every text value of the reply among the page's ALTO words with
+   text-geometry-aligner's text alignment: exact matches, then fuzzy ones
+   within the aligner's default error limits, with each ALTO word given to at
+   most one value (CP-SAT selection);
+4. builds the `BiblioPageResult` from the reply.
+
+A located value gets the box of its words in ALTO coordinates - the space the
+YOLO engine's boxes are in too - and its words' block, line and word IDs. A
+value that cannot be located, because the model read the image differently
+from the OCR or the page has no ALTO, keeps only its page: `bbox` is `None`
+and `alto` is empty. Text printed twice on a page may occasionally be located
+on the wrong occurrence.
+
+The reply is grouped the way the result is, so it maps onto the containers
+directly; each JSON key is named after the MetaKat field it fills:
+
+| Reply | Result |
+|---|---|
+| `titleInfo[]` - `title`, `subTitle`, `partNumber`, `partName` | one `BiblioTitleInfo` each |
+| `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`, `edition`, `frequency` | one `BiblioPublication` each |
+| `manufacture[]` - `manufacturePlaceTerm[]`, `manufacturePublisher[]`, `manufactureDate` | one `BiblioManufacture` each |
+| `series[]` - `seriesName`, `seriesPartNumber`, `seriesPartName` | one `BiblioSeries` each |
+| `agents[]` - `role`, `name`, `affiliation[]`, `email[]` | one `BiblioAgent` each, `role` an `AgentRole` value |
+| `periodicalVolume` - `partNumber`, `dateIssued` | `periodical_volume`: a `BiblioTitleInfo.part_number` and a `BiblioPublication.date_issued`, as the YOLO engine reads them |
+| `periodicalIssue` - `partNumber`, `dateIssued` | `periodical_issue`, likewise |
+
+Unlike the detector, the model can tell statements apart, so the prompt asks
+for one object per statement printed on the page - two imprints, a title in
+two languages - and for everything it cannot attribute in one object, as
+[Grouping](#grouping) requires. Empty and null values are not read, containers
+left empty are dropped, and a page with nothing read is left out.
+
+A page whose reply is still invalid after `max_attempts` is logged as an error
+and left out; the rest of the batch continues. An error from the endpoint
+itself - a wrong key, an unknown model, an option the model does not support -
+fails the job, since every other page would fail the same way.
 
 ## Available bind implementation
 
@@ -937,7 +1018,8 @@ unit.
 
 ### Detection geometry retention
 
-Candidate construction records geometry for every piece of evidence, but
+Candidate construction records geometry for every piece of evidence that has
+a box, and the page for every one, but
 consolidation, ProArc resolution, and the emission conditions can all drop the
 element a detection was gathered for. Before writing the geometry and ALTO
 maps, the binder therefore collects the detection UUIDs still referenced as
@@ -954,8 +1036,8 @@ The surviving entries are merged into the existing maps:
 
 | MetaKat destination | Source |
 |---|---|
-| `MetakatIO.detection_to_bbox[detection_uuid]` | `(x, y, width, height)` of the evidence's `bbox` |
-| `MetakatIO.detection_to_page_mapping[detection_uuid]` | `MetakatPage.id` of the title page the evidence was read on |
+| `MetakatIO.detection_to_bbox[detection_uuid]` | `(x, y, width, height)` of the evidence's `bbox`; only for evidence with a box |
+| `MetakatIO.detection_to_page_mapping[detection_uuid]` | `MetakatPage.id` of the title page the evidence was read on; for every value, with a box or without |
 | `MetakatIO.detection_to_alto[detection_uuid]` | `MetakatAltoRefs(blocks, lines, words)` from the evidence's `alto`; only for evidence whose ALTO provided at least one ID |
 
 Existing entries written by earlier components are preserved. The new

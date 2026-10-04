@@ -1,0 +1,105 @@
+{
+  "type": "object",
+  "properties": {
+    "titleInfo": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {"type": ["string", "null"]},
+          "subTitle": {"type": ["string", "null"]},
+          "partNumber": {"type": ["string", "null"]},
+          "partName": {"type": ["string", "null"]}
+        },
+        "required": ["title", "subTitle", "partNumber", "partName"],
+        "additionalProperties": false
+      }
+    },
+    "publication": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "placeTerm": {"type": "array", "items": {"type": "string"}},
+          "publisher": {"type": "array", "items": {"type": "string"}},
+          "dateIssued": {"type": ["string", "null"]},
+          "edition": {"type": ["string", "null"]},
+          "frequency": {"type": ["string", "null"]}
+        },
+        "required": ["placeTerm", "publisher", "dateIssued", "edition", "frequency"],
+        "additionalProperties": false
+      }
+    },
+    "manufacture": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "manufacturePlaceTerm": {"type": "array", "items": {"type": "string"}},
+          "manufacturePublisher": {"type": "array", "items": {"type": "string"}},
+          "manufactureDate": {"type": ["string", "null"]}
+        },
+        "required": ["manufacturePlaceTerm", "manufacturePublisher", "manufactureDate"],
+        "additionalProperties": false
+      }
+    },
+    "series": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "seriesName": {"type": ["string", "null"]},
+          "seriesPartNumber": {"type": ["string", "null"]},
+          "seriesPartName": {"type": ["string", "null"]}
+        },
+        "required": ["seriesName", "seriesPartNumber", "seriesPartName"],
+        "additionalProperties": false
+      }
+    },
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["author", "illustrator", "photographer", "translator", "editor", "redaktor"]
+          },
+          "name": {"type": "string"},
+          "affiliation": {"type": "array", "items": {"type": "string"}},
+          "email": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["role", "name", "affiliation", "email"],
+        "additionalProperties": false
+      }
+    },
+    "periodicalVolume": {
+      "type": ["object", "null"],
+      "properties": {
+        "partNumber": {"type": ["string", "null"]},
+        "dateIssued": {"type": ["string", "null"]}
+      },
+      "required": ["partNumber", "dateIssued"],
+      "additionalProperties": false
+    },
+    "periodicalIssue": {
+      "type": ["object", "null"],
+      "properties": {
+        "partNumber": {"type": ["string", "null"]},
+        "dateIssued": {"type": ["string", "null"]}
+      },
+      "required": ["partNumber", "dateIssued"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "titleInfo",
+    "publication",
+    "manufacture",
+    "series",
+    "agents",
+    "periodicalVolume",
+    "periodicalIssue"
+  ],
+  "additionalProperties": false
+}

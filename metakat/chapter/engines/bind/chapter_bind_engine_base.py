@@ -333,12 +333,13 @@ class ChapterBindEngineBase(ChapterBindEngine):
                     f"{evidence.page_key}"
                 )
             value_id = uuid4()
-            bbox_by_id[value_id] = (
-                evidence.bbox.x,
-                evidence.bbox.y,
-                evidence.bbox.width,
-                evidence.bbox.height,
-            )
+            if evidence.bbox is not None:
+                bbox_by_id[value_id] = (
+                    evidence.bbox.x,
+                    evidence.bbox.y,
+                    evidence.bbox.width,
+                    evidence.bbox.height,
+                )
             page_by_detection[value_id] = source_page.id
             if not evidence.alto.is_empty():
                 alto_by_id[value_id] = MetakatAltoRefs(

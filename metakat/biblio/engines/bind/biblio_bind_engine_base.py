@@ -351,7 +351,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
         # Only detections still referenced as evidence by a kept element should be
         # exposed, so unused candidate detections don't leak into the MetaKatIO.
         referenced_detection_ids = self._referenced_detection_ids(metakat_elements)
-        dropped_detection_ids = detection_id_to_detection_bbox.keys() - referenced_detection_ids
+        dropped_detection_ids = detection_id_to_page_id.keys() - referenced_detection_ids
         if dropped_detection_ids:
             logger.info(
                 "Dropping %d detection(s) that did not end up as bibliographic "
@@ -979,7 +979,8 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 anchors[element.id] = metakat_page.id
             detection_id_to_detection_bbox.update(page_detection_bboxes)
             detection_id_to_alto.update(page_detection_alto)
-            for detection_id in page_detection_bboxes:
+            # Every value read on the page, with or without a box.
+            for detection_id in self._referenced_detection_ids(page_elements):
                 detection_id_to_page_id[detection_id] = metakat_page.id
         return elements, detection_id_to_detection_bbox, detection_id_to_page_id, detection_id_to_alto, anchors
 
@@ -1011,7 +1012,8 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 for field_name, evidence in container_values(container):
                     value = Value(text=evidence.text, confidence=evidence.confidence, id=uuid4())
                     bbox = evidence.bbox
-                    detection_id_to_detection_bbox[value.id] = (bbox.x, bbox.y, bbox.width, bbox.height)
+                    if bbox is not None:
+                        detection_id_to_detection_bbox[value.id] = (bbox.x, bbox.y, bbox.width, bbox.height)
                     if not evidence.alto.is_empty():
                         detection_id_to_alto[value.id] = MetakatAltoRefs(
                             blocks=list(evidence.alto.blocks),

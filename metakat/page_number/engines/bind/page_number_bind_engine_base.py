@@ -132,12 +132,13 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
                 id=detection_id,
             )
             bbox = evidence.bbox
-            metakat_io.detection_to_bbox[detection_id] = (
-                bbox.x,
-                bbox.y,
-                bbox.width,
-                bbox.height,
-            )
+            if bbox is not None:
+                metakat_io.detection_to_bbox[detection_id] = (
+                    bbox.x,
+                    bbox.y,
+                    bbox.width,
+                    bbox.height,
+                )
             metakat_io.detection_to_page_mapping[detection_id] = (
                 metakat_page.id
             )

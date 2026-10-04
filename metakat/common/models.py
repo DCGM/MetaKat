@@ -74,8 +74,15 @@ class AltoRefs:
 
 @dataclass(frozen=True)
 class DetectionEvidence:
+    """One value read on a page: its text, confidence and where it was read.
+
+    `bbox` is None when the value is known to be on the page but not where:
+    a reading that names no region and whose text could not be found in the
+    page's ALTO.
+    """
+
     text: str
     confidence: float
-    bbox: BoundingBox
+    bbox: BoundingBox | None
     page_key: str
     alto: AltoRefs = field(default=AltoRefs(), kw_only=True)

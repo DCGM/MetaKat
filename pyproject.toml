@@ -63,8 +63,20 @@ inference = [
 # doc-api's own worker extra keeps the API service's stack -- SQLAlchemy,
 # asyncpg, alembic, uvicorn -- out of the install.
 worker = [
-    "metakat[inference,pdf]",
+    "metakat[inference,pdf,vlm]",
     "doc-api[worker]",
+]
+
+# The engines that read pages with a vision-language model behind an
+# OpenAI-compatible API (OpenAI, OpenRouter, vLLM), metakat/common/vlm: the
+# client, JSON schema validation of the replies, and the prompt templates.
+# They locate the model's values in the ALTO with the text aligner, so they
+# build on [inference].
+vlm = [
+    "metakat[inference]",
+    "openai==3.24.0",
+    "jsonschema==4.26.0",
+    "Jinja2==3.1.6",
 ]
 
 # Training and evaluation for metakat/page_type/nets, and the dataset builders
@@ -97,6 +109,10 @@ exclude = [
 # The co-located tests directories carry no __init__.py; disabling namespace
 # discovery keeps them, and only them, out of the installed distribution.
 namespaces = false
+
+# The default prompts and JSON schema the VLM engines read at run time.
+[tool.setuptools.package-data]
+"metakat.biblio.engines.core" = ["vlm/*.txt", "vlm/*.json"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
