@@ -5,6 +5,7 @@ metakat_worker_data
 # Deployment secrets, never commit
 .docapi_worker_key
 .docapi_user_key
+.openrouter_api_key
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
