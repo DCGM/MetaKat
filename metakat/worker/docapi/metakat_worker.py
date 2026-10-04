@@ -16,6 +16,7 @@ from doc_api.connector import Connector
 
 from metakat.process_batch import process_batch
 from metakat.engine_config import prepare_engine_config, require_config_mapping
+from metakat.common.vlm.local_server import local_model_locations
 
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,14 @@ class MetakatWorker(DocWorkerWrapper):
                 metadata = self._load_metadata_envelope(meta_file)
                 if engine_dir is None:
                     raise ValueError("Downloaded engine directory is required")
+                # A job may choose or replace an API model, but a local model
+                # is part of the engine: its settings start a process here.
+                local_models = local_model_locations(metadata["engine_config_override"])
+                if local_models:
+                    raise ValueError(
+                        "A job's engine configuration override must not set up a local model: "
+                        + ", ".join(local_models)
+                    )
                 engine_config = prepare_engine_config(
                     require_config_mapping(
                         job.engine_definition,

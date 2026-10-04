@@ -74,16 +74,47 @@ the last prompt as data URLs: JPEG, PNG and WebP as they are, anything else
 (TIFF, JPEG 2000) re-encoded as JPEG, and any image scaled down to
 `image_max_side` when set.
 
+## Local models
+
+`local_server.serve(LocalModelConfig)` runs a model with vLLM for the duration
+of a `with` block and yields its OpenAI-compatible URL, so a local model is
+called with the same client as an API one. The model's part - `model_dir`,
+`served_model_name`, `vllm_args` - comes with the engine; the machine's part
+from the environment:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `VLLM_EXECUTABLE` | `vllm` | The `vllm` command, typically from vLLM's own environment (it pins its own torch, so it does not live in MetaKat's). Its directory is put first on `PATH`, as activating that environment would, since vLLM runs tools installed beside it such as `ninja`. |
+| `VLLM_GPU_MEMORY_UTILIZATION` | `0.85` | The fraction of the GPU's memory vLLM reserves. |
+| `VLLM_STARTUP_TIMEOUT` | `900` | Seconds to wait until the server answers `/health`. |
+| `VLLM_CUDA_VISIBLE_DEVICES` | - | The GPU(s) to run on; unset leaves `CUDA_VISIBLE_DEVICES` as it is. |
+
+The server runs as a process group of its own on a free port of 127.0.0.1;
+on leaving the block, normally or by an error, the whole group is terminated
+and all its GPU memory returns to the system. A server that exits while
+starting raises with the end of its log. `vllm_args` may not set what the
+server sets itself: `--host`, `--port`, `--gpu-memory-utilization`,
+`--served-model-name`, `--api-key`.
+
+A local model is part of an engine and its settings start a process, so the
+worker rejects a job override that sets a `local` key anywhere
+(`local_model_locations`).
+
 ## Adding a VLM engine to another stage
 
 1. Put the prompt templates and the JSON schema next to the engine, shaped
    like that stage's core result, and list them in `pyproject.toml`'s
    package data.
-2. Build a `VLMClient` from the engine's `vlm` config, render the prompts per
+2. Build a `VLMClient` from the engine's `vlm` config - inside
+   `local_server.serve()` for a local model, entered in `process()` so the
+   model holds the GPU only while the stage runs - render the prompts per
    page and call `request_json()`.
 3. Map the reply onto the stage's core result; locate values in the ALTO with
    the text aligner as the biblio engine does when the result needs boxes.
+   `BiblioCoreEngineVLMBase` shows the split: everything but the mapping in a
+   base class, the mapping of one output schema per subclass.
 4. Register the engine with `requires` including `openai`, `jsonschema` and
    `jinja2`, and `extra='vlm'`.
 5. Test it with a fake client: `VLMClient(config, client=...)` takes any
-   object with `chat.completions.create` (or `responses.create`).
+   object with `chat.completions.create` (or `responses.create`); the
+   `fake_vllm` fixture in the root `conftest.py` stands in for a vLLM server.

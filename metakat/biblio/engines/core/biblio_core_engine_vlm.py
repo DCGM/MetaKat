@@ -1,36 +1,49 @@
-"""Biblio core engine reading title pages with a vision-language model.
+"""Biblio core engines reading title pages with a vision-language model.
 
 For each page the model gets the page image and its ALTO text and returns the
-bibliographic statements it can read as JSON (vlm/schema.json), grouped the
-way the core result groups them: one object per title, imprint, printer
-statement, series and name, plus what the page says about a periodical volume
-or issue. The model names no regions, so each value is located afterwards by
-finding its text among the page's ALTO words (text-geometry-aligner's text
-alignment, exact then fuzzy, every word given to at most one value). A value
-found there gets the box of its words and their ALTO IDs; one that is not -
-the model read it from the image differently from the OCR, or the page has no
-ALTO - keeps only its page. Ambiguous text, such as a place printed twice, may
-occasionally be located on the wrong occurrence.
+bibliographic statements it can read as JSON. The model names no regions, so
+each value is located afterwards by finding its text among the page's ALTO
+words (text-geometry-aligner's text alignment, exact then fuzzy, every word
+given to at most one value). A value found there gets the box of its words
+and their ALTO IDs; one that is not - the model read it from the image
+differently from the OCR, or the page has no ALTO - keeps only its page.
+Ambiguous text, such as a place printed twice, may occasionally be located on
+the wrong occurrence. The model gives no per-value confidence, so every value
+carries the configured `confidence` (0.95 unless set).
 
-The model gives no per-value confidence, so every value carries the configured
-`confidence` (0.95 unless set).
+The model is either behind an API (`vlm.api_url`) or a local one that vLLM
+serves only while `process()` runs (`local`, see
+metakat.common.vlm.local_server). Both run the same engine: what differs
+between engines is the JSON the model is asked for. `BiblioCoreEngineVLMBase`
+does everything but that; a subclass names its output schema and implements
+`page_from_reply`, the mapping of a reply in that schema onto the core result.
+`BiblioCoreEngineVLM` is the one implementation so far, with its schema,
+prompts and mapping in vlm/; a model trained for another output schema needs
+its own subclass.
 
 Configuration, besides `name`:
 
-- `vlm` - the model to call (metakat.common.vlm.VLMConfig);
-- `system_prompt_path`, `user_prompt_path`, `schema_path` - optional
-  replacements of the prompts and schema in vlm/; the system prompt receives
-  the variables `ocr` (the page's ALTO text) and `schema` (the schema as
-  JSON), and the page image is attached to the user prompt;
+- `vlm` - how to call the model (metakat.common.vlm.VLMConfig); for a local
+  model without `api_url`, `model` and the key, which the local server sets;
+- `local` - a local model: `model_dir`, `served_model_name`, `vllm_args`
+  (metakat.common.vlm.local_server.LocalModelConfig);
+- `system_prompt_path`, `user_prompt_path` - the prompts, when not the
+  engine's own; the system prompt receives the variables `ocr` (the page's
+  ALTO text) and `schema` (the output schema as JSON), and the page image is
+  attached to the user prompt;
+- `schema_path` - the output schema, for an engine that has none of its own;
 - `confidence` - the confidence given to every value.
 """
 from __future__ import annotations
 
+import contextlib
+import dataclasses
 import json
 import logging
-from collections.abc import Mapping
+from abc import abstractmethod
+from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any, Iterable, List, Optional
+from typing import Any, Callable, ClassVar, Iterable, List, Optional
 
 from metakat.biblio.engines.core.biblio_core_engine import BiblioCoreEngine
 from metakat.biblio.engines.core.models import (
@@ -54,32 +67,74 @@ from metakat.common.vlm import (
     load_prompts,
     render_prompts,
 )
+from metakat.common.vlm.local_server import LocalModelConfig, serve
 
 logger = logging.getLogger(__name__)
 
 _RESOURCES = Path(__file__).parent / "vlm"
-_CONFIG_KEYS = {"name", "vlm", "system_prompt_path", "user_prompt_path", "schema_path", "confidence"}
+_CONFIG_KEYS = {"name", "vlm", "local", "system_prompt_path", "user_prompt_path", "schema_path", "confidence"}
+# Set by the local server, not by the configuration of a local model.
+_LOCAL_VLM_KEYS = {"api_url", "model", "api_key", "api_key_env"}
 DEFAULT_CONFIDENCE = 0.95
 # The CP-SAT selection is exact but may take long on a page with many
 # candidates; past this limit the best selection found so far is used.
 _SELECTION_TIME_LIMIT_SECONDS = 10.0
 
+# evidence(path, text): the text at a JSON path of the reply as evidence, or
+# None for an empty value.
+EvidenceFactory = Callable[[tuple, Optional[str]], Optional[DetectionEvidence]]
 
-class BiblioCoreEngineVLM(BiblioCoreEngine):
+
+class BiblioCoreEngineVLMBase(BiblioCoreEngine):
+    """A VLM biblio core; a subclass gives its output schema and its mapping.
+
+    `DEFAULT_SCHEMA_PATH` is the schema the subclass's `page_from_reply`
+    reads. An engine that has one maps only that schema, so a configured
+    `schema_path` is rejected; an engine without one takes its schema from
+    `schema_path`. The prompts default to the subclass's own when it has them.
+    """
+
+    DEFAULT_SCHEMA_PATH: ClassVar[Optional[Path]] = None
+    DEFAULT_SYSTEM_PROMPT_PATH: ClassVar[Optional[Path]] = None
+    DEFAULT_USER_PROMPT_PATH: ClassVar[Optional[Path]] = None
+    # Keys of the reply whose values are labels rather than text printed on
+    # the page, so are not looked for in the ALTO.
+    LABEL_KEYS: ClassVar[frozenset[str]] = frozenset()
+
     def __init__(self, config: Mapping[str, Any], client: Any = None):
         super().__init__(config=config)
         unknown = sorted(set(self.config) - _CONFIG_KEYS)
         if unknown:
             raise ValueError(f"Biblio core config has unknown keys: {', '.join(unknown)}")
-        self.vlm_config = VLMConfig.from_config(self.config.get("vlm"), "Biblio core vlm config")
+
+        vlm = dict(self.config.get("vlm") or {})
+        self.local: Optional[LocalModelConfig] = None
+        if "local" in self.config:
+            self.local = LocalModelConfig.from_config(self.config["local"], "Biblio core local config")
+            given = sorted(set(vlm) & _LOCAL_VLM_KEYS)
+            if given:
+                raise ValueError(
+                    f"Biblio core vlm config of a local model must not set {', '.join(given)}; "
+                    "the local server does"
+                )
+            # The URL is a placeholder until the server runs and says where it
+            # listens; the server takes any key.
+            vlm.update(api_url="http://127.0.0.1", model=self.local.served_model_name, api_key="local")
+        self.vlm_config = VLMConfig.from_config(vlm, "Biblio core vlm config")
+        self._client = client
+
         self.prompts = load_prompts([
-            {"role": "developer",
-             "path": self.config.get("system_prompt_path") or str(_RESOURCES / "prompt_system.txt")},
-            {"role": "user",
-             "path": self.config.get("user_prompt_path") or str(_RESOURCES / "prompt_user.txt")},
+            {"role": "developer", "path": self._path("system_prompt_path", self.DEFAULT_SYSTEM_PROMPT_PATH)},
+            {"role": "user", "path": self._path("user_prompt_path", self.DEFAULT_USER_PROMPT_PATH)},
         ])
-        schema_path = self.config.get("schema_path") or str(_RESOURCES / "schema.json")
-        self.schema = json.loads(Path(schema_path).read_text(encoding="utf-8"))
+        if self.DEFAULT_SCHEMA_PATH is not None and "schema_path" in self.config:
+            raise ValueError(
+                f"{type(self).__name__} maps only its own output schema; a model with another "
+                "schema needs an engine implementing that schema's mapping"
+            )
+        self.schema = json.loads(
+            Path(self._path("schema_path", self.DEFAULT_SCHEMA_PATH)).read_text(encoding="utf-8"))
+
         self.confidence = self.config.get("confidence", DEFAULT_CONFIDENCE)
         if (
             isinstance(self.confidence, bool)
@@ -87,30 +142,64 @@ class BiblioCoreEngineVLM(BiblioCoreEngine):
             or not 0 <= self.confidence <= 1
         ):
             raise ValueError("Biblio core confidence must be a number from 0 to 1")
-        self.client = VLMClient(self.vlm_config, client)
         self.aligner = _text_aligner()
-        logger.info("Biblio core VLM: model %s at %s, response format %s",
-                    self.vlm_config.model, self.vlm_config.api_url, self.vlm_config.response_format)
+        if self.local is not None:
+            logger.info("Biblio core VLM: local model %s, response format %s",
+                        self.local.model_dir, self.vlm_config.response_format)
+        else:
+            logger.info("Biblio core VLM: model %s at %s, response format %s",
+                        self.vlm_config.model, self.vlm_config.api_url, self.vlm_config.response_format)
+
+    @abstractmethod
+    def page_from_reply(
+        self,
+        reply: Any,
+        evidence: EvidenceFactory,
+        page_key: str,
+    ) -> Optional[BiblioPageResult]:
+        """The page result for a reply in this engine's schema; None if nothing was read.
+
+        Every value goes through `evidence` with its JSON path in the reply,
+        which locates it in the ALTO.
+        """
 
     def process(
         self,
         images: List[str],
         alto_files: List[str],
     ) -> BiblioCoreResult:
+        pages: dict[str, BiblioPageResult] = {}
+        if not images:
+            return BiblioCoreResult(pages=pages)
         alto_by_key = {Path(alto_file).stem: alto_file for alto_file in alto_files}
-        pages = {}
-        for image in images:
-            page_key = Path(image).stem
-            if page_key in pages:
-                raise ValueError(f"Biblio core got duplicate page key: {page_key}")
-            page_result = self.read_page(page_key, image, alto_by_key.get(page_key))
-            if page_result is not None:
-                pages[page_key] = page_result
+        with self._model() as client:
+            for image in images:
+                page_key = Path(image).stem
+                if page_key in pages:
+                    raise ValueError(f"Biblio core got duplicate page key: {page_key}")
+                page_result = self.read_page(client, page_key, image, alto_by_key.get(page_key))
+                if page_result is not None:
+                    pages[page_key] = page_result
         logger.info("Biblio core read bibliographic information on %d of %d page(s)",
                     len(pages), len(images))
         return BiblioCoreResult(pages=pages)
 
-    def read_page(self, page_key: str, image: str, alto_file: Optional[str]) -> Optional[BiblioPageResult]:
+    @contextlib.contextmanager
+    def _model(self) -> Iterator[VLMClient]:
+        """A client for the model; a local one is served only inside the block."""
+        if self.local is None:
+            yield VLMClient(self.vlm_config, self._client)
+            return
+        with serve(self.local) as api_url:
+            yield VLMClient(dataclasses.replace(self.vlm_config, api_url=api_url), self._client)
+
+    def read_page(
+        self,
+        client: VLMClient,
+        page_key: str,
+        image: str,
+        alto_file: Optional[str],
+    ) -> Optional[BiblioPageResult]:
         """One page's readings; None when the model gave none or no valid reply."""
         from text_geometry_aligner import ALTOReader
 
@@ -122,7 +211,7 @@ class BiblioCoreEngineVLM(BiblioCoreEngine):
             "schema": json.dumps(self.schema, ensure_ascii=False, indent=2),
         })
         try:
-            reply = self.client.request_json(
+            reply = client.request_json(
                 prompts,
                 [VLMImage.from_file(image, self.vlm_config.image_max_side)],
                 self.schema,
@@ -148,14 +237,20 @@ class BiblioCoreEngineVLM(BiblioCoreEngine):
                 alto=AltoRefs() if region is None else AltoRefs.from_words(region.words),
             )
 
-        page_result = page_from_reply(reply, evidence, page_key)
+        page_result = self.page_from_reply(reply, evidence, page_key)
         found = sum(1 for region in regions.values() if region.alto_geometry is not None)
         logger.info("Page %s: located %d of %d value(s) in the ALTO", page_key, found, len(regions))
         return page_result
 
-    def _locate(self, alto_page, reply: Mapping[str, Any]) -> dict:
+    def _path(self, key: str, default: Optional[Path]) -> str:
+        path = self.config.get(key) or default
+        if path is None:
+            raise ValueError(f"{type(self).__name__} needs {key}")
+        return str(path)
+
+    def _locate(self, alto_page, reply: Any) -> dict:
         """The aligned region of every text value in the reply, by JSON path."""
-        document = self.aligner.align_data(alto_page, _alignable(reply))
+        document = self.aligner.align_data(alto_page, _alignable(reply, self.LABEL_KEYS))
         return {
             tuple(region.json_text_path): region
             for page in document.pages
@@ -164,11 +259,29 @@ class BiblioCoreEngineVLM(BiblioCoreEngine):
         }
 
 
-def page_from_reply(reply: Mapping[str, Any], evidence, page_key: str) -> Optional[BiblioPageResult]:
-    """Build a page result from the model's JSON.
+class BiblioCoreEngineVLM(BiblioCoreEngineVLMBase):
+    """The output schema grouped like the core result (vlm/schema.json).
 
-    `evidence(path, text)` turns the text at a JSON path into evidence, or
-    None for an empty value. Containers left without any value are dropped.
+    One object per title, imprint, printer statement, series and name, plus
+    what the page says about a periodical volume or issue, each JSON key named
+    after the MetaKat field it fills. Used by API and local models alike; a
+    local model's prompts may replace the ones in vlm/, its schema may not.
+    """
+
+    DEFAULT_SCHEMA_PATH = _RESOURCES / "schema.json"
+    DEFAULT_SYSTEM_PROMPT_PATH = _RESOURCES / "prompt_system.txt"
+    DEFAULT_USER_PROMPT_PATH = _RESOURCES / "prompt_user.txt"
+    # An agent's role is a label, not text on the page.
+    LABEL_KEYS = frozenset({"role"})
+
+    def page_from_reply(self, reply, evidence, page_key):
+        return page_from_reply(reply, evidence, page_key)
+
+
+def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory, page_key: str) -> Optional[BiblioPageResult]:
+    """Build a page result from a reply in vlm/schema.json.
+
+    Containers left without any value are dropped.
     """
 
     def one(path: tuple, value: Any) -> Optional[DetectionEvidence]:
@@ -273,17 +386,18 @@ def _kept(containers: Iterable) -> tuple:
     return tuple(container for container in containers if next(container_values(container), None) is not None)
 
 
-def _alignable(reply: Any) -> Any:
+def _alignable(reply: Any, label_keys: frozenset[str] = frozenset()) -> Any:
     """The reply with only its text values left to align.
 
-    An agent's role is a label, not text on the page, and an empty string has
-    nothing to find; both become None, which the aligner skips, so every other
-    value keeps its JSON path.
+    A label is not text on the page, and an empty string has nothing to find;
+    both become None, which the aligner skips, so every other value keeps its
+    JSON path.
     """
     if isinstance(reply, Mapping):
-        return {key: None if key == "role" else _alignable(value) for key, value in reply.items()}
+        return {key: None if key in label_keys else _alignable(value, label_keys)
+                for key, value in reply.items()}
     if isinstance(reply, list):
-        return [_alignable(value) for value in reply]
+        return [_alignable(value, label_keys) for value in reply]
     if isinstance(reply, str) and not reply.strip():
         return None
     return reply

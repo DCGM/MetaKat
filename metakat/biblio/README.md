@@ -15,6 +15,8 @@
     - [Label configuration](#label-configuration)
     - [Reading a page](#reading-a-page)
   - [Vision-language model](#engine-vision-language-model-biblio_core_engine_vlm)
+    - [Local models](#local-models)
+    - [Another output schema](#another-output-schema)
 - [Available bind implementation](#available-bind-implementation)
   - [Base](#engine-base-biblio_bind_engine_base)
   - [Binding flow](#binding-flow)
@@ -394,13 +396,21 @@ inactive for that engine.
 ### Engine: vision-language model (`biblio_core_engine_vlm`)
 
 This engine asks a vision-language model for each page's bibliographic data,
-through the shared client in [`metakat/common/vlm`](../common/vlm/README.md),
-so any model behind an OpenAI-compatible API can read the title pages:
-OpenAI, OpenRouter (which also serves Anthropic, Google, Qwen and others), or
-a local vLLM. It is selected like any core engine, so a job can switch to it
-in its configuration override.
+through the shared client in [`metakat/common/vlm`](../common/vlm/README.md).
+The model is either:
+
+- **behind an API** - OpenAI, OpenRouter (which also serves Anthropic,
+  Google, Qwen and others), or any other OpenAI-compatible endpoint; or
+- **local** - a model whose files come with the engine, like a YOLO model's,
+  served by vLLM on the worker only while this engine's `process()` runs.
+
+Both are the same engine and are configured as the pipeline's engine like any
+other. A job override may also choose or replace an API model; a local model
+it may not set up (see [Local models](#local-models)).
 
 #### Configuration
+
+An API model:
 
 ```json
 {
@@ -416,11 +426,77 @@ in its configuration override.
 }
 ```
 
+A local model, with its files and prompt in the engine directory:
+
+```json
+{
+  "name": "biblio_core_engine_vlm",
+  "local": {
+    "model_dir": "biblio/vlm/model",
+    "served_model_name": "qwen-biblio",
+    "vllm_args": ["--max-model-len", "16384", "--limit-mm-per-prompt", "{\"image\": 1, \"video\": 0}"]
+  },
+  "system_prompt_path": "biblio/vlm/prompt_system.txt",
+  "vlm": {"response_format": "schema", "max_attempts": 3}
+}
+```
+
 | Key | Meaning |
 |---|---|
-| `vlm` | The model to call and how to ask it for JSON; every option is in the [client README](../common/vlm/README.md#configuration). |
+| `vlm` | How to call the model and ask it for JSON; every option is in the [client README](../common/vlm/README.md#configuration). For a local model without `api_url`, `model` and the key, which the local server sets. |
+| `local` | A local model: `model_dir` (its files, resolved against the engine directory), `served_model_name` (default: the directory's name) and `vllm_args`, the arguments of `vllm serve` that belong to the model. Host, port, GPU share and served name are set by the server and may not be given. |
+| `system_prompt_path`, `user_prompt_path` | The prompts, when not the engine's own in `engines/core/vlm/`; resolved against the engine directory. |
+| `schema_path` | The output schema, only for an engine without its own (see [Another output schema](#another-output-schema)). |
 | `confidence` | The confidence every value gets, from 0 to 1; default `0.95`. The model gives none per value. |
-| `system_prompt_path`, `user_prompt_path`, `schema_path` | Optional replacements of the prompts and schema in `engines/core/vlm/`, resolved against the engine directory like every `_path`. |
+
+#### Local models
+
+A local model is part of the engine: its weights, the `vllm_args` it needs
+and its prompts are uploaded to the MetaKat server with the engine and
+downloaded by each worker, as YOLO models are. How vLLM runs on a machine is
+the machine's business and comes from the worker's environment
+(`run_worker.sh`), so the same engine runs on any worker:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `VLLM_EXECUTABLE` | `vllm` | The `vllm` command, typically from vLLM's own environment, which pins its own torch. Its directory is put first on `PATH`, as activating that environment would. |
+| `VLLM_GPU_MEMORY_UTILIZATION` | `0.85` | The fraction of the GPU's memory vLLM reserves. |
+| `VLLM_STARTUP_TIMEOUT` | `900` | Seconds to wait for the server. |
+| `VLLM_CUDA_VISIBLE_DEVICES` | - | The GPU(s) to run on. |
+
+`process()` starts `vllm serve` on a free port of 127.0.0.1, waits until it
+answers, reads the pages through it with the same client an API model uses,
+and terminates its whole process group when it is done or fails - so the
+model holds the GPU only while this engine runs. A server that dies while
+starting fails the engine with the end of its log. Startup - loading,
+compiling, capturing CUDA graphs - takes from tens of seconds to minutes,
+usually longer than the few title pages of a batch.
+
+The pipeline releases every stage's engines and PyTorch's cached GPU memory
+as soon as the stage ends, so vLLM, a separate process, finds the GPU free of
+the earlier stages' models.
+
+A job override that sets a `local` key anywhere is rejected by the worker
+before processing: its settings would start a process on the worker.
+
+#### Another output schema
+
+What differs between VLM engines is the JSON the model is asked for, so
+everything else lives in `BiblioCoreEngineVLMBase`: the API or local
+endpoint, prompts, page loop, ALTO location and confidence. A subclass
+implements `page_from_reply(reply, evidence, page_key)`, the mapping of a
+reply in its schema onto a `BiblioPageResult`, passing every value through
+`evidence(json_path, text)`, which locates it in the ALTO.
+
+`BiblioCoreEngineVLM` is the one implementation so far, for API and local
+models alike. Its schema, prompts and mapping are in `engines/core/vlm/`; a
+local model's prompts may replace its prompts, but its schema may not be
+replaced, since its mapping reads only that schema - a configured
+`schema_path` is rejected. A model trained for another output schema needs a
+subclass that names no schema of its own (`DEFAULT_SCHEMA_PATH = None`), so
+takes it from `schema_path`, implements its mapping, lists the keys holding
+labels rather than printed text in `LABEL_KEYS`, and is registered under its
+own name in core `definitions.py`.
 
 #### Reading a page
 
@@ -431,7 +507,7 @@ For each page the engine:
    the prompt also receives the schema as `{{ schema }}`, so the two cannot
    drift apart;
 2. sends the system prompt and the user prompt with the page image attached,
-   and gets the reply as JSON validated against `vlm/schema.json`;
+   and gets the reply as JSON validated against the output schema;
 3. locates every text value of the reply among the page's ALTO words with
    text-geometry-aligner's text alignment: exact matches, then fuzzy ones
    within the aligner's default error limits, with each ALTO word given to at

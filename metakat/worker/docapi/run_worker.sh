@@ -20,6 +20,12 @@ if [ -r "$OPENROUTER_KEY_FILE" ]; then
     export OPENROUTER_API_KEY="$(<"$OPENROUTER_KEY_FILE")"
 fi
 
+# How this machine runs local VLM models (metakat/common/vlm/local_server.py):
+# vLLM from its own environment, which pins its own torch, and the share of
+# the GPU it may take while an engine that needs it runs.
+export VLLM_EXECUTABLE=/home/ikohut/python_env/vllm/bin/vllm
+export VLLM_GPU_MEMORY_UTILIZATION=0.8
+
 export BASE_DIR=/mnt/kolosus/data/metakat_worker
 export ENGINES_DIR=/home/ikohut/data/metakat_worker/engines
 export LOGGING_DIR=/home/ikohut/data/metakat_worker/logs

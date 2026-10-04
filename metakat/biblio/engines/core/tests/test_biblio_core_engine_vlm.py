@@ -4,9 +4,19 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-from metakat.biblio.engines.core.biblio_core_engine_vlm import BiblioCoreEngineVLM, alto_text
+from metakat.biblio.engines.core.biblio_core_engine_vlm import (
+    BiblioCoreEngineVLM,
+    BiblioCoreEngineVLMBase,
+    alto_text,
+)
 from metakat.biblio.engines.core.definitions import check_biblio_core_engine
-from metakat.biblio.engines.core.models import AgentRole, container_values
+from metakat.biblio.engines.core.models import (
+    AgentRole,
+    BiblioPageResult,
+    BiblioReading,
+    BiblioTitleInfo,
+    container_values,
+)
 from metakat.common.models import AltoRefs, BoundingBox
 
 # A title page: author, title on two lines, imprint. Words carry IDs; the
@@ -198,6 +208,79 @@ def test_invalid_configuration_is_rejected(overrides, message):
 
 def test_the_engine_is_registered():
     check_biblio_core_engine({"name": "biblio_core_engine_vlm"})
+
+
+def test_a_local_model_is_served_only_while_the_pages_are_read(page, fake_vllm, monkeypatch, tmp_path):
+    monkeypatch.setenv("FAKE_VLLM_REPLY", json.dumps(_REPLY))
+    prompt = tmp_path / "model_prompt.txt"
+    prompt.write_text("Our own prompt. OCR: {{ ocr }}", encoding="utf-8")
+    engine = BiblioCoreEngineVLM({
+        "name": "biblio_core_engine_vlm",
+        "local": {"model_dir": str(tmp_path / "qwen-biblio"), "vllm_args": ["--max-model-len", "8192"]},
+        "system_prompt_path": str(prompt),
+        "vlm": {"response_format": "schema", "max_attempts": 1},
+    })
+    # Nothing runs before process().
+    assert not fake_vllm.exists()
+
+    page_result = engine.process([page[0]], [page[1]]).pages["0001_page"]
+
+    assert _values(page_result)[("BiblioTitleInfo", "title")].bbox == BoundingBox(350, 400, 300, 80)
+    args = json.loads(fake_vllm.read_text())
+    assert args[args.index("--served-model-name") + 1] == "qwen-biblio"
+
+
+@pytest.mark.parametrize("vlm, message", [
+    ({"api_url": "https://example.org/v1"}, "must not set api_url"),
+    ({"model": "x", "api_key": "k"}, "must not set api_key, model"),
+])
+def test_a_local_model_takes_no_endpoint(vlm, message):
+    with pytest.raises(ValueError, match=message):
+        BiblioCoreEngineVLM({"name": "biblio_core_engine_vlm", "local": {"model_dir": "m"}, "vlm": vlm})
+
+
+def test_the_default_engine_maps_only_its_own_schema(tmp_path):
+    (tmp_path / "schema.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="maps only its own output schema"):
+        BiblioCoreEngineVLM(_config(schema_path=str(tmp_path / "schema.json")), client=object())
+
+
+class _ShortTitleEngine(BiblioCoreEngineVLMBase):
+    """A model trained to return just {"name": ...}: a schema of its own."""
+
+    def page_from_reply(self, reply, evidence, page_key):
+        title = evidence(("name",), reply.get("name"))
+        return BiblioPageResult(page_key=page_key,
+                                reading=BiblioReading(title_infos=(BiblioTitleInfo(title=title),)))
+
+
+def test_an_engine_with_its_own_schema_maps_its_replies(page, tmp_path):
+    schema = {"type": "object", "properties": {"name": {"type": "string"}},
+              "required": ["name"], "additionalProperties": False}
+    (tmp_path / "schema.json").write_text(json.dumps(schema), encoding="utf-8")
+    (tmp_path / "system.txt").write_text("{{ schema }}", encoding="utf-8")
+    (tmp_path / "user.txt").write_text("", encoding="utf-8")
+    endpoint = _Endpoint({"name": "KYTICE"})
+    engine = _ShortTitleEngine(_config(schema_path=str(tmp_path / "schema.json"),
+                                       system_prompt_path=str(tmp_path / "system.txt"),
+                                       user_prompt_path=str(tmp_path / "user.txt")),
+                               client=endpoint.client())
+
+    [title_info] = engine.process([page[0]], [page[1]]).pages["0001_page"].reading.title_infos
+
+    assert title_info.title.alto.words == ("S4",)
+    assert endpoint.requests[0]["response_format"]["json_schema"]["schema"] == schema
+
+
+def test_an_engine_without_its_own_schema_needs_one_configured():
+    with pytest.raises(ValueError, match="needs system_prompt_path"):
+        _ShortTitleEngine(_config(), client=object())
+
+
+def test_the_mapping_must_be_implemented():
+    with pytest.raises(TypeError, match="abstract"):
+        BiblioCoreEngineVLMBase(_config(), client=object())
 
 
 def test_alto_text_keeps_lines_and_separates_blocks():

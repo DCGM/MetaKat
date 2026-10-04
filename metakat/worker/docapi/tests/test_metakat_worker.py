@@ -349,3 +349,48 @@ def test_process_job_stores_mods_overview_beside_result_zip_when_enabled(
     assert process.call_args.kwargs["output_mods_overview"] == str(
         tmp_path / "metakat.mods.txt"
     )
+
+
+def _run_with_override(tmp_path, worker, workspace, definition, override):
+    images, altos, result, engines = workspace
+    metadata_path = tmp_path / "metadata.json"
+    metadata_path.write_text(json.dumps({"engine_config_override": override}), encoding="utf-8")
+    with mock.patch.object(worker_module, "process_batch") as process:
+        response = worker.process_job(
+            _job(definition),
+            logging.FileHandler(tmp_path / "job.log"),
+            str(images),
+            str(result),
+            alto_dir=str(altos),
+            engine_dir=str(engines),
+            meta_file=str(metadata_path),
+        )
+    return response, process
+
+
+def test_an_override_setting_up_a_local_model_fails_the_job(tmp_path, worker, workspace):
+    definition = {"biblio": {"core": {"name": "biblio_core_engine_yolo"},
+                             "bind": {"name": "biblio_bind_engine_base"}}}
+    override = {"biblio": {"core": {"name": "biblio_core_engine_vlm", "local": {"model_dir": "model"}}}}
+
+    response, process = _run_with_override(tmp_path, worker, workspace, definition, override)
+
+    assert not response.success
+    assert "biblio.core.local" in str(response.exception)
+    process.assert_not_called()
+
+
+def test_an_override_may_replace_one_api_model_with_another(tmp_path, worker, workspace):
+    def api_core(model):
+        return {"name": "biblio_core_engine_vlm",
+                "vlm": {"api_url": "https://openrouter.ai/api/v1", "model": model,
+                        "api_key_env": "OPENROUTER_API_KEY"}}
+
+    definition = {"biblio": {"core": api_core("qwen/qwen3.8-27b:free"),
+                             "bind": {"name": "biblio_bind_engine_base"}}}
+    override = {"biblio": {"core": {"vlm": {"model": "google/gemma-4-31b-it:free"}}}}
+
+    response, process = _run_with_override(tmp_path, worker, workspace, definition, override)
+
+    assert response.success
+    assert process.call_args.kwargs["engine_config"]["biblio"]["core"] == api_core("google/gemma-4-31b-it:free")

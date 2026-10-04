@@ -99,6 +99,63 @@ def write_engine_config():
     return _write
 
 
+# Stands in for `vllm serve MODEL --port N ...`: answers /health and Chat
+# Completions with the reply in $FAKE_VLLM_REPLY, records its arguments in
+# $FAKE_VLLM_ARGS, and with $FAKE_VLLM_FAIL set dies while starting.
+_FAKE_VLLM = """\
+#!{python}
+import json, os, sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+args = sys.argv[1:]
+with open(os.environ["FAKE_VLLM_ARGS"], "w") as out:
+    json.dump(args, out)
+if os.environ.get("FAKE_VLLM_FAIL"):
+    print("CUDA out of memory", flush=True)
+    sys.exit(3)
+port = int(args[args.index("--port") + 1])
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+    def _send(self, body):
+        data = json.dumps(body).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        self._send({{}})
+
+    def do_POST(self):
+        self.rfile.read(int(self.headers["Content-Length"]))
+        self._send({{"id": "1", "object": "chat.completion", "created": 0, "model": "m",
+                    "choices": [{{"index": 0, "finish_reason": "stop",
+                                 "message": {{"role": "assistant", "content": os.environ["FAKE_VLLM_REPLY"]}}}}]}})
+
+HTTPServer(("127.0.0.1", port), Handler).serve_forever()
+"""
+
+
+@pytest.fixture
+def fake_vllm(tmp_path, monkeypatch):
+    """Make VLLM_EXECUTABLE a fake vLLM server; returns the file its arguments go to."""
+    import sys
+
+    executable = tmp_path / "vllm"
+    executable.write_text(_FAKE_VLLM.format(python=sys.executable), encoding="utf-8")
+    executable.chmod(0o755)
+    args_path = tmp_path / "vllm_args.json"
+    monkeypatch.setenv("FAKE_VLLM_ARGS", str(args_path))
+    monkeypatch.setenv("FAKE_VLLM_REPLY", "{}")
+    monkeypatch.setenv("VLLM_EXECUTABLE", str(executable))
+    monkeypatch.setenv("VLLM_STARTUP_TIMEOUT", "30")
+    return args_path
+
+
 @pytest.fixture
 def read_engine_config():
     """Read back what write_engine_config produced."""

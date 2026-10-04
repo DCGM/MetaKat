@@ -189,6 +189,11 @@ configuration: each top-level component selects one `core` and one `bind`
 implementation. An omitted component is skipped. Links lead to the detailed
 documentation for each available implementation.
 
+A component's engines exist only while it runs: they are loaded when it
+starts and released when it ends, together with the GPU memory PyTorch keeps
+cached for them, so the next component - or a separate process such as a
+local vLLM server - finds the GPU free.
+
 1. [`page_number`](page_number/README.md#purpose)
    - [`core`](page_number/README.md#page-number-core-engine-contract)
      - [`page_number_core_engine_yolo`](page_number/README.md#engine-yolo--alto-page_number_core_engine_yolo)
@@ -429,6 +434,25 @@ baseline and the command line overrides it in either direction:
 An option that is not given leaves the environment value alone, which for the
 non-boolean settings means a legitimate `0` is honoured rather than mistaken for
 an absent argument.
+
+### Vision-language models
+
+Two more groups of settings are read by the VLM engines themselves rather
+than by the worker, so they apply to a standalone `process_batch` too:
+
+- **API keys.** An engine names the key it uses with `api_key_env`.
+  `run_worker.sh` exports `OPENROUTER_API_KEY` from `.openrouter_api_key`
+  beside it when that file exists, so jobs can use the worker's key without
+  carrying it; the file is gitignored like the DocAPI keys.
+- **Local models.** `VLLM_EXECUTABLE`, `VLLM_GPU_MEMORY_UTILIZATION`,
+  `VLLM_STARTUP_TIMEOUT` and `VLLM_CUDA_VISIBLE_DEVICES` say how this
+  machine runs vLLM for an engine whose model is local
+  ([details](common/vlm/README.md#local-models)).
+
+A job's engine configuration override may choose or replace an API model, but
+one that sets up a local model (a `local` key anywhere) fails the job before
+processing: a local model is part of the engine, and its settings start a
+process on the worker.
 
 ### Running it
 

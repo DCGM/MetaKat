@@ -44,6 +44,37 @@ from metakat.tools.create_interactive_pdf import create_interactive_pdf
 
 logger = logging.getLogger(__name__)
 
+def _stages():
+    """The pipeline's stages in the order they run, with their bind engine loaders.
+
+    A stage absent from the configuration is skipped.
+    """
+    return (
+        ("page_number", load_page_number_bind_engine),
+        ("page_type", load_page_type_bind_engine),
+        ("biblio", load_biblio_bind_engine),
+        ("chapter", load_chapter_bind_engine),
+    )
+
+
+def release_gpu_memory() -> None:
+    """Return the GPU memory of released engines to the system.
+
+    Collecting garbage frees the models nothing references any more; PyTorch
+    then still keeps their memory reserved for itself, so its cache is
+    emptied too. Torch is only touched when something already imported it and
+    initialised CUDA, so a pipeline without GPU engines never imports it.
+    """
+    import gc
+    import sys
+
+    gc.collect()
+    torch = sys.modules.get("torch")
+    if torch is not None and torch.cuda.is_initialized():
+        torch.cuda.empty_cache()
+        logger.info("GPU memory reserved by PyTorch after release: %.0f MiB",
+                    torch.cuda.memory_reserved() / 2**20)
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -188,53 +219,23 @@ def process_batch(
     if engine_name is not None:
         metakat_io.engine = MetakatEngine(name=engine_name, version=engine_version)
 
-    page_number = _engine_pair(pipeline_config, "page_number")
-    if page_number is not None:
-        page_number_bind_engine_obj = load_page_number_bind_engine(
-            page_number["bind"],
-            page_number["core"],
-        )
-        metakat_io = page_number_bind_engine_obj.process(
-            batch_dir=batch_dir,
-            metakat_io=metakat_io,
-            proarc_io=proarc_io,
-        )
-
-    page_type = _engine_pair(pipeline_config, "page_type")
-    if page_type is not None:
-        page_type_bind_engine_obj = load_page_type_bind_engine(
-            page_type["bind"],
-            page_type["core"],
-        )
-        metakat_io = page_type_bind_engine_obj.process(
-            batch_dir=batch_dir,
-            metakat_io=metakat_io,
-            proarc_io=proarc_io
-        )
-
-    biblio = _engine_pair(pipeline_config, "biblio")
-    if biblio is not None:
-        biblio_bind_engine_obj = load_biblio_bind_engine(
-            biblio["bind"],
-            biblio["core"],
-        )
-        metakat_io = biblio_bind_engine_obj.process(
-            batch_dir=batch_dir,
-            metakat_io=metakat_io,
-            proarc_io=proarc_io
-        )
-
-    chapter = _engine_pair(pipeline_config, "chapter")
-    if chapter is not None:
-        chapter_bind_engine_obj = load_chapter_bind_engine(
-            chapter["bind"],
-            chapter["core"],
-        )
-        metakat_io = chapter_bind_engine_obj.process(
-            batch_dir=batch_dir,
-            metakat_io=metakat_io,
-            proarc_io=proarc_io
-        )
+    for category, load_bind_engine in _stages():
+        stage = _engine_pair(pipeline_config, category)
+        if stage is None:
+            continue
+        # A stage's engines exist only while it runs: loaded here, released
+        # right after, so the GPU memory they took is free for the next stage
+        # - including for a separate process such as a local vLLM server.
+        bind_engine_obj = load_bind_engine(stage["bind"], stage["core"])
+        try:
+            metakat_io = bind_engine_obj.process(
+                batch_dir=batch_dir,
+                metakat_io=metakat_io,
+                proarc_io=proarc_io,
+            )
+        finally:
+            del bind_engine_obj
+            release_gpu_memory()
 
     logger.info("")
     MetakatIO.model_validate_json(json.dumps(metakat_io.model_dump(mode="json")))
