@@ -36,7 +36,7 @@ sheets are cached in ``<library>/previews/journals/``.
 
 The window is as high as the screen at first (``--max-height`` sets another height). Drag it to another
 size: the image is redrawn at the new height, and every page after is shown at the same height and in the
-same place, in every library folder of the run. A maximized window stays maximized, and the pages fill it.
+same place, in every library folder of the run.
 
 The review goes in rounds, until only approved picks are left:
 
@@ -92,9 +92,6 @@ MIN_HEIGHT = 300
 # A window resized by hand is redrawn once its size has not changed for this many key polls (50 ms each);
 # smaller differences (in pixels) are left alone.
 RESIZE_SETTLE, RESIZE_TOLERANCE = 6, 4
-# A window this close to the screen's width or wider is taken as maximized: its pages fill it, and it is not
-# resized to their width (which would undo the maximizing).
-MAXIMIZED_SLACK = 10
 RESIZE = "resize"
 
 
@@ -491,10 +488,9 @@ def _header(lines: list[str], width: int, verdict: str | None) -> Image.Image:
     return header
 
 
-def _compose(image: Image.Image, lines: list[str], verdict: str | None, height: int = 0,
-             width: int = 0) -> np.ndarray:
-    """The header above the image, on a canvas at least ``height`` high and ``width`` wide."""
-    canvas = Image.new("RGB", (max(image.width, 1100, width), max(image.height + HEADER_HEIGHT, height)), "white")
+def _compose(image: Image.Image, lines: list[str], verdict: str | None, height: int = 0) -> np.ndarray:
+    """The header above the image, on a canvas at least ``height`` high."""
+    canvas = Image.new("RGB", (max(image.width, 1100), max(image.height + HEADER_HEIGHT, height)), "white")
     canvas.paste(_header(lines, canvas.width, verdict), (0, 0))
     canvas.paste(image, (0, HEADER_HEIGHT))
     return np.asarray(canvas)[:, :, ::-1].copy()
@@ -559,12 +555,9 @@ def _wait_key(cv2, clicks: list, size: tuple[int, int] | None = None) -> str | N
 
 @dataclass
 class WindowPlace:
-    """The height of the window's image and where the image is on the screen, kept from library to library;
-    ``filled`` is the size of the image area of a maximized window, which every page fills."""
+    """The height of the window's image and where the image is on the screen, kept from library to library."""
     height: int
-    screen_width: int
     position: tuple[int, int] | None = None
-    filled: tuple[int, int] | None = None
 
 
 def review(directory: Path, review_all: bool, max_width: int, place: WindowPlace, closed: bool = False,
@@ -586,8 +579,6 @@ def review(directory: Path, review_all: bool, max_width: int, place: WindowPlace
     # Where the image of a new or re-created window is to be put, once it is shown.
     anchor = place.position
     height = place.height
-    # A new window gets its size from the image shown; a maximized one keeps its own.
-    fresh = True
     with ThreadPoolExecutor(max_workers=2) as prefetch:
         sheets: dict = {}
         pages: dict = {}
@@ -598,10 +589,10 @@ def review(directory: Path, review_all: bool, max_width: int, place: WindowPlace
             return sheets[index]
 
         def page_of(index, item):
-            box = place.filled or (max_width, height)
-            if (index, item, box) not in pages:
-                pages[(index, item, box)] = prefetch.submit(load_page, store, journals[index].articles[item], *box)
-            return pages[(index, item, box)]
+            if (index, item, height) not in pages:
+                pages[(index, item, height)] = prefetch.submit(load_page, store, journals[index].articles[item],
+                                                               max_width, height)
+            return pages[(index, item, height)]
 
         while not session.done:
             journal, index = session.journal, session.index
@@ -618,8 +609,7 @@ def review(directory: Path, review_all: bool, max_width: int, place: WindowPlace
                     sheet_of(index + 1)
                 if journal.articles:
                     page_of(index, 0)
-                box = place.filled or (max_width, height)
-                shown, scale = _fit(sheet, box[0], box[1] - HEADER_HEIGHT)
+                shown, scale = _fit(sheet, max_width, height - HEADER_HEIGHT)
                 shown = mark_verdicts(shown, scale, journal, items)
                 verdict = log.verdict(journal)
                 lines = [f"{position}  JOURNAL {(verdict or 'no verdict').upper()}  ·  {MARK_LEGEND}",
@@ -643,28 +633,17 @@ def review(directory: Path, review_all: bool, max_width: int, place: WindowPlace
                          f"{data.title or ''}"[:170],
                          f"{journal.title[:60]}  ·  y approve · n reject · r review mark · ←/→ picks · space skip · "
                          f"u clear · j next journal · Esc sheet · q quit"]
-            if place.filled:
-                canvas = _compose(shown, lines, verdict, place.filled[1], place.filled[0])
-            else:
-                canvas = _compose(shown, lines, verdict, height)
+            canvas = _compose(shown, lines, verdict, height)
             cv2.imshow(WINDOW, canvas)
-            if place.filled and not fresh:
-                size = tuple(cv2.getWindowImageRect(WINDOW)[2:])
-            else:
-                size = _size_window(cv2, canvas.shape[1], canvas.shape[0])
-            fresh = False
+            size = _size_window(cv2, canvas.shape[1], canvas.shape[0])
             if anchor is not None:
                 _place_window(cv2, anchor)
                 anchor = None
 
             key = _wait_key(cv2, clicks, size)
             if key == RESIZE:
-                window = tuple(cv2.getWindowImageRect(WINDOW)[2:])
-                if window[0] >= place.screen_width - MAXIMIZED_SLACK:
-                    place.filled, height = window, window[1]
-                else:
-                    place.filled = None
-                    height = resized_height(window, (canvas.shape[1], canvas.shape[0]))
+                height = resized_height(tuple(cv2.getWindowImageRect(WINDOW)[2:]),
+                                        (canvas.shape[1], canvas.shape[0]))
                 continue
             if key is None:
                 x, y = clicks.pop()
@@ -673,7 +652,7 @@ def review(directory: Path, review_all: bool, max_width: int, place: WindowPlace
                     pick = tile_at(journal, (x / scale, (y - HEADER_HEIGHT) / scale))
                     if pick is not None:
                         session.open_pick(pick)
-                anchor, fresh = _reopen_window(cv2, clicks), True
+                anchor = _reopen_window(cv2, clicks)
                 continue
             session.handle(key)
             if session.quit:
@@ -800,9 +779,10 @@ def main():
                              f"{SCREEN_MARGIN} for the title bar and panels. Drag the window to resize it: the "
                              "pages after keep its height and place.")
     args = parser.parse_args()
-    screen = FALLBACK_SCREEN if args.close_round else screen_size() or FALLBACK_SCREEN
-    max_width = args.max_width or screen[0] - 2 * MAXIMIZED_SLACK
-    place = WindowPlace(args.max_height or screen[1] - SCREEN_MARGIN, screen[0])
+    no_window = args.close_round or (args.max_width and args.max_height)
+    screen = FALLBACK_SCREEN if no_window else screen_size() or FALLBACK_SCREEN
+    max_width = args.max_width or screen[0] - 20
+    place = WindowPlace(args.max_height or screen[1] - SCREEN_MARGIN)
     for directory in args.directories:
         if args.close_round:
             close(directory.resolve())
