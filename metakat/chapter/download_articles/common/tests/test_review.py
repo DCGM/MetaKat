@@ -15,12 +15,17 @@ from metakat.chapter.download_articles.common.review import (
     REVIEW_COLOURS,
     ItemReviewLog,
     ReviewLog,
+    HEADER_HEIGHT,
+    MIN_HEIGHT,
     Session,
+    _compose,
     _key_name,
     close_round,
     current_round,
     load_sheet,
     mark_verdicts,
+    parse_xrandr,
+    resized_height,
     review_journals,
     sheet_path,
     stored_journals,
@@ -366,3 +371,23 @@ def test_undecided_shows_only_picks_left_to_decide(tmp_path):
     assert [(j.title, [a.item.item_id for a in j.articles]) for j in shown] == [
         ("Journal B", ["B1990"]), ("Journal C", ["C2000", "C2005", "C2010"])]
     assert _position(Session(shown, log, items)) == ("Journal B", "B1990")
+
+
+def test_window_starts_as_high_as_the_primary_screen():
+    output = ("Screen 0: minimum 16 x 16, current 4480 x 1440, maximum 32767 x 32767\n"
+              "DP-1 connected 2560x1440+1920+0 (normal left inverted right x axis y axis) 600mm x 340mm\n"
+              "   2560x1440     59.95*+\n"
+              "HDMI-1 connected primary 1920x1200+0+0 (normal left inverted right x axis y axis) 520mm x 320mm\n"
+              "DP-2 disconnected (normal left inverted right x axis y axis)\n")
+    assert parse_xrandr(output) == (1920, 1200)
+    assert parse_xrandr(output.replace(" primary", "")) == (2560, 1440)
+    assert parse_xrandr("") is None
+
+
+def test_a_window_resized_by_hand_gives_the_height_of_the_pages_after():
+    image = (1100, 1000)
+    assert resized_height((1100, 700), image) == 700          # made lower
+    assert resized_height((550, 1000), image) == 500          # made narrower: the image keeps its aspect ratio
+    assert resized_height((200, 100), image) == MIN_HEIGHT
+    canvas = _compose(Image.new("RGB", (800, 400)), ["header", ""], None, height=900)
+    assert canvas.shape[:2] == (900, 1100) and 400 + HEADER_HEIGHT < 900

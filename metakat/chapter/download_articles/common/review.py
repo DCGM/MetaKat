@@ -34,6 +34,10 @@ stays open when everything is reviewed (the header says ALL REVIEWED), so that v
 checked and changed; only q (or Esc on a journal sheet) quits, and Enter goes on to the next library folder given. Journal
 sheets are cached in ``<library>/previews/journals/``.
 
+The window is as high as the screen at first (``--max-height`` sets another height). Drag it to another
+size: the image is redrawn at the new height, and every page after is shown at the same height and in the
+same place, in every library folder of the run.
+
 The review goes in rounds, until only approved picks are left:
 
     python -m metakat.chapter.download_articles.common.review --close-round .../articles/knav [...]
@@ -52,6 +56,9 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import re
+import subprocess
+import sys
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -77,6 +84,15 @@ APPROVED, REJECTED = "approved", "rejected"
 BY_ITEM, BY_JOURNAL, BY_AUTO = "item", "journal", "auto"
 HEADER_HEIGHT = 64
 WINDOW = "MetaKat journal review"
+# The window's image is as high as the screen less this (title bar, panels) at first. Dragged to another
+# size, the window keeps its height and its place for every page after, in every library of the run.
+SCREEN_MARGIN = 100
+FALLBACK_SCREEN = (1920, 1150)
+MIN_HEIGHT = 300
+# A window resized by hand is redrawn once its size has not changed for this many key polls (50 ms each);
+# smaller differences (in pixels) are left alone.
+RESIZE_SETTLE, RESIZE_TOLERANCE = 6, 4
+RESIZE = "resize"
 
 
 @dataclass
@@ -472,8 +488,9 @@ def _header(lines: list[str], width: int, verdict: str | None) -> Image.Image:
     return header
 
 
-def _compose(image: Image.Image, lines: list[str], verdict: str | None) -> np.ndarray:
-    canvas = Image.new("RGB", (max(image.width, 1100), image.height + HEADER_HEIGHT), "white")
+def _compose(image: Image.Image, lines: list[str], verdict: str | None, height: int = 0) -> np.ndarray:
+    """The header above the image, on a canvas at least ``height`` high."""
+    canvas = Image.new("RGB", (max(image.width, 1100), max(image.height + HEADER_HEIGHT, height)), "white")
     canvas.paste(_header(lines, canvas.width, verdict), (0, 0))
     canvas.paste(image, (0, HEADER_HEIGHT))
     return np.asarray(canvas)[:, :, ::-1].copy()
@@ -516,18 +533,34 @@ def _key_name(code: int) -> str | None:
     return chr(code).lower() if 32 <= code < 127 else None
 
 
-def _wait_key(cv2, clicks: list) -> str | None:
-    """The next key, or None when the window was clicked."""
+def _wait_key(cv2, clicks: list, size: tuple[int, int] | None = None) -> str | None:
+    """The next key, None when the window was clicked, or ``RESIZE`` once the window's image, last set to
+    ``size``, was given another size by hand."""
+    last, still = None, 0
     while not clicks:
         key = _key_name(cv2.waitKeyEx(50))
         if key:
             return key
         if cv2.getWindowProperty(WINDOW, cv2.WND_PROP_VISIBLE) < 1:
             return "q"
+        if size is not None:
+            now = tuple(cv2.getWindowImageRect(WINDOW)[2:])
+            if max(abs(a - b) for a, b in zip(now, size)) > RESIZE_TOLERANCE:
+                still = still + 1 if now == last else 0
+                last = now
+                if still >= RESIZE_SETTLE:
+                    return RESIZE
     return None
 
 
-def review(directory: Path, review_all: bool, max_width: int, max_height: int, closed: bool = False,
+@dataclass
+class WindowPlace:
+    """The height of the window's image and where the image is on the screen, kept from library to library."""
+    height: int
+    position: tuple[int, int] | None = None
+
+
+def review(directory: Path, review_all: bool, max_width: int, place: WindowPlace, closed: bool = False,
            undecided: bool = False) -> bool:
     """Review one library folder; returns False when the reviewer quit."""
     import cv2
@@ -543,9 +576,9 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int, c
 
     clicks: list[tuple[int, int]] = []
     _open_window(cv2, clicks)
-    # Where the image of a re-created window is to be put back, once it is shown.
-    anchor: tuple[int, int] | None = None
-    page_height = max_height
+    # Where the image of a new or re-created window is to be put, once it is shown.
+    anchor = place.position
+    height = place.height
     with ThreadPoolExecutor(max_workers=2) as prefetch:
         sheets: dict = {}
         pages: dict = {}
@@ -556,10 +589,10 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int, c
             return sheets[index]
 
         def page_of(index, item):
-            if (index, item) not in pages:
-                pages[(index, item)] = prefetch.submit(load_page, store, journals[index].articles[item],
-                                                       max_width, page_height)
-            return pages[(index, item)]
+            if (index, item, height) not in pages:
+                pages[(index, item, height)] = prefetch.submit(load_page, store, journals[index].articles[item],
+                                                               max_width, height)
+            return pages[(index, item, height)]
 
         while not session.done:
             journal, index = session.journal, session.index
@@ -576,7 +609,7 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int, c
                     sheet_of(index + 1)
                 if journal.articles:
                     page_of(index, 0)
-                shown, scale = _fit(sheet, max_width, max_height - HEADER_HEIGHT)
+                shown, scale = _fit(sheet, max_width, height - HEADER_HEIGHT)
                 shown = mark_verdicts(shown, scale, journal, items)
                 verdict = log.verdict(journal)
                 lines = [f"{position}  JOURNAL {(verdict or 'no verdict').upper()}  ·  {MARK_LEGEND}",
@@ -600,12 +633,18 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int, c
                          f"{data.title or ''}"[:170],
                          f"{journal.title[:60]}  ·  y approve · n reject · r review mark · ←/→ picks · space skip · "
                          f"u clear · j next journal · Esc sheet · q quit"]
-            cv2.imshow(WINDOW, _compose(shown, lines, verdict))
+            canvas = _compose(shown, lines, verdict, height)
+            cv2.imshow(WINDOW, canvas)
+            size = _size_window(cv2, canvas.shape[1], canvas.shape[0])
             if anchor is not None:
                 _place_window(cv2, anchor)
                 anchor = None
 
-            key = _wait_key(cv2, clicks)
+            key = _wait_key(cv2, clicks, size)
+            if key == RESIZE:
+                height = resized_height(tuple(cv2.getWindowImageRect(WINDOW)[2:]),
+                                        (canvas.shape[1], canvas.shape[0]))
+                continue
             if key is None:
                 x, y = clicks.pop()
                 clicks.clear()
@@ -619,6 +658,7 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int, c
             if session.quit:
                 cv2.destroyAllWindows()
                 return False
+    place.height, place.position = height, tuple(cv2.getWindowImageRect(WINDOW)[:2])
     cv2.destroyAllWindows()
     journal_counts = {v: sum(1 for j in journals if log.verdict(j) == v) for v in (APPROVED, REJECTED)}
     picks = [a for j in journals for a in j.articles]
@@ -632,7 +672,8 @@ def review(directory: Path, review_all: bool, max_width: int, max_height: int, c
 
 
 def _open_window(cv2, clicks: list) -> None:
-    cv2.namedWindow(WINDOW, cv2.WINDOW_AUTOSIZE)
+    # Resizable: the image is scaled to the window, and clicks are told in the image's pixels.
+    cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO | cv2.WINDOW_GUI_NORMAL)
     cv2.setMouseCallback(WINDOW, lambda event, x, y, *_: clicks.append((x, y))
                          if event == cv2.EVENT_LBUTTONDOWN else None)
 
@@ -649,6 +690,46 @@ def _reopen_window(cv2, clicks: list) -> tuple[int, int]:
     cv2.waitKey(1)
     _open_window(cv2, clicks)
     return x, y
+
+
+def _size_window(cv2, width: int, height: int) -> tuple[int, int]:
+    """Give the window's image the size of the image shown; returns the size it got (the window manager may
+    refuse some)."""
+    cv2.resizeWindow(WINDOW, width, height)
+    size = None
+    for _ in range(5):
+        cv2.waitKey(10)
+        size = tuple(cv2.getWindowImageRect(WINDOW)[2:])
+        if size == (width, height):
+            break
+    return size
+
+
+def resized_height(window: tuple[int, int], image: tuple[int, int]) -> int:
+    """The height an image of size ``image`` has in a window (image area) of size ``window``, which shows it
+    whole with its aspect ratio kept."""
+    return max(MIN_HEIGHT, round(min(window[1], window[0] * image[1] / image[0])))
+
+
+def screen_size() -> tuple[int, int] | None:
+    """The size of the (primary) screen: the system metrics on Windows, ``xrandr`` elsewhere; None if unknown."""
+    if sys.platform == "win32":
+        import ctypes
+        return ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1)
+    try:
+        output = subprocess.run(["xrandr", "--current"], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return parse_xrandr(output)
+
+
+def parse_xrandr(output: str) -> tuple[int, int] | None:
+    """The size of the primary monitor (else of the first connected one) in the output of ``xrandr``."""
+    monitors = re.findall(r"^\S+ connected( primary)? (\d+)x(\d+)\+", output, flags=re.MULTILINE)
+    if not monitors:
+        return None
+    _, width, height = next((monitor for monitor in monitors if monitor[0]), monitors[0])
+    return int(width), int(height)
 
 
 def _place_window(cv2, image_position: tuple[int, int]) -> None:
@@ -692,13 +773,20 @@ def main():
     parser.add_argument("--close-round", action="store_true",
                         help="Close the review round of every folder (no window): its verdicts become final and "
                              "its rejections are no longer shown.")
-    parser.add_argument("--max-width", type=int, default=1900, help="Window size limit in pixels.")
-    parser.add_argument("--max-height", type=int, default=1050)
+    parser.add_argument("--max-width", type=int, help="Widest the window gets, in pixels; default the screen width.")
+    parser.add_argument("--max-height", type=int,
+                        help="Height of the window's image at the start, in pixels; default the screen height less "
+                             f"{SCREEN_MARGIN} for the title bar and panels. Drag the window to resize it: the "
+                             "pages after keep its height and place.")
     args = parser.parse_args()
+    no_window = args.close_round or (args.max_width and args.max_height)
+    screen = FALLBACK_SCREEN if no_window else screen_size() or FALLBACK_SCREEN
+    max_width = args.max_width or screen[0] - 20
+    place = WindowPlace(args.max_height or screen[1] - SCREEN_MARGIN)
     for directory in args.directories:
         if args.close_round:
             close(directory.resolve())
-        elif not review(directory.resolve(), args.all, args.max_width, args.max_height, args.closed, args.undecided):
+        elif not review(directory.resolve(), args.all, max_width, place, args.closed, args.undecided):
             break
 
 
