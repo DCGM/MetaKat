@@ -391,3 +391,5 @@ def test_a_window_resized_by_hand_gives_the_height_of_the_pages_after():
     assert resized_height((200, 100), image) == MIN_HEIGHT
     canvas = _compose(Image.new("RGB", (800, 400)), ["header", ""], None, height=900)
     assert canvas.shape[:2] == (900, 1100) and 400 + HEADER_HEIGHT < 900
+    # A maximized window: the page fills its whole image area.
+    assert _compose(Image.new("RGB", (800, 400)), ["header", ""], None, 1130, 1920).shape[:2] == (1130, 1920)
