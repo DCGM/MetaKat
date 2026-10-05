@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import urllib.error
+from functools import cache
 from pathlib import Path
 from typing import Callable
 
@@ -50,6 +51,9 @@ AUTOMATIC_PICK_DIRS = (
     Path("/mnt/kolosus/data/smart_digiline/articles/title.automatic_pick/knav/public"),
     Path("/mnt/kolosus/data/smart_digiline/articles/title.automatic_pick/knav/private"),
 )
+# The title pages annotated before this sampler (one JSON per article or page uuid): never picked again,
+# so that new picks do not repeat them.
+FINAL_GT = Path("/mnt/kolosus/data/smart_digiline/articles/final/gt")
 AUTOMATIC_PICK_LOGS = (
     Path.home() / "data/smart_digiline/articles/title.automatic_pick/knav/public.log",
     Path.home() / "data/smart_digiline/articles/title.automatic_pick/knav/private.log",
@@ -79,6 +83,8 @@ class KnavSource(KrameriusSource):
     name = "knav"
     api = API
     landing_url = "https://kramerius.lib.cas.cz/uuid/"
+    # Annotated title pages (file stems are article or page uuids) that are never picked.
+    final_gt = FINAL_GT
     moving_wall = True
     skip_newspapers = False
     type_preference = ("pdf", "scan", "volume")
@@ -201,6 +207,8 @@ class KnavSource(KrameriusSource):
         return item
 
     def is_available(self, item: CatalogItem) -> bool:
+        if item.item_id in final_gt_ids(self.final_gt):
+            return False
         if item.record.get("previous_download_error") == ["403"]:
             return False
         # Under a restricted licence even when KNAV serves its PDF or an earlier download has it.
@@ -290,3 +298,9 @@ def _cached(path: Path, compute: Callable[[], object]):
     value = compute()
     path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
     return value
+
+
+@cache
+def final_gt_ids(directory: Path) -> frozenset[str]:
+    """The uuids of the annotated title pages in ``directory`` (empty when it does not exist)."""
+    return frozenset(path.stem for path in directory.glob("*.json"))

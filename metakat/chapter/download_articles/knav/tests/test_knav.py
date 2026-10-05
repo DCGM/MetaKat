@@ -39,6 +39,15 @@ def test_item_from_docs_reads_volume_issue_and_earlier_downloads():
     assert not any(source.is_available(item) for item in (refused, contents, private))
 
 
+def test_annotated_title_pages_are_never_picked_again(tmp_path):
+    (tmp_path / "a1.json").write_text("{}")
+    source = KnavSource(pick_dirs=(), pick_logs=())
+    source.final_gt = tmp_path
+    annotated = source.item_from_docs(_doc("uuid:a1", **{"ds.img_full.mime": "application/pdf"}), PARENTS)
+    other = source.item_from_docs(_doc("uuid:a2", **{"ds.img_full.mime": "application/pdf"}), PARENTS)
+    assert not source.is_available(annotated) and source.is_available(other)
+
+
 def test_earlier_downloads_are_indexed_from_folders_and_logs(tmp_path):
     (tmp_path / "issue").mkdir()
     (tmp_path / "issue" / "a1.pdf").write_bytes(b"%PDF-1.4")
