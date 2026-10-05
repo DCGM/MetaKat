@@ -47,7 +47,7 @@ from pathlib import Path
 
 from metakat.chapter.download_articles.common import http
 from metakat.chapter.download_articles.common.cli import DEFAULT_ROOT, STORED, available_items, fetch_item
-from metakat.chapter.download_articles.common.guess_reviews import REVIEW_GENRES, metadata_evidence, ocr_evidence
+from metakat.chapter.download_articles.common.guess_reviews import REVIEW_GENRES, TITLE, metadata_evidence, ocr_evidence
 from metakat.chapter.download_articles.common.models import CatalogItem
 from metakat.chapter.download_articles.common.review import (APPROVED, BY_AUTO, ItemReviewLog, ReviewLog,
                                                              review_journals)
@@ -78,6 +78,12 @@ _PERSON = rf"{_NAME}(\s+{_NAME}){{1,3}}"
 AUTHOR_TITLE_PATTERN = re.compile(
     rf"^\W*{_PERSON}((\s*[-–,&]\s*|\s+(a|and|und|et|i)\s+){_PERSON})*"
     r"(\s*(et al\.|a kol\.|\((eds?|Hrsg|red)\.?\)))?\s*[:,]\s+\S")
+# Among candidates of the same score: a title citing a book ("[Fárek, Martin. Hnutí Haré Kršna]", "Author: Title")
+# is tried first, and reports of events (sections "Zprávy a recenze" hold both) last.
+BRACKETED_CITATION = re.compile(r"^\W*\[[^\]]*\.\s")
+EVENT_REPORT = re.compile(r"^\W*(zpráva z|zprávy z|reportáž|konference|conference|kolokvium|colloquium|"
+                          r"(vědecký )?seminář|seminar|workshop|sympozi|symposi|exkurze|rozhovor|interview|"
+                          r"report (on|from))", re.IGNORECASE)
 
 
 @dataclass
@@ -112,6 +118,14 @@ def review_score(item: CatalogItem, genres: dict[str, list[str]]) -> tuple[int, 
     if item.title and AUTHOR_TITLE_PATTERN.match(item.title):
         return AUTHOR_TITLE, ["title: author: book"]
     return NONE, []
+
+
+def citation_rank(item: CatalogItem) -> int:
+    """0 for a title citing a book, 2 for a report of an event, 1 otherwise."""
+    title = item.title or ""
+    if BRACKETED_CITATION.match(title) or TITLE.search(title) or AUTHOR_TITLE_PATTERN.match(title):
+        return 0
+    return 2 if EVENT_REPORT.match(title) else 1
 
 
 def knav_journal_genres(source: Source, store: ArticleStore, journal_ids: set[str]) -> dict[str, list[str]]:
@@ -204,7 +218,7 @@ def plan(source: Source, store: ArticleStore, seed: int = 0) -> list[JournalPlan
                     probe = (evidence["review picks"] > 0 and store.dir.name not in COMPLETE_METADATA
                              and not (store.dir.name == KNAV and year in genre_years))
                     ranked = [(i, *scores[i.item_id]) for i in pool if scores[i.item_id][0] > NONE or probe]
-                    ranked.sort(key=lambda c: (-c[1], not source.is_cheap(c[0])))
+                    ranked.sort(key=lambda c: (-c[1], citation_rank(c[0]), not source.is_cheap(c[0])))
                 else:
                     ranked = [(i, NONE, []) for i in pool if scores[i.item_id][0] == NONE]
                     ranked.sort(key=lambda c: not source.is_cheap(c[0]))
