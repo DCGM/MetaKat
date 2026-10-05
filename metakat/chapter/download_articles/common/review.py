@@ -34,7 +34,8 @@ stays open when everything is reviewed (the header says ALL REVIEWED), so that v
 checked and changed; only q (or Esc on a journal sheet) quits, and Enter goes on to the next library folder given. Journal
 sheets are cached in ``<library>/previews/journals/``.
 
-The window is as high as the screen at first (``--max-height`` sets another height). Drag it to another
+The header gives the path of the image shown (a pick's title page, or the journal's sheet) under its first
+line. The window is as high as the screen at first (``--max-height`` sets another height). Drag it to another
 size: the image is redrawn at the new height, and every page after is shown at the same height and in the
 same place, in every library folder of the run.
 
@@ -82,7 +83,9 @@ ITEM_FIELDS = ["item_id", "journal_id", "journal_title", "year", "volume", "issu
 REVIEW_COLUMNS = ("review", "review_by", "review_note")
 APPROVED, REJECTED = "approved", "rejected"
 BY_ITEM, BY_JOURNAL, BY_AUTO = "item", "journal", "auto"
-HEADER_HEIGHT = 64
+HEADER_HEIGHT = 88
+# The header's lines: what is shown and its verdict, the path of the image shown, the keys.
+HEADER_LINES = ((6, 24, "white"), (36, 16, (215, 215, 215)), (60, 18, "white"))
 WINDOW = "MetaKat journal review"
 # The window's image is as high as the screen less this (title bar, panels) at first. Dragged to another
 # size, the window keeps its height and its place for every page after, in every library of the run.
@@ -483,8 +486,8 @@ def _header(lines: list[str], width: int, verdict: str | None) -> Image.Image:
     colour = {APPROVED: (30, 120, 50), REJECTED: (160, 40, 40)}.get(verdict, (45, 45, 45))
     header = Image.new("RGB", (width, HEADER_HEIGHT), colour)
     draw = ImageDraw.Draw(header)
-    for row, (text, size) in enumerate(zip(lines, (24, 18))):
-        draw.text((12, 6 + row * 32), text, font=_font(size, bold=row == 0), fill="white")
+    for row, (text, (top, size, fill)) in enumerate(zip(lines, HEADER_LINES)):
+        draw.text((12, top), text, font=_font(size, bold=row == 0), fill=fill)
     return header
 
 
@@ -613,6 +616,7 @@ def review(directory: Path, review_all: bool, max_width: int, place: WindowPlace
                 shown = mark_verdicts(shown, scale, journal, items)
                 verdict = log.verdict(journal)
                 lines = [f"{position}  JOURNAL {(verdict or 'no verdict').upper()}  ·  {MARK_LEGEND}",
+                         str(sheet_path(store, journal)),
                          "y review picks · n reject journal and picks · ←/→ or ,/. journals · space next open · "
                          "u clear journal and picks · Enter next library · q quit · click a page to review it"]
             else:
@@ -631,6 +635,7 @@ def review(directory: Path, review_all: bool, max_width: int, place: WindowPlace
                 lines = [f"{position}  pick {item + 1}/{len(journal.articles)}  {(verdict or 'no verdict').upper()}"
                          f"{review_mark}  ·  {data.year or '?'}  v{data.volume or '?'}/{data.issue or '?'}  "
                          f"{data.title or ''}"[:170],
+                         str(store.dir / article.image.file),
                          f"{journal.title[:60]}  ·  y approve · n reject · r review mark · ←/→ picks · space skip · "
                          f"u clear · j next journal · Esc sheet · q quit"]
             canvas = _compose(shown, lines, verdict, height)
