@@ -118,7 +118,7 @@ def parse_arguments(argv=None):
     parser.add_argument('--attn-implementation', choices=['sdpa', 'eager'], default='sdpa')
     parser.add_argument('--limit', type=int, default=None,
                         help='Stop after this many images in this run (for testing); resumable as usual.')
-    parser.add_argument('--map-size-gb', type=int, default=100,
+    parser.add_argument('--map-size-gb', type=int, default=300,
                         help='Output LMDB map_size in GB (address-space reservation, not preallocation).')
     parser.add_argument('--logging-level', default='INFO',
                         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'])

@@ -122,7 +122,7 @@ def parse_arguments(spec: EncoderSpec, argv=None):
 
     parser.add_argument('--limit', type=int, default=None,
                         help='Stop after this many pages in this run (for testing); resumable as usual.')
-    parser.add_argument('--map-size-gb', type=int, default=100,
+    parser.add_argument('--map-size-gb', type=int, default=300,
                         help='Output LMDB map_size in GB (address-space reservation, not preallocation). '
                              '16.7M float16 1024-d vectors are ~34 GB of values.')
     parser.add_argument('--logging-level', default='INFO',
