@@ -27,6 +27,7 @@ from metakat.chapter.download_articles.common.review import (
     parse_xrandr,
     resized_height,
     review_journals,
+    review_suspects,
     sheet_path,
     stored_journals,
     tile_at,
@@ -371,6 +372,25 @@ def test_undecided_shows_only_picks_left_to_decide(tmp_path):
     assert [(j.title, [a.item.item_id for a in j.articles]) for j in shown] == [
         ("Journal B", ["B1990"]), ("Journal C", ["C2000", "C2005", "C2010"])]
     assert _position(Session(shown, log, items)) == ("Journal B", "B1990")
+
+
+def test_reviews_shows_marked_guessed_and_suspected_reviews_only(tmp_path):
+    store = _store_with_journals(tmp_path)
+    log, items = ReviewLog.load(store), ItemReviewLog.load(store)
+    a1950, b1960, _, c2000, c2005, _ = [a for j in stored_journals(store) for a in j.articles]
+    items.set_review([a1950], True, BY_ITEM)
+    items.set_review([c2005], True, BY_AUTO, note="OCR heading: RECENZE")
+    (store.dir / "txt").mkdir()
+    for article in (b1960, c2000):           # evidence of a review in the OCR, none marked; C2000 marked as none
+        (store.dir / "txt" / f"{article.item.item_id}.txt").write_text("RECENZE\nJan Novák: Kniha\n", encoding="utf-8")
+    items.set_review([c2000], False, BY_ITEM)
+    journals = review_journals(store, log, items)
+    suspects = review_suspects(store, items, journals)
+    assert suspects == {"A1950": "", "B1960": "OCR heading: RECENZE", "C2000": "OCR heading: RECENZE",
+                        "C2005": "OCR heading: RECENZE"}
+    shown = review_journals(store, log, items, only=set(suspects))
+    assert [(j.title, [a.item.item_id for a in j.articles]) for j in shown] == [
+        ("Journal A", ["A1950"]), ("Journal B", ["B1960"]), ("Journal C", ["C2000", "C2005"])]
 
 
 def test_window_starts_as_high_as_the_primary_screen():

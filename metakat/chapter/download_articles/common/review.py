@@ -29,7 +29,9 @@ yet looked at, ``item`` once set or seen, ``review_note``: what the guess rests 
 a pick confirms its review mark as shown. A new session starts at the first journal without a verdict,
 or inside an approved journal at its first pick without a verdict or with a guessed review mark not yet
 confirmed; ``--all`` goes through everything again, ``--undecided`` shows only the picks left to decide
-(no verdict or an unconfirmed guess) and only the journals that have some. The window
+(no verdict or an unconfirmed guess) and only the journals that have some; ``--reviews`` only the picks
+marked as reviews or suspected of being one by the evidence of ``guess_reviews`` (``--reviews --all`` goes
+through all of them; the header says NOT MARKED, REVIEW? on a suspected pick without the mark). The window
 stays open when everything is reviewed (the header says ALL REVIEWED), so that verdicts can still be
 checked and changed; only q (or Esc on a journal sheet) quits, and Enter goes on to the next library folder given. Journal
 sheets are cached in ``<library>/previews/journals/``.
@@ -123,10 +125,11 @@ def stored_journals(store: ArticleStore) -> list[Journal]:
 
 
 def review_journals(store: ArticleStore, log: ReviewLog, items: ItemReviewLog, closed: bool = False,
-                    undecided: bool = False) -> list[Journal]:
+                    undecided: bool = False, only: set[str] | None = None) -> list[Journal]:
     """The journals and picks a review shows: those of ``stored_journals`` without the rejections of closed
     rounds (``close_round``), and without journals left with no pick; ``closed`` shows them all.
-    ``undecided`` keeps only the picks left to look at: without a verdict, or with a guessed review mark."""
+    ``undecided`` keeps only the picks left to look at: without a verdict, or with a guessed review mark;
+    ``only`` only the picks with these item ids."""
     journals = []
     for journal in stored_journals(store):
         if not closed and log.verdict(journal) == REJECTED and log.closed(journal):
@@ -134,9 +137,24 @@ def review_journals(store: ArticleStore, log: ReviewLog, items: ItemReviewLog, c
         articles = [a for a in journal.articles if closed or not (items.verdict(a) == REJECTED and items.closed(a))]
         if undecided:
             articles = [a for a in articles if not items.verdict(a) or items.review_by(a) == BY_AUTO]
+        if only is not None:
+            articles = [a for a in articles if a.item.item_id in only]
         if articles:
             journals.append(Journal(journal.key, articles))
     return journals
+
+
+def review_suspects(store: ArticleStore, items: ItemReviewLog, journals: list[Journal]) -> dict[str, str]:
+    """The picks of ``journals`` marked as reviews (set or guessed) or that ``guess_reviews`` finds evidence
+    of a review for now (also picks stored after the guesses were written, and picks marked as no review):
+    item id -> the evidence, empty for a mark without any. KNAV genres come only from the cache."""
+    from metakat.chapter.download_articles.common.guess_reviews import guess
+
+    picks = [a for journal in journals for a in journal.articles]
+    suspects = {a.item.item_id: items.review_note(a) for a in picks if items.is_review(a)}
+    for article, evidence in guess(store, picks, fetch=False):
+        suspects[article.item.item_id] = suspects.get(article.item.item_id) or "; ".join(evidence)
+    return suspects
 
 
 def current_round(log: ReviewLog, items: ItemReviewLog) -> int:
@@ -564,17 +582,22 @@ class WindowPlace:
 
 
 def review(directory: Path, review_all: bool, max_width: int, place: WindowPlace, closed: bool = False,
-           undecided: bool = False) -> bool:
-    """Review one library folder; returns False when the reviewer quit."""
+           undecided: bool = False, reviews: bool = False) -> bool:
+    """Review one library folder; returns False when the reviewer quit. ``reviews`` shows only the picks
+    of ``review_suspects``."""
     import cv2
 
     store = ArticleStore(directory.parent, directory.name)
     log, items = ReviewLog.load(store), ItemReviewLog.load(store)
     journals = review_journals(store, log, items, closed, undecided)
+    suspects = review_suspects(store, items, journals) if reviews else {}
+    if reviews:
+        journals = review_journals(store, log, items, closed, undecided, only=set(suspects))
     round_number = current_round(log, items)
     session = Session(journals, log, items, review_all)
     if session.done:
-        print(f"{directory}: no journals to show (none stored, or all rejected in closed rounds)")
+        print(f"{directory}: no journals to show (none stored, all rejected in closed rounds, or none left by "
+              f"the options)")
         return True
 
     clicks: list[tuple[int, int]] = []
@@ -632,6 +655,9 @@ def review(directory: Path, review_all: bool, max_width: int, place: WindowPlace
                 if items.is_review(article):
                     review_mark = ("  REVIEW? (guess: " + items.review_note(article)[:40] + ")"
                                    if items.review_by(article) == BY_AUTO else "  REVIEW")
+                elif article.item.item_id in suspects:
+                    # Not marked as a review (or marked as none), but the evidence of guess_reviews says it may be.
+                    review_mark = "  NOT MARKED, REVIEW? (" + suspects[article.item.item_id][:40] + ")"
                 lines = [f"{position}  pick {item + 1}/{len(journal.articles)}  {(verdict or 'no verdict').upper()}"
                          f"{review_mark}  ·  {data.year or '?'}  v{data.volume or '?'}/{data.issue or '?'}  "
                          f"{data.title or ''}"[:170],
@@ -775,6 +801,11 @@ def main():
                         help="Show only the picks left to decide: without a verdict or with a guessed review mark "
                              "not yet confirmed. Journals without such picks are left out; n on a journal rejects "
                              "only the picks shown.")
+    parser.add_argument("--reviews", action="store_true",
+                        help="Show only the picks marked as reviews (set or guessed) or that guess_reviews finds "
+                             "evidence of a review for (KNAV genres only from its cache); the header tells a "
+                             "suspected pick not marked as a review. Journals without such picks are left out; "
+                             "n on a journal rejects only the picks shown. With --all, to go through all of them.")
     parser.add_argument("--close-round", action="store_true",
                         help="Close the review round of every folder (no window): its verdicts become final and "
                              "its rejections are no longer shown.")
@@ -791,7 +822,7 @@ def main():
     for directory in args.directories:
         if args.close_round:
             close(directory.resolve())
-        elif not review(directory.resolve(), args.all, max_width, place, args.closed, args.undecided):
+        elif not review(directory.resolve(), args.all, max_width, place, args.closed, args.undecided, args.reviews):
             break
 
 

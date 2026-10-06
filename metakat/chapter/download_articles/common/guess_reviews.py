@@ -91,10 +91,13 @@ def ocr_evidence(lines: list[str]) -> list[str]:
     return found
 
 
-def knav_genres(store: ArticleStore, picks: list[StoredArticle]) -> dict[str, list[str]]:
-    """Kramerius genres of the KNAV article picks (record id -> genres), 50 a request; cached."""
+def knav_genres(store: ArticleStore, picks: list[StoredArticle], fetch: bool = True) -> dict[str, list[str]]:
+    """Kramerius genres of the KNAV article picks (record id -> genres), 50 a request; cached. Without
+    ``fetch`` only the cached ones."""
     cache = store.dir / GENRE_CACHE
     genres = json.loads(cache.read_text(encoding="utf-8")) if cache.exists() else {}
+    if not fetch:
+        return genres
     pids = sorted({a.item.record_id for a in picks if a.item.item_type != "volume"} - set(genres))
     for start in range(0, len(pids), 50):
         batch = pids[start:start + 50]
@@ -107,9 +110,10 @@ def knav_genres(store: ArticleStore, picks: list[StoredArticle]) -> dict[str, li
     return genres
 
 
-def guess(store: ArticleStore, picks: list[StoredArticle]) -> list[tuple[StoredArticle, list[str]]]:
-    """The picks that look like reviews, each with its evidence."""
-    genres = knav_genres(store, picks) if store.dir.name == KNAV else {}
+def guess(store: ArticleStore, picks: list[StoredArticle], fetch: bool = True) -> list[tuple[StoredArticle, list[str]]]:
+    """The picks that look like reviews, each with its evidence; without ``fetch``, KNAV genres only from the
+    cache (no request)."""
+    genres = knav_genres(store, picks, fetch) if store.dir.name == KNAV else {}
     guessed = []
     for article in picks:
         evidence = metadata_evidence(article.item)
