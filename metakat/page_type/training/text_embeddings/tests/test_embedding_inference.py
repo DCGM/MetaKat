@@ -1,16 +1,24 @@
 import argparse
+import random
+import time
+from types import SimpleNamespace
 
+import lmdb
 import pytest
 import torch
 
+from metakat.page_type.training.text_embeddings import embedding_inference
 from metakat.page_type.training.text_embeddings.embedding_inference import (
     PROGRESS_HEADER,
+    DevicePool,
+    EncoderSpec,
     append_progress,
     check_or_write_meta,
     last_token_pool,
     load_progress,
     make_batches,
     mean_pool,
+    run,
 )
 from metakat.page_type.training.text_embeddings.infer_qwen3_embedding_0_6b import make_text_transform
 
@@ -60,3 +68,79 @@ def test_qwen_instruction_prefix():
     assert make_text_transform(argparse.Namespace(instruction=None)) is None
     transform = make_text_transform(argparse.Namespace(instruction='Classify the page type'))
     assert transform('Obsah') == 'Instruct: Classify the page type\nQuery:Obsah'
+
+
+class FakeTokenizer:
+    pad_token_id = 0
+
+    def __call__(self, texts, **kwargs):
+        return {'input_ids': [[2 + ord(c) % 50 for c in text] + [1] for text in texts]}
+
+
+class FakeEncoder(torch.nn.Module):
+    """Embeds tokens and sleeps a random while, so replicas finish chunks out of order."""
+
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.embedding = torch.nn.Embedding(52, 8)
+        self.config = SimpleNamespace(hidden_size=8, max_position_embeddings=512, _commit_hash='fake')
+
+    @property
+    def dtype(self):
+        return self.embedding.weight.dtype
+
+    def forward(self, input_ids, attention_mask):
+        time.sleep(random.uniform(0, 0.01))
+        return SimpleNamespace(last_hidden_state=self.embedding(input_ids))
+
+
+FAKE_SPEC = EncoderSpec(description='test', default_model='fake', pooling='mean',
+                        load=lambda model_id, attn, dtype: (FakeTokenizer(), FakeEncoder()), pool=mean_pool)
+
+
+@pytest.fixture
+def source_lmdb(tmp_path):
+    path = tmp_path / 'source'
+    with lmdb.open(str(path), map_size=2 ** 24) as env, env.begin(write=True) as txn:
+        for i in range(37):
+            txn.put(f'lib_{i:03d}'.encode(), ('' if i % 7 == 0 else f'page {i} ' * (i % 5 + 1)).encode())
+    return path
+
+
+def read_output(output_root):
+    with lmdb.open(str(output_root / 'fake' / 'lmdb'), readonly=True, lock=False) as env, env.begin() as txn:
+        return {key: bytes(value) for key, value in txn.cursor()}
+
+
+def run_fake(source_lmdb, output_root, *extra):
+    run(FAKE_SPEC, ['--source-lmdb', str(source_lmdb), '--output-root', str(output_root), '--chunk-size', '3',
+                    '--max-batch-size', '2', '--compute-dtype', 'float32', '--attn-implementation', 'eager',
+                    '--max-length', '64', '--map-size-gb', '1', *extra])
+
+
+def test_several_devices_commit_in_key_order_and_match_one_device(source_lmdb, tmp_path, monkeypatch):
+    monkeypatch.setattr(embedding_inference, 'select_devices', lambda n_gpu: [torch.device('cpu')])
+    run_fake(source_lmdb, tmp_path / 'one')
+
+    monkeypatch.setattr(embedding_inference, 'select_devices', lambda n_gpu: [torch.device('cpu')] * 3)
+    run_fake(source_lmdb, tmp_path / 'three', '--limit', '10')
+    run_fake(source_lmdb, tmp_path / 'three')  # resumes with three replicas
+
+    expected = read_output(tmp_path / 'one')
+    assert len(expected) == 37
+    assert read_output(tmp_path / 'three') == expected
+    rows = [line.split('\t') for line in
+            (tmp_path / 'three' / 'fake' / 'progress.tsv').read_text(encoding='utf-8').splitlines()[1:]]
+    assert [int(row[1]) for row in rows] == list(range(len(rows)))
+    assert [row[2] for row in rows] == sorted(row[2] for row in rows)
+    assert int(rows[-1][7]) == 37
+
+
+def test_device_pool_reports_worker_errors():
+    def embed(model, device, chunk):
+        raise ValueError(f'bad chunk {chunk}')
+
+    future = DevicePool([(None, torch.device('cpu'))], embed).submit('c0')
+    with pytest.raises(ValueError, match='bad chunk c0'):
+        future.result(timeout=5)

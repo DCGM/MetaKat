@@ -20,12 +20,12 @@ Example:
 
 import sys
 
-from metakat.page_type.nets.gpu_bootstrap import bootstrap_single_gpu
+from metakat.page_type.nets.gpu_bootstrap import bootstrap_gpus
 
 
 # CUDA_VISIBLE_DEVICES must be finalized before importing PyTorch or Transformers.
 if __name__ == '__main__':
-    bootstrap_single_gpu(sys.argv[1:])
+    bootstrap_gpus(sys.argv[1:], multi_gpu=True)
 
 
 import torch

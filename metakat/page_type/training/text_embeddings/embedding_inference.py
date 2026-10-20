@@ -25,11 +25,17 @@ decides how the last hidden state is pooled into one vector, computed in
 float32 from an autocast (bf16 by default) forward pass. Vectors are stored
 unnormalized.
 
-Scripts importing this module must call bootstrap_single_gpu before it, since
-it imports torch.
+--n-gpu N (default 1) keeps one model replica per GPU, each fed whole chunks by
+its own thread. Chunks still commit one at a time in key order, so the output
+layout and resume are the same for any N, and a run may resume with another N.
+
+Scripts importing this module must call bootstrap_gpus(..., multi_gpu=True)
+before it, since it imports torch.
 """
 
 import argparse
+import collections
+import copy
 import fcntl
 import importlib.util
 import json
@@ -40,6 +46,7 @@ import signal
 import sys
 import threading
 import time
+from concurrent.futures import Future
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterator, List, NamedTuple, Optional, Tuple
@@ -127,7 +134,7 @@ def parse_arguments(spec: EncoderSpec, argv=None):
                              '16.7M float16 1024-d vectors are ~34 GB of values.')
     parser.add_argument('--logging-level', default='INFO',
                         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'])
-    add_gpu_arguments(parser)
+    add_gpu_arguments(parser, multi_gpu=True)
     spec.add_arguments(parser)
 
     return parser.parse_args(argv)
@@ -326,8 +333,49 @@ def last_token_pool(hidden: torch.Tensor, attention_mask: torch.Tensor) -> torch
     return hidden[torch.arange(hidden.shape[0], device=hidden.device), last].to(torch.float32)
 
 
+class DevicePool:
+    """One model replica per device, each served by a daemon thread taking chunks from a shared queue.
+
+    Daemon threads, so an aborting run does not wait for the chunks still on the GPUs.
+    """
+
+    def __init__(self, replicas: List[Tuple[torch.nn.Module, torch.device]],
+                 embed: Callable[[torch.nn.Module, torch.device, Chunk], object]):
+        self.tasks: queue.Queue = queue.Queue()
+        for model, device in replicas:
+            threading.Thread(target=self._serve, args=(model, device, embed), daemon=True).start()
+
+    def _serve(self, model, device, embed):
+        if device.type == 'cuda':
+            torch.cuda.set_device(device)  # the current device is per thread; kernels launch on it
+        while True:
+            future, chunk = self.tasks.get()
+            if not future.set_running_or_notify_cancel():
+                continue
+            try:
+                future.set_result(embed(model, device, chunk))
+            except BaseException as exc:  # re-raised by future.result() in the committing thread
+                future.set_exception(exc)
+
+    def submit(self, chunk: Chunk) -> Future:
+        future: Future = Future()
+        self.tasks.put((future, chunk))
+        return future
+
+
+def select_devices(n_gpu: int) -> List[torch.device]:
+    if not torch.cuda.is_available():
+        if n_gpu > 1:
+            raise SystemExit(f'--n-gpu {n_gpu} requested, but CUDA is not available.')
+        return [torch.device('cpu')]
+    if n_gpu > torch.cuda.device_count():
+        raise SystemExit(f'--n-gpu {n_gpu} requested, but only {torch.cuda.device_count()} GPU(s) are visible '
+                         f'(CUDA_VISIBLE_DEVICES={os.environ.get("CUDA_VISIBLE_DEVICES")}).')
+    return [torch.device('cuda', i) for i in range(n_gpu)]
+
+
 class StopRequest:
-    """Turns the first SIGINT/SIGTERM into a stop after the current chunk; a second one aborts."""
+    """Turns the first SIGINT/SIGTERM into a stop after the chunks in progress; a second one aborts."""
 
     def __init__(self):
         self.requested = False
@@ -338,7 +386,8 @@ class StopRequest:
         if self.requested:
             raise KeyboardInterrupt
         self.requested = True
-        logger.warning(f'Signal {signum} received, stopping after the current chunk (repeat to abort).')
+        logger.warning(f'Signal {signum} received, stopping after the chunks already on the GPUs '
+                       f'(repeat to abort).')
 
 
 def run(spec: EncoderSpec, argv=None) -> None:
@@ -357,7 +406,8 @@ def run(spec: EncoderSpec, argv=None) -> None:
     logger.info(f'torch {torch.__version__}, transformers {transformers.__version__}, '
                 f'CUDA_VISIBLE_DEVICES={os.environ.get("CUDA_VISIBLE_DEVICES")}')
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    devices = select_devices(args.n_gpu)
+    logger.info(f'Devices: {", ".join(str(device) for device in devices)}')
     compute_dtype = getattr(torch, args.compute_dtype)
 
     attn_implementation = args.attn_implementation or (
@@ -366,7 +416,12 @@ def run(spec: EncoderSpec, argv=None) -> None:
 
     tokenizer, model = spec.load(args.model, attn_implementation, compute_dtype)
     logger.info(f'Model weights dtype: {model.dtype}')
-    model.to(device).eval()
+    model.eval()
+    # Replicas are copied on the CPU, before the original moves to its own device.
+    replicas = [(copy.deepcopy(model), device) for device in devices[1:]]
+    replicas.insert(0, (model, devices[0]))
+    for replica, device in replicas:
+        replica.to(device)
     if args.max_length > model.config.max_position_embeddings:
         raise SystemExit(f'--max-length {args.max_length} exceeds the model limit '
                          f'{model.config.max_position_embeddings}.')
@@ -407,40 +462,65 @@ def run(spec: EncoderSpec, argv=None) -> None:
     run_done = 0
     run_start = time.time()
 
+    def embed(replica, device, chunk: Chunk) -> Tuple[np.ndarray, float, torch.device]:
+        chunk_start = time.time()
+        embeddings = embed_chunk(replica, spec.pool, chunk, tokenizer.pad_token_id, device, compute_dtype,
+                                 args.max_tokens_per_batch, args.max_batch_size).astype(store_dtype)
+        return embeddings, time.time() - chunk_start, device
+
+    pool = DevicePool(replicas, embed)
+
+    def commit(chunk: Chunk, future: Future) -> None:
+        nonlocal total_done, run_done, chunk_index
+        embeddings, chunk_seconds, device = future.result()
+        bad_rows = np.flatnonzero(~np.isfinite(embeddings).all(axis=1))
+        if bad_rows.size:
+            raise RuntimeError(f'{bad_rows.size} non-finite embeddings in chunk {chunk_index}, e.g. key '
+                               f'{chunk.keys[bad_rows[0]].decode()}; nothing of this chunk was stored.')
+
+        with output_env.begin(write=True) as txn:
+            for key, vector in zip(chunk.keys, embeddings):
+                txn.put(key, vector.tobytes())
+
+        total_done += len(chunk.keys)
+        run_done += len(chunk.keys)
+        # the rate of the one device that embedded this chunk; the run average covers all of them
+        docs_per_s = len(chunk.keys) / max(chunk_seconds, 1e-9)
+        append_progress(progress_path, (
+            time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), chunk_index,
+            chunk.keys[0].decode(), chunk.keys[-1].decode(), len(chunk.keys),
+            chunk.empty, chunk.truncated, total_done, f'{docs_per_s:.1f}'))
+
+        run_rate = run_done / max(time.time() - run_start, 1e-9)
+        eta_h = (source_entries - total_done) / max(run_rate, 1e-9) / 3600
+        logger.info(f'chunk {chunk_index}: {len(chunk.keys)} pages ({chunk.truncated} truncated, '
+                    f'{chunk.empty} empty), {docs_per_s:.1f} pages/s on {device} | total '
+                    f'{total_done}/{source_entries} ({100 * total_done / source_entries:.2f}%), '
+                    f'run avg {run_rate:.1f} pages/s, ETA {eta_h:.1f} h')
+        chunk_index += 1
+
     try:
         chunks = prefetch(iter_chunks(source_env, tokenizer, last_key, args.limit, args.chunk_size,
                                       args.max_length, spec.make_text_transform(args)))
+        pending: collections.deque = collections.deque()  # (chunk, future) in key order
         for chunk in chunks:
-            chunk_start = time.time()
-            embeddings = embed_chunk(model, spec.pool, chunk, tokenizer.pad_token_id, device, compute_dtype,
-                                     args.max_tokens_per_batch, args.max_batch_size).astype(store_dtype)
-            bad_rows = np.flatnonzero(~np.isfinite(embeddings).all(axis=1))
-            if bad_rows.size:
-                raise RuntimeError(f'{bad_rows.size} non-finite embeddings in chunk {chunk_index}, e.g. key '
-                                   f'{chunk.keys[bad_rows[0]].decode()}; nothing of this chunk was stored.')
-
-            with output_env.begin(write=True) as txn:
-                for key, vector in zip(chunk.keys, embeddings):
-                    txn.put(key, vector.tobytes())
-
-            total_done += len(chunk.keys)
-            run_done += len(chunk.keys)
-            docs_per_s = len(chunk.keys) / max(time.time() - chunk_start, 1e-9)
-            append_progress(progress_path, (
-                time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), chunk_index,
-                chunk.keys[0].decode(), chunk.keys[-1].decode(), len(chunk.keys),
-                chunk.empty, chunk.truncated, total_done, f'{docs_per_s:.1f}'))
-
-            run_rate = run_done / max(time.time() - run_start, 1e-9)
-            eta_h = (source_entries - total_done) / max(run_rate, 1e-9) / 3600
-            logger.info(f'chunk {chunk_index}: {len(chunk.keys)} pages ({chunk.truncated} truncated, '
-                        f'{chunk.empty} empty), {docs_per_s:.1f} pages/s | total {total_done}/{source_entries} '
-                        f'({100 * total_done / source_entries:.2f}%), run avg {run_rate:.1f} pages/s, '
-                        f'ETA {eta_h:.1f} h')
-            chunk_index += 1
+            pending.append((chunk, pool.submit(chunk)))
+            # Two chunks per device in flight, so no device idles while an older chunk is committed.
+            if len(pending) >= 2 * len(devices):
+                commit(*pending.popleft())
             if stop.requested:
-                logger.info('Stopped on request; rerun the same command to resume.')
                 break
+        while pending:
+            chunk, future = pending.popleft()
+            # On a stop, chunks no device has started are dropped. Two threads may start chunks out of order,
+            # so everything after the first dropped chunk is dropped too: commits stay a prefix in key order.
+            if stop.requested and future.cancel():
+                for _, later in pending:
+                    later.cancel()
+                break
+            commit(chunk, future)
+        if stop.requested:
+            logger.info('Stopped on request; rerun the same command to resume.')
         output_env.sync()
     finally:
         output_env.close()

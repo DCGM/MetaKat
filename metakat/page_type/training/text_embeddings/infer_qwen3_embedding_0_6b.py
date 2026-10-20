@@ -11,6 +11,8 @@ card L2-normalizes before cosine similarity.
 
 Throughput on an RTX 3090 with flash-attention is ~28 pages/s (pages capped at
 4000 chars are ~1400 tokens median), i.e. about a week for 16.7M pages.
+--n-gpu N runs one replica per GPU (the first N of CUDA_VISIBLE_DEVICES, or
+N GPUs claimed with --use-safe-gpu) into the same output.
 
 Pages are embedded as documents, i.e. without a prompt, as the model card does
 for retrieval documents. --instruction adds the query-style prefix
@@ -20,17 +22,18 @@ recorded in meta.json and must match on resume.
 Example:
     python -m metakat.page_type.training.text_embeddings.infer_qwen3_embedding_0_6b \\
         --source-lmdb /data/2026-09-16.db_text_dump/lmdb \\
-        --output-root /data/2026-09-16.db_text_dump/embeddings
+        --output-root /data/2026-09-16.db_text_dump/embeddings \\
+        --n-gpu 4
 """
 
 import sys
 
-from metakat.page_type.nets.gpu_bootstrap import bootstrap_single_gpu
+from metakat.page_type.nets.gpu_bootstrap import bootstrap_gpus
 
 
 # CUDA_VISIBLE_DEVICES must be finalized before importing PyTorch or Transformers.
 if __name__ == '__main__':
-    bootstrap_single_gpu(sys.argv[1:])
+    bootstrap_gpus(sys.argv[1:], multi_gpu=True)
 
 
 import torch
