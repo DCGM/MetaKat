@@ -1,0 +1,219 @@
+"""Journal articles registered in Crossref, for publishers whose sites have no OAI-PMH interface.
+
+A publisher registers its DOIs under its own prefix, so all its journals are found with
+``/prefixes/<prefix>/works``; single journals are found by their ISSNs. The works carry the journal
+(``container-title``, ISSNs), volume, issue, pages, the publication date, authors and, as links for
+similarity checking or text mining, the URL of the article PDF on the publisher's site, which is where
+the file is downloaded from.
+
+A journal is identified by its ISSNs (works list one or both of print and electronic ISSN, so ISSNs
+listed together make one journal); its title is the most frequent spelling of its ``container-title``
+(publishers deposit e.g. both "ORBIS SCHOLAE" and "Orbis Scholae").
+"""
+from __future__ import annotations
+
+import html
+import json
+import logging
+import re
+import urllib.error
+import urllib.parse
+from collections import Counter, defaultdict
+
+from metakat.chapter.download_articles.common.http import http_get
+from metakat.chapter.download_articles.common.models import CatalogItem
+from metakat.chapter.download_articles.common.source import NOT_ARTICLE, Download, DownloadBlocked, Source
+from metakat.chapter.download_articles.common.store import ArticleStore
+
+logger = logging.getLogger(__name__)
+
+API = "https://api.crossref.org"
+ROWS = 1000
+FIELDS = ["DOI", "title", "subtitle", "container-title", "ISSN", "volume", "issue", "page", "issued",
+          "published-print", "published-online", "author", "link", "resource", "abstract",
+          "subject", "license", "type", "publisher"]
+
+
+class CrossrefSource(Source):
+    """Journal articles of one publisher (``prefixes``) or of single journals (``issns``) in Crossref."""
+
+    prefixes: tuple[str, ...] = ()
+    # Journals by their ISSNs; each tuple holds the ISSNs of one journal.
+    issns: tuple[tuple[str, ...], ...] = ()
+    # Libraries harvested before this one: articles whose DOI is in their catalogs are left to them.
+    exclude_libraries: tuple[str, ...] = ()
+    # Articles without a PDF link are downloaded from the address their landing page names in
+    # ``citation_pdf_url`` (the meta tag for Google Scholar).
+    landing_pdf: bool = False
+    # PDF addresses taken from a landing page that names no ``citation_pdf_url``: the sites' own
+    # files, not the other PDFs an article page may link (e.g. cited works).
+    landing_pdf_link: re.Pattern | None = None
+
+    def build_catalog(self) -> list[CatalogItem]:
+        excluded = self.excluded_dois()
+        works: dict[str, dict] = {}
+        # A journal is asked for by each of its ISSNs until Crossref knows one.
+        queries = [[f"/prefixes/{prefix}/works"] for prefix in self.prefixes]
+        queries += [[f"/journals/{issn}/works" for issn in journal] for journal in self.issns]
+        for alternatives in queries:
+            for query in alternatives:
+                try:
+                    found = list(iter_works(query))
+                except urllib.error.HTTPError as error:
+                    if error.code != 404:
+                        raise
+                    logger.info(f"{query}: unknown to Crossref")
+                    continue
+                for work in found:
+                    works.setdefault(work["DOI"].lower(), work)
+                logger.info(f"{query}: {len(found)} articles")
+                break
+            else:
+                logger.warning(f"Nothing found for {', '.join(alternatives)}")
+        items = [item for doi, work in works.items() if doi not in excluded
+                 and (item := item_from_work(work, self.name)) is not None]
+        logger.info(f"{len(works)} articles, {len(works.keys() & excluded)} left to {', '.join(self.exclude_libraries)}")
+        group_journals(items)
+        unify_journal_titles(items)
+        for title, count in sorted(Counter(item.journal_title for item in items).items(), key=str):
+            logger.info(f"{title}: {count} articles")
+        return items
+
+    def excluded_dois(self) -> set[str]:
+        dois = set()
+        for library in self.exclude_libraries:
+            for item in ArticleStore(self.root, library).read_catalog():
+                dois.update(doi.lower() for doi in item.record.get("doi", []))
+        return dois
+
+    def is_available(self, item: CatalogItem) -> bool:
+        return (bool(item.pdf_urls or (self.landing_pdf and item.landing_url))
+                and not (item.title and NOT_ARTICLE.match(item.title)))
+
+    def download(self, item: CatalogItem) -> Download:
+        if item.pdf_urls or not self.landing_pdf:
+            return super().download(item)
+        page = http_get(item.landing_url)
+        # Some publishers register the PDF itself as the landing page.
+        if page.startswith(b"%PDF"):
+            return Download(page, item.landing_url)
+        text = page.decode("utf-8", "replace")
+        url = citation_pdf_url(text, item.landing_url)
+        if url is None and self.landing_pdf_link and (link := self.landing_pdf_link.search(text)):
+            url = html.unescape(link.group(0))
+        if url is None:
+            raise DownloadBlocked(f"{item.landing_url} names no citation_pdf_url")
+        return Download(self.download_pdf(url), url)
+
+
+_CITATION_PDF = re.compile(r'<meta\s[^>]*name="citation_pdf_url"[^>]*>', re.IGNORECASE)
+_CONTENT = re.compile(r'content="([^"]+)"', re.IGNORECASE)
+
+
+def citation_pdf_url(page: str, base: str) -> str | None:
+    """The PDF address a landing page names for Google Scholar, made absolute against ``base``."""
+    for tag in _CITATION_PDF.findall(page):
+        if content := _CONTENT.search(tag):
+            return urllib.parse.urljoin(base, html.unescape(content.group(1)))
+    return None
+
+
+def iter_works(query: str):
+    """Every journal article of a Crossref works query, following the deep-paging cursor."""
+    cursor = "*"
+    while True:
+        params = {"filter": "type:journal-article", "rows": ROWS, "cursor": cursor, "select": ",".join(FIELDS)}
+        message = json.loads(http_get(f"{API}{query}?{urllib.parse.urlencode(params)}"))["message"]
+        yield from message["items"]
+        cursor = message.get("next-cursor")
+        if not message["items"] or not cursor:
+            return
+
+
+def item_from_work(work: dict, library: str) -> CatalogItem | None:
+    issns = sorted(set(work.get("ISSN", [])))
+    if not issns:
+        return None
+    date = next((work[key]["date-parts"][0] for key in ("issued", "published-print", "published-online")
+                 if work.get(key, {}).get("date-parts", [[None]])[0][0]), None)
+    links = work.get("link", [])
+    pdf_urls = [link["URL"] for link in links if link.get("content-type") == "application/pdf"]
+    pdf_urls += [link["URL"] for link in links if link.get("content-type") == "unspecified"
+                 and link["URL"].lower().split("?")[0].endswith(".pdf")]
+    # A link for similarity checking is the full text, under any address (".../pdf", "dl/123"); tried last.
+    pdf_urls += [link["URL"] for link in links if link.get("content-type") == "unspecified"
+                 and link.get("intended-application") == "similarity-checking"]
+    authors = [", ".join(part for part in (author.get("family"), author.get("given")) if part) or author.get("name", "")
+               for author in work.get("author", [])]
+    record = {
+        "doi": [work["DOI"]],
+        "titles": work.get("title", []),
+        "subtitles": work.get("subtitle", []),
+        "container_titles": work.get("container-title", []),
+        "issn": issns,
+        "abstracts": [work["abstract"]] if work.get("abstract") else [],
+        "subjects": work.get("subject", []),
+        "licenses": [license["URL"] for license in work.get("license", [])],
+        "publisher": [work["publisher"]] if work.get("publisher") else [],
+        "links": [link["URL"] for link in links],
+    }
+    return CatalogItem(
+        library=library,
+        item_id=work["DOI"].lower().replace("/", "_"),
+        record_id=work["DOI"],
+        title=_plain((work.get("title") or [None])[0]),
+        item_type=work.get("type"),
+        journal_id="+".join(issns),
+        journal_title=_plain((work.get("container-title") or [None])[0]),
+        volume=work.get("volume"),
+        issue=work.get("issue"),
+        year=date[0] if date else None,
+        date="-".join(f"{part:02d}" for part in date) if date else None,
+        pages=work.get("page"),
+        authors=[author for author in authors if author],
+        rights=record["licenses"],
+        pdf_urls=list(dict.fromkeys(pdf_urls)),
+        landing_url=work.get("resource", {}).get("primary", {}).get("URL") or f"https://doi.org/{work['DOI']}",
+        record={key: values for key, values in record.items() if values},
+    )
+
+
+def group_journals(items: list[CatalogItem]) -> None:
+    """Make ISSNs listed together one journal, identified by all its ISSNs."""
+    parent: dict[str, str] = {}
+
+    def find(issn: str) -> str:
+        while parent.setdefault(issn, issn) != issn:
+            issn = parent[issn]
+        return issn
+
+    for item in items:
+        first, *others = item.record["issn"]
+        find(first)
+        for other in others:
+            parent[find(other)] = find(first)
+    groups: dict[str, set[str]] = defaultdict(set)
+    for issn in list(parent):
+        groups[find(issn)].add(issn)
+    for item in items:
+        item.journal_id = "+".join(sorted(groups[find(item.record["issn"][0])]))
+
+
+def unify_journal_titles(items: list[CatalogItem]) -> None:
+    """Give the items of a journal spelled with other letter case or punctuation its most frequent spelling."""
+    spellings: dict[tuple, Counter] = defaultdict(Counter)
+
+    def key(item: CatalogItem) -> tuple:
+        return item.journal_id, re.sub(r"\W+", " ", (item.journal_title or "").casefold()).strip()
+
+    for item in items:
+        spellings[key(item)][item.journal_title] += 1
+    for item in items:
+        item.journal_title = spellings[key(item)].most_common(1)[0][0]
+
+
+def _plain(text: str | None) -> str | None:
+    """Text without the markup and character entities publishers deposit (``<i>``, ``&amp;``)."""
+    if text is None:
+        return None
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", "", text)).split()) or None

@@ -87,3 +87,24 @@ def test_documents_with_annotated_pages_go_to_the_test_side(tmp_path):
     with output.open(encoding='utf-8') as f:
         splits = {row['page_id']: row['split'] for row in csv.DictReader(f, delimiter='\t')}
     assert splits == {ID.format(0): 'annotated', ID.format(1): 'test', ID.format(2): 'test'}
+
+
+def test_archive_vocabulary_survives_output_schema_changes(tmp_path):
+    labels = ['FlyLeaf', 'FrontEndSheet', 'not_found']
+    (tmp_path / 'pages.csv').write_text(CSV_HEADER + ''.join(
+        _csv_row('nkp', 'doc-a', ID.format(i), label, i)
+        for i, label in enumerate(labels)), encoding='utf-8')
+    (tmp_path / 'progress.tsv').write_text(''.join(
+        f'nkp\t{ID.format(i)}\t/mnt/x/nkp/doc-a.page_xml.zip\tdone\t\n'
+        for i in range(len(labels))), encoding='utf-8')
+    output = tmp_path / 'sample.tsv'
+    main(['--labels-csv', str(tmp_path / 'pages.csv'),
+          '--extract-progress', str(tmp_path / 'progress.tsv'), '--output', str(output),
+          '--test-fraction', '0'])
+    with output.open(encoding='utf-8') as f:
+        sample = {row['page_id']: row for row in csv.DictReader(f, delimiter='\t')}
+    for i, label in enumerate(labels[:2]):
+        assert sample[ID.format(i)]['archive_label'] == label
+        assert sample[ID.format(i)]['split'] == 'train'
+    assert sample[ID.format(2)]['archive_label'] == ''
+    assert sample[ID.format(2)]['split'] == 'background'

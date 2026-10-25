@@ -60,10 +60,12 @@ of it, so an environment installs only the tiers it uses.
 | Extra | Adds | Use for |
 | --- | --- | --- |
 | *(none)* | pydantic, PyYAML, Pillow, natsort | consumers that only read or write `MetakatIO` |
-| `pdf` | PyMuPDF | rendering an interactive PDF, with no engine present |
+| `vis` | PyMuPDF, numpy, OpenCV | visualization with no engine present: rendering an interactive PDF, sampling and reviewing article title pages (`metakat/chapter/download_articles`) |
 | `inference` | ultralytics, text-geometry-aligner, numpy, OpenCV, OR-Tools, and the torch runtime | running the pipeline through `process_batch` |
-| `worker` | `inference`, `pdf`, and the DocAPI client layer | running `metakat/worker/docapi` |
-| `train` | accelerate, scikit-learn, safe-gpu, numpy, OpenCV, and the torch runtime | training and evaluation in `metakat/page_type/nets` |
+| `vlm` | `inference`, OpenAI-compatible API client, JSON Schema validation, Jinja2 | reading pages with vision-language models |
+| `worker` | `inference`, `vis`, `vlm`, and the DocAPI client layer | running `metakat/worker/docapi` |
+| `train` | accelerate, scikit-learn, safe-gpu, numpy, OpenCV, LMDB, pandas, UMAP, Plotly, and the torch runtime | training, page embeddings, and evaluation under `metakat/page_type` |
+| `flash-attn` | FlashAttention 2 and einops | optional text embedding acceleration on the pinned Linux / Python 3.12 / CUDA 12 / torch 2.8 stack; installed separately from `all` |
 | `dev` | pytest, pytest-cov | running the test suite |
 | `all` | `worker`, `train`, `dev` | a full development machine |
 
@@ -76,18 +78,19 @@ the extra that provides it.
 it carries beyond the detector — array handling, image decoding, OCR geometry
 alignment, constraint solving — are general-purpose building blocks that any
 engine may reach for, so selecting a pipeline does not mean tracking which
-engine needs which library. Every engine reports `inference` as the extra to
-install, so a missing dependency never sends someone to a narrower install that
-the next configured engine would immediately outgrow.
+engine needs which library. VLM engines additionally need `vlm` for the API
+client and reply validation; `worker` includes it.
 
 The torch runtime — torch, torchvision and transformers — comes with
 `inference` and with `train`, both of which need it. `pyproject.toml` groups it
 separately so the two share one declaration; that grouping is an implementation
 detail of the tiers above and is not meant to be installed on its own.
 
-`pdf` is the base install plus the renderer and nothing else: the exporter
-reaches only the schemas and the document grouping helper, so a processed batch
-can be rendered where no engine and no model runtime are installed. `train`
+`vis` is the base install plus what visualization needs and no model runtime:
+PyMuPDF for the PDF exporter, which reaches only the schemas and the document
+grouping helper, so a processed batch can be rendered where no engine is
+installed, and numpy and OpenCV for the window that reviews sampled article
+title pages. Its numpy and OpenCV are the versions `inference` pins. `train`
 names numpy and OpenCV itself, because the dataset builders under
 `metakat/page_type` read page images directly rather than through an engine.
 
@@ -116,12 +119,12 @@ pip install -e libs/text-geometry-aligner \
             -e libs/DocAPI
 ```
 
-The base install and `pdf` name neither submodule and work from a plain
+The base install and `vis` name neither submodule and work from a plain
 checkout. With any prerequisite in place, install the tier itself:
 
 ```bash
 pip install -e "."             # read or write MetakatIO, nothing else
-pip install -e ".[pdf]"        # render an interactive PDF, no engine present
+pip install -e ".[vis]"        # interactive PDF, article title page review; no engine
 pip install -e ".[inference]"  # the pipeline through process_batch
 pip install -e ".[vlm]"        # the pipeline plus the engines reading pages with a VLM
 pip install -e ".[worker]"     # the DocAPI worker in metakat/worker/docapi
@@ -320,7 +323,7 @@ earlier `process_batch` run. All three are required here, because there is
 nothing to render without them. Both paths call the same exporter, so rendering
 a processed batch produces the PDF that processing would have written.
 
-Rendering needs only the `pdf` extra. The exporter reaches the schemas and the
+Rendering needs only the `vis` extra. The exporter reaches the schemas and the
 document grouping helper and nothing else, so an install that carries no engine
 and no model runtime can still render a batch another machine processed.
 

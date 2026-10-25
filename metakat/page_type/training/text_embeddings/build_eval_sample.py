@@ -54,11 +54,50 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from metakat.schemas.base_objects import PageType
-
 logger = logging.getLogger(__name__)
 
-PAGE_TYPES = frozenset(t.value for t in PageType)
+# Archive and annotation labels use the classifier vocabulary, independently
+# of the NDK spellings in the output schema (e.g. TitlePage vs titlePage).
+PAGE_TYPES = frozenset((
+    'Abstract',
+    'Advertisement',
+    'Appendix',
+    'BackCover',
+    'BackEndPaper',
+    'BackEndSheet',
+    'Bibliography',
+    'Blank',
+    'CalibrationTable',
+    'Cover',
+    'CustomInclude',
+    'Dedication',
+    'Edge',
+    'Errata',
+    'FlyLeaf',
+    'FragmentsOfBookbinding',
+    'FrontCover',
+    'FrontEndPaper',
+    'FrontEndSheet',
+    'FrontJacket',
+    'Frontispiece',
+    'Illustration',
+    'Impressum',
+    'Imprimatur',
+    'Index',
+    'Jacket',
+    'ListOfIllustrations',
+    'ListOfMaps',
+    'ListOfTables',
+    'Map',
+    'NormalPage',
+    'Obituary',
+    'Preface',
+    'SheetMusic',
+    'Spine',
+    'Table',
+    'TableOfContents',
+    'TitlePage',
+))
 BACKGROUND = '__background__'
 SAMPLE_COLUMNS = ('key', 'library', 'page_id', 'doc', 'order', 'doc_pages', 'archive_label',
                   'annotated_label', 'split')
