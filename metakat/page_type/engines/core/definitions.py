@@ -13,6 +13,12 @@ _LOCATION = "Page type core config"
 _LABEL = "Page type core engine"
 
 page_type_core_engines = {
+    'page_type_core_engine_context': EngineEntry(
+        module='metakat.page_type.engines.core.context.context',
+        attribute='PageTypeCoreEngineContext',
+        requires=('torch', 'transformers', 'numpy', 'cv2'),
+        extra='inference',
+    ),
     'page_type_core_engine_vit': EngineEntry(
         module='metakat.page_type.engines.core.page_type_core_engine_vit',
         attribute='PageTypeCoreEngineViT',
