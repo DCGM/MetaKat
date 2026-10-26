@@ -12,6 +12,7 @@ from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from itertools import groupby
+from statistics import median
 from typing import Any
 
 from metakat.common.models import BoundingBox, PageDimensions
@@ -59,6 +60,10 @@ class PageNumberPostprocessConfig:
     position_bandwidth_x: float = 0.04
     position_bandwidth_y: float = 0.025
     minimum_support: int = 3
+    firm_support_count: int = 5
+    firm_cluster_spread: float = 0.5
+    maximum_firm_positions: int = 2
+    additional_position_support_cap: float = 0.65
     position_window: int = 40
     sequence_window: int = 8
     drop_threshold: float = 0.1
@@ -85,14 +90,45 @@ class PageNumberPostprocessConfig:
                 or not 0 < value < 0.5
             ):
                 raise ValueError(f"postprocess.{name} must be between 0 and 0.5")
-        for name in ("minimum_support", "position_window", "sequence_window"):
+        for name in (
+            "minimum_support",
+            "firm_support_count",
+            "position_window",
+            "sequence_window",
+        ):
             value = getattr(self, name)
             if (
                 isinstance(value, bool)
                 or not isinstance(value, int)
-                or value < (3 if name == "minimum_support" else 1)
+                or value
+                < (3 if name in ("minimum_support", "firm_support_count") else 1)
             ):
                 raise ValueError(f"Invalid postprocess.{name}")
+        if (
+            isinstance(self.maximum_firm_positions, bool)
+            or not isinstance(self.maximum_firm_positions, int)
+            or not 1 <= self.maximum_firm_positions <= 2
+        ):
+            raise ValueError("postprocess.maximum_firm_positions must be 1 or 2")
+        if (
+            isinstance(self.firm_cluster_spread, bool)
+            or not isinstance(self.firm_cluster_spread, (int, float))
+            or not math.isfinite(self.firm_cluster_spread)
+            or self.firm_cluster_spread <= 0
+        ):
+            raise ValueError(
+                "postprocess.firm_cluster_spread must be finite and positive"
+            )
+        cap = self.additional_position_support_cap
+        if (
+            isinstance(cap, bool)
+            or not isinstance(cap, (int, float))
+            or not math.isfinite(cap)
+            or not 0 <= cap < 1
+        ):
+            raise ValueError(
+                "postprocess.additional_position_support_cap must be in [0, 1)"
+            )
         if (
             isinstance(self.drop_threshold, bool)
             or not isinstance(self.drop_threshold, (int, float))
@@ -119,12 +155,25 @@ class PageNumberPostprocessConfig:
         return cls(**values)
 
 
-class _PositionDistribution:
-    """A local kernel mixture with independent modes and optional scan parity.
+@dataclass(frozen=True)
+class _PositionCluster:
+    indices: tuple[int, ...]
+    center: tuple[float, float]
+    spread: float
 
-    One seed per page prevents pages with many detections dominating the fit.
-    A page never supplies its own positional support. The distribution is fit
-    once, before recovery, so recovered candidates cannot reinforce themselves.
+
+@dataclass(frozen=True)
+class _PositionFit:
+    center: tuple[float, float]
+    strength: float
+
+
+class _PositionDistribution:
+    """Independent position clusters, with at most two firm locations per chunk.
+
+    Cluster membership and the firm-location shortlist use initial detections
+    only. Per-page fits exclude that page; nearby peers refine firm centers.
+    Counts saturate at a threshold rather than competing with other locations.
     """
 
     def __init__(
@@ -134,13 +183,35 @@ class _PositionDistribution:
     ) -> None:
         self.pages = pages
         self.config = config
-        self._modes = {}
-        self._peaks = {}
         self.seeds = {
             i: page.selected
             for i, page in enumerate(pages)
             if page.selected is not None and _valid(page.selected, page)
         }
+        self.centers = {i: self.center(e, i) for i, e in self.seeds.items()}
+        self.clusters = self._clusters()
+        eligible = [
+            j
+            for j, cluster in enumerate(self.clusters)
+            if len(cluster.indices)
+            >= max(config.minimum_support, config.firm_support_count)
+            and cluster.spread <= config.firm_cluster_spread
+        ]
+        # One shortlist for the whole chunk: parity and moving windows must
+        # never independently promote a third physical location to firm status.
+        eligible.sort(
+            key=lambda j: (
+                -len(self.clusters[j].indices)
+                * math.exp(
+                    -0.5 * (self.clusters[j].spread / config.firm_cluster_spread) ** 2
+                ),
+                self.clusters[j].spread,
+                self.clusters[j].center,
+            )
+        )
+        self.firm = frozenset(eligible[: config.maximum_firm_positions])
+        self.parities = self._parities()
+        self._fits: dict[int, tuple[_PositionFit, ...]] = {}
 
     def center(
         self, evidence: PhysicalPageNumberEvidence, index: int
@@ -158,71 +229,147 @@ class _PositionDistribution:
             (a[1] - b[1]) / self.config.position_bandwidth_y
         ) ** 2
 
-    def modes(
-        self, index: int
-    ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
-        if index in self._modes:
-            return self._modes[index]
-        seeds = [
-            (j, self.center(e, j))
-            for j, e in self.seeds.items()
-            if j != index and abs(j - index) <= self.config.position_window
-        ]
-        # Prefer parity-specific modes when there is enough evidence. This
-        # keeps an outer-corner folio on the wrong side from appearing typical.
-        same_parity = [(j, p) for j, p in seeds if j % 2 == index % 2]
-        for group in (same_parity, seeds):
-            modes = [
-                p
-                for _, p in group
-                if sum(self.distance(p, q) <= 2 for _, q in group)
-                >= self.config.minimum_support
-            ]
-            if modes:
-                stable = [
-                    p
-                    for _, p in group
-                    if any(self.distance(p, mode) <= 2 for mode in modes)
-                ]
-                self._modes[index] = modes, stable
-                return self._modes[index]
-        self._modes[index] = [], []
-        return self._modes[index]
+    def _fit(self, indices: Sequence[int]) -> _PositionCluster | None:
+        if len(indices) < self.config.minimum_support:
+            return None
+        # Trim isolated tails around a coordinate-wise median, so one displaced
+        # detection cannot spoil an otherwise tight, well-supported position.
+        robust = (
+            median(self.centers[i][0] for i in indices),
+            median(self.centers[i][1] for i in indices),
+        )
+        core = tuple(i for i in indices if self.distance(self.centers[i], robust) <= 2)
+        if len(core) < self.config.minimum_support:
+            return None
+        center = (
+            sum(self.centers[i][0] for i in core) / len(core),
+            sum(self.centers[i][1] for i in core) / len(core),
+        )
+        spread = math.sqrt(
+            sum(self.distance(self.centers[i], center) for i in core) / len(core)
+        )
+        return _PositionCluster(core, center, spread)
+
+    def _clusters(self) -> tuple[_PositionCluster, ...]:
+        # Deterministic spatial grouping: at most two bandwidths from the
+        # running center. Sorting geometry avoids dependence on scan order.
+        groups: list[list[int]] = []
+        centers: list[tuple[float, float]] = []
+        for index in sorted(self.centers, key=lambda i: (self.centers[i], i)):
+            point = self.centers[index]
+            distances = [self.distance(point, center) for center in centers]
+            closest = (
+                min(range(len(distances)), key=distances.__getitem__)
+                if distances
+                else None
+            )
+            if closest is None or distances[closest] > 4:
+                groups.append([index])
+                centers.append(point)
+            else:
+                group = groups[closest]
+                n = len(group)
+                old = centers[closest]
+                centers[closest] = (
+                    (old[0] * n + point[0]) / (n + 1),
+                    (old[1] * n + point[1]) / (n + 1),
+                )
+                group.append(index)
+        # Merge adjacent representations of the same region before choosing
+        # firm positions; a diffuse region must not consume two firm slots.
+        changed = True
+        while changed:
+            changed = False
+            for a in range(len(groups)):
+                for b in range(a + 1, len(groups)):
+                    if self.distance(centers[a], centers[b]) <= 4:
+                        groups[a].extend(groups.pop(b))
+                        centers.pop(b)
+                        centers[a] = (
+                            sum(self.centers[i][0] for i in groups[a]) / len(groups[a]),
+                            sum(self.centers[i][1] for i in groups[a]) / len(groups[a]),
+                        )
+                        changed = True
+                        break
+                if changed:
+                    break
+        return tuple(
+            cluster for group in groups if (cluster := self._fit(group)) is not None
+        )
+
+    def _parities(self) -> dict[int, int]:
+        # Enforce alternation only if the two firm locations independently
+        # show opposite, strong parity preferences. A detector missing every
+        # other page at a single location is not evidence of two placements.
+        if len(self.firm) != 2:
+            return {}
+        result = {}
+        for j in self.firm:
+            indices = self.clusters[j].indices
+            if len(indices) < 2 * self.config.minimum_support:
+                return {}
+            even = sum(i % 2 == 0 for i in indices)
+            majority = max(even, len(indices) - even)
+            if majority / len(indices) < 0.8:
+                return {}
+            result[j] = 0 if even > len(indices) / 2 else 1
+        return result if len(set(result.values())) == 2 else {}
+
+    def fits(self, index: int) -> tuple[_PositionFit, ...]:
+        if index in self._fits:
+            return self._fits[index]
+        fits = []
+        for j, cluster in enumerate(self.clusters):
+            peers = [i for i in cluster.indices if i != index]
+            if j in self.parities:
+                if self.parities[j] != index % 2:
+                    continue
+                peers = [i for i in peers if i % 2 == index % 2]
+            local = self._fit(
+                [i for i in peers if abs(i - index) <= self.config.position_window]
+            )
+            # Once a position is firmly established for this chunk, absence
+            # of nearby detections must not erase that evidence. Nearby peers
+            # refine its center; the chunk's other detections establish it.
+            basis = self._fit(peers) if j in self.firm else local
+            if basis is None:
+                continue
+            local = local or basis
+            count_support = min(
+                1.0, len(basis.indices) / self.config.firm_support_count
+            )
+            spread = max(basis.spread, local.spread)
+            compactness = (
+                min(1.0, (self.config.firm_cluster_spread / spread) ** 2)
+                if spread
+                else 1.0
+            )
+            strength = count_support * compactness
+            if j not in self.firm:
+                strength = min(strength, self.config.additional_position_support_cap)
+            fits.append(_PositionFit(local.center, strength))
+        self._fits[index] = tuple(fits)
+        return self._fits[index]
 
     def support(self, evidence: PhysicalPageNumberEvidence, index: int) -> float | None:
-        modes, stable = self.modes(index)
-        if not modes:
+        fits = self.fits(index)
+        if not fits:
             return None
         center = self.center(evidence, index)
-        # Only stable modes contribute, excluding isolated outliers.
-        density = sum(
-            math.exp(-0.5 * self.distance(center, p))
-            for p in stable
-            if self.distance(center, p) <= 9
+        return max(
+            (
+                fit.strength * math.exp(-0.5 * self.distance(center, fit.center))
+                for fit in fits
+                if self.distance(center, fit.center) <= 9
+            ),
+            default=0.0,
         )
-        # Normalize by the peak, rather than by a fixed count. Otherwise many
-        # seeds would make even positions in the distribution's tails certain.
-        if index not in self._peaks:
-            self._peaks[index] = max(
-                sum(
-                    math.exp(-0.5 * self.distance(mode, p))
-                    for p in stable
-                    if self.distance(mode, p) <= 9
-                )
-                for mode in modes
-            )
-        return min(1.0, density / self._peaks[index])
 
     def windows(self, index: int) -> tuple[BoundingBox, ...]:
-        modes, _ = self.modes(index)
         dimensions = self.pages[index].dimensions
-        result = []
-        for x, y in modes:
-            if any(self.distance((x, y), previous) < 1 for previous in result):
-                continue
-            result.append((x, y))
         boxes = []
-        for x, y in result:
+        for fit in self.fits(index):
+            x, y = fit.center
             left = max(0, x - 3 * self.config.position_bandwidth_x)
             top = max(0, y - 3 * self.config.position_bandwidth_y)
             right = min(1, x + 3 * self.config.position_bandwidth_x)

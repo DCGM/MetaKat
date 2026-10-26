@@ -254,6 +254,10 @@ It then runs reusable document postprocessing across all ordered input pages.
     "position_bandwidth_x": 0.04,
     "position_bandwidth_y": 0.025,
     "minimum_support": 3,
+    "firm_support_count": 5,
+    "firm_cluster_spread": 0.5,
+    "maximum_firm_positions": 2,
+    "additional_position_support_cap": 0.65,
     "position_window": 40,
     "sequence_window": 8,
     "drop_threshold": 0.1,
@@ -387,37 +391,100 @@ chunk. The local position window still limits distant influence in that case.
 The thresholds are conservative heuristics and need evaluation on representative
 batches; no image, page-type, or bibliographic boundary classifier is added.
 
-### Position learning and recovery
+### Position estimation and recovery
 
-`PageNumberPostprocessor` fits a separate local Gaussian kernel mixture within
-each chunk to the centers of its initial selected detections, normalized by
-each page's dimensions.
-It keeps separate position modes rather than averaging top/bottom or left/right
-numbers into the middle of the page. Every page supplies at most one seed and
-never supports itself. A mode needs `minimum_support` neighboring seed pages
-(default 3), clustered within a squared bandwidth distance of 2. Seeds within
-`position_window` physical pages on either side are considered. When enough
-same-parity scans support a mode, only those scans are used; otherwise all
-neighboring scans are considered. Parity is based on ordinary scan order inside each chunk, excluding known
-cover/segment scans, rather than on printed number parity.
+`PageNumberPostprocessor` estimates distinct page-number positions within each
+numbering chunk, using the initial selected detections and coordinates normalized
+by each page's dimensions. Each scan supplies at most one seed. Spatial grouping
+uses a radius of two bandwidths, merges nearby representations of the same
+region, and trims isolated tails outside a squared bandwidth distance of 2 from
+the coordinate-wise median. This prevents one displaced detection from spoiling
+an otherwise tight cluster.
 
-The x/y bandwidths are fractions of the corresponding page dimension. Stable
-modes produce search windows extending three bandwidths in both directions,
-clipped to the page. All pages with a learned mode are searched, including
-pages already carrying a detection. The ALTO recovery adapter looks for short
-numeral-only lines or geometrically separated spans in a running header. It
-allows split digits and simple decoration, rejects adjacent ordinary prose,
-and retains the original word, line and block references. It reads the
-existing OCR at its original coordinates; it does **not** run image OCR or
-recover numerals missing from ALTO. A different recovery callback can inspect
-image crops using the same windows.
+Each location earns support **independently**, from its count and tightness.
+There is no normalization against the most frequent location. Thus 30 tight
+bottom-left detections and 40 tight bottom-right detections can both establish
+firm positions; missing detections do not count against either location.
 
-Recovered candidates never retrain the distribution. Position support is the
-candidate's kernel density relative to the strongest stable position, clipped
-to `[0, 1]`. Contributions beyond three bandwidths are ignored. Normalizing by
-the peak prevents large documents from making distribution tails look certain.
-Candidates are ranked by this support, using the initial selection to break
-ties. If no mode is supported, the initial selection is retained when available.
+The defaults are:
+
+| Setting | Default | Meaning |
+|---|---:|---|
+| `minimum_support` | 3 | Independent nearby seeds needed to estimate a local cluster at all. |
+| `firm_support_count` | 5 | Independent seeds in the chunk needed for full count support at a firm position. |
+| `firm_cluster_spread` | 0.5 | Maximum RMS dispersion, in bandwidth units, for full tightness support. |
+| `maximum_firm_positions` | 2 | Maximum firm positions per entire chunk; accepts 1 or 2. |
+| `additional_position_support_cap` | 0.65 | Maximum location strength for any position outside the firm shortlist. |
+| `position_window` | 40 | Ordinary scans considered on each side for local center refinement and weak-location evidence. |
+
+RMS dispersion is computed from normalized x/y distances divided by their
+respective bandwidths. With defaults, a spread of 0.5 corresponds to 2% of page
+width if dispersion is purely horizontal, or 1.25% of page height if purely
+vertical; combined x/y dispersion uses their squared distances together.
+
+At most two sufficiently populated and compact clusters enter a fixed firm
+shortlist for the chunk. They are ranked by count weighted by compactness. The
+shortlist is not chosen separately for each parity or moving window, so a third
+location cannot become firm merely by being the only local alternative. Other
+repeated locations remain available for recovery and candidate selection at
+reduced confidence.
+
+Each page is scored using independent peers **excluding its own detection**.
+Firm positions use the other supporting detections in the chunk. Nearby peers
+refine the center when available; otherwise the established chunk-wide estimate
+is used. A run of missed detections does not erase an already firm position.
+Additional weak positions still require local evidence. The per-location strength is:
+
+```text
+count_support = min(1, independent_peer_count / firm_support_count)
+tightness = min(1, (firm_cluster_spread / RMS_spread)^2)
+location_strength = count_support * tightness
+```
+
+Zero spread gives tightness 1. A location outside the two-position
+shortlist is capped at `additional_position_support_cap`. Full support therefore
+requires both enough independent peers and a tight cluster. The tightness check
+uses the greater of the overall supporting spread and any locally estimated
+spread. A detected number
+needs five other seeds under the default settings; it cannot be its own fifth
+supporting observation. A recovered number is evaluated by the same rule.
+
+Candidate position support is the greatest independent location strength,
+multiplied by Gaussian proximity to that location's center:
+
+```text
+support = max(location_strength * exp(-squared_bandwidth_distance / 2))
+```
+
+Contributions beyond a distance of three bandwidths are ignored. This keeps a
+candidate in a distribution tail uncertain even in a very large document, and
+prevents nearby modes from inflating support by adding their scores together.
+The two firm positions can each reach support 1 without competing. With the
+default cap, additional positions have final observed-number confidence at most
+0.8045, even after the sequence-agreement bonus. Scores remain heuristic review
+scores and need calibration on representative scans.
+
+Alternating left/right placement is enforced only when the two firm clusters
+show opposing parity preferences: each needs at least six seeds and at least
+80% of its seeds on the same parity. Otherwise parity is not used to reject a
+location. This avoids mistaking a single position detected only on even scans
+for evidence that odd scans need a different position. Parity is counted inside
+each chunk, excluding known covers and foldout segments.
+
+Every locally supported location produces a search window extending three
+bandwidths in each direction, clipped to the page. All pages with supported
+locations are searched, including pages already carrying a detection. Weak
+additional locations are searched too. The ALTO adapter looks for short
+numeral-only lines or geometrically separated spans in a running header, allows
+split digits and simple decoration, and retains the original ALTO references.
+It reads existing OCR at its original coordinates; it does **not** run image OCR
+or recover numerals absent from ALTO. A different callback can inspect image
+crops using the same windows.
+
+Recovered candidates never retrain the position estimates or firm shortlist.
+Candidates are ranked by position support, using the initial selection to break
+ties. Without an established firm position or enough local peers to estimate a weak
+position, the initial selection is retained when available at the existing uncertain starting confidence of 0.5.
 
 ### Sequence smoothing and review confidence
 
