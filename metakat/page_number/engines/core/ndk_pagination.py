@@ -149,6 +149,8 @@ class NdkPaginator:
         keys = {page.page_key for page in pages}
         if len(keys) != len(pages) or set(result.page_numbers) - keys:
             raise ValueError("NDK pagination requires unique known page keys")
+        if result.chunks:
+            return self._chunked(pages, result)
         numbers = {
             page.page_key: result.page_numbers.get(page.page_key) for page in pages
         }
@@ -171,7 +173,46 @@ class NdkPaginator:
             self._segments(unit, unit_numbers, unit_decisions)
             numbers.update(unit_numbers)
             decisions.update(unit_decisions)
-        return PageNumberCoreResult(numbers, decisions)
+        return PageNumberCoreResult(numbers, decisions, result.chunks)
+
+    def _chunked(self, pages, result):
+        if tuple(key for chunk in result.chunks for key in chunk.page_keys) != tuple(
+            page.page_key for page in pages
+        ):
+            raise ValueError(
+                "Numbering chunks must cover the input pages exactly in order"
+            )
+        by_key = {page.page_key: page for page in pages}
+        numbers = {
+            page.page_key: result.page_numbers.get(page.page_key) for page in pages
+        }
+        decisions = dict(result.decisions)
+        for chunk in result.chunks:
+            if chunk.ambiguous:
+                continue
+            config = self.config
+            if chunk.inferred:
+                if config.wholly_unnumbered:
+                    raise ValueError(
+                        "Wholly unnumbered assertion conflicts with observed page numbers"
+                    )
+                # A restart may mark a new book or a section of one book. It
+                # never establishes complete document edges on its own.
+                config = replace(config, complete_document=False)
+            paginated = NdkPaginator(config).process(
+                tuple(by_key[key] for key in chunk.page_keys),
+                PageNumberCoreResult(
+                    {key: numbers[key] for key in chunk.page_keys},
+                    {
+                        key: decisions[key]
+                        for key in chunk.page_keys
+                        if key in decisions
+                    },
+                ),
+            )
+            numbers.update(paginated.page_numbers)
+            decisions.update(paginated.decisions)
+        return PageNumberCoreResult(numbers, decisions, result.chunks)
 
     def _reliable(self, evidence):
         return (

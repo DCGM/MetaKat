@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Literal, Mapping
 
-from metakat.common.models import DetectionEvidence
+from metakat.common.models import DetectionEvidence, PageDimensions
 
 PageNumberTextCase = Literal["lowercase", "uppercase"]
 
@@ -70,6 +71,18 @@ class PageNumberDecision:
     sequence_support: float | None = None
     pagination_rule: str | None = None
     observation_action: str | None = None
+    chunk_index: int | None = None
+
+
+@dataclass(frozen=True)
+class PageNumberChunk:
+    """Ordered processing scope; an inferred scope need not be a whole book."""
+
+    page_keys: tuple[str, ...]
+    reason: str
+    inferred: bool = False
+    ambiguous: bool = False
+    unit_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -78,6 +91,7 @@ class PageNumberCoreResult:
         default_factory=dict
     )
     decisions: Mapping[str, PageNumberDecision] = field(default_factory=dict)
+    chunks: tuple[PageNumberChunk, ...] = ()
 
 
 def format_page_number(value: int, template: PhysicalPageNumberEvidence) -> str | None:
@@ -109,3 +123,28 @@ def format_page_number(value: int, template: PhysicalPageNumberEvidence) -> str 
         count, value = divmod(value, number)
         result += token * count
     return result.lower() if template.normalized.islower() else result
+
+
+def valid_detected_page_number(
+    evidence: PhysicalPageNumberEvidence, *, page_key: str, dimensions: PageDimensions
+) -> bool:
+    """Shared eligibility for raw detections; supplied labels are not anchors."""
+    if evidence.page_key != page_key:
+        raise ValueError(f"Candidate page key does not match {page_key!r}")
+    box = evidence.bbox
+    return (
+        not evidence.supplied
+        and not evidence.suffix
+        and evidence.value is not None
+        and evidence.value >= 0
+        and evidence.normalized is not None
+        and evidence.numeral_system is not None
+        and box is not None
+        and all(math.isfinite(v) for v in (box.x, box.y, box.width, box.height))
+        and box.width > 0
+        and box.height > 0
+        and box.x >= 0
+        and box.y >= 0
+        and box.x_max <= dimensions.width
+        and box.y_max <= dimensions.height
+    )

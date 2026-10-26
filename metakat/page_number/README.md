@@ -80,6 +80,7 @@ The method returns:
 PageNumberCoreResult(
     page_numbers: Mapping[str, PhysicalPageNumberEvidence | None],
     decisions: Mapping[str, PageNumberDecision],
+    chunks: tuple[PageNumberChunk, ...],
 )
 ```
 
@@ -256,6 +257,13 @@ It then runs reusable document postprocessing across all ordered input pages.
     "position_window": 40,
     "sequence_window": 8,
     "drop_threshold": 0.1,
+    "segmentation": {
+      "enabled": true,
+      "minimum_run_anchors": 3,
+      "maximum_anchor_gap": 12,
+      "minimum_offset_change": 4,
+      "maximum_number_step": 2
+    },
     "ndk": {
       "enabled": true,
       "profile": "shared",
@@ -317,18 +325,81 @@ Postprocessing is enabled by default. `postprocess.enabled: false` preserves
 initial resolver selections and their detector confidence, while still returning
 an explicit entry for every input page.
 
+### Numbering-based scan chunks
+
+A batch can contain several books or issues. Before learning any position
+model, `PageNumberChunker` separates sustained numbering regimes using the
+initial parsed detector selections. Each resulting chunk gets independent
+position learning, recovery windows, confidence scoring, sequence correction,
+and NDK pagination. Explicit `NdkPageContext.unit_key` changes are hard
+boundaries; the chunker may refine a known unit into several numbering regimes
+while preserving that unit's identity.
+
+By default, a candidate transition needs a supported run of at least three
+observed numbers on **each** side. A run requires one numeral system, increasing
+values, at most 12 ordinary scan positions between anchors, and no step larger
+than two numbers per intervening scan. Known excluded scans and foldout
+segments do not advance that scan count. Detector confidence is not used to
+establish the boundary, because those scores are not reliable indicators of a
+correct reading. Supplied numbers, invalid geometry, and recovered OCR never
+become boundary anchors.
+
+The chunker splits supported runs at a numbering restart or numeral-system
+change. A large forward discontinuity is split when the jump exceeds the
+progression predicted by the two runs' median slopes by at least four numbers.
+This can also isolate a missing block of scans: a processing boundary does not
+assert that a different bibliographic document was found. Short interruptions,
+single OCR errors, repeated header numbers, ordinary insertions, and small scan
+omissions do not establish a boundary on their own. Set
+`postprocess.segmentation.enabled` to false to retain only explicit unit
+boundaries.
+
+For example, a supported run ending at 122, several unnumbered scans, and a
+supported new run starting at 1 produce three scopes: the old run, an ambiguous
+boundary interval, and the new run. Numbering alone cannot say whether the
+intervening scans are old end matter or new front matter. Those ambiguous
+scans receive neither recovery windows from another chunk nor NDK labels.
+An existing valid reading in that interval is retained at review confidence
+0.35; otherwise the result stays unresolved. Explicit same-page segment links
+attach a scan to its parent's side where possible, and prevent cuts that would
+separate a known parent and child.
+
+A chunk is a **processing hypothesis**, not a confirmed whole document. Roman
+front matter and an Arabic body may belong to the same book. Consequently,
+inferred splits do not enable NDK leading/trailing inference, even when the
+batch was marked `complete_document=True`. Interior NDK rules still apply
+inside each nonambiguous chunk. Explicit complete units without inferred
+internal splits retain their configured edge policy. `NdkPaginator` also
+respects chunk scopes when invoked separately on a chunked result.
+
+`PageNumberCoreResult.chunks` covers every input page exactly once in order.
+Each `PageNumberChunk` records `page_keys`, its start `reason`, whether its scope
+was `inferred`, whether it is `ambiguous`, and the original `unit_key`.
+`PageNumberDecision.chunk_index` links each page to that scope. Boundary reasons
+are `input_start`, `explicit_unit`, `numbering_restart`, `numeral_system_change`,
+`numbering_offset_change`, or `uncertain_boundary`; ambiguous pages use the
+`boundary_uncertain` decision action. Decisions and boundaries are logged and
+available to callers without adding shared schema fields.
+
+Numbering cannot reveal every document border. Two books with uninterrupted
+compatible pagination, or too few reliable observed numbers, may remain one
+chunk. The local position window still limits distant influence in that case.
+The thresholds are conservative heuristics and need evaluation on representative
+batches; no image, page-type, or bibliographic boundary classifier is added.
+
 ### Position learning and recovery
 
-`PageNumberPostprocessor` fits a local Gaussian kernel mixture to the centers
-of the initial selected detections, normalized by each page's dimensions.
+`PageNumberPostprocessor` fits a separate local Gaussian kernel mixture within
+each chunk to the centers of its initial selected detections, normalized by
+each page's dimensions.
 It keeps separate position modes rather than averaging top/bottom or left/right
 numbers into the middle of the page. Every page supplies at most one seed and
 never supports itself. A mode needs `minimum_support` neighboring seed pages
 (default 3), clustered within a squared bandwidth distance of 2. Seeds within
 `position_window` physical pages on either side are considered. When enough
 same-parity scans support a mode, only those scans are used; otherwise all
-neighboring scans are considered. Parity is based on input order, not printed
-number parity, so Roman front matter does not shift it.
+neighboring scans are considered. Parity is based on ordinary scan order inside each chunk, excluding known
+cover/segment scans, rather than on printed number parity.
 
 The x/y bandwidths are fractions of the corresponding page dimension. Stable
 modes produce search windows extending three bandwidths in both directions,
@@ -463,7 +534,7 @@ correction also respect those boundaries. `excluded=True` excludes covers or
 other known scans from numeric progression and label inference. `counted=True`
 or `False` distinguishes ordinary pagination from extra leaves. `insert_anchor`
 can be `previous` (default) or `next` when source content associates an insert
-with the following page. Supplied suffixes are kept distinct within a unit,
+with the following page. Supplied suffixes are kept distinct within a processing chunk,
 using ASCII letters and omitting the Czech digraph and diacritics. Extensions
 beyond a single alphabet use a documented spreadsheet-style sequence.
 
@@ -504,7 +575,8 @@ objects. Omit it to use existing evidence only. Set `postprocess.ndk.enabled`
 to false to disable archival label inference while retaining position and sequence processing.
 
 `PageNumberCoreResult.decisions` uses actions `detected`, `recovered`,
-`corrected`, `dropped`, `unresolved`, `excluded`, and `supplied`. Disabled postprocessing leaves this
+`corrected`, `dropped`, `unresolved`, `excluded`, `supplied`, and
+`boundary_uncertain`. Disabled postprocessing leaves this
 mapping empty. The original detector score remains diagnostic information and
 does not contribute to postprocessed confidence. No new shared schema fields
 are required.

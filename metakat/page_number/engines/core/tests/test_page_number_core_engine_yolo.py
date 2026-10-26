@@ -199,3 +199,27 @@ def test_engine_validates_context_keys_before_detection():
     with pytest.raises(ValueError, match="unknown page keys"):
         engine.process(["p.jpg"], ["p.xml"], page_contexts={"other": NdkPageContext()})
     aligner.return_value.process.assert_not_called()
+
+
+def test_engine_segments_combined_books_before_learning_positions(
+    tmp_path, alignment_page
+):
+    from metakat.page_number.engines.core.tests.test_alto_recovery import write_alto
+
+    aligned, images, altos = [], [], []
+    values = list(range(90, 98)) + list(range(1, 7))
+    for i, value in enumerate(values):
+        key = f"p{i}"
+        y = 950 if i < 8 else 20
+        images.append(str(tmp_path / f"{key}.jpg"))
+        altos.append(str(write_alto(tmp_path / f"{key}.xml", [([str(value)], y)])))
+        p = alignment_page([(str(value), 0.01, y)], alto_width=1000, x=480, width=20)
+        p.page_key = key
+        aligned.append(p)
+    with mock.patch(ALIGNER) as aligner:
+        aligner.return_value.process.return_value = types.SimpleNamespace(pages=aligned)
+        engine = PageNumberCoreEngineYOLO({"name": "page_number_core_engine_yolo"})
+    result = engine.process(images, altos)
+    assert [chunk.page_keys[0] for chunk in result.chunks] == ["p0", "p8"]
+    assert [e.value for e in result.page_numbers.values()] == values
+    assert all(e.confidence >= 0.98 for e in result.page_numbers.values())

@@ -26,6 +26,11 @@ from metakat.page_number.engines.core.models import (
     PageNumberNumeralSystem,
     PhysicalPageNumberEvidence,
     format_page_number,
+    valid_detected_page_number,
+)
+from metakat.page_number.engines.core.segmentation import (
+    PageNumberChunker,
+    PageNumberSegmentationConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,8 +63,15 @@ class PageNumberPostprocessConfig:
     sequence_window: int = 8
     drop_threshold: float = 0.1
     ndk: NdkPaginationConfig = field(default_factory=NdkPaginationConfig)
+    segmentation: PageNumberSegmentationConfig = field(
+        default_factory=PageNumberSegmentationConfig
+    )
 
     def __post_init__(self) -> None:
+        if not isinstance(self.segmentation, PageNumberSegmentationConfig):
+            raise ValueError(
+                "postprocess.segmentation must be a PageNumberSegmentationConfig"
+            )
         if not isinstance(self.ndk, NdkPaginationConfig):
             raise ValueError("postprocess.ndk must be an NdkPaginationConfig")
         if not isinstance(self.enabled, bool):
@@ -100,6 +112,10 @@ class PageNumberPostprocessConfig:
         values = dict(raw)
         if "ndk" in values:
             values["ndk"] = NdkPaginationConfig.from_config(values["ndk"])
+        if "segmentation" in values:
+            values["segmentation"] = PageNumberSegmentationConfig.from_config(
+                values["segmentation"]
+            )
         return cls(**values)
 
 
@@ -225,24 +241,10 @@ class _PositionDistribution:
 def _valid(
     evidence: PhysicalPageNumberEvidence, page: PageNumberPostprocessInput
 ) -> bool:
-    if evidence.page_key != page.page_key:
-        raise ValueError(f"Candidate page key does not match {page.page_key!r}")
-    box = evidence.bbox
-    return (
-        not evidence.supplied
-        and not evidence.suffix
-        and evidence.value is not None
-        and evidence.value >= 0
-        and evidence.normalized is not None
-        and evidence.numeral_system is not None
-        and box is not None
-        and all(math.isfinite(v) for v in (box.x, box.y, box.width, box.height))
-        and box.width > 0
-        and box.height > 0
-        and box.x >= 0
-        and box.y >= 0
-        and box.x_max <= page.dimensions.width
-        and box.y_max <= page.dimensions.height
+    return valid_detected_page_number(
+        evidence,
+        page_key=page.page_key,
+        dimensions=page.dimensions,
     )
 
 
@@ -264,9 +266,42 @@ class PageNumberPostprocessor:
             return self._process_detections(pages, recover=recover)
         numbers = dict.fromkeys(keys)
         decisions = {key: PageNumberDecision("unresolved") for key in keys}
+        chunks = []
+        chunker = PageNumberChunker(self.config.segmentation)
         for _, unit in groupby(pages, key=lambda page: page.pagination.unit_key):
+            unit = tuple(unit)
+            chunks.extend(
+                chunker.split(
+                    unit,
+                    reason=(
+                        "explicit_unit"
+                        if unit[0].pagination.unit_key is not None
+                        else "input_start"
+                    ),
+                )
+            )
+        by_key = {page.page_key: page for page in pages}
+        for chunk_index, chunk in enumerate(chunks):
+            chunk_pages = tuple(by_key[key] for key in chunk.page_keys)
+            if chunk.ambiguous:
+                for page in chunk_pages:
+                    evidence = page.selected
+                    if page.pagination.excluded:
+                        decisions[page.page_key] = PageNumberDecision(
+                            "excluded", chunk_index=chunk_index
+                        )
+                        continue
+                    if evidence is not None and _valid(evidence, page):
+                        numbers[page.page_key] = replace(evidence, confidence=0.35)
+                    decisions[page.page_key] = PageNumberDecision(
+                        "boundary_uncertain",
+                        detector_confidence=evidence.confidence if evidence else None,
+                        original_reading=evidence.output_text() if evidence else None,
+                        chunk_index=chunk_index,
+                    )
+                continue
             ordinary = []
-            for page in unit:
+            for page in chunk_pages:
                 if page.pagination.excluded:
                     decisions[page.page_key] = PageNumberDecision("excluded")
                 elif page.pagination.segment_of is None:
@@ -274,8 +309,14 @@ class PageNumberPostprocessor:
             detected = self._process_detections(ordinary, recover=recover)
             numbers.update(detected.page_numbers)
             decisions.update(detected.decisions)
+            decisions.update(
+                {
+                    key: replace(decisions[key], chunk_index=chunk_index)
+                    for key in chunk.page_keys
+                }
+            )
         return NdkPaginator(self.config.ndk).process(
-            pages, PageNumberCoreResult(numbers, decisions)
+            pages, PageNumberCoreResult(numbers, decisions, tuple(chunks))
         )
 
     def _process_detections(
