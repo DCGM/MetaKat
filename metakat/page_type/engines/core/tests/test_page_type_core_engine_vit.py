@@ -7,6 +7,7 @@ from metakat.page_type.engines.core.page_type_core_engine_vit import (
     PageTypeCoreEngineViT,
 )
 from metakat.schemas.base_objects import PageType
+from metakat.page_type.engines.core.page_type_core_engine import PageTypeInput
 
 
 def _model(id2label):
@@ -99,4 +100,30 @@ def test_output_size_must_match_checkpoint_labels():
     engine.predict_probs = mock.Mock(return_value=[1.0])
 
     with pytest.raises(ValueError, match="output size"):
-        engine.process(["page.jpg"])
+        engine.process([PageTypeInput("page.jpg")])
+
+
+def test_vit_returns_semantic_results_for_all_positions():
+    engine = _engine()
+    engine.predict_probs = mock.Mock(side_effect=[[.1, .9], [.8, .2]])
+    predictions = engine.process([PageTypeInput("same.jpg"), PageTypeInput("same.jpg")])
+    assert [p.pageType for p in predictions] == [(PageType.TITLE_PAGE, .9), (PageType.COVER, .8)]
+    assert all(p.side is None for p in predictions)
+    assert predictions[0].startsDocument is None
+    assert predictions[1].startsDocument is not None
+
+
+def test_vit_rejects_a_page_without_an_image():
+    with pytest.raises(ValueError, match="requires an image"):
+        _engine().process([PageTypeInput(None)])
+
+
+def test_vit_applies_shared_boundary_fallback_after_raw_predictions():
+    engine = _engine(id2label={0: 'normalPage', 1: 'frontCover', 2: 'backCover'})
+    inputs = [PageTypeInput('p.jpg')] * 4
+    probabilities = [[.98, .01, .01], [.01, .01, .98], [.01, .98, .01], [.98, .01, .01]]
+    engine.predict_probs = mock.Mock(side_effect=probabilities)
+    result = engine.process(inputs)
+    assert [p.startsDocument[0] if p.startsDocument else None for p in result] == [None, False, True, False]
+    engine.predict_probs = mock.Mock(side_effect=probabilities)
+    assert all(p.startsDocument is None for p in engine.predict(inputs))

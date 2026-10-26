@@ -2,14 +2,16 @@ import argparse
 import logging
 import os
 from collections.abc import Mapping
-from typing import Any, Dict, List
+from typing import Any, List
 from PIL import Image
 
 import torch
 import torch.nn.functional as F
 from transformers import ViTImageProcessor, ViTForImageClassification
 
-from metakat.page_type.engines.core.page_type_core_engine import PageTypeCoreEngine
+from metakat.page_type.engines.core.page_type_core_engine import (
+    PageTypeCoreEngine, PageTypeInput, PageTypePrediction,
+)
 from metakat.engine_config import load_config_file, resolve_config_paths
 from metakat.schemas.base_objects import PageType
 
@@ -29,22 +31,24 @@ class PageTypeCoreEngineViT(PageTypeCoreEngine):
             self.page_type_by_class_id,
         ) = self._load_model_labels()
 
-    def process(self, images: List[str]) -> Dict[str, List[float]]:
-        predictions = {}
-        for i, img_path in enumerate(images):
-            probs = self.predict_probs(img_path)
+    def predict(self, pages: list[PageTypeInput]) -> list[PageTypePrediction]:
+        predictions = []
+        for i, page in enumerate(pages):
+            if not page.image_path:
+                raise ValueError("Page-type ViT requires an image for every page")
+            probs = self.predict_probs(page.image_path)
             if len(probs) != len(self.page_type_by_class_id):
                 raise ValueError(
                     "Page-type ViT output size does not match its configured "
-                    f"class names: {len(probs)} != "
-                    f"{len(self.page_type_by_class_id)}"
+                    f"class names: {len(probs)} != {len(self.page_type_by_class_id)}"
                 )
-            probs = [round(p, 3) for p in probs]
-            predictions[img_path] = probs
+            if any(not 0 <= p <= 1 for p in probs):
+                raise ValueError("Page-type ViT returned invalid probabilities")
+            class_id = max(range(len(probs)), key=probs.__getitem__)
+            predictions.append(PageTypePrediction(
+                pageType=(self.page_type_by_class_id[class_id], float(probs[class_id]))))
             if (i + 1) % 100 == 0:
-                logger.info(f"Processed {i + 1}/{len(images)} images")
-        if len(images) % 100 != 0:
-            logger.info(f"Processed {len(images)}/{len(images)} images")
+                logger.info("Processed %d/%d images", i + 1, len(pages))
         return predictions
 
     def predict_probs(self, image_path: str) -> List[float]:
@@ -134,16 +138,16 @@ def main():
     config = resolve_config_paths(config, os.path.dirname(args.engine_config))
     engine = PageTypeCoreEngineViT(config)
     images = [os.path.join(args.image_dir, img) for img in os.listdir(args.image_dir) if os.path.splitext(img)[-1].lower() in {'.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff'}]
-    predictions = engine.process(images)
-
+    images.sort()
     with open(args.output_file, 'w') as out_f:
-        for img_name, probs in predictions.items():
-            line_parts = [
-                f'{engine.model_label_by_class_id[i]}:{p:.2f}'
-                for i, p in enumerate(probs)
-            ]
-            line = f'{img_name} ' + ' '.join(line_parts)
-            out_f.write(line + '\n')
+        # Keep the standalone command's existing full probability-vector output.
+        for image in images:
+            probabilities = engine.predict_probs(image)
+            if len(probabilities) != len(engine.model_label_by_class_id):
+                raise ValueError('ViT output size does not match checkpoint labels')
+            scores = ' '.join(f'{engine.model_label_by_class_id[i]}:{p:.2f}'
+                              for i, p in enumerate(probabilities))
+            out_f.write(f'{image} {scores}\n')
 
     logger.info(f"Done. Predictions written to {args.output_file}")
     logger.info("Class index mapping:")

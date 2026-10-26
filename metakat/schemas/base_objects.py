@@ -39,6 +39,9 @@ class PageType(str, enum.Enum):
     only as internal-part types, and calibrationTable, customInclude and
     fragmentsOfBookbinding not at all.
 
+    Colophon is also retained as an archive classifier class pending its
+    mapping to the output vocabulary.
+
     These are not the classifier's own labels; an engine's page_type labels
     configuration maps each value to the label its model outputs.
     """
@@ -51,6 +54,8 @@ class PageType(str, enum.Enum):
     BIBLIOGRAPHY = "bibliography"
     BLANK = "blank"
     CALIBRATION_TABLE = "calibrationTable"
+    # Archive classifier class retained separately from impressum.
+    COLOPHON = "colophon"
     COVER = "cover"
     CUSTOM_INCLUDE = "customInclude"
     DEDICATION = "dedication"
@@ -448,6 +453,10 @@ class MetakatPage(MetakatBaseModel):
     pageNumber: Optional[Value] = None
     pageType: Optional[Tuple[PageType, Confidence]] = None
     side: Optional[Tuple[PageSideType, Confidence]] = None
+    # Resolved decision that this page starts a bottom-level document (e.g. an issue).
+    # Confidence is a resolver score confidence, not a calibrated model probability.
+    # None means unavailable, including the first page without a predecessor.
+    startsDocument: Optional[Tuple[bool, Confidence]] = None
     imageDim: Optional[MetakatPageDimensions] = None
     altoDim: Optional[MetakatPageDimensions] = None
 

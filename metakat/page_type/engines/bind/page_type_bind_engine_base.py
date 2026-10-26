@@ -1,48 +1,46 @@
 import copy
 import logging
 import os
-from collections import OrderedDict
-
-from natsort import natsorted
 
 from metakat.page_type.engines.bind.page_type_bind_engine import PageTypeBindEngine
-from metakat.schemas.base_objects import MetakatIO, ProarcIO, DocumentType
+from metakat.page_type.engines.core.page_type_core_engine import PageTypeInput, PageTypePrediction
+from metakat.schemas.base_objects import MetakatIO, ProarcIO, MetakatPage
 
 logger = logging.getLogger(__name__)
 
 
 class PageTypeBindEngineBase(PageTypeBindEngine):
-    def __init__(self, config, core_config):
-        super().__init__(config, core_config)
+    def process(self, batch_dir: str, metakat_io: MetakatIO,
+                proarc_io: ProarcIO = None) -> MetakatIO:
+        result = copy.deepcopy(metakat_io)
+        pages = sorted((p for p in result.elements if isinstance(p, MetakatPage)),
+                       key=lambda page: page.batch_index)
+        if len({p.batch_index for p in pages}) != len(pages):
+            raise ValueError("Page batch_index values must be unique for scan order")
+        if len({p.id for p in pages}) != len(pages):
+            raise ValueError("Page IDs must be unique")
+        if not pages:
+            return result
 
-    def process(self, batch_dir: str, metakat_io: MetakatIO, proarc_io: ProarcIO = None) -> MetakatIO:
-        metakat_io=copy.deepcopy(metakat_io)
-        image_path_to_page_id = OrderedDict(natsorted(
-            (os.path.join(batch_dir, y), x) for x, y in metakat_io.page_to_image_mapping.items())
-        )
+        def path(mapping, page_id):
+            relative = (mapping or {}).get(page_id)
+            return os.path.join(batch_dir, relative) if relative else None
 
-        page_id_to_metakat_page = {page.id: page for page in metakat_io.elements if page.type == DocumentType.PAGE.value}
-        logger.info(f"Processing {len(image_path_to_page_id)} MetaKatPage elements with page type core engine")
-        predictions = self.core_engine.process(list(image_path_to_page_id.keys()))
-        logger.info(f"Page type core engine returned {len(predictions)} predictions")
-
-        logger.info(f"Adding page types to MetaKatPage elements")
-        added_page_types = 0
-        for image_path, probs in predictions.items():
-            page_id = image_path_to_page_id[image_path]
-            metakat_page = page_id_to_metakat_page[page_id]
-            class_id = probs.index(max(probs))
-            page_type = self.core_engine.page_type_by_class_id.get(class_id)
-            if page_type is None:
-                logger.warning(
-                    "Class ID %d not found in the ViT checkpoint label "
-                    "mapping; skipping detection",
-                    class_id,
-                )
-                continue
-            prob = max(probs)
-            metakat_page.pageType = (page_type, prob)
-            added_page_types += 1
-        logger.info(f"Added page types to {added_page_types} MetaKatPage elements")
-
-        return metakat_io
+        inputs = [PageTypeInput(
+            image_path=path(result.page_to_image_mapping, p.id),
+            ocr_path=(path(result.page_to_alto_mapping, p.id)
+                      or path(result.page_to_xml_mapping, p.id)),
+            page_number=p.pageNumber.text if p.pageNumber is not None else None) for p in pages]
+        logger.info("Processing %d pages in scan order", len(inputs))
+        predictions = self.core_engine.process(inputs)
+        if len(predictions) != len(pages):
+            raise ValueError("Page-type core must return exactly one result per input page")
+        # Validate every output before attaching any predictions.
+        predictions = [PageTypePrediction.model_validate(p) for p in predictions]
+        for page, prediction in zip(pages, predictions, strict=True):
+            page.pageType = prediction.pageType
+            if prediction.side is not None:
+                page.side = prediction.side
+            if prediction.startsDocument is not None:
+                page.startsDocument = prediction.startsDocument
+        return result
