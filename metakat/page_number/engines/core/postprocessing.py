@@ -10,15 +10,22 @@ import logging
 import math
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
+from itertools import groupby
 from typing import Any
 
 from metakat.common.models import BoundingBox, PageDimensions
+from metakat.page_number.engines.core.ndk_pagination import (
+    NdkPageContext,
+    NdkPaginationConfig,
+    NdkPaginator,
+)
 from metakat.page_number.engines.core.models import (
     PageNumberCoreResult,
     PageNumberDecision,
     PageNumberNumeralSystem,
     PhysicalPageNumberEvidence,
+    format_page_number,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,6 +39,7 @@ class PageNumberPostprocessInput:
     # A detector's initial selection seeds the position distribution. All other
     # candidates remain available for reconsideration.
     selected: PhysicalPageNumberEvidence | None = None
+    pagination: NdkPageContext = field(default_factory=NdkPageContext)
 
 
 Recovery = Callable[
@@ -49,8 +57,11 @@ class PageNumberPostprocessConfig:
     position_window: int = 40
     sequence_window: int = 8
     drop_threshold: float = 0.1
+    ndk: NdkPaginationConfig = field(default_factory=NdkPaginationConfig)
 
     def __post_init__(self) -> None:
+        if not isinstance(self.ndk, NdkPaginationConfig):
+            raise ValueError("postprocess.ndk must be an NdkPaginationConfig")
         if not isinstance(self.enabled, bool):
             raise ValueError("postprocess.enabled must be boolean")
         for name in ("position_bandwidth_x", "position_bandwidth_y"):
@@ -86,7 +97,10 @@ class PageNumberPostprocessConfig:
         unknown = set(raw) - cls.__dataclass_fields__.keys()
         if unknown:
             raise ValueError(f"Unknown postprocess settings: {sorted(unknown)}")
-        return cls(**raw)
+        values = dict(raw)
+        if "ndk" in values:
+            values["ndk"] = NdkPaginationConfig.from_config(values["ndk"])
+        return cls(**values)
 
 
 class _PositionDistribution:
@@ -215,7 +229,9 @@ def _valid(
         raise ValueError(f"Candidate page key does not match {page.page_key!r}")
     box = evidence.bbox
     return (
-        evidence.value is not None
+        not evidence.supplied
+        and not evidence.suffix
+        and evidence.value is not None
         and evidence.value >= 0
         and evidence.normalized is not None
         and evidence.numeral_system is not None
@@ -235,6 +251,34 @@ class PageNumberPostprocessor:
         self.config = config or PageNumberPostprocessConfig()
 
     def process(
+        self,
+        pages: Sequence[PageNumberPostprocessInput],
+        *,
+        recover: Recovery | None = None,
+    ) -> PageNumberCoreResult:
+        pages = tuple(pages)
+        keys = [page.page_key for page in pages]
+        if len(keys) != len(set(keys)):
+            raise ValueError("Page-number postprocessing requires unique page keys")
+        if not self.config.enabled:
+            return self._process_detections(pages, recover=recover)
+        numbers = dict.fromkeys(keys)
+        decisions = {key: PageNumberDecision("unresolved") for key in keys}
+        for _, unit in groupby(pages, key=lambda page: page.pagination.unit_key):
+            ordinary = []
+            for page in unit:
+                if page.pagination.excluded:
+                    decisions[page.page_key] = PageNumberDecision("excluded")
+                elif page.pagination.segment_of is None:
+                    ordinary.append(page)
+            detected = self._process_detections(ordinary, recover=recover)
+            numbers.update(detected.page_numbers)
+            decisions.update(detected.decisions)
+        return NdkPaginator(self.config.ndk).process(
+            pages, PageNumberCoreResult(numbers, decisions)
+        )
+
+    def _process_detections(
         self,
         pages: Sequence[PageNumberPostprocessInput],
         *,
@@ -314,7 +358,7 @@ class PageNumberPostprocessor:
                     and position >= 0.6
                     and evidence.numeral_system == expected[0]
                 ):
-                    normalized = _format_number(expected[1], evidence)
+                    normalized = format_page_number(expected[1], evidence)
                     if normalized is not None:
                         evidence = replace(
                             evidence, value=expected[1], normalized=normalized
@@ -414,6 +458,7 @@ class PageNumberPostprocessor:
         distribution: _PositionDistribution,
     ) -> float | None:
         neighboring_offsets = []
+        compatible_progressions = 0
         for j in range(
             max(0, index - self.config.sequence_window),
             min(len(anchors), index + self.config.sequence_window + 1),
@@ -428,38 +473,14 @@ class PageNumberPostprocessor:
             support = distribution.support(other, j)
             if support is None or support >= 0.6:
                 neighboring_offsets.append(other.value - j)
+                # Extra unnumbered leaves can slow progression without making
+                # the observed folios unreliable. Do not penalize that pattern
+                # merely because it has no constant physical-index offset.
+                direction = 1 if j > index else -1
+                if 0 < (other.value - evidence.value) * direction <= abs(j - index):
+                    compatible_progressions += 1
         if len(neighboring_offsets) < 4:
             return None
-        return neighboring_offsets.count(evidence.value - index) / len(
-            neighboring_offsets
-        )
-
-
-def _format_number(value: int, template: PhysicalPageNumberEvidence) -> str | None:
-    assert template.normalized is not None
-    if template.numeral_system == PageNumberNumeralSystem.ARABIC:
-        token = str(value)
-        if template.normalized.startswith("0"):
-            token = token.zfill(len(template.normalized))
-        return token
-    if not 0 < value < 4000:
-        return None
-    result = ""
-    for number, token in (
-        (1000, "M"),
-        (900, "CM"),
-        (500, "D"),
-        (400, "CD"),
-        (100, "C"),
-        (90, "XC"),
-        (50, "L"),
-        (40, "XL"),
-        (10, "X"),
-        (9, "IX"),
-        (5, "V"),
-        (4, "IV"),
-        (1, "I"),
-    ):
-        count, value = divmod(value, number)
-        result += token * count
-    return result.lower() if template.normalized.islower() else result
+        return max(
+            neighboring_offsets.count(evidence.value - index), compatible_progressions
+        ) / len(neighboring_offsets)

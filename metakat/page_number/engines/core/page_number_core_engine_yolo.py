@@ -7,6 +7,7 @@ from text_geometry_aligner import ALTOReader, AlignmentPage
 
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
 from metakat.common.models import PageDimensions
+from metakat.page_number.engines.core.ndk_pagination import NdkPageContext
 from metakat.page_number.engines.core.alto_recovery import AltoPageNumberRecovery
 from metakat.page_number.engines.core.postprocessing import (
     PageNumberPostprocessor,
@@ -61,6 +62,8 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
         self,
         images: List[str],
         alto_files: List[str],
+        *,
+        page_contexts: Mapping[str, NdkPageContext] | None = None,
     ) -> PageNumberCoreResult:
         if len(images) != len(alto_files):
             raise ValueError(
@@ -68,6 +71,13 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
             )
         keys = [Path(image).stem for image in images]
         key_set = set(keys)
+        contexts = page_contexts or {}
+        if set(contexts) - key_set:
+            raise ValueError("Page-number context contains unknown page keys")
+        if any(
+            not isinstance(context, NdkPageContext) for context in contexts.values()
+        ):
+            raise ValueError("Page-number contexts must be NdkPageContext objects")
         if len(keys) != len(key_set):
             raise ValueError("Page-number images must have unique stems")
         if any(Path(alto).stem != key for key, alto in zip(keys, alto_files)):
@@ -100,7 +110,11 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
                         f"Page-number processing requires ALTO page dimensions: {key}"
                     )
                 dimensions = PageDimensions(alto.width, alto.height)
-                inputs.append(PageNumberPostprocessInput(key, dimensions))
+                inputs.append(
+                    PageNumberPostprocessInput(
+                        key, dimensions, pagination=contexts.get(key, NdkPageContext())
+                    )
+                )
                 continue
             if page.alto_width is None or page.alto_height is None:
                 raise ValueError(
@@ -126,7 +140,13 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
                 page_height=page.alto_height,
             )
             inputs.append(
-                PageNumberPostprocessInput(key, dimensions, candidates, selected)
+                PageNumberPostprocessInput(
+                    key,
+                    dimensions,
+                    candidates,
+                    selected,
+                    pagination=contexts.get(key, NdkPageContext()),
+                )
             )
 
         result = self.postprocessor.process(

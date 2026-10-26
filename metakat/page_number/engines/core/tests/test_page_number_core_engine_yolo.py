@@ -155,3 +155,47 @@ def test_engine_reports_missing_dimensions_clearly(alignment_page):
         engine = PageNumberCoreEngineYOLO({"name": "page_number_core_engine_yolo"})
     with pytest.raises(ValueError, match="requires ALTO page dimensions"):
         engine.process(["page-1.jpg"], ["page-1.xml"])
+
+
+def test_engine_supplies_ndk_label_when_neither_detector_nor_alto_has_number(
+    tmp_path, alignment_page
+):
+    from metakat.page_number.engines.core.tests.test_alto_recovery import write_alto
+
+    aligned, images, altos = [], [], []
+    for i in range(9):
+        key = f"p{i}"
+        images.append(str(tmp_path / f"{key}.jpg"))
+        altos.append(
+            str(
+                write_alto(
+                    tmp_path / f"{key}.xml", [] if i == 4 else [([str(10 + i)], 950)]
+                )
+            )
+        )
+        p = alignment_page(
+            [] if i == 4 else [(str(10 + i), 0.9, 950)],
+            alto_width=1000,
+            x=480,
+            width=20,
+        )
+        p.page_key = key
+        aligned.append(p)
+    with mock.patch(ALIGNER) as aligner:
+        aligner.return_value.process.return_value = types.SimpleNamespace(pages=aligned)
+        engine = PageNumberCoreEngineYOLO({"name": "page_number_core_engine_yolo"})
+    result = engine.process(images, altos)
+    assert result.page_numbers["p4"].output_text() == "14"
+    assert result.page_numbers["p4"].supplied
+    assert result.page_numbers["p4"].bbox is None
+    assert result.decisions["p4"].pagination_rule == "interior_sequence"
+
+
+def test_engine_validates_context_keys_before_detection():
+    from metakat.page_number.engines.core.ndk_pagination import NdkPageContext
+
+    with mock.patch(ALIGNER) as aligner:
+        engine = PageNumberCoreEngineYOLO({"name": "page_number_core_engine_yolo"})
+    with pytest.raises(ValueError, match="unknown page keys"):
+        engine.process(["p.jpg"], ["p.xml"], page_contexts={"other": NdkPageContext()})
+    aligner.return_value.process.assert_not_called()

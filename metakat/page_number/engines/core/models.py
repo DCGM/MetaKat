@@ -6,7 +6,6 @@ from typing import Literal, Mapping
 
 from metakat.common.models import DetectionEvidence
 
-
 PageNumberTextCase = Literal["lowercase", "uppercase"]
 
 
@@ -33,6 +32,10 @@ class PhysicalPageNumberEvidence(DetectionEvidence):
     normalized: str | None
     value: int | None
     numeral_system: PageNumberNumeralSystem | None
+    # Supplied cataloguing labels have no fabricated OCR text or geometry.
+    supplied: bool = field(default=False, kw_only=True)
+    suffix: str = field(default="", kw_only=True)
+    bracketed: bool = field(default=False, kw_only=True)
 
     def normalized_text(
         self,
@@ -50,7 +53,8 @@ class PhysicalPageNumberEvidence(DetectionEvidence):
     ) -> str:
         normalized = self.normalized_text(case=case)
         if normalized is not None:
-            return normalized
+            label = normalized + self.suffix
+            return f"[{label}]" if self.bracketed else label
         return apply_page_number_text_case(self.text, case)
 
 
@@ -64,6 +68,8 @@ class PageNumberDecision:
     detector_confidence: float | None = None
     original_reading: str | None = None
     sequence_support: float | None = None
+    pagination_rule: str | None = None
+    observation_action: str | None = None
 
 
 @dataclass(frozen=True)
@@ -72,3 +78,34 @@ class PageNumberCoreResult:
         default_factory=dict
     )
     decisions: Mapping[str, PageNumberDecision] = field(default_factory=dict)
+
+
+def format_page_number(value: int, template: PhysicalPageNumberEvidence) -> str | None:
+    if template.normalized is None:
+        return None
+    if template.numeral_system == PageNumberNumeralSystem.ARABIC:
+        token = str(value)
+        if template.normalized.startswith("0"):
+            token = token.zfill(len(template.normalized))
+        return token
+    if not 0 < value < 4000:
+        return None
+    result = ""
+    for number, token in (
+        (1000, "M"),
+        (900, "CM"),
+        (500, "D"),
+        (400, "CD"),
+        (100, "C"),
+        (90, "XC"),
+        (50, "L"),
+        (40, "XL"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
+    ):
+        count, value = divmod(value, number)
+        result += token * count
+    return result.lower() if template.normalized.islower() else result

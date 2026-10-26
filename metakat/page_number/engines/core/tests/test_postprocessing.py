@@ -67,13 +67,16 @@ def test_alternating_corners_and_multiple_vertical_modes():
     assert all(e.confidence >= 0.98 for e in result.page_numbers.values())
     wrong_side = page(6, 16, x=50, y=30)
     pages[6] = wrong_side
-    assert run(pages).page_numbers["p6"] is None
+    result = run(pages)
+    assert result.page_numbers["p6"].supplied
+    assert result.page_numbers["p6"].value == 16
+    assert result.decisions["p6"].observation_action == "dropped"
 
 
 def test_outlier_dropped_and_typical_alternative_replaces_it():
     pages = [page(i, i + 10) for i in range(10)]
     pages[5] = page(5, 999, x=300, y=400, confidence=1)
-    assert run(pages).decisions["p5"].action == "dropped"
+    assert run(pages).decisions["p5"].observation_action == "dropped"
     actual = page(5, 15, confidence=0.02).selected
     result = run(
         pages, recover=lambda p, windows: [actual] if p.page_key == "p5" else []
@@ -122,13 +125,15 @@ def test_resets_insertions_missing_scans_and_numeral_transitions_preserved(numbe
     for p, number in zip(pages, numbers):
         evidence = result.page_numbers[p.page_key]
         assert (evidence.output_text() if evidence else None) == (
-            str(number) if number else None
+            str(number) if number else "[4a]"
         )
 
 
-def test_blank_page_is_not_fabricated_from_sequence():
+def test_blank_page_gets_a_supplied_label_without_fabricated_ocr_or_geometry():
     pages = [page(i, i + 10 if i != 4 else None) for i in range(9)]
-    assert run(pages).page_numbers["p4"] is None
+    evidence = run(pages).page_numbers["p4"]
+    assert evidence.supplied and evidence.value == 14
+    assert evidence.text == "" and evidence.bbox is None
 
 
 def test_short_document_does_not_claim_certainty_or_drop_unique_layout():
@@ -188,9 +193,13 @@ def test_duplicate_pages_and_foreign_candidates_rejected():
 def test_outside_and_nonfinite_geometry_not_selected():
     pages = [page(i, i + 10) for i in range(9)]
     pages[4] = page(4, 14, x=float("nan"))
-    assert run(pages).page_numbers["p4"] is None
+    evidence = run(pages).page_numbers["p4"]
+    assert evidence.supplied and evidence.value == 14
+    assert evidence.text == "" and evidence.bbox is None
     pages[4] = page(4, 14, x=990)
-    assert run(pages).page_numbers["p4"] is None
+    evidence = run(pages).page_numbers["p4"]
+    assert evidence.supplied and evidence.value == 14
+    assert evidence.text == "" and evidence.bbox is None
 
 
 def test_empty_document():

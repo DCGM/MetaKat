@@ -1,0 +1,494 @@
+"""Supply archival page labels under NDK pagination rules.
+
+Sources: Pravidla pro popis monografií 2.5, §§1.1.3–1.1.8;
+Pravidla pro popis periodik 8.8, §§1.1.3–1.1.7. See README for URLs.
+The standard defines notation; inference thresholds here are project policy.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, replace
+from itertools import groupby
+from typing import TYPE_CHECKING, Literal, Mapping
+
+from metakat.page_number.engines.core.models import (
+    PageNumberCoreResult,
+    PageNumberDecision,
+    PageNumberNumeralSystem,
+    PhysicalPageNumberEvidence,
+    format_page_number,
+)
+
+if TYPE_CHECKING:
+    from metakat.page_number.engines.core.postprocessing import (
+        PageNumberPostprocessInput,
+    )
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class NdkPageContext:
+    """Optional source facts, supplied by a caller rather than guessed from OCR.
+
+    unit_key separates issues/volumes. Excluded scans and known foldout segments
+    do not advance ordinary pagination. counted distinguishes tail continuations
+    from extra leaves. segment_of references another input page's key.
+    """
+
+    unit_key: str | None = None
+    excluded: bool = False
+    counted: bool | None = None
+    segment_of: str | None = None
+    segment_index: int | None = None
+    insert_anchor: Literal["previous", "next"] = "previous"
+
+    def __post_init__(self):
+        if self.unit_key is not None and (
+            not isinstance(self.unit_key, str) or not self.unit_key
+        ):
+            raise ValueError("NDK unit_key must be a nonempty string")
+        if not isinstance(self.excluded, bool) or (
+            self.counted is not None and not isinstance(self.counted, bool)
+        ):
+            raise ValueError("NDK excluded/counting facts must be boolean")
+        if (self.segment_of is None) != (self.segment_index is None):
+            raise ValueError("NDK segments need both segment_of and segment_index")
+        if self.segment_of is not None and (
+            not isinstance(self.segment_of, str) or not self.segment_of
+        ):
+            raise ValueError("NDK segment_of must be a page key")
+        if self.segment_index is not None and (
+            isinstance(self.segment_index, bool)
+            or not isinstance(self.segment_index, int)
+            or self.segment_index < 1
+        ):
+            raise ValueError("NDK segment_index must be a positive integer")
+        if self.insert_anchor not in ("previous", "next"):
+            raise ValueError("NDK insert_anchor must be previous or next")
+
+
+@dataclass(frozen=True)
+class NdkPaginationConfig:
+    enabled: bool = True
+    profile: Literal["shared", "monograph", "periodical"] = "shared"
+    max_gap_pages: int = 8
+    minimum_anchor_confidence: float = 0.6
+    # Must be explicitly asserted: absence of OCR is not proof of a complete,
+    # wholly unnumbered volume. The default fills bounded gaps only.
+    complete_document: bool = False
+    wholly_unnumbered: bool = False
+    tail_mode: Literal["unknown", "continue", "insert"] = "unknown"
+
+    def __post_init__(self):
+        import math
+
+        for name in ("enabled", "complete_document", "wholly_unnumbered"):
+            if not isinstance(getattr(self, name), bool):
+                raise ValueError(f"ndk.{name} must be boolean")
+        if self.profile not in ("shared", "monograph", "periodical"):
+            raise ValueError("ndk.profile must be shared, monograph, or periodical")
+        if self.tail_mode not in ("unknown", "continue", "insert"):
+            raise ValueError("ndk.tail_mode must be unknown, continue, or insert")
+        if (
+            isinstance(self.max_gap_pages, bool)
+            or not isinstance(self.max_gap_pages, int)
+            or self.max_gap_pages < 1
+        ):
+            raise ValueError("ndk.max_gap_pages must be positive")
+        value = self.minimum_anchor_confidence
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or not 0 <= value <= 1
+        ):
+            raise ValueError("ndk.minimum_anchor_confidence must be in [0, 1]")
+        if self.wholly_unnumbered and not self.complete_document:
+            raise ValueError("ndk.wholly_unnumbered requires complete_document")
+        if self.wholly_unnumbered and self.profile != "monograph":
+            raise ValueError("ndk.wholly_unnumbered requires the monograph profile")
+
+    @classmethod
+    def from_config(cls, raw: Mapping) -> NdkPaginationConfig:
+        if not isinstance(raw, Mapping):
+            raise ValueError("postprocess.ndk must be an object")
+        if set(raw) - cls.__dataclass_fields__.keys():
+            raise ValueError("Unknown postprocess.ndk settings")
+        return cls(**raw)
+
+
+def suffix(index: int) -> str:
+    """ASCII letter sequence; no diacritics or Czech digraph ch."""
+
+    def letters(n):
+        result = ""
+        while n:
+            n, r = divmod(n - 1, 26)
+            result = chr(97 + r) + result
+        return result
+
+    value = letters(index)
+    if index >= 86:  # ch would be the 86th spreadsheet-style suffix
+        value = letters(index + 1)
+    return value
+
+
+class NdkPaginator:
+    def __init__(self, config: NdkPaginationConfig | None = None):
+        self.config = config or NdkPaginationConfig()
+
+    def process(
+        self,
+        pages: tuple[PageNumberPostprocessInput, ...],
+        result: PageNumberCoreResult,
+    ) -> PageNumberCoreResult:
+        if not self.config.enabled:
+            return result
+        keys = {page.page_key for page in pages}
+        if len(keys) != len(pages) or set(result.page_numbers) - keys:
+            raise ValueError("NDK pagination requires unique known page keys")
+        numbers = {
+            page.page_key: result.page_numbers.get(page.page_key) for page in pages
+        }
+        decisions = dict(result.decisions)
+        for _, unit in groupby(pages, key=lambda page: page.pagination.unit_key):
+            unit = tuple(unit)
+            ordinary = [
+                p
+                for p in unit
+                if not p.pagination.excluded and p.pagination.segment_of is None
+            ]
+            unit_numbers = {p.page_key: numbers[p.page_key] for p in unit}
+            unit_decisions = {
+                p.page_key: decisions[p.page_key]
+                for p in unit
+                if p.page_key in decisions
+            }
+            self._segments(unit, unit_numbers, unit_decisions)
+            self._unit(ordinary, unit_numbers, unit_decisions)
+            self._segments(unit, unit_numbers, unit_decisions)
+            numbers.update(unit_numbers)
+            decisions.update(unit_decisions)
+        return PageNumberCoreResult(numbers, decisions)
+
+    def _reliable(self, evidence):
+        return (
+            evidence is not None
+            and not evidence.supplied
+            and evidence.value is not None
+            and evidence.value > 0
+            and evidence.numeral_system is not None
+            and not evidence.suffix
+            and evidence.confidence >= self.config.minimum_anchor_confidence
+        )
+
+    def _supported(self, pages, index, direction, snapshot):
+        """Find an independent attested continuation without crossing a reset."""
+        neighbor = index + direction
+        a = snapshot[pages[index].page_key]
+        while (
+            0 <= neighbor < len(pages)
+            and abs(neighbor - index) <= self.config.max_gap_pages + 1
+        ):
+            b = snapshot[pages[neighbor].page_key]
+            if b is not None:
+                break
+            neighbor += direction
+        else:
+            return False
+        return (
+            self._reliable(a)
+            and self._reliable(b)
+            and a.numeral_system == b.numeral_system
+            and 0 < (b.value - a.value) * direction <= abs(neighbor - index)
+        )
+
+    def _unit(self, pages, numbers, decisions):
+        if not pages:
+            return
+        snapshot = dict(numbers)  # supplied labels never become inference anchors
+        observed = [i for i, p in enumerate(pages) if snapshot[p.page_key] is not None]
+        if self.config.wholly_unnumbered:
+            if any(not snapshot[pages[i].page_key].supplied for i in observed):
+                raise ValueError(
+                    "Wholly unnumbered assertion conflicts with observed page numbers"
+                )
+            for i, page in enumerate(pages, 1):
+                self._supply(
+                    page,
+                    numbers,
+                    decisions,
+                    str(i),
+                    i,
+                    PageNumberNumeralSystem.ARABIC,
+                    bracketed=True,
+                    confidence=0.9,
+                    reason="confirmed_unnumbered",
+                )
+            return
+        if not observed:
+            return
+        for left, right in zip(observed, observed[1:]):
+            gap = right - left - 1
+            if not 0 < gap <= self.config.max_gap_pages:
+                continue
+            a, b = snapshot[pages[left].page_key], snapshot[pages[right].page_key]
+            if (
+                not self._supported(pages, left, -1, snapshot)
+                or not self._supported(pages, right, 1, snapshot)
+                or a.numeral_system != b.numeral_system
+            ):
+                continue
+            delta = b.value - a.value
+            if not 1 <= delta <= gap + 1:
+                continue  # resets, missing scans, or conflicting evidence
+            missing = pages[left + 1 : right]
+            if delta == gap + 1 and all(
+                p.pagination.counted is not False for p in missing
+            ):
+                for offset, page in enumerate(missing, 1):
+                    self._from_anchor(
+                        page,
+                        a.value + offset,
+                        a,
+                        numbers,
+                        decisions,
+                        confidence=min(0.9, a.confidence, b.confidence),
+                        reason="interior_sequence",
+                    )
+            elif delta == 1 and all(p.pagination.counted is not True for p in missing):
+                for page in missing:
+                    anchor = b if page.pagination.insert_anchor == "next" else a
+                    self._from_anchor(
+                        page,
+                        anchor.value,
+                        anchor,
+                        numbers,
+                        decisions,
+                        suffix_value=self._next_suffix(anchor, numbers),
+                        bracketed=True,
+                        confidence=min(0.8, a.confidence, b.confidence),
+                        reason="inserted_leaf",
+                    )
+            elif 1 < delta < gap + 1:
+                if any(p.pagination.insert_anchor != "previous" for p in missing):
+                    continue
+                # NDK explicitly permits: 16, [16a], [16b], [17], 18.
+                # Choosing where inserts belong is a policy, not a visual fact.
+                extra = gap - (delta - 1)
+                for offset, page in enumerate(missing):
+                    if (page.pagination.counted is True and offset < extra) or (
+                        page.pagination.counted is False and offset >= extra
+                    ):
+                        break
+                else:
+                    for offset, page in enumerate(missing):
+                        value = (
+                            a.value if offset < extra else a.value + offset - extra + 1
+                        )
+                        self._from_anchor(
+                            page,
+                            value,
+                            a,
+                            numbers,
+                            decisions,
+                            suffix_value=(
+                                self._next_suffix(a, numbers) if offset < extra else ""
+                            ),
+                            bracketed=True,
+                            confidence=min(0.55, a.confidence, b.confidence),
+                            reason="mixed_gap",
+                        )
+        if self.config.complete_document:
+            self._edges(pages, observed, snapshot, numbers, decisions)
+
+    def _edges(self, pages, observed, snapshot, numbers, decisions):
+        first, last = observed[0], observed[-1]
+        if 0 < first <= self.config.max_gap_pages and self._supported(
+            pages, first, 1, snapshot
+        ):
+            anchor = snapshot[pages[first].page_key]
+            if anchor.value > first:
+                for i in range(first):
+                    self._from_anchor(
+                        pages[i],
+                        anchor.value - first + i,
+                        anchor,
+                        numbers,
+                        decisions,
+                        bracketed=True,
+                        confidence=0.75,
+                        reason="leading_sequence",
+                    )
+            elif anchor.value == 1:
+                occupied = {
+                    e.output_text().casefold()
+                    for e in numbers.values()
+                    if e is not None
+                }
+                prefix = ""
+                while any(
+                    f"[{anchor.normalized}{prefix}{suffix(i + 1)}]".casefold()
+                    in occupied
+                    for i in range(first)
+                ):
+                    prefix += "a"
+                for i in range(first):
+                    self._from_anchor(
+                        pages[i],
+                        1,
+                        anchor,
+                        numbers,
+                        decisions,
+                        suffix_value=prefix + suffix(i + 1),
+                        bracketed=True,
+                        confidence=0.7,
+                        reason="leading_insert",
+                    )
+        tail = pages[last + 1 :]
+        if (
+            not tail
+            or len(tail) > self.config.max_gap_pages
+            or not self._supported(pages, last, -1, snapshot)
+        ):
+            return
+        anchor = snapshot[pages[last].page_key]
+        mode = self.config.tail_mode
+        if all(p.pagination.counted is True for p in tail):
+            mode = "continue"
+        elif all(p.pagination.counted is False for p in tail):
+            mode = "insert"
+        if mode == "unknown":
+            return
+        if any(p.pagination.counted is (mode == "insert") for p in tail):
+            return  # explicit per-page facts conflict with the chosen tail rule
+        for i, page in enumerate(tail, 1):
+            self._from_anchor(
+                page,
+                anchor.value + i if mode == "continue" else anchor.value,
+                anchor,
+                numbers,
+                decisions,
+                suffix_value=(
+                    self._next_suffix(anchor, numbers) if mode == "insert" else ""
+                ),
+                bracketed=True,
+                confidence=0.7,
+                reason="trailing_" + mode,
+            )
+
+    def _segments(self, pages, numbers, decisions):
+        by_key = {page.page_key: page for page in pages}
+        seen = set()
+        for page in pages:
+            context = page.pagination
+            if context.segment_of is None or context.excluded:
+                continue
+            if context.segment_of not in by_key or context.segment_of == page.page_key:
+                raise ValueError(
+                    "NDK segment parent must be another page in the same unit"
+                )
+            if by_key[context.segment_of].pagination.segment_of is not None:
+                raise ValueError("NDK segment parent cannot itself be a segment")
+            identity = (context.segment_of, context.segment_index)
+            if identity in seen:
+                raise ValueError("NDK segment indexes must be unique for their parent")
+            seen.add(identity)
+            anchor = numbers[context.segment_of]
+            if anchor is None or anchor.suffix or anchor.value is None:
+                continue
+            self._from_anchor(
+                page,
+                anchor.value,
+                anchor,
+                numbers,
+                decisions,
+                suffix_value=suffix(context.segment_index),
+                bracketed=True,
+                confidence=min(0.9, anchor.confidence),
+                reason="foldout_segment",
+            )
+
+    def _from_anchor(
+        self,
+        page,
+        value,
+        anchor,
+        numbers,
+        decisions,
+        *,
+        suffix_value="",
+        bracketed=False,
+        confidence,
+        reason,
+    ):
+        token = format_page_number(value, anchor)
+        if token is not None:
+            self._supply(
+                page,
+                numbers,
+                decisions,
+                token,
+                value,
+                anchor.numeral_system,
+                suffix_value=suffix_value,
+                bracketed=bracketed,
+                confidence=min(confidence, anchor.confidence),
+                reason=reason,
+            )
+
+    @staticmethod
+    def _next_suffix(anchor, numbers):
+        occupied = {
+            e.output_text().casefold() for e in numbers.values() if e is not None
+        }
+        index = 1
+        while f"[{anchor.normalized}{suffix(index)}]".casefold() in occupied:
+            index += 1
+        return suffix(index)
+
+    @staticmethod
+    def _supply(
+        page,
+        numbers,
+        decisions,
+        token,
+        value,
+        system,
+        *,
+        suffix_value="",
+        bracketed=False,
+        confidence,
+        reason,
+    ):
+        if numbers[page.page_key] is not None:
+            return
+        evidence = PhysicalPageNumberEvidence(
+            page_key=page.page_key,
+            text="",
+            bbox=None,
+            confidence=confidence,
+            normalized=token,
+            value=value,
+            numeral_system=system,
+            supplied=True,
+            suffix=suffix_value,
+            bracketed=bracketed,
+        )
+        numbers[page.page_key] = evidence
+        previous = decisions.get(page.page_key, PageNumberDecision("unresolved"))
+        decisions[page.page_key] = replace(
+            previous,
+            action="supplied",
+            pagination_rule=reason,
+            observation_action=previous.action,
+        )
+        logger.info(
+            "Supplied NDK label: page=%s label=%s rule=%s confidence=%.2f",
+            page.page_key,
+            evidence.output_text(),
+            reason,
+            confidence,
+        )

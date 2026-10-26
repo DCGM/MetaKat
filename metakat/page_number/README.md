@@ -85,8 +85,9 @@ PageNumberCoreResult(
 
 `page_numbers` contains every input page key, in input order. Its value is
 `None` when no physical number can be resolved, otherwise one evidence object.
-Unnumbered pages are retained in the physical sequence; numbers are never
-fabricated for blank pages merely to fill a sequence. Each value is a
+Unnumbered pages are retained in the physical sequence. The final NDK stage
+may supply a cataloguing label when its pagination context is sufficiently clear;
+these labels have `supplied=True`, empty OCR text, and no invented geometry. Each value is a
 `PhysicalPageNumberEvidence`:
 
 ```python
@@ -109,7 +110,7 @@ class AltoRefs:
 class DetectionEvidence:
     text: str
     confidence: float
-    bbox: BoundingBox
+    bbox: BoundingBox | None
     page_key: str
     alto: AltoRefs = AltoRefs()  # keyword-only
 
@@ -119,6 +120,9 @@ class PhysicalPageNumberEvidence(DetectionEvidence):
     normalized: str | None
     value: int | None
     numeral_system: PageNumberNumeralSystem | None
+    supplied: bool = False  # keyword-only
+    suffix: str = ""  # keyword-only
+    bracketed: bool = False  # keyword-only
 ```
 
 It extends the common `DetectionEvidence` provenance with a parsed
@@ -126,20 +130,22 @@ physical-number representation.
 
 | Attribute | Core result contract |
 |---|---|
-| `text` | Complete OCR text covered by the selected detection. Decoration is retained. |
+| `text` | Complete OCR text covered by an observed detection; empty for a supplied NDK label. |
 | `confidence` | Document support score used for binding precedence and review. With postprocessing enabled, this replaces raw detector confidence; see [Document postprocessing](#document-postprocessing). |
-| `bbox` | Selected detection geometry in the aligned page coordinate system, represented by the top-left coordinates `x` and `y` plus `width` and `height`. |
+| `bbox` | `None` for supplied labels. Otherwise selected detection geometry in the aligned page coordinate system, represented by the top-left coordinates `x` and `y` plus `width` and `height`. |
 | `page_key` | Image filename stem of the source page. |
 | `alto` | ID attributes of the ALTO elements holding the detection's words: `TextBlock` (`blocks`), `TextLine` (`lines`) and `String` (`words`), each once, in reading order. IDs are unique only within the page's ALTO file. A level is empty where the ALTO gives its elements no ID - producers differ, and most write IDs on blocks, many on lines, few on words. |
-| `normalized` | Parsed numeral token with decoration removed, or `None` when parsing failed. |
+| `normalized` | Bare parsed or supplied numeral token; use `output_text()` for the complete archive label. |
 | `value` | Integer value of the parsed Arabic or Roman numeral, or `None`. |
 | `numeral_system` | `PageNumberNumeralSystem.ARABIC`, `PageNumberNumeralSystem.ROMAN`, or `None`. |
+| `supplied` | True for a cataloguing label inferred or supplied from explicit pagination facts. |
+| `suffix`, `bracketed` | NDK letter suffix and bracket notation. `value` remains the numeral base; a suffix does not identify a new ordinary numeric page. |
 
 `normalized_text(case=None)` returns the normalized token. `output_text()`
-returns that token when available and otherwise returns the complete OCR text.
+adds any NDK suffix and brackets to that token, or returns the complete OCR text
+if no normalized token exists. Letter suffixes stay lowercase during case conversion.
 Both methods accept `case="lowercase"` or `case="uppercase"`; `None` preserves
-the parsed Roman token's case. The available core implementation only returns
-successfully parsed evidence, but the optional fields allow evidence to retain
+the parsed Roman token's case. Observed detections are successfully parsed, but the optional fields allow evidence to retain
 an unsuccessful parse at other processing boundaries.
 
 `PageNumberCoreResult.decisions` records each postprocessing action, positional
@@ -249,7 +255,16 @@ It then runs reusable document postprocessing across all ordered input pages.
     "minimum_support": 3,
     "position_window": 40,
     "sequence_window": 8,
-    "drop_threshold": 0.1
+    "drop_threshold": 0.1,
+    "ndk": {
+      "enabled": true,
+      "profile": "shared",
+      "max_gap_pages": 8,
+      "minimum_anchor_confidence": 0.6,
+      "complete_document": false,
+      "wholly_unnumbered": false,
+      "tail_mode": "unknown"
+    }
   }
 }
 ```
@@ -350,8 +365,8 @@ and position support at least 0.6 is preferred (without a learned mode, an
 attested candidate is also eligible). Otherwise an existing, well-positioned
 reading in the same numeral system may have its normalized number corrected.
 Raw OCR text, bounding box and ALTO references are retained. Roman case and
-Arabic zero padding are preserved. No evidence means an unresolved result,
-even when neighbors suggest a number.
+Arabic zero padding are preserved. This observation stage leaves pages without
+evidence unresolved; the separate NDK stage may then supply archival labels.
 
 Confidence is a heuristic review score, **not a calibrated probability**:
 
@@ -361,7 +376,9 @@ Confidence is a heuristic review score, **not a calibrated probability**:
 - Inferred corrections are capped at 0.85 so they remain reviewable.
 - An unresolved sequence contradiction caps confidence at 0.35. With at least
   four reliable neighbors in the same numeral system, fewer than 25% supporting
-  the candidate's physical-index offset also caps confidence at 0.35. This keeps
+  the candidate's physical-index offset or a compatible positive progression
+  also caps confidence at 0.35. Slower monotonic progression remains compatible
+  with extra unnumbered leaves and does not reduce folio confidence by itself. This keeps
   repeated running-header years from receiving folio-level certainty.
 - Support below `drop_threshold` (default 0.1) drops the candidate after recovery
   and sequence reconsideration. Set this threshold to 0 to retain outliers at
@@ -372,6 +389,91 @@ position model; their scores deliberately remain uncertain. The defaults need
 evaluation on representative scanned documents before treating them as review
 thresholds. Sequence inference cannot distinguish every genuine printing error
 from an OCR error, so inferred corrections remain less certain.
+
+### NDK archival pagination
+
+The final, detector-independent `NdkPaginator` follows the pagination notation in
+[NDK monograph description rules 2.5](https://standardy.ndk.cz/ndk/standardy-digitalizace/ppp_mono_2.5_final.pdf)
+(§§1.1.3–1.1.8) and
+[NDK periodical description rules 8.8](https://standardy.ndk.cz/ndk/standardy-digitalizace/ppp_perio_8.8_final.pdf)
+(§§1.1.3–1.1.7), both published 21 October 2026 and checked 26 October 2026.
+The notation is prescribed by NDK; automatic inference criteria and confidence
+thresholds are implementation policy, not requirements of the standard.
+
+It is **not** correct to put every absent page number in brackets. The supported
+cases are:
+
+| Context | Result |
+|---|---|
+| A missing interior number in a continuous sequence | Supply the ordinary number without brackets. |
+| Extra unnumbered pages between consecutive observed numbers | Append lowercase letter suffixes to the preceding number, in brackets. |
+| A gap containing both extra leaves and missing ordinary numbers | Use NDK's permitted convention of placing suffixed inserts first, then bracketed ordinary numbers. |
+| Roman pagination | Preserve the numeral system and case, with lowercase letter suffixes. |
+| Known complete document, missing leading ordinary numbers | Supply bracketed numbers, if backward counting stays positive. |
+| Known complete document, unnumbered pages before page 1 | Supply bracketed letter labels; use the permitted double-letter prefix if later labels would collide. |
+| Known complete document, trailing pages | Require explicit counted/extra-leaf facts or a chosen `tail_mode`; then supply bracketed continuations or suffixed inserts. |
+| Confirmed wholly unnumbered monograph | Start at 1 with every supplied number bracketed. |
+| Known segments of one foldout | Reuse the parent's number with bracketed letter suffixes. Segment scans do not advance ordinary pagination. |
+
+Default inference handles **bounded interior gaps only**, with at most 8 missing
+scans per gap. Each bounding anchor must have confidence at least 0.6 and a
+nearby independent attested continuation on its own side (two anchors on each
+side in total). Searches stop at the first observed number and reject resets
+or jumps exceeding the intervening scan count. Supplied numbers never become anchors. Resets, numeral-system changes,
+number jumps indicating absent scans, and insufficient context remain unresolved.
+For mixed insert/number gaps, the chosen assignment is only one NDK-permitted
+arrangement; it receives confidence at most 0.55 because page content may justify
+another arrangement. Known counting facts are respected; contradictions leave
+the gap unresolved.
+
+Inferred plain interior labels have confidence at most 0.9; inserted leaves 0.8;
+leading/trailing labels 0.7–0.75. Anchor-based scores never exceed their source
+anchor confidence. These are review scores, not claims that image OCR found the
+number. The original observation action and reading remain in
+`PageNumberDecision.observation_action` and `original_reading`, and
+`pagination_rule` records the inference rule. `supplied=True` labels carry empty
+`text`, `bbox=None`, and empty ALTO references. The binder writes their complete
+`output_text()` and confidence without creating geometry or OCR references.
+
+`profile` defaults to `shared`, covering rules common to both document kinds.
+`monograph` additionally allows an explicitly confirmed wholly unnumbered volume.
+It must be combined with `complete_document=True` and `wholly_unnumbered=True`;
+failed OCR alone never establishes that condition. Document edges are processed
+only with `complete_document=True`. A trailing run is ambiguous in both profiles
+without information distinguishing a continuation from added leaves, so
+`tail_mode` defaults to `unknown`. Its explicit alternatives are `continue` and
+`insert`. No cover/blank/page-type classifier or shared schema is changed.
+
+Source facts can be supplied through `NdkPageContext`:
+
+```python
+contexts = {
+    "scan-001": NdkPageContext(unit_key="issue-1", excluded=True),
+    "scan-002": NdkPageContext(unit_key="issue-1"),
+    "scan-003": NdkPageContext(
+        unit_key="issue-1", segment_of="scan-002", segment_index=1,
+    ),
+}
+result = yolo_core.process(images, alto_files, page_contexts=contexts)
+```
+
+Reusable callers set `PageNumberPostprocessInput.pagination` to the same context.
+`unit_key` separates contiguous issues/volumes; position learning and sequence
+correction also respect those boundaries. `excluded=True` excludes covers or
+other known scans from numeric progression and label inference. `counted=True`
+or `False` distinguishes ordinary pagination from extra leaves. `insert_anchor`
+can be `previous` (default) or `next` when source content associates an insert
+with the following page. Supplied suffixes are kept distinct within a unit,
+using ASCII letters and omitting the Czech digraph and diacritics. Extensions
+beyond a single alphabet use a documented spreadsheet-style sequence.
+
+`segment_of` must name a parent scan in the same unit, and `segment_index` must
+be a unique positive index for that parent. Both are explicit source facts;
+repeated numbers or missed detections are not proof of a foldout. Recto/verso
+folio numbering and two-page/column labels require physical-layout evidence;
+this implementation does not infer those relationships from missing OCR. Such
+source material must be identified before choosing its pagination convention.
+No pages are removed, reordered, or silently classified as blank.
 
 ### Reusing the step with another detector
 
@@ -398,10 +500,11 @@ box inside that page. Invalid geometry is ignored; foreign and duplicate page
 keys are errors. Dimensions and bounding boxes must use the same coordinate
 system. The optional recovery callback receives one page input and a tuple of
 `BoundingBox` search windows, and returns more `PhysicalPageNumberEvidence`
-objects. Omit it for position rescoring and sequence smoothing alone.
+objects. Omit it to use existing evidence only. Set `postprocess.ndk.enabled`
+to false to disable archival label inference while retaining position and sequence processing.
 
 `PageNumberCoreResult.decisions` uses actions `detected`, `recovered`,
-`corrected`, `dropped`, and `unresolved`. Disabled postprocessing leaves this
+`corrected`, `dropped`, `unresolved`, `excluded`, and `supplied`. Disabled postprocessing leaves this
 mapping empty. The original detector score remains diagnostic information and
 does not contribute to postprocessed confidence. No new shared schema fields
 are required.

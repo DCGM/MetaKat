@@ -93,3 +93,36 @@ def test_unresolved_page_does_not_create_detection_or_erase_existing_value(
     assert metakat_page.pageNumber.text == "42"
     assert metakat_io.detection_to_bbox == {}
     assert metakat_io.detection_to_page_mapping == {}
+
+
+def test_binder_writes_supplied_ndk_label_without_detection_geometry(metakat_page):
+    from metakat.page_number.engines.core.models import (
+        PhysicalPageNumberEvidence,
+        PageNumberNumeralSystem,
+    )
+
+    evidence = PhysicalPageNumberEvidence(
+        page_key="p",
+        text="",
+        bbox=None,
+        confidence=0.8,
+        normalized="26",
+        value=26,
+        numeral_system=PageNumberNumeralSystem.ARABIC,
+        supplied=True,
+        suffix="a",
+        bracketed=True,
+    )
+    metakat_io = MetakatIO(batch_id=metakat_page.batch_id, elements=[metakat_page])
+    PageNumberBindEngineBase.bind_core_result(
+        PageNumberCoreResult({"p": evidence}),
+        {"p": metakat_page},
+        metakat_io,
+    )
+    assert metakat_page.pageNumber.text == "[26a]"
+    assert metakat_io.detection_to_bbox == {}
+    assert metakat_io.detection_to_alto is None
+    assert (
+        metakat_io.detection_to_page_mapping[metakat_page.pageNumber.id]
+        == metakat_page.id
+    )
