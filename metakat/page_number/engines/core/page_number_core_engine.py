@@ -23,4 +23,5 @@ class PageNumberCoreEngine(ABC):
         images: List[str],
         alto_files: List[str],
     ) -> PageNumberCoreResult:
+        """Return one entry per input image, in order; use None when unresolved."""
         pass

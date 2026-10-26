@@ -71,7 +71,7 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
         core_result = self.core_engine.process(images, alto_files)
         logger.info(
             "Page number core engine returned %d resolved page number(s)",
-            len(core_result.page_numbers),
+            sum(evidence is not None for evidence in core_result.page_numbers.values()),
         )
 
         page_by_key = self._page_by_image_key(pages, image_mapping)
@@ -111,9 +111,10 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
             metakat_page = page_by_key.get(page_key)
             if metakat_page is None:
                 raise ValueError(
-                    "Page-number core returned an unknown page key: "
-                    f"{page_key}"
+                    f"Page-number core returned an unknown page key: {page_key}"
                 )
+            if evidence is None:
+                continue
             if (
                 metakat_page.pageNumber is not None
                 and metakat_page.pageNumber.confidence >= evidence.confidence

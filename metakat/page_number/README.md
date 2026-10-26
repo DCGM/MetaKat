@@ -10,6 +10,7 @@
   - [Processing handoff](#processing-handoff)
 - [Available core implementation](#available-core-implementation)
   - [YOLO + ALTO](#engine-yolo--alto-page_number_core_engine_yolo)
+- [Document postprocessing](#document-postprocessing)
 - [Page-number parsers](#page-number-parsers)
   - [Decorated page-number parser](#decorated-page-number-parser)
 - [Page-number resolvers](#page-number-resolvers)
@@ -32,14 +33,14 @@ Page-number processing has two boundaries:
 
 1. The **[core engine](#page-number-core-engine-contract)** analyzes ordered
    page images and ALTO files. It returns at most one parsed physical-number
-   evidence object per page.
+   evidence object per page, with an explicit unresolved entry where needed.
 2. The **[bind engine](#available-bind-implementation)** selects processable
    MetaKat pages, invokes the core, applies confidence precedence, creates
    detection UUIDs, and writes the selected evidence and its provenance into
    `MetakatIO`.
 
-The core owns detection, OCR alignment, parsing, candidate filtering, and
-physical-candidate selection. The binder does not repeat or alter those
+The core owns detection, OCR alignment, parsing, candidate filtering,
+document-level postprocessing, and physical-candidate selection. The binder does not repeat or alter those
 decisions.
 
 ```mermaid
@@ -77,13 +78,15 @@ The method returns:
 
 ```python
 PageNumberCoreResult(
-    page_numbers: Mapping[str, PhysicalPageNumberEvidence],
+    page_numbers: Mapping[str, PhysicalPageNumberEvidence | None],
+    decisions: Mapping[str, PageNumberDecision],
 )
 ```
 
-`page_numbers` is sparse. A missing page key means that the core did not
-resolve a physical page number for that page. The mapping contains at most one
-evidence object for each page key. Each value is a
+`page_numbers` contains every input page key, in input order. Its value is
+`None` when no physical number can be resolved, otherwise one evidence object.
+Unnumbered pages are retained in the physical sequence; numbers are never
+fabricated for blank pages merely to fill a sequence. Each value is a
 `PhysicalPageNumberEvidence`:
 
 ```python
@@ -124,7 +127,7 @@ physical-number representation.
 | Attribute | Core result contract |
 |---|---|
 | `text` | Complete OCR text covered by the selected detection. Decoration is retained. |
-| `confidence` | Geometry-detection confidence used for selection and binding precedence. |
+| `confidence` | Document support score used for binding precedence and review. With postprocessing enabled, this replaces raw detector confidence; see [Document postprocessing](#document-postprocessing). |
 | `bbox` | Selected detection geometry in the aligned page coordinate system, represented by the top-left coordinates `x` and `y` plus `width` and `height`. |
 | `page_key` | Image filename stem of the source page. |
 | `alto` | ID attributes of the ALTO elements holding the detection's words: `TextBlock` (`blocks`), `TextLine` (`lines`) and `String` (`words`), each once, in reading order. IDs are unique only within the page's ALTO file. A level is empty where the ALTO gives its elements no ID - producers differ, and most write IDs on blocks, many on lines, few on words. |
@@ -139,8 +142,11 @@ the parsed Roman token's case. The available core implementation only returns
 successfully parsed evidence, but the optional fields allow evidence to retain
 an unsuccessful parse at other processing boundaries.
 
-`PageNumberCoreResult` contains only the sparse `page_numbers` mapping. It has
-no MetaKat detection UUIDs: UUID creation and schema mutation belong to the
+`PageNumberCoreResult.decisions` records each postprocessing action, positional
+support, local sequence support, sequence agreement before correction, original
+reading, and source confidence. These diagnostics are available to core callers and actions are
+logged; the binder writes the selected value and confidence to the existing
+schema. It has no MetaKat detection UUIDs: UUID creation and schema mutation belong to the
 [bind engine](#available-bind-implementation).
 
 ### Implementing another core engine
@@ -152,12 +158,12 @@ Every core engine receives its configuration mapping directly. To add one:
 2. implement `process()` while preserving the complete
    [core contract](#page-number-core-engine-contract); the base class does not
    prescribe detection, parsing, or resolution;
-3. return only common `PhysicalPageNumberEvidence` objects with valid input
-   page keys;
+3. return common `PhysicalPageNumberEvidence` objects or `None` for every
+   input page key, in order;
 4. register the config `name` in `page_number_core_engines` in core
    `definitions.py`;
-5. test engine loading, sparse results, parsing, candidate selection, and page
-   key validation.
+5. test engine loading, unresolved results, parsing, candidate selection, and
+   page key validation. Older sparse results remain accepted by the binder.
 
 `PageNumberBindEngineBase` can bind any implementation satisfying this
 contract. A core that returns a different result model requires a matching
@@ -222,8 +228,8 @@ The registered core implementation is:
 ### Engine: YOLO + ALTO (`page_number_core_engine_yolo`)
 
 The engine detects page-number geometry with YOLO, aligns each detection with
-ALTO words, parses the covered text, and selects at most one physical page
-number per page.
+ALTO words, parses the covered text, and selects initial physical page numbers.
+It then runs reusable document postprocessing across all ordered input pages.
 
 #### Configuration
 
@@ -235,7 +241,16 @@ number per page.
     "PageNumber": "cislo strany"
   },
   "page_number_edge_band_ratio": 0.15,
-  "page_number_edge_score_weight": 0.65
+  "page_number_edge_score_weight": 0.65,
+  "postprocess": {
+    "enabled": true,
+    "position_bandwidth_x": 0.04,
+    "position_bandwidth_y": 0.025,
+    "minimum_support": 3,
+    "position_window": 40,
+    "sequence_window": 8,
+    "drop_threshold": 0.1
+  }
 }
 ```
 
@@ -275,9 +290,121 @@ The implementation parses each retained region's aligned OCR text with
 using `STANDARD` mode. The parser and resolver are documented independently
 below.
 
-After all pages are processed, `PageNumberCoreResult.page_numbers` contains
-the selected evidence indexed by page key. Pages without selected evidence
-are omitted.
+After initial selection, all candidates and page dimensions are passed to
+`PageNumberPostprocessor`. Input image and ALTO lists must have equal lengths,
+matching corresponding filename stems, and unique image stems. Aligner output
+is reassembled in input order, and pages omitted by a detector are retained.
+Finite positive ALTO page dimensions are required on every page.
+
+## Document postprocessing
+
+Postprocessing is enabled by default. `postprocess.enabled: false` preserves
+initial resolver selections and their detector confidence, while still returning
+an explicit entry for every input page.
+
+### Position learning and recovery
+
+`PageNumberPostprocessor` fits a local Gaussian kernel mixture to the centers
+of the initial selected detections, normalized by each page's dimensions.
+It keeps separate position modes rather than averaging top/bottom or left/right
+numbers into the middle of the page. Every page supplies at most one seed and
+never supports itself. A mode needs `minimum_support` neighboring seed pages
+(default 3), clustered within a squared bandwidth distance of 2. Seeds within
+`position_window` physical pages on either side are considered. When enough
+same-parity scans support a mode, only those scans are used; otherwise all
+neighboring scans are considered. Parity is based on input order, not printed
+number parity, so Roman front matter does not shift it.
+
+The x/y bandwidths are fractions of the corresponding page dimension. Stable
+modes produce search windows extending three bandwidths in both directions,
+clipped to the page. All pages with a learned mode are searched, including
+pages already carrying a detection. The ALTO recovery adapter looks for short
+numeral-only lines or geometrically separated spans in a running header. It
+allows split digits and simple decoration, rejects adjacent ordinary prose,
+and retains the original word, line and block references. It reads the
+existing OCR at its original coordinates; it does **not** run image OCR or
+recover numerals missing from ALTO. A different recovery callback can inspect
+image crops using the same windows.
+
+Recovered candidates never retrain the distribution. Position support is the
+candidate's kernel density relative to the strongest stable position, clipped
+to `[0, 1]`. Contributions beyond three bandwidths are ignored. Normalizing by
+the peak prevents large documents from making distribution tails look certain.
+Candidates are ranked by this support, using the initial selection to break
+ties. If no mode is supported, the initial selection is retained when available.
+
+### Sequence smoothing and review confidence
+
+The sequence stage uses a fixed snapshot of the selected evidence; inferred
+corrections cannot become anchors for more corrections. Within
+`sequence_window` physical pages on each side (default 8), it requires at least
+two reliable anchors on each side sharing the same numeral system and
+`value - physical_index` offset. The nearest reliable anchor on each side must
+also agree. Anchors with learned position support below 0.6 are excluded.
+This avoids extrapolation at document ends and preserves ordinary numbering
+resets, Roman-to-Arabic transitions, missing scans, and unnumbered insertions
+when the surrounding offsets disagree.
+
+When that consensus exists, an attested candidate with the expected number
+and position support at least 0.6 is preferred (without a learned mode, an
+attested candidate is also eligible). Otherwise an existing, well-positioned
+reading in the same numeral system may have its normalized number corrected.
+Raw OCR text, bounding box and ALTO references are retained. Roman case and
+Arabic zero padding are preserved. No evidence means an unresolved result,
+even when neighbors suggest a number.
+
+Confidence is a heuristic review score, **not a calibrated probability**:
+
+- Without a supported position model: 0.5, regardless of YOLO confidence.
+- With positional support `s`: `0.25 + 0.73 * s` (a typical position gets 0.98).
+- Agreement with a strong sequence adds 0.08, capped at 0.99.
+- Inferred corrections are capped at 0.85 so they remain reviewable.
+- An unresolved sequence contradiction caps confidence at 0.35. With at least
+  four reliable neighbors in the same numeral system, fewer than 25% supporting
+  the candidate's physical-index offset also caps confidence at 0.35. This keeps
+  repeated running-header years from receiving folio-level certainty.
+- Support below `drop_threshold` (default 0.1) drops the candidate after recovery
+  and sequence reconsideration. Set this threshold to 0 to retain outliers at
+  low confidence.
+
+Small documents or sparse layouts may not supply enough seeds to learn a
+position model; their scores deliberately remain uncertain. The defaults need
+evaluation on representative scanned documents before treating them as review
+thresholds. Sequence inference cannot distinguish every genuine printing error
+from an OCR error, so inferred corrections remain less certain.
+
+### Reusing the step with another detector
+
+The module `engines/core/postprocessing.py` imports neither YOLO nor the ALTO
+aligner. Another engine supplies ordered `PageNumberPostprocessInput` objects:
+
+```python
+pages = [
+    PageNumberPostprocessInput(
+        page_key=key,
+        dimensions=PageDimensions(width, height),
+        candidates=tuple(detected_candidates),
+        selected=initial_number,  # PhysicalPageNumberEvidence or None
+    )
+    # ... every page in physical order, including pages without detections
+]
+result = PageNumberPostprocessor().process(pages, recover=recovery_callback)
+```
+
+`selected` is the detector's initial per-page choice used for position learning;
+`candidates` keeps alternatives available. Every candidate must identify its
+own page and contain parsed numeral fields and a finite positive-area bounding
+box inside that page. Invalid geometry is ignored; foreign and duplicate page
+keys are errors. Dimensions and bounding boxes must use the same coordinate
+system. The optional recovery callback receives one page input and a tuple of
+`BoundingBox` search windows, and returns more `PhysicalPageNumberEvidence`
+objects. Omit it for position rescoring and sequence smoothing alone.
+
+`PageNumberCoreResult.decisions` uses actions `detected`, `recovered`,
+`corrected`, `dropped`, and `unresolved`. Disabled postprocessing leaves this
+mapping empty. The original detector score remains diagnostic information and
+does not contribute to postprocessed confidence. No new shared schema fields
+are required.
 
 ## Page-number parsers
 
@@ -413,7 +540,7 @@ candidate sequence returns `None` and requires no page key.
 
 | Mode | Behavior |
 |---|---|
-| `STANDARD` | A single valid candidate is retained anywhere on the page. With multiple candidates, edge-based selection is applied. This is the mode used by the page-number core engine. |
+| `STANDARD` | A single valid candidate is retained anywhere on the page. With multiple candidates, edge-based selection is applied. This is the mode used for initial selection by the page-number core engine. |
 | `EDGE_ONLY` | Edge-based selection is applied even to a single candidate. |
 
 The resolver accepts these settings directly or through `from_config()`:
@@ -519,7 +646,8 @@ a MetaKat page is also an error.
 
 #### Field mapping and precedence
 
-For every returned evidence object, the binder compares its confidence with
+Explicit unresolved (`None`) results are skipped without creating detections or
+erasing existing values. For every returned evidence object, the binder compares its confidence with
 the page's existing `pageNumber` value:
 
 | Condition | Binding decision |
@@ -548,7 +676,7 @@ selection, selected candidates, skipped MetaKat pages, and final core and bind
 counts. Detailed YOLO detections and existing-number precedence decisions are
 available at `DEBUG`.
 
-Candidate-selection behavior is centralized in
+Initial candidate-selection behavior is centralized in
 `PhysicalPageNumberResolver`, and its complete priority order is documented in
 [Physical page-number resolver](#physical-page-number-resolver).
 Changes to the edge band, combined score, eligibility, or ties should update

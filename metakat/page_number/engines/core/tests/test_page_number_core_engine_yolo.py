@@ -10,8 +10,7 @@ from metakat.page_number.engines.core.page_number_core_engine_yolo import (
 from metakat.schemas.base_objects import PageNumberType
 
 ALIGNER = (
-    "metakat.page_number.engines.core."
-    "page_number_core_engine_yolo.EngineYOLOALTO"
+    "metakat.page_number.engines.core." "page_number_core_engine_yolo.EngineYOLOALTO"
 )
 
 
@@ -87,3 +86,72 @@ def test_yolo_core_returns_resolved_page_number_result(
     assert result.page_numbers["page-1"].text == " 42 "
     assert result.page_numbers["page-1"].output_text() == "42"
     assert result.page_numbers["page-1"].bbox == BoundingBox(100, 20, 50, 20)
+
+
+def test_engine_recovers_missed_page_and_retains_input_order(tmp_path, alignment_page):
+    from metakat.page_number.engines.core.tests.test_alto_recovery import write_alto
+
+    aligned = []
+    images, altos = [], []
+    for i in range(9):
+        key = f"p{i}"
+        images.append(str(tmp_path / f"{key}.jpg"))
+        altos.append(str(write_alto(tmp_path / f"{key}.xml", [([str(10 + i)], 950)])))
+        p = alignment_page(
+            [] if i == 4 else [(str(10 + i), 0.1, 950)],
+            alto_width=1000,
+            x=480,
+            width=20,
+        )
+        p.page_key = key
+        aligned.append(p)
+    alignment_engine = mock.Mock()
+    alignment_engine.process.return_value = types.SimpleNamespace(
+        pages=list(reversed(aligned))
+    )
+    with mock.patch(ALIGNER, return_value=alignment_engine):
+        engine = PageNumberCoreEngineYOLO({"name": "page_number_core_engine_yolo"})
+    result = engine.process(images, altos)
+    assert list(result.page_numbers) == [f"p{i}" for i in range(9)]
+    assert result.page_numbers["p4"].value == 14
+    assert result.decisions["p4"].action == "recovered"
+    assert result.page_numbers["p4"].alto.words == ("w0-0",)
+    assert result.page_numbers["p4"].confidence > 0.9
+
+
+def test_engine_includes_pages_omitted_by_detector(tmp_path):
+    from metakat.page_number.engines.core.tests.test_alto_recovery import write_alto
+
+    alto = write_alto(tmp_path / "p.xml", [])
+    with mock.patch(ALIGNER) as aligner:
+        aligner.return_value.process.return_value = types.SimpleNamespace(pages=[])
+        engine = PageNumberCoreEngineYOLO({"name": "page_number_core_engine_yolo"})
+    result = engine.process(["p.jpg"], [str(alto)])
+    assert result.page_numbers == {"p": None}
+
+
+@pytest.mark.parametrize(
+    "images,altos,match",
+    [
+        (["p.jpg"], [], "equal lengths"),
+        (["p.jpg", "p.png"], ["p.xml", "p.xml"], "unique stems"),
+        (["p.jpg"], ["q.xml"], "stems must match"),
+    ],
+)
+def test_engine_validates_inputs_before_detection(images, altos, match):
+    with mock.patch(ALIGNER) as aligner:
+        engine = PageNumberCoreEngineYOLO({"name": "page_number_core_engine_yolo"})
+    with pytest.raises(ValueError, match=match):
+        engine.process(images, altos)
+    aligner.return_value.process.assert_not_called()
+
+
+def test_engine_reports_missing_dimensions_clearly(alignment_page):
+    alignment_engine = mock.Mock()
+    alignment_engine.process.return_value = types.SimpleNamespace(
+        pages=[alignment_page([], alto_width=None)]
+    )
+    with mock.patch(ALIGNER, return_value=alignment_engine):
+        engine = PageNumberCoreEngineYOLO({"name": "page_number_core_engine_yolo"})
+    with pytest.raises(ValueError, match="requires ALTO page dimensions"):
+        engine.process(["page-1.jpg"], ["page-1.xml"])

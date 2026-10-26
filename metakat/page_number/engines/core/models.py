@@ -55,7 +55,20 @@ class PhysicalPageNumberEvidence(DetectionEvidence):
 
 
 @dataclass(frozen=True)
+class PageNumberDecision:
+    """Review information; confidence is a support score, not a calibrated probability."""
+
+    action: str
+    position_support: float | None = None
+    sequence_agreement: bool | None = None
+    detector_confidence: float | None = None
+    original_reading: str | None = None
+    sequence_support: float | None = None
+
+
+@dataclass(frozen=True)
 class PageNumberCoreResult:
-    page_numbers: Mapping[str, PhysicalPageNumberEvidence] = field(
+    page_numbers: Mapping[str, PhysicalPageNumberEvidence | None] = field(
         default_factory=dict
     )
+    decisions: Mapping[str, PageNumberDecision] = field(default_factory=dict)

@@ -1,10 +1,19 @@
 import logging
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any, List
 
-from text_geometry_aligner import AlignmentPage
+from text_geometry_aligner import ALTOReader, AlignmentPage
 
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
+from metakat.common.models import PageDimensions
+from metakat.page_number.engines.core.alto_recovery import AltoPageNumberRecovery
+from metakat.page_number.engines.core.postprocessing import (
+    PageNumberPostprocessor,
+    PageNumberPostprocessConfig,
+    PageNumberPostprocessInput,
+)
+
 from metakat.page_number.engines.core.page_number_core_engine import (
     PageNumberCoreEngine,
 )
@@ -16,7 +25,6 @@ from metakat.page_number.engines.core.page_number_resolver import (
     PhysicalPageNumberResolver,
 )
 from metakat.schemas.base_objects import PageNumberType
-
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +45,10 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
         super().__init__(config=config)
         self.labels = self._load_labels()
         self.page_number_parser = DecoratedPageNumberParser
-        self.page_number_resolver = PhysicalPageNumberResolver.from_config(
-            self.config
+        self.postprocessor = PageNumberPostprocessor(
+            PageNumberPostprocessConfig.from_config(self.config)
         )
+        self.page_number_resolver = PhysicalPageNumberResolver.from_config(self.config)
         self.engine_yolo_alto = EngineYOLOALTO(
             config=self.config,
             yolo_batch_size=yolo_batch_size,
@@ -53,18 +62,51 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
         images: List[str],
         alto_files: List[str],
     ) -> PageNumberCoreResult:
+        if len(images) != len(alto_files):
+            raise ValueError(
+                "Page-number images and ALTO files must have equal lengths"
+            )
+        keys = [Path(image).stem for image in images]
+        key_set = set(keys)
+        if len(keys) != len(key_set):
+            raise ValueError("Page-number images must have unique stems")
+        if any(Path(alto).stem != key for key, alto in zip(keys, alto_files)):
+            raise ValueError("Corresponding image and ALTO stems must match")
+        if not images:
+            return PageNumberCoreResult()
         alignment_pages = self._align(images, alto_files)
-        page_numbers = {}
-        seen_page_keys = set()
+        aligned_by_key = {}
         page_number_label = self.labels[PageNumberType.PAGE_NUMBER]
-
         for page in alignment_pages:
-            if page.page_key in seen_page_keys:
+            if page.page_key in aligned_by_key:
                 raise ValueError(
-                    "Page-number core returned duplicate page key: "
-                    f"{page.page_key}"
+                    "Page-number core returned duplicate page key: " f"{page.page_key}"
                 )
-            seen_page_keys.add(page.page_key)
+            if page.page_key not in key_set:
+                raise ValueError(
+                    f"Page-number core returned an unknown page key: {page.page_key}"
+                )
+            aligned_by_key[page.page_key] = page
+
+        inputs = []
+        for key, alto_path in zip(keys, alto_files):
+            page = aligned_by_key.get(key)
+            if page is None:
+                # Some detectors omit empty pages; retain their physical place
+                # in the sequence and still allow OCR recovery.
+                alto = ALTOReader().read(alto_path)
+                if alto.width is None or alto.height is None:
+                    raise ValueError(
+                        f"Page-number processing requires ALTO page dimensions: {key}"
+                    )
+                dimensions = PageDimensions(alto.width, alto.height)
+                inputs.append(PageNumberPostprocessInput(key, dimensions))
+                continue
+            if page.alto_width is None or page.alto_height is None:
+                raise ValueError(
+                    f"Page-number processing requires ALTO page dimensions: {key}"
+                )
+            dimensions = PageDimensions(page.alto_width, page.alto_height)
 
             candidates = tuple(
                 evidence
@@ -83,15 +125,20 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
                 page_width=page.alto_width,
                 page_height=page.alto_height,
             )
-            if selected is not None:
-                page_numbers[page.page_key] = selected
+            inputs.append(
+                PageNumberPostprocessInput(key, dimensions, candidates, selected)
+            )
+
+        result = self.postprocessor.process(
+            inputs, recover=AltoPageNumberRecovery(dict(zip(keys, alto_files)))
+        )
 
         logger.info(
             "Page number core resolved %d page number(s) from %d page(s)",
-            len(page_numbers),
-            len(alignment_pages),
+            sum(evidence is not None for evidence in result.page_numbers.values()),
+            len(inputs),
         )
-        return PageNumberCoreResult(page_numbers=page_numbers)
+        return result
 
     def _align(
         self,
@@ -105,9 +152,7 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
 
     def _load_labels(self) -> dict[PageNumberType, str]:
         if "id2label" in self.config:
-            raise ValueError(
-                "id2label is not supported; use the labels mapping"
-            )
+            raise ValueError("id2label is not supported; use the labels mapping")
         configured = self.config.get("labels", {})
         if not isinstance(configured, dict):
             raise ValueError("labels must be a JSON object")
