@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 import torch
 
-from metakat.page_type.training.image_embeddings.dinov2_checkpoint import load_dinov2_with_registers
+from .dinov2_checkpoint import load_dinov2_with_registers
 
 
 class DinoEncoder:

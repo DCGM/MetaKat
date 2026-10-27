@@ -64,10 +64,8 @@ of it, so an environment installs only the tiers it uses.
 | `inference` | ultralytics, text-geometry-aligner, numpy, OpenCV, OR-Tools, and the torch runtime | running the pipeline through `process_batch` |
 | `vlm` | `inference`, OpenAI-compatible API client, JSON Schema validation, Jinja2 | reading pages with vision-language models |
 | `worker` | `inference`, `vis`, `vlm`, and the DocAPI client layer | running `metakat/worker/docapi` |
-| `train` | accelerate, scikit-learn, safe-gpu, numpy, OpenCV, LMDB, pandas, UMAP, Plotly, and the torch runtime | training, page embeddings, and evaluation under `metakat/page_type` |
-| `flash-attn` | FlashAttention 2 and einops | optional text embedding acceleration on the pinned Linux / Python 3.12 / CUDA 12 / torch 2.8 stack; installed separately from `all` |
 | `dev` | pytest, pytest-cov | running the test suite |
-| `all` | `worker`, `train`, `dev` | a full development machine |
+| `all` | `worker`, `dev` | a full development machine |
 
 Engine implementations are imported only when a pipeline selects them, so a
 tier left uninstalled costs nothing at run time. A component whose dependencies
@@ -82,17 +80,14 @@ engine needs which library. VLM engines additionally need `vlm` for the API
 client and reply validation; `worker` includes it.
 
 The torch runtime — torch, torchvision and transformers — comes with
-`inference` and with `train`, both of which need it. `pyproject.toml` groups it
-separately so the two share one declaration; that grouping is an implementation
-detail of the tiers above and is not meant to be installed on its own.
+`inference`. `pyproject.toml` groups it separately as an implementation detail;
+that grouping is not meant to be installed on its own.
 
 `vis` is the base install plus what visualization needs and no model runtime:
 PyMuPDF for the PDF exporter, which reaches only the schemas and the document
 grouping helper, so a processed batch can be rendered where no engine is
 installed, and numpy and OpenCV for the window that reviews sampled article
-title pages. Its numpy and OpenCV are the versions `inference` pins. `train`
-names numpy and OpenCV itself, because the dataset builders under
-`metakat/page_type` read page images directly rather than through an engine.
+title pages. Its numpy and OpenCV are the versions `inference` pins.
 
 The `worker` extra is the complete set needed to process a job: every engine a
 job may select, plus the PDF exporter the worker writes when
@@ -128,7 +123,6 @@ pip install -e ".[vis]"        # interactive PDF, article title page review; no 
 pip install -e ".[inference]"  # the pipeline through process_batch
 pip install -e ".[vlm]"        # the pipeline plus the engines reading pages with a VLM
 pip install -e ".[worker]"     # the DocAPI worker in metakat/worker/docapi
-pip install -e ".[train]"      # training and evaluation in metakat/page_type/nets
 pip install -e ".[dev]"        # the test suite
 pip install -e ".[all]"        # a full development machine
 ```

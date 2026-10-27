@@ -5,10 +5,47 @@ import os
 
 import sys
 import time
-
-from metakat.page_type.datasets_from_mods.mods_helper import get_year_from_doc_mods
+import xml.etree.ElementTree as ET
 
 logger = logging.getLogger(__name__)
+
+
+def get_year_from_doc_mods(mods_path, original_date=False):
+    namespaces = {'mods': "http://www.loc.gov/mods/v3",
+                  'mets': "http://www.loc.gov/METS/"}
+    try:
+        tree = ET.parse(mods_path)
+    except ET.ParseError:
+        return None
+    root = tree.getroot()
+    date_element = root.findall(f".//mods:namePart[@type='date']", namespaces=namespaces)
+    date = None
+    if len(date_element) != 0:
+        date = date_element[0].text
+    if date is None:
+        issued_element = root.findall(f".//mods:dateIssued", namespaces=namespaces)
+        if len(issued_element) != 0:
+            date = issued_element[0].text
+    if date is None:
+        date_element = root.findall(f".//mods:date", namespaces=namespaces)
+        if len(date_element) != 0:
+            date = date_element[0].text
+    if date is None:
+        return None
+    if original_date:
+        return date
+    # [] - for dates like [1938]
+    # ? - for dates like 1938?
+    start_end_year = [x.strip('[]?') for x in date.split('-')]
+    try:
+        int(start_end_year[0])
+    except ValueError:
+        return None
+    try:
+        int(start_end_year[1])
+    except (ValueError, IndexError):
+        return int(start_end_year[0]), int(start_end_year[0])
+    return int(start_end_year[0]), int(start_end_year[1])
 
 
 def parse_args():

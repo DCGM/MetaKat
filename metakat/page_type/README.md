@@ -351,6 +351,7 @@ The context implementation lives in `engines/core/context/`:
 | `alto_stats.py` | ALTO/PAGE XML text and layout extraction, all 3,324 raw statistics, and all 147 grouped normalized features. |
 | `pagination.py` | The same candidate filtering and five-feature pagination encoding used in training. |
 | `context.py` | Feature extraction orchestration, contextual model invocation, whole-scan merging, semantic outputs, and the standalone command. |
+| `dinov2_checkpoint.py` | Strict conversion and loading of the LightlyTrain image checkpoint into the inference backbone. |
 | `models.py`, `merging.py`, `labels.py`, `_page_stats.py`, `_ocr_xml.py` | Local architecture, scanning, class order, and feature-contract implementations. |
 
 OCR lines are reconstructed in top-to-bottom order and joined with newlines.
