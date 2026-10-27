@@ -14,14 +14,16 @@ Four entry modules live beside the original ViT engine:
 `models.py`, `merging.py`, `labels.py`, `_page_stats.py` and `_ocr_xml.py` freeze
 the experiment's architecture and feature contract locally. There is no runtime
 dependency on the training repository, SQLite index, LMDB, or database dumps.
-Changing the backbone requires a supported model specification; the binder and
-feature encoders remain independent of it.
+The supported architecture is BERT with separate image, text, statistics and
+pagination MLPs, page-type and side heads, the adjacent-pair boundary head, and
+independent linear page-start/page-end heads. Legacy architecture variants are
+rejected. The binder and feature encoders remain independent of the context model.
 
-`pagination.py` freezes the optional pagination parser and normalization from training.
+`pagination.py` freezes the pagination parser and normalization from training.
 The binder reads existing `MetakatPage.pageNumber.text` into `PageTypeInput.page_number`
 in scan order. Run the page-number engine before page-type processing to supply this
 signal; page-type inference does not fill, alter, or infer page numbers itself.
-Pagination-aware artifacts (`metakat_context_v2`) add a separate five-input MLP:
+Artifacts (`metakat_context_v3`) include a separate five-input pagination MLP:
 log magnitude capped at the checkpoint's fixed cap (normally 10000), odd parity,
 Arabic flag, Roman flag, and availability. Features round through FP16 exactly as
 in training. Missing or rejected numbers become five zeros, and the projected branch
@@ -32,25 +34,28 @@ canonical Roman numerals, or the unbracketed part of `55 [58]` (55). Reject brac
 `[12]` / `[XIV]`, suffixes, ranges, spreads/multiple numbers, zero, and malformed values.
 These remain noisy candidates; unbracketed metadata does not prove physical printing.
 Confidence and page indices are not added to the input. There is no inference-time
-dropout. Legacy `metakat_context_v1` artifacts ignore page numbers and retain their
-original three-modality architecture. New artifacts include the policy and cap;
-incompatible contracts fail before loading the feature encoders.
+dropout. Only v3 artifacts with start/end heads and pagination support are loaded;
+v1/v2 artifacts and missing head weights fail before loading feature encoders.
+Missing page numbers remain supported through the availability mask.
 
 ## Model files
 
 Export a **trusted local** checkpoint from `classification-with-context`:
 
 ```bash
-python -m page_sequence.export --checkpoint /path/to/latest.pt --output /models/context.pt
+python -m page_sequence.export --checkpoint /path/to/best.pt --output /models/context.pt
 ```
 
 The exporter reads the training pickle once and writes tensors plus primitive
 metadata only. MetaKat loads the artifact with `weights_only=True`. It includes
 architecture, class order, feature normalization/schema and inference settings;
 optimizer state, RNG and data-source paths are omitted. Loading validates class
-order, model weights, feature schema and encoder dimensions before inference.
+order, all five heads (strict weight loading), feature schema and encoder dimensions
+before inference. Export the selected `best.pt` checkpoint for deployment, rather
+than assuming the last training update is best. No training checkpoint is bundled
+with the code.
 
-Use the same feature encoders as the training dump. For the first pilot:
+Use the same feature encoders as the training dump. For the current feature contract:
 
 - DINO checkpoint SHA256:
   `d08f6d05da58efff5748274f487c2583d94cad5ee9e0490a57e40c3a3832f80e`.
@@ -80,10 +85,10 @@ text:
   max_length: 8192
   max_chars: 4000
 inference:
-  window_size: 128
-  stride: 64
+  window_size: 256
+  stride: 128
   merge: center_logits
-  edge_ramp: 32
+  edge_ramp: 64
   start_threshold: 0.5
   batch_size: 64
 ```
@@ -102,10 +107,20 @@ runs in FP32. CPU/GPU feature extraction can have small numerical differences.
 ## Scanning and output
 
 BERT attends bidirectionally within each window, with learned absolute position
-embeddings reset for every window. The default is 128-page windows with stride
-64. Centre-weighted logits are accumulated over overlaps, followed by softmax
+embeddings reset for every window. Window size, stride and edge weighting are
+loaded from the exported checkpoint;
+the example above uses 256-page windows with stride 128. Only override them for
+an evaluated deployment setup. Centre-weighted logits are accumulated over overlaps,
+followed by softmax
 or sigmoid. All merge strategies from the experiment are available, including
 uniform logits/probabilities, centre probabilities, and central-window choice.
+
+Both independent start/end heads are loaded and computed from each page
+representation, matching training exactly. They strengthen the shared encoder
+during training; their probabilities are not fed into the pair head or combined
+with its score at inference. Scanning and the public three-task output remain
+unchanged. Consistency regularization is a training loss and requires no extra
+inference parameters or decoding rule.
 
 The boundary head compares adjacent contextual page representations. Each
 window's first boundary output is excluded; an overlapping window supplies it.

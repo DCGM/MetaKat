@@ -9,13 +9,22 @@ from metakat.page_type.engines.core.context.alto_stats import AltoStatsEncoder, 
 from metakat.page_type.engines.core.context.context import PageTypeCoreEngineContext, scan_features
 from metakat.page_type.engines.core.context.labels import PAGE_TYPES, PLACEMENTS
 from metakat.page_type.engines.core.context.merging import InferenceConfig
-from metakat.page_type.engines.core.context.models import BertBackbone, PageBackbone, PageTagger
+from metakat.page_type.engines.core.context.models import BertBackbone, PageTagger
 from metakat.page_type.engines.core.page_type_core_engine import PageTypeInput
 from metakat.schemas.base_objects import PageType
 
 ALTO = b'''<alto><Layout><Page WIDTH="100" HEIGHT="200"><PrintSpace><TextBlock>
 <TextLine HPOS="10" VPOS="20" WIDTH="80" HEIGHT="10"><String CONTENT="Obsah" WC="0.95" HPOS="10" WIDTH="40"/>
 </TextLine></TextBlock></PrintSpace></Page></Layout></alto>'''
+
+
+def tiny_backbone():
+    backbone = BertBackbone.create(pretrained=False, config={
+        'hidden_size': 8, 'num_hidden_layers': 1, 'num_attention_heads': 2,
+        'intermediate_size': 16, 'max_position_embeddings': 32, 'vocab_size': 1,
+        'hidden_dropout_prob': 0., 'attention_probs_dropout_prob': 0.})
+    backbone.initial_scale = .02
+    return backbone
 
 
 def features(n, dims):
@@ -32,7 +41,7 @@ def test_scan_matches_single_window_and_is_bidirectional():
         'intermediate_size': 24, 'max_position_embeddings': 16, 'vocab_size': 1,
         'hidden_dropout_prob': 0., 'attention_probs_dropout_prob': 0.})
     backbone.initial_scale = .02  # vocab_size=1 contains only BERT's zero padding row
-    model = PageTagger(backbone, {'image': 4, 'text': 3, 'stats': 2}, 'separate_mlp').eval()
+    model = PageTagger(backbone, {'image': 4, 'text': 3, 'stats': 2, 'pagination': 5}, 'separate_mlp').eval()
     f = features(7, model.dims)
     cfg = InferenceConfig(window_size=8, stride=4)
     result = scan_features(model, f, cfg)
@@ -51,7 +60,7 @@ def test_scan_matches_single_window_and_is_bidirectional():
 @pytest.mark.parametrize('merge', ['center_logits', 'uniform_logits', 'center_probs', 'uniform_probs', 'central'])
 def test_overlap_has_every_page_and_pair_and_is_batch_size_invariant(n, merge):
     torch.manual_seed(5)
-    model = PageTagger(PageBackbone(8), {'image': 4, 'text': 3, 'stats': 2}).eval()
+    model = PageTagger(tiny_backbone(), {'image': 4, 'text': 3, 'stats': 2, 'pagination': 5}).eval()
     f = features(n, model.dims)
     a = scan_features(model, f, InferenceConfig(window_size=8, stride=4, merge=merge, batch_size=1))
     b = scan_features(model, f, InferenceConfig(window_size=8, stride=4, merge=merge, batch_size=3))
@@ -70,17 +79,16 @@ def feature_state(stats, dims):
             'modality_order': ['image', 'text', 'stats'], 'dims': dims}
 
 
-def artifact(tmp_path, pagination=False):
+def artifact(tmp_path):
     stats = AltoStatsEncoder()
     dims = {'image': 4, 'text': 3, 'stats': stats.dim}
-    model = PageTagger(PageBackbone(8), dict(dims, pagination=5) if pagination else dims, 'separate_mlp')
-    state = {'format': 'metakat_context_v1', 'specification': model.specification(), 'model': model.state_dict(),
+    model = PageTagger(tiny_backbone(), dict(dims, pagination=5), 'separate_mlp')
+    state = {'format': 'metakat_context_v3', 'specification': model.specification(), 'model': model.state_dict(),
              'features': feature_state(stats, dims), 'page_types': PAGE_TYPES, 'placements': PLACEMENTS,
              'inference': {'window_size': 8, 'stride': 4}}
     path = tmp_path / 'model.pt'
-    if pagination:
-        from metakat.page_type.engines.core.context.pagination import POLICY
-        state.update(format='metakat_context_v2', pagination={'policy': POLICY, 'cap': 10000})
+    from metakat.page_type.engines.core.context.pagination import POLICY
+    state['pagination'] = {'policy': POLICY, 'cap': 10000}
     torch.save(state, path)
     return path, state
 
@@ -136,8 +144,9 @@ def test_dense_normalization_handles_zero_missing_and_extreme_values():
 
 def test_feature_extraction_is_chunked_and_missing_ocr_is_masked():
     engine = object.__new__(PageTypeCoreEngineContext)
-    engine.model = SimpleNamespace(dims={'image': 4, 'text': 3, 'stats': 2})
+    engine.model = SimpleNamespace(dims={'image': 4, 'text': 3, 'stats': 2, 'pagination': 5})
     engine.feature_chunk_size = 2
+    engine.pagination = {'cap': 10000}
     seen = []
     def image_encode(paths):
         seen.append(len(paths))
@@ -173,7 +182,7 @@ def test_start_flag_confidence_is_for_predicted_boolean():
 
 def test_pagination_artifact_extracts_existing_numbers_and_handles_all_missing(tmp_path):
     from metakat.page_type.engines.core.context.pagination import encode_page_numbers
-    path, _ = artifact(tmp_path, pagination=True)
+    path, _ = artifact(tmp_path)
     with patch('metakat.page_type.engines.core.context.context.DinoEncoder', return_value=SimpleNamespace(dim=4)), \
          patch('metakat.page_type.engines.core.context.context.MmbertEncoder', return_value=SimpleNamespace(dim=3)):
         engine = PageTypeCoreEngineContext({'name': 'context', 'device': 'cpu',
@@ -193,7 +202,7 @@ def test_pagination_artifact_extracts_existing_numbers_and_handles_all_missing(t
 
 @pytest.mark.parametrize('change', ['missing', 'policy', 'cap', 'version'])
 def test_invalid_pagination_contract_fails_before_encoder_loading(tmp_path, change):
-    path, state = artifact(tmp_path, pagination=True)
+    path, state = artifact(tmp_path)
     if change == 'missing':
         state.pop('pagination')
     elif change == 'policy':
@@ -204,6 +213,28 @@ def test_invalid_pagination_contract_fails_before_encoder_loading(tmp_path, chan
         state['format'] = 'metakat_context_v1'
     torch.save(state, path)
     with patch('metakat.page_type.engines.core.context.context.DinoEncoder') as dino:
-        with pytest.raises(ValueError, match='pagination'):
+        with pytest.raises(ValueError, match='pagination|Unsupported context'):
             PageTypeCoreEngineContext({'name': 'context', 'device': 'cpu', 'checkpoint_path': str(path)})
+        dino.assert_not_called()
+
+
+@pytest.mark.parametrize('change', ['v1', 'v2', 'heads_flag', 'head_weights', 'backbone', 'fusion', 'no_pagination'])
+def test_legacy_architectures_rejected_before_feature_encoders(tmp_path, change):
+    path, state = artifact(tmp_path)
+    if change in ('v1', 'v2'):
+        state['format'] = 'metakat_context_' + change
+    elif change == 'heads_flag':
+        state['specification'].pop('auxiliary_edges')
+    elif change == 'head_weights':
+        state['model'].pop('page_end_head.weight')
+    elif change == 'backbone':
+        state['specification']['backbone']['kind'] = 'page'
+    elif change == 'fusion':
+        state['specification']['fusion'] = 'linear'
+    else:
+        state['specification']['dims'].pop('pagination')
+    torch.save(state, path)
+    with patch('metakat.page_type.engines.core.context.context.DinoEncoder') as dino:
+        with pytest.raises((ValueError, RuntimeError)):
+            PageTypeCoreEngineContext({'name': 'context', 'checkpoint_path': str(path), 'device': 'cpu'})
         dino.assert_not_called()

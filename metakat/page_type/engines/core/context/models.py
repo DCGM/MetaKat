@@ -1,4 +1,4 @@
-"""Fusion and task heads shared by all backbones; Transformers is isolated to BertBackbone."""
+"""Deployment architecture: BERT, four separate feature MLPs and five task heads."""
 import torch
 from torch import nn
 
@@ -48,37 +48,18 @@ class BertBackbone(nn.Module):
         return {'kind': 'bert', 'config': self.model.config.to_dict(), 'initial_scale': self.initial_scale}
 
 
-class PageBackbone(nn.Module):
-    """Page-wise baseline; same fusion and adjacent-pair heads, no context mixing."""
-    def __init__(self, hidden_size=256):
-        super().__init__()
-        self.hidden_size, self.initial_scale = hidden_size, .02
-        self.layers = nn.Sequential(nn.Linear(hidden_size, hidden_size), nn.GELU(), nn.LayerNorm(hidden_size))
-
-    def forward(self, x, attention_mask):
-        return self.layers(x)
-
-    def specification(self):
-        return {'kind': 'page', 'hidden_size': self.hidden_size}
-
-
 class Fusion(nn.Module):
-    def __init__(self, dims, hidden_size, scale, kind='linear'):
+    def __init__(self, dims, hidden_size, scale, kind='separate_mlp'):
         super().__init__()
-        if kind not in ('linear', 'joint_mlp', 'separate_mlp'):
-            raise ValueError(kind)
+        if kind != 'separate_mlp':
+            raise ValueError('Context inference requires separate_mlp fusion')
         self.kind = kind
-        self.names = ('image', 'text', 'stats') + (('pagination',) if 'pagination' in dims else ())
+        self.names = ('image', 'text', 'stats', 'pagination')
         self.branches = nn.ModuleDict()
-        if kind == 'separate_mlp':
-            for name in self.names:
-                self.branches[name] = nn.Sequential(nn.Linear(dims[name], hidden_size), nn.GELU(),
-                                                    nn.LayerNorm(hidden_size))
-            width = len(self.names) * hidden_size + 3
-        else:
-            width = sum(dims.values()) + 3
-        self.projection = (nn.Sequential(nn.Linear(width, hidden_size), nn.GELU(), nn.Linear(hidden_size, hidden_size))
-                           if kind == 'joint_mlp' else nn.Linear(width, hidden_size))
+        for name in self.names:
+            self.branches[name] = nn.Sequential(nn.Linear(dims[name], hidden_size), nn.GELU(),
+                                                nn.LayerNorm(hidden_size))
+        self.projection = nn.Linear(len(self.names) * hidden_size + 3, hidden_size)
         self.norm = nn.LayerNorm(hidden_size)
         self.scale = nn.Parameter(torch.tensor(scale))
 
@@ -86,7 +67,7 @@ class Fusion(nn.Module):
         flags = features['presence']
         parts = []
         for i, name in enumerate(self.names):
-            x = self.branches[name](features[name]) if self.kind == 'separate_mlp' else features[name]
+            x = self.branches[name](features[name])
             # Mask after biased/nonlinear branch operations, including future custom feature sources.
             presence = features['pagination'][..., 4:5] if name == 'pagination' else flags[..., i:i + 1]
             parts.append(x * presence)
@@ -94,7 +75,7 @@ class Fusion(nn.Module):
 
 
 class PageTagger(nn.Module):
-    def __init__(self, backbone, dims, fusion='linear', num_types=len(PAGE_TYPES)):
+    def __init__(self, backbone, dims, fusion='separate_mlp', num_types=len(PAGE_TYPES)):
         super().__init__()
         self.backbone, self.dims, self.fusion_kind, self.num_types = backbone, dims, fusion, num_types
         h = backbone.hidden_size
@@ -102,6 +83,8 @@ class PageTagger(nn.Module):
         self.type_head = nn.Linear(h, num_types)
         self.placement_head = nn.Linear(h, len(PLACEMENTS))
         self.start_head = nn.Sequential(nn.Linear(4 * h, h), nn.GELU(), nn.Linear(h, 1))
+        self.page_start_head = nn.Linear(h, 1)
+        self.page_end_head = nn.Linear(h, 1)
 
     def forward(self, features, attention_mask):
         if not attention_mask.any(dim=-1).all():
@@ -114,20 +97,26 @@ class PageTagger(nn.Module):
         pair_mask = attention_mask.clone()
         pair_mask[:, 0] = False
         pair_mask[:, 1:] &= attention_mask[:, :-1]
-        return {'type_logits': self.type_head(h), 'placement_logits': self.placement_head(h),
-                'starts_document_logits': starts, 'pair_mask': pair_mask}
+        output = {'type_logits': self.type_head(h), 'placement_logits': self.placement_head(h),
+                  'starts_document_logits': starts, 'pair_mask': pair_mask}
+        output.update(page_start_logits=self.page_start_head(h).squeeze(-1),
+                      page_end_logits=self.page_end_head(h).squeeze(-1))
+        return output
 
     def specification(self):
-        return {'backbone': self.backbone.specification(), 'dims': self.dims,
+        spec = {'backbone': self.backbone.specification(), 'dims': self.dims,
                 'fusion': self.fusion_kind, 'num_types': self.num_types}
+        spec['auxiliary_edges'] = True
+        return spec
 
 
 def from_specification(spec):
+    if (spec.get('auxiliary_edges') is not True or spec.get('backbone', {}).get('kind') != 'bert'
+            or spec.get('fusion') != 'separate_mlp' or spec.get('dims', {}).get('pagination') != 5
+            or set(spec.get('dims', {})) != {'image', 'text', 'stats', 'pagination'}):
+        raise ValueError('Context inference requires pagination-aware BERT with separate MLPs and auxiliary start/end heads')
     b = spec['backbone']
-    backbone = (BertBackbone.create(pretrained=False, config=b['config']) if b['kind'] == 'bert'
-                else PageBackbone(b['hidden_size']) if b['kind'] == 'page' else None)
-    if backbone is None:
-        raise ValueError('unknown backbone')
+    backbone = BertBackbone.create(pretrained=False, config=b['config'])
     if 'initial_scale' in b:
         backbone.initial_scale = b['initial_scale']
     return PageTagger(backbone, spec['dims'], spec['fusion'], spec['num_types'])

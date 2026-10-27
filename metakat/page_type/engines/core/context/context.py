@@ -62,20 +62,16 @@ class PageTypeCoreEngineContext(PageTypeCoreEngine):
         self.device = torch.device(self.config.get('device', 'cuda' if torch.cuda.is_available() else 'cpu'))
         # Deployment artifacts contain tensors and primitive metadata only, never optimizer/RNG pickle.
         state = torch.load(self.config['checkpoint_path'], map_location='cpu', weights_only=True)
-        if (state.get('format') not in ('metakat_context_v1', 'metakat_context_v2')
+        if (state.get('format') != 'metakat_context_v3'
                 or tuple(state['page_types']) != PAGE_TYPES or tuple(state['placements']) != PLACEMENTS):
             raise ValueError('Unsupported context inference artifact or label order; export the training checkpoint first')
         self.model = from_specification(state['specification'])
         base_dims = {k: v for k, v in self.model.dims.items() if k != 'pagination'}
         self.pagination = state.get('pagination')
-        if 'pagination' in self.model.dims:
-            if (state['format'] != 'metakat_context_v2' or self.model.dims['pagination'] != 5
-                    or not isinstance(self.pagination, dict) or set(self.pagination) != {'policy', 'cap'}
-                    or self.pagination['policy'] != POLICY):
-                raise ValueError('Unsupported or missing pagination feature contract')
-            encode_page_numbers([], self.pagination['cap'])
-        elif self.pagination is not None or state['format'] != 'metakat_context_v1':
-            raise ValueError('Pagination metadata/model dimensions mismatch')
+        if (not isinstance(self.pagination, dict) or set(self.pagination) != {'policy', 'cap'}
+                or self.pagination['policy'] != POLICY):
+            raise ValueError('Unsupported or missing pagination feature contract')
+        encode_page_numbers([], self.pagination['cap'])
         if self.model.num_types != len(PAGE_TYPES):
             raise ValueError('Context checkpoint type count mismatch')
         self.model.load_state_dict(state['model'], strict=True)
@@ -120,9 +116,8 @@ class PageTypeCoreEngineContext(PageTypeCoreEngine):
             values['image'][target] = normalize_dense(images, image_present)
             values['text'][target] = normalize_dense(text, text_present)
             values['stats'][target] = stats
-            if 'pagination' in self.model.dims:
-                values['pagination'][target] = encode_page_numbers(
-                    [p.page_number for p in chunk], self.pagination['cap'])
+            values['pagination'][target] = encode_page_numbers(
+                [p.page_number for p in chunk], self.pagination['cap'])
             flags = np.stack((image_present, text_present, stats_present), axis=-1)
             if not flags.any(axis=-1).all():
                 raise ValueError('Every page needs at least an image or OCR input')
