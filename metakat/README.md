@@ -205,6 +205,7 @@ local vLLM server - finds the GPU free.
 2. [`page_type`](page_type/README.md#purpose)
    - [`core`](page_type/README.md#available-core-implementation)
      - [`page_type_core_engine_vit`](page_type/README.md#engine-vit-page_type_core_engine_vit)
+     - [`page_type_core_engine_context`](page_type/README.md#engine-context-classification-page_type_core_engine_context)
    - [`bind`](page_type/README.md#available-bind-implementation)
      - [`page_type_bind_engine_base`](page_type/README.md#engine-base-page_type_bind_engine_base)
 3. [`biblio`](biblio/README.md#purpose)
