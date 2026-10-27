@@ -3,7 +3,9 @@
 MetaKat turns an ordered scan batch into documents with structured metadata
 and a table of contents (TOC). A batch can contain several documents; the
 pipeline first identifies their boundaries, then describes each document and
-its internal parts.
+its internal parts. It also attempts to identify and describe the higher-level
+hierarchy connecting these documents, such as a shared title for a multipart
+monograph, or a volume and title for periodical issues.
 
 ```mermaid
 flowchart TD
