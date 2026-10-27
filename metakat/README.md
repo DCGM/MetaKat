@@ -1,7 +1,60 @@
 # MetaKat
 
-MetaKat enriches an ordered batch of document pages with structured metadata.
-It initializes a shared `MetakatIO` object from the batch and any supplied
+MetaKat turns an ordered scan batch into documents with structured metadata
+and a table of contents (TOC). A batch can contain several documents; the
+pipeline first identifies their boundaries, then describes each document and
+its internal parts.
+
+```mermaid
+flowchart TD
+    Batch[Ordered scan batch] --> Numbers[Page numbers]
+    Numbers --> Types[Page types + document boundaries]
+    Types -->|Bottom-level documents: books, periodical issues| Biblio
+
+    subgraph Documents[Process the separated documents]
+        Biblio[Biblio: document metadata + hierarchy]
+
+        subgraph TOC[TOC]
+            Entries[TOC processing]
+            Destinations[Destination pages processing]
+            Align[Alignment]
+            Entries --> Align
+            Destinations --> Align
+        end
+
+        Biblio --> Entries
+        Biblio --> Destinations
+    end
+
+    Align --> Result[Structured documents and their internal parts]
+```
+
+- **[Page numbers](page_number/README.md):** Read printed page numbers and
+  resolve pagination, retaining the distinction between printed numbers and
+  inferred numbers written in brackets.
+- **[Page types](page_type/README.md):** Identify each page's role and,
+  where supported, its left/right/single placement. Establish the boundaries
+  that split the batch into bottom-level documents, such as individual books
+  or periodical issues.
+- **[Biblio](biblio/README.md):** Read metadata from the title pages of those
+  documents and attach their pages to the resulting document elements. It
+  also relates documents through higher-level elements, such as a periodical
+  volume and title, or the shared title of a multipart work, so this stage
+  can consider evidence across document boundaries.
+- **[TOC](chapter/README.md) (`chapter` in configuration):** Work within each
+  bottom-level document. Process its TOC entries, read the destination pages,
+  and align the two to locate its internal parts. For books, destination
+  processing usually reads simple chapter titles. The same concept extends
+  to articles and reviews, whose destination pages are metadata-rich title
+  pages. The current implementation handles book chapters; article/review
+  processing is planned within this same stage.
+
+These stages update a shared `MetakatIO`, preserving page order and recording
+document hierarchy and internal parts together. Enabled stages run in the
+order above; their engine implementations are configurable. The diagram below
+shows how each stage is invoked and its result passed to the next stage.
+
+The pipeline initializes `MetakatIO` from the batch and any supplied
 metadata, then passes that object through each enabled pipeline component in
 pipeline order. Every pipeline component has a core engine, which produces
 component-specific results, and a bind engine, which integrates those results
