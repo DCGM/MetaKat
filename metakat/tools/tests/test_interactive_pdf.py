@@ -59,7 +59,7 @@ def test_full_width_panel_bands_and_stacked_confidences(tmp_path, page_image, do
                   pdf_module._PAGE_TYPE_COLORS["titlePage"], pdf_module._SIDE_COLORS["left"],
                   pdf_module._PAGE_NUMBER_COLORS["bracketed"])
         labels = (None, "titlePage", "left", "[123]")
-        confidences = ("--" if starts is None else "0.95", "0.91", "0.88", "1.00")
+        confidences = ("--" if starts is None else "0.95" if starts else "0.05", "0.91", "0.88", "1.00")
         for index, (band, color, label, confidence) in enumerate(zip(bands, colors, labels, confidences)):
             assert band["fill"] == pytest.approx(color)
             assert band["rect"].x0 == pytest.approx(image.x1)

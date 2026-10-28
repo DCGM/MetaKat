@@ -289,11 +289,17 @@ def _page_number_states(pages):
     return states
 
 
+def _boundary_probability(starts):
+    if starts is None:
+        return None
+    return starts.confidence if starts.val else 1. - starts.confidence
+
+
 def _boundary_color(starts):
     """Boundary probability: white at 0, red at .5, blue at 1."""
     if starts is None:
         return _UNKNOWN_COLOR
-    probability = starts.confidence if starts.val else 1. - starts.confidence
+    probability = _boundary_probability(starts)
     if probability <= .5:
         return (1., 1. - 2 * probability, 1. - 2 * probability)
     amount = 2 * probability - 1.
@@ -315,7 +321,7 @@ def _insert_page_info_panel(pymupdf, document, rendered_by_page_id):
         kind, side, number = rendered.page.pageType, rendered.page.side, rendered.page.pageNumber
         items = (
             (_boundary_color(starts),
-             None, "--" if starts is None else f"{starts.confidence:.2f}"),
+             None, "--" if starts is None else f"{_boundary_probability(starts):.2f}"),
             (_PAGE_TYPE_COLORS.get(kind.text, _UNKNOWN_COLOR) if kind else _UNKNOWN_COLOR,
              "NONE" if kind is None else kind.text, "--" if kind is None else f"{kind.confidence:.2f}"),
             (_SIDE_COLORS.get(side.text, _UNKNOWN_COLOR) if side else _UNKNOWN_COLOR,
