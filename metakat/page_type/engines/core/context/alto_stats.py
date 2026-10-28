@@ -3,7 +3,8 @@ from pathlib import Path
 
 import numpy as np
 
-from ._page_stats import PageStats, PageStatsNormalization, alto_features, alto_text, parse_ocr, text_vector
+from ._page_stats import (PageStats, PageStatsNormalization, alto_features, alto_text, parse_ocr,
+                          reading_order_text, text_vector)
 
 
 class AltoStatsEncoder:
@@ -26,10 +27,9 @@ class AltoStatsEncoder:
             parsed = parse_ocr(Path(path).read_bytes())
             if parsed is None:
                 raise ValueError(f'OCR has no Page element: {path}')
-            text = alto_text(parsed)
             if return_texts:
-                texts.append(text)
-            full = np.asarray(text_vector(text) + alto_features(parsed), np.float32)
+                texts.append(reading_order_text(parsed))
+            full = np.asarray(text_vector(alto_text(parsed)) + alto_features(parsed), np.float32)
             # Training raw stats passed through the sparse FP16 store before grouping.
             full = full.astype(np.float16).astype(np.float32)[None]
             vector, names = self.stats.view(full, grouped=True, normalize=self.normalization)
@@ -41,7 +41,7 @@ class AltoStatsEncoder:
 
     @staticmethod
     def iter_texts(paths):
-        """Read one OCR page at a time for the separate text modality pass."""
+        """Read one OCR page at a time for the separate text modality pass (in reading order)."""
         for path in paths:
             if path is None:
                 yield None
@@ -49,7 +49,7 @@ class AltoStatsEncoder:
             parsed = parse_ocr(Path(path).read_bytes())
             if parsed is None:
                 raise ValueError(f'OCR has no Page element: {path}')
-            yield alto_text(parsed)
+            yield reading_order_text(parsed)
 
     def validate_feature_state(self, state, dims):
         expected = {

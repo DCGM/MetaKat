@@ -590,6 +590,17 @@ def alto_text(parsed) -> str:
     return '\n'.join(' '.join(word[0] for word in line[4]) for line in sorted(parsed[3], key=lambda line: line[1]))
 
 
+def reading_order_text(parsed) -> str:
+    """The page text in the order of the OCR file (blocks, then lines in them), one line per row.
+
+    This is the order of the text the page-text embeddings were trained on; alto_text sorts by
+    vertical position instead, which the page statistics were trained with.
+    """
+    if parsed is None:
+        return ''
+    return '\n'.join(' '.join(word[0] for word in line[4]) for line in parsed[3])
+
+
 def columns(lefts: np.ndarray, text_width: float) -> int:
     """Number of clusters of line left edges at least a quarter of the text width apart."""
     if len(lefts) < 3:

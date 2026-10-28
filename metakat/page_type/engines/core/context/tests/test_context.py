@@ -120,6 +120,25 @@ def test_feature_schema_mismatch_fails_before_feature_models_load(tmp_path):
         dino.assert_not_called()
 
 
+def test_page_text_follows_the_ocr_order_while_the_statistics_keep_the_vertical_order(tmp_path):
+    def block(*lines):
+        body = ''.join(f'<TextLine HPOS="10" VPOS="{top}" WIDTH="80" HEIGHT="10">'
+                       f'<String CONTENT="{word}" HPOS="10" WIDTH="40" WC="1"/></TextLine>' for word, top in lines)
+        return f'<TextBlock>{body}</TextBlock>'
+    def alto(*blocks):
+        return ('<alto><Layout><Page WIDTH="100" HEIGHT="200"><PrintSpace>' + ''.join(blocks)
+                + '</PrintSpace></Page></Layout></alto>').encode()
+    reading = tmp_path / 'reading.xml'
+    reading.write_bytes(alto(block(('lower', 150)), block(('upper', 20))))
+    vertical = tmp_path / 'vertical.xml'
+    vertical.write_bytes(alto(block(('upper', 20)), block(('lower', 150))))
+    stats = AltoStatsEncoder()
+    assert list(stats.iter_texts([str(reading), str(vertical)])) == ['lower\nupper', 'upper\nlower']
+    assert stats.encode([str(reading)])[2] == ['lower\nupper']
+    values, _, _ = stats.encode([str(reading), str(vertical)], return_texts=False)
+    np.testing.assert_array_equal(values[0], values[1])
+
+
 def test_ocr_empty_vs_missing_and_bounded_normalization(tmp_path):
     p = tmp_path / 'page.xml'
     p.write_bytes(ALTO)
