@@ -19,6 +19,10 @@ class PageTypeBindEngineBase(PageTypeBindEngine):
             raise ValueError("Page batch_index values must be unique for scan order")
         if len({p.id for p in pages}) != len(pages):
             raise ValueError("Page IDs must be unique")
+        annotated_starts = [is_annotated(page.startsDocument) for page in pages]
+        if any(annotated_starts) and not all(annotated_starts):
+            raise ValueError('Annotated document starts must be provided for every page')
+        starts = [page.startsDocument.val for page in pages] if all(annotated_starts) else None
         if not pages or all(is_annotated(page.pageType) for page in pages):
             return result
 
@@ -30,7 +34,10 @@ class PageTypeBindEngineBase(PageTypeBindEngine):
             image_path=path(result.page_to_image_mapping, p.id),
             ocr_path=(path(result.page_to_alto_mapping, p.id)
                       or path(result.page_to_xml_mapping, p.id)),
-            page_number=p.pageNumber.text if p.pageNumber is not None else None) for p in pages]
+            page_number=p.pageNumber.text if p.pageNumber is not None else None,
+            document_start=starts[i] if starts is not None else None,
+            document_end=(starts[i + 1] if i + 1 < len(pages) else True)
+                         if starts is not None else None) for i, p in enumerate(pages)]
         logger.info("Processing %d pages in scan order", len(inputs))
         predictions = self.core_engine.process(inputs)
         if len(predictions) != len(pages):
@@ -42,6 +49,6 @@ class PageTypeBindEngineBase(PageTypeBindEngine):
                 page.pageType = prediction.pageType
             if prediction.side is not None:
                 page.side = prediction.side
-            if prediction.startsDocument is not None:
+            if prediction.startsDocument is not None and not is_annotated(page.startsDocument):
                 page.startsDocument = prediction.startsDocument
         return result

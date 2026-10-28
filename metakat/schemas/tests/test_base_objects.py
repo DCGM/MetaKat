@@ -43,10 +43,10 @@ def test_classifier_fields_use_value_objects_and_preserve_types():
     page = MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=0,
         pageType={'text':'titlePage', 'confidence':.2, 'annotated':True},
         side={'text':'right', 'confidence':.8},
-        startsDocument={'text':False, 'confidence':.7})
+        startsDocument={'val':False, 'confidence':.7})
     payload = page.model_dump(mode='json')
     assert payload['pageType']['annotated'] is True
-    assert payload['startsDocument']['text'] is False
+    assert payload['startsDocument']['val'] is False
     assert 'annotated' not in payload['side']
     assert MetakatPage.model_validate_json(page.model_dump_json()) == page
     volume=MetakatVolume(id=uuid4(), language=[{'text':'cze','confidence':.9}],
@@ -63,5 +63,28 @@ def test_legacy_classifier_pairs_normalize_to_objects():
     page=MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=0,
                      pageType=['titlePage', .8], startsDocument=(True,.7))
     assert page.pageType.text == 'titlePage'
-    assert page.startsDocument.text is True
+    assert page.startsDocument.val is True
     assert isinstance(page.model_dump(mode='json')['pageType'], dict)
+
+
+@pytest.mark.parametrize('flag', [True, False])
+def test_document_start_serializes_val_with_annotation(flag):
+    page = MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=0,
+                      startsDocument={'val': flag, 'confidence': 1., 'annotated': True})
+    value = page.model_dump(mode='json')['startsDocument']
+    assert value['val'] is flag and value['annotated'] is True
+    assert 'text' not in value
+    assert MetakatPage.model_validate_json(page.model_dump_json()) == page
+
+
+@pytest.mark.parametrize('value', [None, 0, 1, 'true', 'false'])
+def test_document_start_requires_strict_boolean_val(value):
+    with pytest.raises(ValidationError):
+        MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=0,
+                    startsDocument={'val': value, 'confidence': 1., 'annotated': True})
+
+
+def test_document_start_requires_val_instead_of_text():
+    with pytest.raises(ValidationError):
+        MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=0,
+                    startsDocument={'text': True, 'confidence': 1., 'annotated': True})

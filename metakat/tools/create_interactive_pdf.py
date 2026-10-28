@@ -211,7 +211,7 @@ def _mark_page_types(pymupdf, document, rendered_by_page_id):
         short_edge = min(rect.width, rect.height)
         width = short_edge * 0.012
         starts = rendered.page.startsDocument
-        inset = short_edge * 0.016 if starts is not None and starts.text is True else 0
+        inset = short_edge * 0.016 if starts is not None and starts.val is True else 0
         offset = inset + width / 2
         frame = pymupdf.Rect(rect.x0 + offset, rect.y0 + offset,
                             rect.x1 - offset, rect.y1 - offset)
@@ -292,7 +292,7 @@ def _mark_document_starts(pymupdf, document, rendered_by_page_id):
     starts = sorted(
         (rendered for rendered in rendered_by_page_id.values()
          if rendered.page.startsDocument is not None
-         and rendered.page.startsDocument.text is True),
+         and rendered.page.startsDocument.val is True),
         key=lambda rendered: rendered.pdf_index,
     )
     for rendered in starts:

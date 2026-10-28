@@ -34,7 +34,7 @@ def test_binder_propagates_all_heads_in_scan_order_without_mutating_input(metaka
     assert [p.id for p in result.elements] == [second.id, first.id]
     assert (result.elements[0].pageType.text, result.elements[0].pageType.confidence) == (PageType.COLOPHON, .7)
     assert (result.elements[0].side.text, result.elements[0].side.confidence) == (PageSideType.LEFT, .6)
-    assert (result.elements[0].startsDocument.text, result.elements[0].startsDocument.confidence) == (False, .95)
+    assert (result.elements[0].startsDocument.val, result.elements[0].startsDocument.confidence) == (False, .95)
     assert result.elements[1].startsDocument is None
     assert all(p.pageType is None and p.side is None for p in io.elements)
     # New field survives the internal interchange format.
@@ -115,7 +115,7 @@ def test_mixed_annotation_preserves_supplied_type_and_full_scan_context(metakat_
     assert result.elements[0].pageType == metakat_page.pageType
     assert result.elements[0].side.text == 'left'
     assert result.elements[1].pageType.text == 'titlePage'
-    assert result.elements[1].startsDocument.text is True
+    assert result.elements[1].startsDocument.val is True
     assert second.pageType.text == 'blank'
 
 
@@ -128,3 +128,50 @@ def test_missing_or_false_annotation_does_not_skip_type_prediction(metakat_page,
     result=binder.process('/batch',MetakatIO(batch_id=metakat_page.batch_id,elements=[metakat_page]))
     binder.core_engine.process.assert_called_once()
     assert result.elements[0].pageType.text == 'titlePage'
+
+
+def test_complete_annotated_starts_feed_both_tasks_and_preserve_values(metakat_page):
+    starts = [True, False, True, False]
+    pages = [MetakatPage(id=uuid4(), batch_id=metakat_page.batch_id, batch_index=i,
+                        startsDocument={'val': flag, 'confidence': .6, 'annotated': True})
+             for i, flag in enumerate(starts)]
+    io = MetakatIO(batch_id=metakat_page.batch_id, elements=list(reversed(pages)))
+    binder = binder_for([PageTypePrediction(pageType=(PageType.NORMAL_PAGE, .9),
+                                           startsDocument=(not flag, .99)) for flag in starts])
+    result = binder.process('/batch', io)
+    inputs = binder.core_engine.process.call_args.args[0]
+    assert [p.document_start for p in inputs] == starts
+    assert [p.document_end for p in inputs] == [False, True, False, True]
+    assert [p.startsDocument for p in result.elements] == [p.startsDocument for p in io.elements]
+    assert [p.startsDocument for p in io.elements] == [p.startsDocument for p in reversed(pages)]
+
+
+@pytest.mark.parametrize('other', [None,
+    {'val': False, 'confidence': 1.},
+    {'val': False, 'confidence': 1., 'annotated': False}])
+def test_partial_annotated_starts_rejected_before_inference(metakat_page, other):
+    metakat_page.startsDocument = {'val': True, 'confidence': 1., 'annotated': True}
+    second = MetakatPage(id=uuid4(), batch_id=metakat_page.batch_id, batch_index=1,
+                        startsDocument=other)
+    binder = binder_for([])
+    with pytest.raises(ValueError, match='every page'):
+        binder.process('/batch', MetakatIO(batch_id=metakat_page.batch_id, elements=[metakat_page, second]))
+    binder.core_engine.process.assert_not_called()
+
+
+@pytest.mark.parametrize('flag', [None, False])
+def test_unannotated_boundaries_are_not_model_inputs(metakat_page, flag):
+    metakat_page.startsDocument = {'val': True, 'confidence': 1., 'annotated': flag}
+    binder = binder_for([PageTypePrediction(pageType=(PageType.NORMAL_PAGE, .9),
+                                           startsDocument=(False, .8))])
+    result = binder.process('/batch', MetakatIO(batch_id=metakat_page.batch_id, elements=[metakat_page]))
+    assert binder.core_engine.process.call_args.args[0] == [PageTypeInput(None)]
+    assert result.elements[0].startsDocument.val is False
+
+
+def test_single_page_annotated_boundary_is_a_document_end(metakat_page):
+    metakat_page.startsDocument = {'val': True, 'confidence': 1., 'annotated': True}
+    binder = binder_for([PageTypePrediction(pageType=(PageType.NORMAL_PAGE, .9))])
+    result = binder.process('/batch', MetakatIO(batch_id=metakat_page.batch_id, elements=[metakat_page]))
+    assert binder.core_engine.process.call_args.args[0] == [PageTypeInput(None, document_start=True, document_end=True)]
+    assert result.elements[0].startsDocument == metakat_page.startsDocument

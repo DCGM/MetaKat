@@ -506,7 +506,9 @@ page list / `PageTypeInput` may supply `document_start` and `document_end` for
 every page (including explicit false values); a partial set is rejected. These
 are model inputs, not output overrides. A single known document can therefore
 supply true only at its first/last page. Ordinary pipeline input supplies scan
-endpoints and available page numbers; existing page-type labels are not inputs.
+endpoints and available page numbers. The binder also supplies complete
+annotated document boundaries as described below; existing page-type labels
+are not inputs.
 Fully missing image/OCR pages retain their position with zero features and
 modality-presence bits, as in training.
 The merged pair-boundary decisions are the final context-engine boundaries;
@@ -632,20 +634,43 @@ the core. The core is also skipped when every page type has `annotated: true`,
 even if side or document-start values are absent. In a mixed batch every page
 still reaches the core, including annotated pages, to preserve context.
 
+### Annotated document boundaries as model inputs
+
+To supply trusted document boundaries, every page must contain a boolean
+`startsDocument.val` and `annotated: true`, including explicit false values
+for pages that do not start documents:
+
+```json
+"startsDocument": {"val": false, "confidence": 1.0, "annotated": true}
+```
+
+The binder validates completeness before invoking or skipping the core. If
+any page has an annotated start but another page lacks one, it rejects the
+batch. With no annotated starts, existing predictions are not fed back into
+the model; document metadata remains unknown.
+
+For a complete annotation, `document_start[i]` is the supplied value and
+`document_end[i]` is the next page's start flag; the last scan page is an end.
+Scan-start/end bits remain independent. These inputs feed the context model's
+five-bit boundary signal. Supplied values, IDs, confidences and annotation
+flags are preserved in the output even when model predictions disagree.
+The ViT model does not consume these inputs, but the binder still preserves
+annotated starts.
+
 ### Field mapping and precedence
 
 | Core result | MetaKat binding |
 |---|---|
 | `pageType` | Replaces `MetakatPage.pageType` unless its existing value has `annotated: true`. |
 | `side` | Replaces `MetakatPage.side` when supplied; otherwise preserves the existing value. |
-| `startsDocument` | Replaces `MetakatPage.startsDocument` when supplied; otherwise preserves the existing value, including at the scan's first position. |
+| `startsDocument` | Preserves an existing `annotated: true` value; otherwise replaces it when a prediction is supplied, including preservation of existing values when the prediction is absent. |
 
 Unlike page-number confidence precedence, this binder does not compare new
 and existing confidences. Only an explicitly present boolean annotation flag
-protects an existing page type; absent, null and false allow replacement. The flag
-is not yet enforced for side or document-start outputs. Bound classifier fields
-use typed value objects with `text`, `confidence`, `lang`, `id` and optional
-`annotated`. Older input pairs are accepted and normalize to objects; the internal
+protects an existing page type or document-start value; absent, null and false
+allow replacement. The flag is not yet enforced for side outputs. Page type
+and side use typed value objects with `text`, `confidence`, `lang`, `id` and
+optional `annotated`. Boolean `startsDocument` uses `val` instead of `text`. Older input pairs are accepted and normalize to objects; the internal
 core prediction contract remains compact value/confidence pairs.
 Optional absent tasks remain compatible with the ViT model and other cores
 that do not predict sides. All outputs are validated before any field is bound.

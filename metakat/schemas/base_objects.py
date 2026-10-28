@@ -227,7 +227,7 @@ class Value(MetakatBaseModel):
     named fields and is validated back from one, and code reads fields by name.
     `annotated` is an optional externally authoritative-value flag; only explicit
     true protects a value. Absence, null and false do not. It does not imply
-    human verification. Enforcement is currently limited to page numbers/types.
+    human verification. Enforcement covers page numbers/types and annotated document starts.
 
     `lang` is the language the text is written in. MODS itself tags the
     container rather than the value - <titleInfo lang="eng" type="translated">
@@ -268,6 +268,22 @@ class ClassifiedValue(MetakatBaseModel, Generic[ClassifiedType]):
         return value
 
 
+class BooleanValue(MetakatBaseModel):
+    """Boolean decision with confidence and optional authoritative annotation."""
+    val: StrictBool
+    confidence: Confidence
+    lang: Optional[str] = None
+    id: UUID = Field(default_factory=uuid4)
+    annotated: Optional[StrictBool] = Field(default=None, exclude_if=lambda value: value is None)
+
+    @model_validator(mode='before')
+    @classmethod
+    def accept_pair(cls, value):
+        if isinstance(value, (tuple, list)) and len(value) == 2:
+            return {'val': value[0], 'confidence': value[1]}
+        return value
+
+
 def is_annotated(value) -> bool:
     """Only an explicitly supplied true flag protects a present value."""
     return value is not None and getattr(value, 'annotated', None) is True
@@ -275,6 +291,8 @@ def is_annotated(value) -> bool:
 
 def classification_pair(value):
     """Adapt schema values and compact internal core predictions for resolvers."""
+    if isinstance(value, BooleanValue):
+        return value.val, value.confidence
     return (value.text, value.confidence) if isinstance(value, ClassifiedValue) else value
 
 
@@ -489,10 +507,10 @@ class MetakatPage(MetakatBaseModel):
     pageNumber: Optional[Value] = None
     pageType: Optional[ClassifiedValue[PageType]] = None
     side: Optional[ClassifiedValue[PageSideType]] = None
-    # Resolved decision that this page starts a bottom-level document (e.g. an issue).
-    # Confidence is a resolver score confidence, not a calibrated model probability.
-    # None means unavailable, including the first page without a predecessor.
-    startsDocument: Optional[ClassifiedValue[StrictBool]] = None
+    # This page starts a bottom-level document (e.g. an issue).
+    # Confidence belongs to the selected boolean; its source is the engine or annotation.
+    # None means unavailable, including an unannotated first page without a predecessor.
+    startsDocument: Optional[BooleanValue] = None
     imageDim: Optional[MetakatPageDimensions] = None
     altoDim: Optional[MetakatPageDimensions] = None
 
