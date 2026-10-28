@@ -54,71 +54,59 @@ def test_page_type_frames_preserve_document_start_frame(tmp_path, page_image, pa
                     assert frames[0]["rect"].x0 > blue[0]["rect"].x0
 
 
-def test_page_type_label_has_its_detail_note_to_the_right(tmp_path, page_image):
+@pytest.mark.parametrize("page_type", [PageType.TITLE_PAGE, max(PageType, key=lambda kind: len(kind.value)), None])
+def test_page_panel_has_ordered_values_and_two_decimal_confidences(tmp_path, page_image, page_type):
     volume = MetakatVolume(id=uuid4())
-    pages, mapping = [], {}
-    for index, page_type in enumerate((PageType.TITLE_PAGE, None)):
-        page = MetakatPage(
-            id=uuid4(), batch_id=uuid4(), batch_index=index, pageIndex=index,
-            parent_id=volume.id, pageType=None if page_type is None else (page_type, 0.91),
-            startsDocument=(True, 0.9),
-        )
-        pages.append(page)
-        mapping[page.id] = f"type-{index}.jpg"
-        page_image(tmp_path / mapping[page.id])
-    io = MetakatIO(batch_id=uuid4(), elements=[volume, *pages], page_to_image_mapping=mapping)
-    output = tmp_path / "types.pdf"
-    pdf_module.create_interactive_pdf(tmp_path, io, output)
-    with pymupdf.open(output) as document:
-        for page, expected in zip(document, (PageType.TITLE_PAGE.value, "NONE")):
-            matches = page.search_for(expected, clip=pymupdf.Rect(0, 0, page.rect.width, page.rect.height / 4))
-            assert len(matches) == 1
-            assert "TYPE:" not in page.get_text()
-            label = matches[0]
-            assert page.rect.contains(label)
-            assert label.x0 > page.rect.width / 2
-            assert label.y0 > page.search_for("DOCUMENT START")[0].y1
-            assert label.y1 < page.rect.height / 4
-            notes = [a for a in (page.annots() or []) if a.info["subject"] == "Page type"]
-            if expected == "NONE":
-                assert not notes
-            else:
-                assert len(notes) == 1
-                assert notes[0].rect.x0 > label.x1
-                assert notes[0].rect.y0 < label.y1
-                assert notes[0].rect.y1 > label.y0
-                assert page.rect.contains(notes[0].rect)
-                assert notes[0].info["content"] == f"pageType: {expected} (0.91)"
-
-
-def test_page_numbers_are_visible_bottom_right_without_detection_geometry(tmp_path, page_image):
-    volume = MetakatVolume(id=uuid4())
-    pages, mapping = [], {}
-    numbers = ("42", "[43]", "xiv", None, "", "   ")
-    for index, number in enumerate(numbers):
-        page = MetakatPage(
-            id=uuid4(), batch_id=uuid4(), batch_index=index, pageIndex=index,
-            parent_id=volume.id, pageNumber=None if number is None else _v(number, 0.9),
-            startsDocument=(True, 0.9),
-        )
-        pages.append(page)
-        mapping[page.id] = f"page-{index}.jpg"
-        page_image(tmp_path / mapping[page.id])
-    io = MetakatIO(batch_id=uuid4(), elements=[volume, *pages], page_to_image_mapping=mapping)
+    page = MetakatPage(
+        id=uuid4(), batch_id=uuid4(), batch_index=0, parent_id=volume.id,
+        pageType=None if page_type is None else (page_type, .914),
+        side=("left", .876), pageNumber=_v("[123]", .999), startsDocument=(True, .9),
+    )
+    page_image(tmp_path / "page.jpg")
+    io = MetakatIO(batch_id=page.batch_id, elements=[volume, page],
+                   page_to_image_mapping={page.id: "page.jpg"})
+    output = tmp_path / "panel.pdf"
     before = io.model_dump_json()
-    output = tmp_path / "numbers.pdf"
     pdf_module.create_interactive_pdf(tmp_path, io, output)
-    with pymupdf.open(output) as document:
-        for page, expected in zip(document, ("42", "[43]", "xiv", "NONE", "NONE", "NONE")):
-            matches = page.search_for(expected, clip=pymupdf.Rect(0, page.rect.height * 0.9, page.rect.width, page.rect.height))
-            assert len(matches) == 1
-            assert "PAGE:" not in page.get_text()
-            bounds = matches[0]
-            assert bounds.x0 > page.rect.width / 2
-            assert bounds.y0 > page.rect.height * 0.9
-            assert page.rect.contains(bounds)
-            assert "DOCUMENT START" in page.get_text()
+    with pymupdf.open(output) as doc:
+        rendered = doc[0]
+        image = rendered.get_image_rects(rendered.get_images()[0][0])[0]
+        expected_width = pdf_module._panel_dimensions(pymupdf, min(image.width, image.height))[0]
+        assert rendered.rect.width - image.width == pytest.approx(expected_width)
+        previous_y = rendered.search_for("DOCUMENT START")[0].y1
+        for label, confidence in (("NONE" if page_type is None else page_type.value,
+                                   "--" if page_type is None else "0.91"),
+                                  ("left", "0.88"), ("[123]", "1.00")):
+            box, = rendered.search_for(label)
+            conf, = rendered.search_for(confidence)
+            assert box.x0 >= image.x1
+            assert conf.x0 > box.x1
+            assert box.y0 > previous_y
+            assert conf.y1 == pytest.approx(box.y1)
+            assert rendered.rect.contains(box) and rendered.rect.contains(conf)
+            previous_y = box.y1
+        assert not any(field in rendered.get_text() for field in ("pageType", "pageNumber", "side:"))
     assert io.model_dump_json() == before
+
+
+@pytest.mark.parametrize("number", [None, "", "   "])
+def test_missing_page_numbers_are_none_in_third_panel_row(tmp_path, page_image, number):
+    volume = MetakatVolume(id=uuid4())
+    page = MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=0, parent_id=volume.id,
+                       pageType=(PageType.TITLE_PAGE, .9), side=("right", .8),
+                       pageNumber=None if number is None else _v(number, .9))
+    page_image(tmp_path / "page.jpg")
+    io = MetakatIO(batch_id=page.batch_id, elements=[volume, page],
+                   page_to_image_mapping={page.id: "page.jpg"})
+    output = tmp_path / "missing.pdf"
+    pdf_module.create_interactive_pdf(tmp_path, io, output)
+    with pymupdf.open(output) as doc:
+        box, = doc[0].search_for("NONE")
+        side, = doc[0].search_for("right")
+        confidence, = doc[0].search_for("--")
+        assert box.y0 > side.y1
+        assert box.x1 < confidence.x0
+        assert box.y1 == pytest.approx(confidence.y1)
 
 
 @pytest.mark.parametrize("downscale", [False, True])
@@ -423,7 +411,6 @@ def test_page_and_bibliographic_sticky_notes_are_added(tmp_path, page_image):
         first_notes = [annot.info for annot in document[0].annots()]
         second_notes = [annot.info for annot in document[1].annots()]
         assert {note["subject"] for note in first_notes} == {
-            "Page type",
             "Page number",
             "Complete bibliographic information",
         }
@@ -437,7 +424,9 @@ def test_page_and_bibliographic_sticky_notes_are_added(tmp_path, page_image):
         assert [note["subject"] for note in second_notes].count(
             "Bibliographic detection"
         ) == 2
-        assert "Page type" in {note["subject"] for note in second_notes}
+        # Type confidences are printed in the panel rather than separate notes.
+        for page in document:
+            assert page.search_for("titlePage")
     finally:
         document.close()
 
@@ -734,6 +723,3 @@ def test_metadata_strip_keeps_labels_outside_unchanged_image(tmp_path, page_imag
             assert len(labels) == 1
             assert labels[0].x0 >= original.x1
             assert rendered.rect.contains(labels[0])
-        notes = [a for a in rendered.annots() if a.info["subject"] == "Page type"]
-        assert len(notes) == 1
-        assert notes[0].rect.x0 >= original.x1
