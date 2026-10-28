@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+from io import BytesIO
 import logging
 import math
 import os
 import tempfile
+import xml.etree.ElementTree as ET
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -81,8 +83,20 @@ def create_interactive_pdf(
     batch_dir: str | os.PathLike[str],
     metakat_io: MetakatIO,
     output_path: str | os.PathLike[str],
+    *,
+    downscale: bool = False,
+    min_text_pixels: float = 16.,
+    max_image_dimension: int = 2400,
 ) -> Path:
-    """Create an image-based PDF with chapter outline and TOC links."""
+    """Create an interactive PDF, optionally reducing embedded raster resolution.
+
+    The long-edge target is soft: small detected/OCR text can require more pixels.
+    Source images, schema geometry and physical PDF page dimensions stay unchanged.
+    """
+    if not math.isfinite(min_text_pixels) or min_text_pixels <= 0:
+        raise ValueError('min_text_pixels must be finite and positive')
+    if not isinstance(max_image_dimension, int) or isinstance(max_image_dimension, bool) or max_image_dimension < 1:
+        raise ValueError('max_image_dimension must be a positive integer')
     pymupdf = _load_pymupdf()
     batch_path = Path(batch_dir)
     destination = Path(output_path)
@@ -102,12 +116,17 @@ def create_interactive_pdf(
     document = pymupdf.open()
     temporary_path: Path | None = None
     try:
+        text_heights = _detection_text_heights(metakat_io) if downscale else {}
         rendered_by_page_id = _render_pages(
             pymupdf,
             document,
             batch_path,
             pages,
             image_mapping,
+            metakat_io=metakat_io if downscale else None,
+            text_heights=text_heights,
+            min_text_pixels=min_text_pixels,
+            max_image_dimension=max_image_dimension,
         )
         page_maps = _document_page_maps(groups, rendered_by_page_id)
         outline, chapter_destinations = _build_outline(
@@ -148,7 +167,8 @@ def create_interactive_pdf(
             delete=False,
         ) as temporary:
             temporary_path = Path(temporary.name)
-        document.save(temporary_path)
+        save_options = dict(garbage=4, deflate=True) if downscale else {}
+        document.save(temporary_path, **save_options)
         os.replace(temporary_path, destination)
         temporary_path = None
     finally:
@@ -165,12 +185,140 @@ def create_interactive_pdf(
     return destination
 
 
+def _detection_text_heights(metakat_io: MetakatIO) -> dict[UUID, float]:
+    """Conservative per-page text-size estimate using every valid detection.
+
+    Geometry is in original image pixels. For multiline readings, character
+    count and box area prevent treating the whole block height as one text line.
+    Unlabelled detections use their box height. Bad geometry is ignored.
+    """
+    readings = {}
+    for element in metakat_io.elements:
+        for name in type(element).model_fields:
+            field = getattr(element, name)
+            for value in field if isinstance(field, list) else (field,):
+                if isinstance(value, Value):
+                    readings[value.id] = value.text
+    result = {}
+    for ident, box in (metakat_io.detection_to_bbox or {}).items():
+        page_id = (metakat_io.detection_to_page_mapping or {}).get(ident)
+        if page_id is None or len(box) != 4 or not all(math.isfinite(x) for x in box):
+            continue
+        x, y, width, height = box
+        if width <= 0 or height <= 0:
+            continue
+        text = readings.get(ident, '')
+        if text.strip():
+            lines = max(1, len([line for line in text.splitlines() if line.strip()]))
+            height = min(height / lines, math.sqrt(2 * width * height / max(1, len(text))))
+        result[page_id] = min(result.get(page_id, math.inf), height)
+    return result
+
+
+def _ocr_text_height(path: Path, image_height: int) -> float | None:
+    """Read ALTO/PAGE text geometry only; never OCR text or word content.
+
+    Streaming aggregates keep memory bounded to one XML page. Page coordinates
+    are converted to image pixels, including ALTO files using physical units.
+    """
+    minimum, word_minimum, coordinate_height = math.inf, math.inf, None
+    line_word_height = 0.
+    try:
+        for event, node in ET.iterparse(path, events=('start', 'end')):
+            name = node.tag.rsplit('}', 1)[-1]
+            if event == 'start':
+                if name == 'TextLine':
+                    line_word_height = 0.
+                if name == 'Page':
+                    raw = node.get('HEIGHT') or node.get('imageHeight')
+                    if raw:
+                        coordinate_height = float(raw)
+                continue
+            if name in ('String', 'TextLine'):
+                raw = node.get('HEIGHT')
+                height = float(raw) if raw else None
+                if height is None and name == 'TextLine':
+                    coords = next((c for c in node if c.tag.rsplit('}', 1)[-1] == 'Coords'), None)
+                    if coords is not None and coords.get('points'):
+                        ys = [float(point.split(',')[1]) for point in coords.get('points').split()]
+                        height = max(ys) - min(ys)
+                if name == 'String' and height is not None and math.isfinite(height) and height > 0:
+                    line_word_height = max(line_word_height, height)
+                    word_minimum = min(word_minimum, height)
+                if name == 'TextLine':
+                    if height is None and line_word_height > 0:
+                        height = line_word_height
+                    if height is not None and math.isfinite(height) and height > 0:
+                        minimum = min(minimum, height)
+            # PAGE Coords must remain until their enclosing TextLine is visited.
+            if name != 'Coords':
+                node.clear()
+    except (OSError, ET.ParseError, ValueError, IndexError):
+        logger.warning('Unable to use OCR geometry for PDF downscaling: %s', path)
+        return None
+    # A dot can have a much smaller glyph box than the font it belongs to.
+    # Prefer line geometry (or its tallest word), then standalone word geometry.
+    if minimum == math.inf:
+        minimum = word_minimum
+    if minimum == math.inf or coordinate_height is None or not math.isfinite(coordinate_height) or coordinate_height <= 0:
+        return None
+    return minimum * image_height / coordinate_height
+
+
+def _downscale_ratio(width, height, text_height, min_text_pixels, max_image_dimension):
+    # Without text evidence, retain a more conservative 3000-pixel long edge.
+    target = max_image_dimension if text_height is not None else max(3000, max_image_dimension)
+    ratio = min(1., target / max(width, height))
+    if text_height is not None:
+        ratio = min(1., max(ratio, min_text_pixels / text_height))
+    return ratio
+
+
+def _reduced_image(path: Path, width: int, height: int, ratio: float) -> bytes | None:
+    size = (max(1, math.ceil(width * ratio)), max(1, math.ceil(height * ratio)))
+    if size == (width, height):
+        return None
+    with Image.open(path) as image:
+        # The existing converter owns EXIF orientation; avoid changing it while
+        # dropping metadata in a newly encoded raster.
+        if image.getexif().get(274, 1) != 1:
+            return None
+        if image.mode in ('RGBA', 'LA') or 'transparency' in image.info:
+            image = image.convert('RGBA')
+        if image.mode not in ('1', 'L', 'RGB', 'RGBA'):
+            image = image.convert('RGB')
+        if image.mode == 'RGBA':
+            background = Image.new('RGB', image.size, 'white')
+            background.paste(image, mask=image.getchannel('A'))
+            image = background
+        if image.mode == '1':
+            # Antialias before reducing text; keep the result lossless.
+            image = image.convert('L').resize(size, Image.Resampling.LANCZOS)
+            fmt, options = 'PNG', {'optimize': True}
+        else:
+            image = image.resize(size, Image.Resampling.LANCZOS)
+            fmt, options = 'JPEG', {'quality': 90, 'optimize': True, 'subsampling': 0}
+        stream = BytesIO()
+        image.save(stream, format=fmt, **options)
+        encoded = stream.getvalue()
+    # Re-encoding a highly compressible original can cost more than it saves.
+    if len(encoded) >= path.stat().st_size:
+        return None
+    logger.info('PDF raster downscale %s: %dx%d -> %dx%d', path.name, width, height, *size)
+    return encoded
+
+
 def _render_pages(
     pymupdf,
     document,
     batch_dir: Path,
     pages: list[MetakatPage],
     image_mapping: dict,
+    *,
+    metakat_io: MetakatIO | None = None,
+    text_heights: dict | None = None,
+    min_text_pixels: float = 16.,
+    max_image_dimension: int = 2400,
 ) -> dict[UUID, _RenderedPage]:
     rendered: dict[UUID, _RenderedPage] = {}
     for page in pages:
@@ -192,6 +340,30 @@ def _render_pages(
             image_width, image_height = image.size
         if image_width <= 0 or image_height <= 0:
             raise ValueError(f"Page image has invalid dimensions: {image_path}")
+
+        reduced = None
+        if metakat_io is not None:
+            height = (text_heights or {}).get(page.id)
+            ocr_name = ((metakat_io.page_to_alto_mapping or {}).get(page.id)
+                        or (metakat_io.page_to_xml_mapping or {}).get(page.id))
+            if ocr_name:
+                ocr_height = _ocr_text_height(batch_dir / ocr_name, image_height)
+                if ocr_height is not None:
+                    height = min(height, ocr_height) if height is not None else ocr_height
+            ratio = _downscale_ratio(image_width, image_height, height,
+                                     min_text_pixels, max_image_dimension)
+            reduced = _reduced_image(image_path, image_width, image_height, ratio)
+        if reduced is not None:
+            # Preserve the source image's PDF extent / DPI. Existing coordinate
+            # transforms therefore align links, boxes and notes without rounding
+            # raster coordinates or shrinking vector annotations.
+            with pymupdf.open(str(image_path)) as original:
+                rect = original[0].rect
+            pdf_page = document.new_page(width=rect.width, height=rect.height)
+            pdf_page.insert_image(pdf_page.rect, stream=reduced, keep_proportion=False)
+            rendered[page.id] = _RenderedPage(page, document.page_count - 1,
+                                              rect.width / image_width, rect.height / image_height)
+            continue
 
         image_document = pymupdf.open(str(image_path))
         try:
@@ -991,6 +1163,9 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Path to output interactive MetaKat PDF file",
     )
+    parser.add_argument('--downscale', action='store_true', help='Reduce embedded images using detected/OCR text sizes')
+    parser.add_argument('--min-text-pixels', type=float, default=16., help='Minimum estimated text height after reduction (default: 16)')
+    parser.add_argument('--max-image-dimension', type=int, default=2400, help='Soft long-edge target; text readability can exceed it (default: 2400)')
     return parser.parse_args()
 
 
@@ -1007,6 +1182,9 @@ def main() -> None:
         args.batch_dir,
         metakat_io,
         args.output_metakat_pdf,
+        downscale=args.downscale,
+        min_text_pixels=args.min_text_pixels,
+        max_image_dimension=args.max_image_dimension,
     )
 
 

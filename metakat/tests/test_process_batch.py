@@ -198,3 +198,12 @@ def test_engine_is_recorded_only_when_the_caller_names_it():
         assert result.bbox_coordinates.model_dump() == {
             "unit": "px", "origin": "top-left", "format": "xywh", "reference": "image",
         }
+
+
+def test_process_batch_forwards_pdf_downscale_settings():
+    io=MetakatIO(batch_id=uuid4())
+    with (mock.patch.object(process_batch_module,'init_io',return_value=(io,None)),
+          mock.patch.object(process_batch_module,'create_interactive_pdf') as create):
+        process_batch_module.process_batch('batch',engine_config={},output_metakat_pdf='out.pdf',
+            pdf_downscale=True,pdf_min_text_pixels=20,pdf_max_image_dimension=2000)
+    create.assert_called_once_with('batch',io,'out.pdf',downscale=True,min_text_pixels=20,max_image_dimension=2000)

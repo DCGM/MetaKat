@@ -108,6 +108,9 @@ def parse_args():
 
     parser.add_argument('--output-metakat-json', type=str, help='Path to output Metakat JSON file')
     parser.add_argument('--output-metakat-pdf', type=str, help='Path to output interactive MetaKat PDF file')
+    parser.add_argument('--pdf-downscale', action='store_true', help='Reduce PDF raster resolution while retaining readable detected text')
+    parser.add_argument('--pdf-min-text-pixels', type=float, default=16.)
+    parser.add_argument('--pdf-max-image-dimension', type=int, default=2400)
     parser.add_argument('--output-mods-dir', type=str, help='Directory for one MODS record per unit and page')
     parser.add_argument('--output-mods-overview', type=str,
                         help='Text file with every MODS record in MetaKat JSON order, for inspection')
@@ -155,6 +158,9 @@ def main():
         allowed_image_extensions=set(args.allowed_image_extensions),
         engine_name=args.engine_name,
         engine_version=args.engine_version,
+        pdf_downscale=args.pdf_downscale,
+        pdf_min_text_pixels=args.pdf_min_text_pixels,
+        pdf_max_image_dimension=args.pdf_max_image_dimension,
     )
     
 
@@ -171,6 +177,9 @@ def process_batch(
     engine_version: Optional[str] = None,
     output_mods_dir: Optional[str] = None,
     output_mods_overview: Optional[str] = None,
+    pdf_downscale: bool = False,
+    pdf_min_text_pixels: float = 16.,
+    pdf_max_image_dimension: int = 2400,
 ) -> MetakatIO:
     """
     Process a batch directory and return the processed MetakatIO object.
@@ -183,6 +192,9 @@ def process_batch(
         ordered_image_filenames: List of ordered image filenames in batch_dir (defaults to natsorted image files)
         output_metakat_json: Path to output Metakat JSON file
         output_metakat_pdf: Path to output interactive MetaKat PDF file
+        pdf_downscale: Reduce embedded images using text geometry (default False)
+        pdf_min_text_pixels: Minimum estimated text height in downscaled images
+        pdf_max_image_dimension: Soft long-edge target; readability takes precedence
         allowed_image_extensions: Set of allowed image file extensions
         engine_name: Name of the engine being run, recorded in MetakatIO.engine;
             optional, since a plain pipeline run need not know it
@@ -242,10 +254,13 @@ def process_batch(
     logger.info("MetakatIO has been successfully validated")
 
     if output_metakat_pdf is not None:
+        pdf_options = (dict(downscale=True, min_text_pixels=pdf_min_text_pixels,
+                            max_image_dimension=pdf_max_image_dimension) if pdf_downscale else {})
         create_interactive_pdf(
             batch_dir,
             metakat_io,
             output_metakat_pdf,
+            **pdf_options,
         )
 
     if output_metakat_json is not None:

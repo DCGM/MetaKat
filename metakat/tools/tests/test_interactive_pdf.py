@@ -456,3 +456,112 @@ def test_standalone_main_loads_metakat_json(tmp_path):
     assert create.call_args.args[0] == str(tmp_path)
     assert isinstance(create.call_args.args[1], MetakatIO)
     assert create.call_args.args[2] == str(output)
+
+
+def test_downscale_preserves_geometry_and_interaction_and_reduces_pdf(tmp_path):
+    from PIL import Image,ImageDraw,ImageFont
+    image=Image.new('RGB',(2400,3200),'white')
+    draw=ImageDraw.Draw(image)
+    font=ImageFont.load_default(size=48)
+    for y in range(100,3000,70):
+        draw.text((100,y),'Readable scanned text for an interactive PDF 123456789',fill='black',font=font)
+    image_path=tmp_path/'scan.jpg'
+    image.save(image_path,quality=98)
+    original_bytes=image_path.read_bytes()
+    alto=tmp_path/'scan.xml'
+    alto.write_text('<alto><Layout><Page WIDTH="2400" HEIGHT="3200"><TextBlock>'
+                    '<TextLine HEIGHT="60"><String HEIGHT="48"/></TextLine>'
+                    '</TextBlock></Page></Layout></alto>')
+    volume=MetakatVolume(id=uuid4(),title=[_v('Book',.9)])
+    pages=[MetakatPage(id=uuid4(),batch_id=uuid4(),batch_index=i,pageIndex=i,parent_id=volume.id)
+           for i in range(2)]
+    reading=_v('Chapter one',.9)
+    chapter=MetakatChapter(id=uuid4(),parent_id=volume.id,pageIndexStart=_run(1),
+                           pageIndexTocPage=0,titleTocPage=[reading])
+    io=MetakatIO(batch_id=uuid4(),elements=[volume,*pages,chapter],
+        page_to_image_mapping={p.id:'scan.jpg' for p in pages},
+        page_to_alto_mapping={p.id:'scan.xml' for p in pages},
+        detection_to_bbox={reading.id:(100,200,500,48)},
+        detection_to_page_mapping={reading.id:pages[0].id})
+    before=io.model_dump_json()
+    full=tmp_path/'full.pdf';small=tmp_path/'small.pdf'
+    pdf_module.create_interactive_pdf(tmp_path,io,full)
+    pdf_module.create_interactive_pdf(tmp_path,io,small,downscale=True,max_image_dimension=1600)
+    assert image_path.read_bytes()==original_bytes
+    assert io.model_dump_json()==before
+    assert small.stat().st_size < full.stat().st_size*.7
+    with pymupdf.open(full) as a,pymupdf.open(small) as b:
+        assert a.get_toc()==b.get_toc() and a.page_count==b.page_count==2
+        for original,reduced in zip(a,b):
+            assert tuple(original.rect)==pytest.approx(tuple(reduced.rect))
+            raster=reduced.get_images(full=True)[0]
+            assert raster[2:4]==(1200,1600)
+            assert len(original.get_links())==len(reduced.get_links())
+            for old,new in zip(original.get_links(),reduced.get_links()):
+                assert old['page']==new['page']
+                assert tuple(old['from'])==pytest.approx(tuple(new['from']))
+            old_notes=list(original.annots() or []);new_notes=list(reduced.annots() or [])
+            assert len(old_notes)==len(new_notes)
+            for old,new in zip(old_notes,new_notes):
+                assert old.info['content']==new.info['content']
+                assert tuple(old.rect)==pytest.approx(tuple(new.rect))
+
+
+def test_downscale_uses_smallest_text_and_never_upscales(tmp_path):
+    from PIL import Image
+    assert pdf_module._downscale_ratio(4000,6000,8,16,2400)==1
+    assert pdf_module._downscale_ratio(4000,6000,32,16,2400)==.5
+    assert pdf_module._downscale_ratio(4000,6000,None,16,2400)==.5
+    assert pdf_module._downscale_ratio(400,600,32,16,2400)==1
+    path=tmp_path/'tiny.png';Image.new('RGB',(400,600),'white').save(path)
+    assert pdf_module._reduced_image(path,400,600,1) is None
+
+
+def test_ocr_readability_geometry_in_alto_and_page_xml(tmp_path):
+    alto=tmp_path/'alto.xml'
+    alto.write_text('<alto xmlns="urn:alto"><Layout><Page HEIGHT="2000">'
+                    '<TextLine HEIGHT="50"><String HEIGHT="30"/><String HEIGHT="10"/>'
+                    '</TextLine></Page></Layout></alto>')
+    assert pdf_module._ocr_text_height(alto,4000)==100
+    alto.write_text('<alto><Page HEIGHT="2000"><TextLine><String HEIGHT="30"/>'
+                    '<String HEIGHT="3"/></TextLine></Page></alto>')
+    assert pdf_module._ocr_text_height(alto,4000)==60
+    page=tmp_path/'page.xml'
+    page.write_text('<PcGts><Page imageHeight="2000"><TextRegion><TextLine>'
+                    '<Coords points="10,20 100,20 100,50 10,50"/>'
+                    '</TextLine></TextRegion></Page></PcGts>')
+    assert pdf_module._ocr_text_height(page,4000)==60
+    page.write_text('invalid XML')
+    assert pdf_module._ocr_text_height(page,4000) is None
+
+
+def test_all_detections_contribute_and_multiline_boxes_are_not_single_lines():
+    volume=MetakatVolume(id=uuid4())
+    a,b,c=uuid4(),uuid4(),uuid4();page_id=uuid4()
+    volume.title=[_v('A title',.9,a),_v('A long paragraph '*100,.8,b)]
+    io=MetakatIO(batch_id=uuid4(),elements=[volume],
+        detection_to_bbox={a:(0,0,500,60),b:(0,100,500,600),c:(0,0,10,3)},
+        detection_to_page_mapping={a:page_id,b:page_id,c:page_id})
+    # Even an unlabelled tiny detection constrains downscaling.
+    assert pdf_module._detection_text_heights(io)[page_id]==3
+    io.detection_to_bbox.pop(c)
+    assert pdf_module._detection_text_heights(io)[page_id] < 60
+
+
+@pytest.mark.parametrize('settings',[{'min_text_pixels':0},{'min_text_pixels':float('nan')},
+                                      {'max_image_dimension':0}])
+def test_invalid_downscale_settings_are_rejected(tmp_path,settings):
+    with pytest.raises(ValueError):
+        pdf_module.create_interactive_pdf(tmp_path,MetakatIO(batch_id=uuid4()),tmp_path/'bad.pdf',
+                                          downscale=True,**settings)
+
+
+def test_standalone_downscale_options_are_forwarded(tmp_path):
+    metakat_path=tmp_path/'metakat.json'
+    metakat_path.write_text(MetakatIO(batch_id=uuid4()).model_dump_json())
+    with (mock.patch.object(sys,'argv',['create_interactive_pdf','--batch-dir',str(tmp_path),
+            '--metakat-json',str(metakat_path),'--output-metakat-pdf',str(tmp_path/'out.pdf'),
+            '--downscale','--min-text-pixels','20','--max-image-dimension','2000']),
+          mock.patch.object(pdf_module,'create_interactive_pdf') as create):
+        pdf_module.main()
+    assert create.call_args.kwargs == {'downscale':True,'min_text_pixels':20.,'max_image_dimension':2000}

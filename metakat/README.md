@@ -426,6 +426,42 @@ and no model runtime can still render a batch another machine processed.
 The PDF is written atomically, through a temporary file in the destination
 directory, so an interrupted render leaves no partial output in place.
 
+### Optional image downscaling
+
+For a smaller interactive PDF, add `--pdf-downscale` to `metakat.process_batch`.
+The standalone renderer exposes the same feature as `--downscale`:
+
+```bash
+python -m metakat.tools.create_interactive_pdf \
+  --batch-dir /data/batch --metakat-json /data/result/metakat.json \
+  --output-metakat-pdf /data/result/compact.pdf --downscale
+```
+
+This mode inspects all mapped detection boxes and their text, estimating line
+height for multiline readings. Available ALTO/PAGE XML contributes text-line
+geometry in original image coordinates; punctuation glyphs are not mistaken for
+full text lines. The reduction keeps estimated text at least 16 pixels high and
+aims for a 2400-pixel long edge. Small text overrides this soft target, including
+retaining full resolution. Pages without usable text evidence use a conservative
+3000-pixel long-edge target. Images are never enlarged.
+
+The standalone options `--min-text-pixels` and `--max-image-dimension` tune those
+thresholds. Pipeline equivalents are `--pdf-min-text-pixels` and
+`--pdf-max-image-dimension`; Python callers can use
+`create_interactive_pdf(..., downscale=True, min_text_pixels=16,
+max_image_dimension=2400)` or the corresponding `pdf_*` arguments to
+`process_batch()`. Defaults leave downscaling disabled.
+
+Only embedded image resolution changes. Physical PDF page dimensions, outlines,
+links, vector boxes and notes keep their existing positions; source images and
+MetaKatIO geometry are untouched. Reduced images use high-quality JPEG (quality
+90), or lossless PNG for bitonal sources after antialiased reduction. Transparency
+is flattened onto white. A re-encoding that would be larger than its source is
+skipped, and EXIF-oriented images retain their original encoding. Downscale mode
+also compresses and deduplicates PDF objects. Readability is a geometry-based
+heuristic, not an OCR-quality guarantee; increase the text-height threshold for
+small print or difficult scans. A PDF that is already compact may not shrink.
+
 ### Outline
 
 The chapter outline uses compact labels in this order:
