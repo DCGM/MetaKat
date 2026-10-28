@@ -85,7 +85,7 @@ def artifact(tmp_path):
     model = PageTagger(tiny_backbone(), dict(dims, pagination=5, boundaries=5), 'separate_mlp')
     state = {'format': 'metakat_context_v4', 'specification': model.specification(), 'model': model.state_dict(),
              'features': feature_state(stats, dims), 'page_types': PAGE_TYPES, 'placements': PLACEMENTS,
-             'inference': {'window_size': 8, 'overlap': 4}}
+             'inference': {'window_size': 8, 'overlap': 4, 'overlap_merge': {}}}
     path = tmp_path / 'model.pt'
     from metakat.page_type.engines.core.context.pagination import POLICY
     state['pagination'] = {'policy': POLICY, 'cap': 10000}
@@ -278,52 +278,41 @@ def test_default_regular_tail_uses_short_input_without_shift():
     assert window_spans(1024, cfg.window_size, cfg.stride, cfg.tail) == [(0,512),(448,960),(896,1024)]
 
 
-def test_overlap_overrides_legacy_artifact_stride_without_changing_tiling():
-    from metakat.page_type.engines.core.context.merging import window_spans
-    legacy = {'window_size': 512, 'stride': 448}
-    current = {'window_size': 512, 'overlap': 64}
-    assert InferenceConfig.from_artifact(legacy) == InferenceConfig.from_artifact(current)
-    overridden = InferenceConfig.from_artifact(legacy, {'overlap': 128})
-    assert overridden.overlap == 128 and overridden.stride == 384
-    assert window_spans(1024, overridden.window_size, overridden.stride, overridden.tail) == [
-        (0,512), (384,896), (768,1024)]
-    assert legacy == {'window_size': 512, 'stride': 448}
-    with pytest.raises(ValueError, match='Use inference.overlap'):
-        InferenceConfig.from_artifact(current, {'stride': 448})
-    for overlap in (0, -1, 512):
-        with pytest.raises(ValueError, match='overlap'):
-            InferenceConfig(overlap=overlap)
+def test_current_context_config_rejects_obsolete_settings():
+    with pytest.raises(ValueError, match='re-export'):
+        InferenceConfig.from_artifact({'window_size':512, 'stride':448})
+    for name, value in [('stride',448), ('edge_ramp',32), ('edge_ignore',8), ('edge_power',2), ('merge','center_logits')]:
+        with pytest.raises(TypeError, match=name):
+            InferenceConfig.from_artifact({'overlap_merge':{}}, {name:value})
+    with pytest.raises(ValueError, match='regular'):
+        InferenceConfig(tail='anchored')
 
 
 def test_grouped_overlap_merge_defaults_rescale_and_preserve_nested_overrides():
     from dataclasses import asdict
     from metakat.page_type.engines.core.context.merging import context_weights
-    defaults = InferenceConfig.from_artifact({})
+    defaults = InferenceConfig.from_artifact({'overlap_merge':{}})
     assert defaults.overlap == 64
-    assert (defaults.edge_ramp, defaults.edge_ignore, defaults.edge_power) == (48, 12, 3)
-    values = context_weights(5, 70, 70, defaults.edge_ramp, defaults.edge_ignore, defaults.edge_power)
+    assert (defaults.ramp_end, defaults.ignored_edge_pages, defaults.power) == (48, 12, 3)
+    values = context_weights(5, 70, 70, defaults.ramp_end, defaults.ignored_edge_pages, defaults.power)
     np.testing.assert_array_equal(values[:12], np.zeros(12))
     assert values[29] == .125 and values[47] == 1
     for overlap, ramp, ignored in [(256,192,48), (128,96,24), (64,48,12), (32,24,6), (16,12,3)]:
         current = InferenceConfig.from_artifact(asdict(defaults), {'overlap': overlap})
-        assert (current.edge_ramp, current.edge_ignore, current.edge_power) == (ramp, ignored, 3)
-    custom = {'overlap_merge': {'ignore_fraction_of_ramp': .125, 'power': 4}}
+        assert (current.ramp_end, current.ignored_edge_pages, current.power) == (ramp, ignored, 3)
+    custom = {'overlap_merge': {'ignored_edge_fraction_of_overlap': .09375, 'power': 4}}
     changed = InferenceConfig.from_artifact(custom, {'overlap_merge': {'power': 1}})
-    assert changed.overlap_merge.ramp_fraction_of_overlap == .75
-    assert (changed.edge_ramp, changed.edge_ignore, changed.edge_power) == (48, 6, 1)
+    assert changed.overlap_merge.ramp_end_fraction_of_overlap == .75
+    assert (changed.ramp_end, changed.ignored_edge_pages, changed.power) == (48, 6, 1)
     assert custom['overlap_merge']['power'] == 4
-    legacy = InferenceConfig.from_artifact({'window_size':512, 'stride':448,
-                                           'edge_ramp':32, 'edge_ignore':8, 'edge_power':2})
-    assert (legacy.edge_ramp, legacy.edge_ignore, legacy.edge_power) == (32, 8, 2)
-    with pytest.raises(ValueError, match='inference.overlap_merge'):
-        InferenceConfig.from_artifact({}, {'edge_ramp':48})
+
 
 
 @pytest.mark.parametrize('policy', [
-    {'ramp_fraction_of_overlap': 0}, {'ramp_fraction_of_overlap': float('nan')},
-    {'ignore_fraction_of_ramp': 1}, {'ignore_fraction_of_ramp': -.1},
+    {'ramp_end_fraction_of_overlap': 0}, {'ramp_end_fraction_of_overlap': float('nan')},
+    {'ignored_edge_fraction_of_overlap': 1}, {'ignored_edge_fraction_of_overlap': -.1},
     {'power': 0}, {'power': 1.5}, {'method': 'unknown'},
 ])
 def test_grouped_overlap_merge_rejects_invalid_policy(policy):
     with pytest.raises(ValueError, match='overlap_merge'):
-        InferenceConfig.from_artifact({}, {'overlap_merge':policy})
+        InferenceConfig.from_artifact({'overlap_merge':{}}, {'overlap_merge':policy})

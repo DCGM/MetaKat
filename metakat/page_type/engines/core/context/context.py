@@ -87,10 +87,11 @@ class PageTypeCoreEngineContext(PageTypeCoreEngine):
             raise ValueError('Inference window exceeds checkpoint position limit')
         logging.getLogger(__name__).info(
             'Context inference: window=%d overlap=%d stride=%d tail=%s; overlap_merge=%s; '
-            'resolved ramp=%d ignored pages=%d power=%d',
+            'ramp endpoint=%d ignored pages=%d active ramp length=%d power=%d',
             self.inference.window_size, self.inference.overlap, self.inference.stride,
-            self.inference.tail, self.inference.overlap_merge, self.inference.edge_ramp,
-            self.inference.edge_ignore, self.inference.edge_power)
+            self.inference.tail, self.inference.overlap_merge, self.inference.ramp_end,
+            self.inference.ignored_edge_pages,
+            self.inference.ramp_end - self.inference.ignored_edge_pages, self.inference.power)
         self.stats = AltoStatsEncoder(state['features']['normalization'])
         self.stats.validate_feature_state(state['features'], base_dims)
         # Labels in training use archive spellings (FlyLeaf, TitlePage, ...).

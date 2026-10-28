@@ -275,14 +275,14 @@ artifact does not contain the image or text encoder weights.
   "checkpoint_path": "page_type/core/context.pt",
   "inference": {
     "window_size": 512,
-    "overlap": 64,
     "tail": "regular",
     "batch_size": 8,
     "start_threshold": 0.5,
+    "overlap": 64,
     "overlap_merge": {
       "method": "center_logits",
-      "ramp_fraction_of_overlap": 0.75,
-      "ignore_fraction_of_ramp": 0.25,
+      "ramp_end_fraction_of_overlap": 0.75,
+      "ignored_edge_fraction_of_overlap": 0.1875,
       "power": 3
     }
   }
@@ -301,22 +301,20 @@ An optional `inference` mapping overrides settings exported with the checkpoint.
 `window_size` counts pages per window and `overlap` counts pages shared by
 consecutive windows. The engine derives the advance as `window_size - overlap`;
 `overlap_merge` groups all settings controlling the combination of overlapping
-predictions. Existing artifacts
-with stored `stride` are converted automatically; user configuration uses
-`overlap` only:
+predictions. Only the current grouped configuration is accepted:
 
 ```json
 {
   "inference": {
     "window_size": 512,
-    "overlap": 64,
     "tail": "regular",
     "batch_size": 8,
     "start_threshold": 0.5,
+    "overlap": 64,
     "overlap_merge": {
       "method": "center_logits",
-      "ramp_fraction_of_overlap": 0.75,
-      "ignore_fraction_of_ramp": 0.25,
+      "ramp_end_fraction_of_overlap": 0.75,
+      "ignored_edge_fraction_of_overlap": 0.1875,
       "power": 3
     }
   }
@@ -324,27 +322,26 @@ with stored `stride` are converted automatically; user configuration uses
 ```
 
 These are the selected deployment defaults: 512-page windows, overlap 64,
-cubic weighting, a ramp covering 3/4 of the overlap, and an ignored region
-covering 1/4 of the ramp. For overlap 64 the resolved ramp is 48 pages and
+cubic weighting, a ramp covering 3/4 of the overlap, and an ignored edge
+covering 3/16 of the overlap. The active ramp follows that ignored edge. For overlap 64 the resolved ramp is 48 pages and
 the ignored region is 12 pages. The formulas are:
 
 ```text
-ramp   = max(1, floor(overlap * overlap_merge.ramp_fraction_of_overlap))
-ignore = floor(ramp * overlap_merge.ignore_fraction_of_ramp)
-weight = clip((distance - ignore) / (ramp - ignore), 0, 1) ** overlap_merge.power
+ramp_end = max(1, floor(overlap * overlap_merge.ramp_end_fraction_of_overlap))
+ignore   = floor(overlap * overlap_merge.ignored_edge_fraction_of_overlap)
+weight   = clip((distance - ignore) / (ramp_end - ignore), 0, 1) ** overlap_merge.power
 ```
 
 There is no additive weight floor. Changing overlap automatically rescales
-the ramp and ignore counts. The ignored fraction must be in `[0,1)`; the
+the ramp and ignore counts. The ignored-edge fraction must be in `[0,0.5]`; the
 resulting ignored pages may not exceed half the overlap. `power` must be a
 positive integer. Power 1 is linear; power 3 is the selected cubic policy.
 The ramp fraction must be positive and finite.
 
 The `overlap_merge` override is merged by field with artifact settings, so
-changing only `power` retains its other settings. Newly exported artifacts
-store this grouped policy. Older flat artifact metadata is converted on load;
-new user configuration must use `overlap_merge` instead of flat `merge`,
-`edge_ramp`, `edge_ignore` or `edge_power` keys. The engine logs the effective
+changing only `power` retains its other settings. Artifacts must store this grouped policy. Unsupported artifacts must be
+re-exported; obsolete settings are rejected. Only the regular short-tail
+strategy is supported. The engine logs the effective
 policy and resolved page counts at startup.
 
 The window cannot exceed the checkpoint's learned position limit. The shared
@@ -352,6 +349,10 @@ The window cannot exceed the checkpoint's learned position limit. The shared
 [boundary policy configuration](#boundary-policy-configuration).
 
 #### Model files and architecture
+
+The context engine deploys only the current model and inference contract.
+Obsolete configurations are removed rather than maintained through migration
+paths; re-export the selected checkpoint when the contract changes.
 
 Export a **trusted local** checkpoint from `classification-with-context`:
 
@@ -363,7 +364,7 @@ The exporter reads the training pickle once and writes tensors plus primitive
 metadata. MetaKat loads this deployment artifact with `weights_only=True`.
 It contains architecture, class order, feature normalization/schema, pagination
 policy and cap, and deployment inference settings (512/448, regular tail,
-centre-weighted logits, cubic power 3, ramp 3/4 of overlap, ignore 1/4 of ramp). These replace the historical
+centre-weighted logits, cubic power 3, ramp endpoint at 3/4 of overlap, ignored edge of 3/16 overlap). These replace the historical
 training-validation overlap rather than copying it into deployment. Optimizer state, RNG, and training
 source paths are omitted. Export the selected `best.pt`, rather than assuming
 the last update is best. No trained checkpoint is bundled with the code.
@@ -474,7 +475,8 @@ CPU uses FP32.
 The default experiment strategy accumulates centre-weighted logits over
 overlaps and applies softmax or sigmoid afterward. Weights are
 `clip((distance - ignore) / (ramp - ignore), 0, 1) ** power` with no
-additive floor, where all three controls come from `overlap_merge`. The first
+additive floor, where all three controls come from `overlap_merge`. The ignored edge is before
+the active ramp; no portion of the active ramp is discarded. The first
 included page is at distance 1. True scan endpoints are exempt from the
 corresponding edge penalty. Full weight is reached at the ramp endpoint. Available merge values are
 `center_logits`, `uniform_logits`, `center_probs`, `uniform_probs`, and `central`
