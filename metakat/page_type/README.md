@@ -277,12 +277,14 @@ artifact does not contain the image or text encoder weights.
     "window_size": 512,
     "overlap": 64,
     "tail": "regular",
-    "merge": "center_logits",
-    "edge_ramp": 32,
-    "edge_power": 2,
-    "edge_ignore": 0,
+    "batch_size": 8,
     "start_threshold": 0.5,
-    "batch_size": 8
+    "overlap_merge": {
+      "method": "center_logits",
+      "ramp_fraction_of_overlap": 0.75,
+      "ignore_fraction_of_ramp": 0.25,
+      "power": 3
+    }
   }
 }
 ```
@@ -298,7 +300,8 @@ texts do not need to remain in RAM. Model weights remain loaded across passes.
 An optional `inference` mapping overrides settings exported with the checkpoint.
 `window_size` counts pages per window and `overlap` counts pages shared by
 consecutive windows. The engine derives the advance as `window_size - overlap`;
-`edge_ramp` controls merging weights, not window positions. Existing artifacts
+`overlap_merge` groups all settings controlling the combination of overlapping
+predictions. Existing artifacts
 with stored `stride` are converted automatically; user configuration uses
 `overlap` only:
 
@@ -308,17 +311,42 @@ with stored `stride` are converted automatically; user configuration uses
     "window_size": 512,
     "overlap": 64,
     "tail": "regular",
-    "edge_ignore": 0,
-    "merge": "center_logits",
-    "edge_ramp": 32,
-    "edge_power": 2,
+    "batch_size": 8,
     "start_threshold": 0.5,
-    "batch_size": 64
+    "overlap_merge": {
+      "method": "center_logits",
+      "ramp_fraction_of_overlap": 0.75,
+      "ignore_fraction_of_ramp": 0.25,
+      "power": 3
+    }
   }
 }
 ```
 
-These are the selected deployment settings (512 positions, 64-page overlap). Only override them for an evaluated deployment setup.
+These are the selected deployment defaults: 512-page windows, overlap 64,
+cubic weighting, a ramp covering 3/4 of the overlap, and an ignored region
+covering 1/4 of the ramp. For overlap 64 the resolved ramp is 48 pages and
+the ignored region is 12 pages. The formulas are:
+
+```text
+ramp   = max(1, floor(overlap * overlap_merge.ramp_fraction_of_overlap))
+ignore = floor(ramp * overlap_merge.ignore_fraction_of_ramp)
+weight = clip((distance - ignore) / (ramp - ignore), 0, 1) ** overlap_merge.power
+```
+
+There is no additive weight floor. Changing overlap automatically rescales
+the ramp and ignore counts. The ignored fraction must be in `[0,1)`; the
+resulting ignored pages may not exceed half the overlap. `power` must be a
+positive integer. Power 1 is linear; power 3 is the selected cubic policy.
+The ramp fraction must be positive and finite.
+
+The `overlap_merge` override is merged by field with artifact settings, so
+changing only `power` retains its other settings. Newly exported artifacts
+store this grouped policy. Older flat artifact metadata is converted on load;
+new user configuration must use `overlap_merge` instead of flat `merge`,
+`edge_ramp`, `edge_ignore` or `edge_power` keys. The engine logs the effective
+policy and resolved page counts at startup.
+
 The window cannot exceed the checkpoint's learned position limit. The shared
 `boundary_policy` mapping is documented under
 [boundary policy configuration](#boundary-policy-configuration).
@@ -335,7 +363,7 @@ The exporter reads the training pickle once and writes tensors plus primitive
 metadata. MetaKat loads this deployment artifact with `weights_only=True`.
 It contains architecture, class order, feature normalization/schema, pagination
 policy and cap, and deployment inference settings (512/448, regular tail,
-centre-weighted logits, ramp 32, no discarded edges). These replace the historical
+centre-weighted logits, cubic power 3, ramp 3/4 of overlap, ignore 1/4 of ramp). These replace the historical
 training-validation overlap rather than copying it into deployment. Optimizer state, RNG, and training
 source paths are omitted. Export the selected `best.pt`, rather than assuming
 the last update is best. No trained checkpoint is bundled with the code.
@@ -445,12 +473,10 @@ CPU uses FP32.
 
 The default experiment strategy accumulates centre-weighted logits over
 overlaps and applies softmax or sigmoid afterward. Weights are
-`min(1, distance / edge_ramp) ** edge_power` with no additive floor.
-`edge_power` defaults to 2 (quadratic); 1 selects a linear rise. The first included page
-is at distance 1; distance 0 denotes the artificial boundary. With ignored
-edges the formula becomes
-`clip((distance - edge_ignore) / (edge_ramp - edge_ignore), 0, 1) ** edge_power`, so
-full weight is still reached at `edge_ramp`. Require `edge_ignore < edge_ramp`. Available merge values are
+`clip((distance - ignore) / (ramp - ignore), 0, 1) ** power` with no
+additive floor, where all three controls come from `overlap_merge`. The first
+included page is at distance 1. True scan endpoints are exempt from the
+corresponding edge penalty. Full weight is reached at the ramp endpoint. Available merge values are
 `center_logits`, `uniform_logits`, `center_probs`, `uniform_probs`, and `central`
 (the most central window, with an earlier-window tie break). Page and adjacent
 pair coverage are tracked separately.

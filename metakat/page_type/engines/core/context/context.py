@@ -6,6 +6,7 @@ relative to that list's directory; a null path means a missing modality.
 from contextlib import nullcontext
 import argparse
 import json
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -84,6 +85,12 @@ class PageTypeCoreEngineContext(PageTypeCoreEngine):
         self.inference = InferenceConfig.from_artifact(state.get('inference', {}), self.config.get('inference', {}))
         if self.inference.window_size > getattr(self.model.backbone, 'max_length', float('inf')):
             raise ValueError('Inference window exceeds checkpoint position limit')
+        logging.getLogger(__name__).info(
+            'Context inference: window=%d overlap=%d stride=%d tail=%s; overlap_merge=%s; '
+            'resolved ramp=%d ignored pages=%d power=%d',
+            self.inference.window_size, self.inference.overlap, self.inference.stride,
+            self.inference.tail, self.inference.overlap_merge, self.inference.edge_ramp,
+            self.inference.edge_ignore, self.inference.edge_power)
         self.stats = AltoStatsEncoder(state['features']['normalization'])
         self.stats.validate_feature_state(state['features'], base_dims)
         # Labels in training use archive spellings (FlyLeaf, TitlePage, ...).

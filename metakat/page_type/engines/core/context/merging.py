@@ -1,55 +1,110 @@
 """Arbitrary-length inference and page/pair-aware merging; no backbone imports."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import math
 
 import numpy as np
 
 
 
 @dataclass(frozen=True)
+class OverlapMergeConfig:
+    """Window merging policy; fractions derive page counts for each overlap."""
+    method: str = 'center_logits'
+    ramp_fraction_of_overlap: float = .75
+    ignore_fraction_of_ramp: float = .25
+    power: int = 3
+
+    def __post_init__(self):
+        if self.method not in ('center_logits', 'uniform_logits', 'uniform_probs', 'center_probs', 'central'):
+            raise ValueError('unknown overlap_merge.method')
+        for name in ('ramp_fraction_of_overlap', 'ignore_fraction_of_ramp'):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise ValueError(f'overlap_merge.{name} must be a finite number')
+        if self.ramp_fraction_of_overlap <= 0:
+            raise ValueError('overlap_merge.ramp_fraction_of_overlap must be positive')
+        if not 0 <= self.ignore_fraction_of_ramp < 1:
+            raise ValueError('overlap_merge.ignore_fraction_of_ramp must be in [0,1)')
+        if type(self.power) is not int or self.power < 1:
+            raise ValueError('overlap_merge.power must be a positive integer')
+
+
+@dataclass(frozen=True)
 class InferenceConfig:
     window_size: int = 512
     overlap: int = 64
-    merge: str = 'center_logits'
-    edge_ramp: int = 32
+    tail: str = 'regular'
     start_threshold: float = .5
     batch_size: int = 8
-    tail: str = 'regular'
-    edge_ignore: int = 0
-    edge_power: int = 2
+    overlap_merge: OverlapMergeConfig = field(default_factory=OverlapMergeConfig)
 
     def __post_init__(self):
+        if isinstance(self.overlap_merge, dict):
+            object.__setattr__(self, 'overlap_merge', OverlapMergeConfig(**self.overlap_merge))
+        if not isinstance(self.overlap_merge, OverlapMergeConfig):
+            raise ValueError('overlap_merge must be an object')
         if not (self.window_size >= 2 and 1 <= self.overlap < self.window_size):
             raise ValueError('overlap must be 1..window_size-1 to cover every adjacent pair')
-        if self.merge not in ('center_logits', 'uniform_logits', 'uniform_probs', 'center_probs', 'central'):
-            raise ValueError('unknown merge strategy')
-        if self.edge_ramp < 1 or self.batch_size < 1 or not 0 < self.start_threshold < 1:
+        if self.batch_size < 1 or not 0 < self.start_threshold < 1:
             raise ValueError('invalid inference settings')
         if not 0 <= 2 * self.edge_ignore <= self.overlap:
-            raise ValueError('edge_ignore must be nonnegative and at most half the overlap')
-        if type(self.edge_power) is not int or self.edge_power < 1:
-            raise ValueError('edge_power must be a positive integer')
+            raise ValueError('ignored pages must be at most half the overlap')
         if self.edge_ignore >= self.edge_ramp:
-            raise ValueError('edge_ignore must be smaller than edge_ramp')
+            raise ValueError('ignored region must end before the ramp endpoint')
         if self.tail not in ('anchored', 'regular'):
             raise ValueError('tail must be anchored or regular')
 
     @property
     def stride(self):
-        """Internal window advance; public configuration uses overlap."""
         return self.window_size - self.overlap
+
+    @property
+    def merge(self):
+        return self.overlap_merge.method
+
+    @property
+    def edge_ramp(self):
+        return max(1, int(self.overlap * self.overlap_merge.ramp_fraction_of_overlap))
+
+    @property
+    def edge_ignore(self):
+        return int(self.edge_ramp * self.overlap_merge.ignore_fraction_of_ramp)
+
+    @property
+    def edge_power(self):
+        return self.overlap_merge.power
 
     @classmethod
     def from_artifact(cls, settings, overrides=None):
         settings, overrides = dict(settings), dict(overrides or {})
-        # Existing v4 artifacts store stride. Normalize before applying user
-        # overrides so their overlap is never shadowed by an inherited stride.
         if 'stride' in settings:
             if 'overlap' in settings:
                 raise ValueError('Artifact cannot specify both stride and overlap')
             settings['overlap'] = settings.get('window_size', 512) - settings.pop('stride')
         if 'stride' in overrides:
             raise ValueError('Use inference.overlap instead of inference.stride')
-        return cls(**(settings | overrides))
+        legacy = {'merge', 'edge_ramp', 'edge_ignore', 'edge_power'}
+        if legacy & overrides.keys():
+            raise ValueError('Configure window merging under inference.overlap_merge')
+        # Model weights are independent of the inference schema. Preserve older
+        # artifacts, while all newly exported artifacts use the grouped policy.
+        if legacy & settings.keys():
+            if 'overlap_merge' in settings:
+                raise ValueError('Artifact mixes grouped and legacy merge settings')
+            overlap = settings.get('overlap', 64)
+            ramp = settings.pop('edge_ramp', max(1, int(overlap * .75)))
+            ignore = settings.pop('edge_ignore', 0)
+            settings['overlap_merge'] = dict(
+                method=settings.pop('merge', 'center_logits'),
+                ramp_fraction_of_overlap=ramp / overlap,
+                ignore_fraction_of_ramp=ignore / ramp,
+                power=settings.pop('edge_power', 1))
+        policy = dict(settings.pop('overlap_merge', {}))
+        override_policy = overrides.pop('overlap_merge', {})
+        if not isinstance(override_policy, dict):
+            raise ValueError('inference.overlap_merge must be an object')
+        settings.update(overrides)
+        return cls(**settings, overlap_merge=policy | override_policy)
 
 
 def window_spans(n, size, stride, tail='anchored'):
