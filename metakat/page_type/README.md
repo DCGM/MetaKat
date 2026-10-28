@@ -279,6 +279,7 @@ artifact does not contain the image or text encoder weights.
     "tail": "regular",
     "merge": "center_logits",
     "edge_ramp": 32,
+    "edge_power": 2,
     "edge_ignore": 0,
     "start_threshold": 0.5,
     "batch_size": 8
@@ -310,6 +311,7 @@ with stored `stride` are converted automatically; user configuration uses
     "edge_ignore": 0,
     "merge": "center_logits",
     "edge_ramp": 32,
+    "edge_power": 2,
     "start_threshold": 0.5,
     "batch_size": 64
   }
@@ -443,10 +445,11 @@ CPU uses FP32.
 
 The default experiment strategy accumulates centre-weighted logits over
 overlaps and applies softmax or sigmoid afterward. Weights are
-`min(1, distance / edge_ramp)` with no additive floor. The first included page
+`min(1, distance / edge_ramp) ** edge_power` with no additive floor.
+`edge_power` defaults to 2 (quadratic); 1 selects a linear rise. The first included page
 is at distance 1; distance 0 denotes the artificial boundary. With ignored
 edges the formula becomes
-`clip((distance - edge_ignore) / (edge_ramp - edge_ignore), 0, 1)`, so
+`clip((distance - edge_ignore) / (edge_ramp - edge_ignore), 0, 1) ** edge_power`, so
 full weight is still reached at `edge_ramp`. Require `edge_ignore < edge_ramp`. Available merge values are
 `center_logits`, `uniform_logits`, `center_probs`, `uniform_probs`, and `central`
 (the most central window, with an earlier-window tie break). Page and adjacent
