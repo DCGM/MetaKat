@@ -701,3 +701,40 @@ def test_side_color_fades_from_white_to_full_color(side, confidence):
     expected = tuple(1. - confidence * (1. - channel) for channel in pdf_module._SIDE_COLORS[side])
     assert pdf_module._side_color(SimpleNamespace(text=side, confidence=confidence)) == pytest.approx(expected)
     assert pdf_module._side_color(None) == pdf_module._UNKNOWN_COLOR
+
+
+@pytest.mark.parametrize('downscale', [False, True])
+def test_textless_pages_inherit_height_from_their_own_document(tmp_path, downscale):
+    from PIL import Image
+    volumes = [MetakatVolume(id=uuid4()), MetakatVolume(id=uuid4())]
+    pages, images, altos = [], {}, {}
+    for doc_index, volume in enumerate(volumes):
+        dpi = 96 if doc_index == 0 else 144
+        for kind, width in ((PageType.NORMAL_PAGE, 300), (PageType.BLANK, 300), (PageType.SPINE, 30)):
+            index = len(pages)
+            page = MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=index,
+                               parent_id=volume.id, pageType=(kind, .9))
+            name = f'page-{index}.jpg'
+            Image.new('RGB', (width, 600), 'white').save(tmp_path / name,
+                                                       dpi=(dpi, dpi) if kind == PageType.NORMAL_PAGE else (300, 300))
+            images[page.id] = name
+            if kind == PageType.NORMAL_PAGE:
+                xml = f'page-{index}.xml'
+                (tmp_path / xml).write_text('<alto><Page HEIGHT="600"><TextLine HEIGHT="30"/></Page></alto>')
+                altos[page.id] = xml
+            pages.append(page)
+    io = MetakatIO(batch_id=uuid4(), elements=[*volumes, *pages],
+                   page_to_image_mapping=images, page_to_alto_mapping=altos)
+    before = io.model_dump_json()
+    output = tmp_path / 'document-scales.pdf'
+    pdf_module.create_interactive_pdf(tmp_path, io, output, downscale=downscale)
+    with pymupdf.open(output) as doc:
+        image_rects = [p.get_image_rects(p.get_images()[0][0])[0] for p in doc]
+        for start in (0, 3):
+            reference = image_rects[start]
+            assert image_rects[start+1].height == pytest.approx(reference.height, abs=.001)
+            assert image_rects[start+2].height == pytest.approx(reference.height, abs=.001)
+            assert image_rects[start+1].width == pytest.approx(reference.width, abs=.001)
+            assert image_rects[start+2].width == pytest.approx(reference.height * .05, abs=.001)
+        assert image_rects[0].height != pytest.approx(image_rects[3].height)
+    assert io.model_dump_json() == before

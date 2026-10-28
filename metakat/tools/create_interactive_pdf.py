@@ -5,6 +5,7 @@ from io import BytesIO
 import logging
 import math
 import os
+from statistics import median
 import tempfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict
@@ -118,7 +119,8 @@ def create_interactive_pdf(
 
     The long-edge target is soft: small detected/OCR text can require more pixels.
     Source images and schema geometry stay unchanged; a white metadata strip
-    extends each PDF page to the right without moving or scaling its image.
+    extends each PDF page to the right. Textless pages inherit their document
+    display height, preserving aspect ratio and scaling all geometry together.
     """
     if not math.isfinite(min_text_pixels) or min_text_pixels <= 0:
         raise ValueError('min_text_pixels must be finite and positive')
@@ -143,7 +145,10 @@ def create_interactive_pdf(
     document = pymupdf.open()
     temporary_path: Path | None = None
     try:
-        text_heights = _detection_text_heights(metakat_io) if downscale else {}
+        text_heights = _detection_text_heights(metakat_io)
+        document_defaults = _document_rendering_defaults(
+            pymupdf, batch_path, groups, metakat_io, text_heights,
+            min_text_pixels, max_image_dimension)
         rendered_by_page_id = _render_pages(
             pymupdf,
             document,
@@ -154,6 +159,7 @@ def create_interactive_pdf(
             text_heights=text_heights,
             min_text_pixels=min_text_pixels,
             max_image_dimension=max_image_dimension,
+            document_defaults=document_defaults,
         )
         rendered_by_page_id = _add_metadata_strips(pymupdf, document, rendered_by_page_id)
         page_maps = _document_page_maps(groups, rendered_by_page_id)
@@ -481,6 +487,48 @@ def _reduced_image(path: Path, width: int, height: int, ratio: float) -> bytes |
     return encoded
 
 
+def _document_rendering_defaults(pymupdf, batch_dir, groups, metakat_io, text_heights,
+                                 min_text_pixels, max_image_dimension):
+    """Use only the same document's text pages as scale references; keep no rasters."""
+    defaults = {}
+    nontext_types = {PageType.BLANK.value, PageType.SPINE.value, PageType.EDGE.value,
+                     PageType.CALIBRATION_TABLE.value, PageType.FRAGMENTS_OF_BOOKBINDING.value}
+    for group in groups:
+        candidates, normal, problematic = [], [], []
+        for page in group.pages:
+            name = (metakat_io.page_to_image_mapping or {}).get(page.id)
+            if not name or not (batch_dir / name).is_file():
+                continue  # _render_pages reports missing assets.
+            path = batch_dir / name
+            with Image.open(path) as image:
+                width, height = image.size
+            text_height = text_heights.get(page.id)
+            ocr = ((metakat_io.page_to_alto_mapping or {}).get(page.id)
+                   or (metakat_io.page_to_xml_mapping or {}).get(page.id))
+            if ocr:
+                measured = _ocr_text_height(batch_dir / ocr, height)
+                if measured is not None:
+                    text_height = min(text_height, measured) if text_height is not None else measured
+            text_heights[page.id] = text_height
+            kind = None if page.pageType is None else page.pageType.text
+            if text_height is None or kind in nontext_types:
+                problematic.append(page.id)
+                continue
+            with pymupdf.open(path) as source:
+                display_height = source[0].rect.height
+            candidate = (display_height, _downscale_ratio(width, height, text_height,
+                                                         min_text_pixels, max_image_dimension))
+            candidates.append(candidate)
+            if kind == PageType.NORMAL_PAGE.value:
+                normal.append(candidate)
+        references = normal or candidates
+        if references:
+            reference = (median(item[0] for item in references), median(item[1] for item in references))
+            for page_id in problematic:
+                defaults[page_id] = reference
+    return defaults
+
+
 def _render_pages(
     pymupdf,
     document,
@@ -492,6 +540,7 @@ def _render_pages(
     text_heights: dict | None = None,
     min_text_pixels: float = 16.,
     max_image_dimension: int = 2400,
+    document_defaults: dict | None = None,
 ) -> dict[UUID, _RenderedPage]:
     rendered: dict[UUID, _RenderedPage] = {}
     for page in pages:
@@ -514,24 +563,20 @@ def _render_pages(
         if image_width <= 0 or image_height <= 0:
             raise ValueError(f"Page image has invalid dimensions: {image_path}")
 
+        reference = (document_defaults or {}).get(page.id)
         reduced = None
         if metakat_io is not None:
             height = (text_heights or {}).get(page.id)
-            ocr_name = ((metakat_io.page_to_alto_mapping or {}).get(page.id)
-                        or (metakat_io.page_to_xml_mapping or {}).get(page.id))
-            if ocr_name:
-                ocr_height = _ocr_text_height(batch_dir / ocr_name, image_height)
-                if ocr_height is not None:
-                    height = min(height, ocr_height) if height is not None else ocr_height
-            ratio = _downscale_ratio(image_width, image_height, height,
-                                     min_text_pixels, max_image_dimension)
+            ratio = (reference[1] if reference else _downscale_ratio(
+                image_width, image_height, height, min_text_pixels, max_image_dimension))
             reduced = _reduced_image(image_path, image_width, image_height, ratio)
         if reduced is not None:
-            # Preserve the source image's PDF extent / DPI. Existing coordinate
-            # transforms therefore align links, boxes and notes without rounding
-            # raster coordinates or shrinking vector annotations.
+            # Keep source extent for text pages; textless pages use their
+            # document reference. Coordinate scales below follow either extent.
             with pymupdf.open(str(image_path)) as original:
                 rect = original[0].rect
+            if reference:
+                rect = pymupdf.Rect(0, 0, reference[0] * image_width / image_height, reference[0])
             pdf_page = document.new_page(width=rect.width, height=rect.height)
             pdf_page.insert_image(pdf_page.rect, stream=reduced, keep_proportion=False)
             rendered[page.id] = _RenderedPage(page, document.page_count - 1,
@@ -549,7 +594,12 @@ def _render_pages(
                 raise ValueError(
                     f"Page image must convert to one PDF page: {image_path}"
                 )
-            document.insert_pdf(image_pdf)
+            if reference:
+                target = pymupdf.Rect(0, 0, reference[0] * image_width / image_height, reference[0])
+                pdf_page = document.new_page(width=target.width, height=target.height)
+                pdf_page.show_pdf_page(target, image_pdf, 0)
+            else:
+                document.insert_pdf(image_pdf)
         finally:
             image_pdf.close()
 
