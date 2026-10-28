@@ -39,6 +39,12 @@ Page-number processing has two boundaries:
    detection UUIDs, and writes the selected evidence and its provenance into
    `MetakatIO`.
 
+Numbers with `annotated: true` are authoritative: the binder preserves their
+values, IDs, confidence, and provenance regardless of core predictions, including
+NDK-inferred labels. It skips the core when every page number is annotated.
+For mixed batches, annotated pages remain in the core input for sequence context,
+but their predictions are not written back.
+
 The core owns detection, OCR alignment, parsing, candidate filtering,
 document-level postprocessing, and physical-candidate selection. The binder does not repeat or alter those
 decisions.

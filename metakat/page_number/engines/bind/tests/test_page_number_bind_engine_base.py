@@ -186,3 +186,42 @@ def test_binder_writes_supplied_ndk_label_without_detection_geometry(metakat_pag
         metakat_io.detection_to_page_mapping[metakat_page.pageNumber.id]
         == metakat_page.id
     )
+
+
+def test_annotated_number_and_provenance_survive_all_core_result_kinds(metakat_page):
+    from copy import deepcopy
+    from uuid import uuid4
+
+    from metakat.page_number.engines.core.models import (
+        PhysicalPageNumberEvidence,
+        PageNumberNumeralSystem,
+    )
+    from metakat.schemas.base_objects import MetakatAltoRefs, Value
+
+    annotation = Value(text="[12]", confidence=0.1, id=uuid4(), annotated=True)
+    metakat_page.pageNumber = annotation
+    io = MetakatIO(
+        batch_id=metakat_page.batch_id,
+        elements=[metakat_page],
+        detection_to_bbox={annotation.id: (10, 20, 30, 40)},
+        detection_to_page_mapping={annotation.id: metakat_page.id},
+        detection_to_alto={annotation.id: MetakatAltoRefs(words=["original"])},
+    )
+    original = deepcopy(io)
+    observed = DecoratedPageNumberParser.create(
+        page_key="page", text="42", confidence=1.0,
+        bbox=MetaKatBoundingBox(50, 60, 70, 80),
+        alto=AltoRefs(words=("replacement",)),
+    )
+    inferred = PhysicalPageNumberEvidence(
+        page_key="page", text="", bbox=None, confidence=1.0,
+        normalized="26", value=26,
+        numeral_system=PageNumberNumeralSystem.ARABIC,
+        supplied=True, bracketed=True,
+    )
+    for evidence in (observed, inferred, None):
+        PageNumberBindEngineBase.bind_core_result(
+            PageNumberCoreResult({"page": evidence}), {"page": metakat_page}, io,
+        )
+        assert metakat_page.pageNumber is annotation
+        assert io == original
