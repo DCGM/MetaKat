@@ -37,11 +37,30 @@ _DETECTION_BOX_COLOR = (0.85, 0.1, 0.1)
 _DETECTION_BOX_LINE_WIDTH = 0.6
 _DETECTION_BOX_OPACITY = 0.55
 _DOCUMENT_START_COLOR = (0.0, 0.35, 0.8)
-_PAGE_TYPE_FRAME_COLORS = {
-    PageType.NORMAL_PAGE.value: (1.0, 0.15, 0.65),
-    PageType.TITLE_PAGE.value: (0.0, 0.6, 0.3),
-    PageType.TABLE_OF_CONTENTS.value: (0.95, 0.5, 0.0),
+# Front matter uses turquoise shades; matching back matter uses violet shades.
+_PAGE_TYPE_COLORS_HEX = {
+    "abstract": "9CAFC4", "advertisement": "CFA77A", "appendix": "B1A2C7",
+    "backCover": "7440AD", "backEndPaper": "B798D8", "backEndSheet": "9470C0",
+    "bibliography": "A38FB8", "blank": "E3E3E3", "calibrationTable": "ADC5BF",
+    "colophon": "A666B2", "cover": "719FA1", "customInclude": "B2B99B",
+    "dedication": "7FC4BA", "edge": "B4ADA5", "errata": "C59EAE",
+    "flyleaf": "C4D4C0", "fragmentsOfBookbinding": "9F9385",
+    "frontCover": "008C95", "frontEndPaper": "8ED6CF", "frontEndSheet": "44B6B2",
+    "frontJacket": "00ABBF", "frontispiece": "6DB5CA", "illustration": "B6C89D",
+    "impressum": "AD80C4", "imprimatur": "8CC4AF", "index": "A491C5",
+    "jacket": "80A7AF", "listOfIllustrations": "B5B8D1", "listOfMaps": "B0C4D1",
+    "listOfTables": "C1B5D1", "map": "9FBEAC", "normalPage": "808080",
+    "obituary": "A8A0AA", "preface": "80BEB5", "sheetMusic": "C8B5A2",
+    "spine": "9F8A78", "table": "ADBEBD", "tableOfContents": "FF8800",
+    "titlePage": "00AF40",
 }
+_PAGE_TYPE_COLORS = {key: tuple(int(value[i:i + 2], 16) / 255 for i in (0, 2, 4))
+                     for key, value in _PAGE_TYPE_COLORS_HEX.items()}
+_UNKNOWN_COLOR = (0.92, 0.92, 0.92)
+_SIDE_COLORS = {"left": (0.2, 0.55, 0.9), "right": (0.9, 0.35, 0.6),
+                "singlePage": (0.85, 0.7, 0.1)}
+_PAGE_NUMBER_COLORS = {"missing": (0.8, 0.8, 0.8), "bracketed": (0.65, 0.4, 0.85),
+                       "discontinuity": (0.95, 0.15, 0.12), "normal": (0.2, 0.7, 0.4)}
 _BIBLIO_FIELD_NAMES = (
     "title",
     "subTitle",
@@ -166,8 +185,11 @@ def create_interactive_pdf(
             metakat_io,
             rendered_by_page_id,
         )
-        _mark_page_types(pymupdf, document, rendered_by_page_id)
-        document_starts = _mark_document_starts(pymupdf, document, rendered_by_page_id)
+        document_starts = sorted(
+            (rendered for rendered in rendered_by_page_id.values()
+             if rendered.page.startsDocument is not None and rendered.page.startsDocument.val),
+            key=lambda rendered: rendered.pdf_index,
+        )
         _insert_page_info_panel(pymupdf, document, rendered_by_page_id)
         if document_starts:
             outline.append([1, "Detected document starts", document_starts[0].pdf_index + 1])
@@ -220,90 +242,90 @@ def _metadata_rect(pymupdf, page, rendered):
     return pymupdf.Rect(rendered.content_width, 0, page.rect.x1, page.rect.y1)
 
 
-def _mark_page_types(pymupdf, document, rendered_by_page_id):
-    """Use distinct thumbnail-visible frames, inset when a blue start frame exists."""
-    for rendered in rendered_by_page_id.values():
-        value = rendered.page.pageType
-        color = _PAGE_TYPE_FRAME_COLORS.get(value.text) if value is not None else None
-        if color is None:
-            continue
-        page = document[rendered.pdf_index]
-        rect = pymupdf.Rect(0, 0, rendered.content_width, page.rect.height)
-        short_edge = min(rect.width, rect.height)
-        width = short_edge * 0.012
-        starts = rendered.page.startsDocument
-        inset = short_edge * 0.016 if starts is not None and starts.val is True else 0
-        offset = inset + width / 2
-        frame = pymupdf.Rect(rect.x0 + offset, rect.y0 + offset,
-                            rect.x1 - offset, rect.y1 - offset)
-        page.draw_rect(frame, color=color, width=width, overlay=True)
-
-
 def _panel_dimensions(pymupdf, short_edge):
-    font_size = short_edge * 0.014
+    font_size = short_edge * 0.018
     padding = short_edge * 0.006
-    gap = font_size * 0.5
     label_width = max(pymupdf.get_text_length(value, fontname="hebo", fontsize=font_size)
                       for value in ("NONE", *(kind.value for kind in PageType)))
-    confidence_width = pymupdf.get_text_length("1.00", fontname="hebo", fontsize=font_size)
-    return label_width + gap + confidence_width + 2 * padding, font_size, padding, gap, confidence_width
+    return label_width + 2 * padding, font_size, padding
+
+
+def _page_number_states(pages):
+    """Flag numeric jumps, counting missing scans, resetting at document starts.
+
+    A Roman-to-Arabic restart at 1 is valid. Red takes precedence over brackets.
+    This is a display diagnostic, never a change to any model prediction.
+    """
+    from metakat.page_number.engines.core.page_number_parsers import DecoratedPageNumberParser
+    from metakat.page_number.engines.core.models import PageNumberNumeralSystem
+
+    states = {}
+    previous = None
+    parent = None
+    for page in sorted(pages, key=lambda p: p.batch_index):
+        if ((page.startsDocument is not None and page.startsDocument.val)
+                or page.parent_id != parent):
+            previous = None
+        parent = page.parent_id
+        value = page.pageNumber
+        text = "" if value is None else value.text.strip()
+        if not text:
+            states[page.id] = "missing"
+            continue
+        state = "bracketed" if "[" in text or "]" in text else "normal"
+        parsed = DecoratedPageNumberParser.create(page_key=str(page.id), text=text,
+                                                   confidence=1., bbox=None)
+        if parsed.value is not None:
+            if previous is not None:
+                system, number, index = previous
+                expected = number + page.batch_index - index
+                restart = (system == PageNumberNumeralSystem.ROMAN
+                           and parsed.numeral_system == PageNumberNumeralSystem.ARABIC
+                           and parsed.value == 1)
+                if not restart and (parsed.numeral_system != system or parsed.value != expected):
+                    state = "discontinuity"
+            previous = (parsed.numeral_system, parsed.value, page.batch_index)
+        states[page.id] = state
+    return states
 
 
 def _insert_page_info_panel(pymupdf, document, rendered_by_page_id):
-    """Three stable rows: page type, side, number; confidence in a right column."""
+    """Four color squares with vertically stacked values and confidences."""
+    number_states = _page_number_states([r.page for r in rendered_by_page_id.values()])
     for rendered in rendered_by_page_id.values():
         page = document[rendered.pdf_index]
         rect = _metadata_rect(pymupdf, page, rendered)
-        _, font_size, padding, gap, confidence_width = _panel_dimensions(
-            pymupdf, min(rendered.content_width, rect.height))
-        right = rect.x1 - padding
-        label_width = rect.width - 2 * padding - gap - confidence_width
+        short_edge = min(rendered.content_width, rect.height)
+        _, font_size, padding = _panel_dimensions(pymupdf, short_edge)
+        square_size = short_edge * 0.075
+        center = (rect.x0 + rect.x1) / 2
         top = padding + font_size * 0.5
-        for index, value in enumerate((rendered.page.pageType, rendered.page.side,
-                                       rendered.page.pageNumber)):
-            text = "" if value is None else str(getattr(value.text, "value", value.text))
-            label = " ".join(text.split()) or "NONE"
-            confidence = f"{value.confidence:.2f}" if value is not None and text.strip() else "--"
-            measured = pymupdf.get_text_length(label, fontname="hebo", fontsize=font_size)
-            label_font_size = font_size * min(1., label_width / max(measured, 1e-9))
-            baseline = top + index * font_size * 1.8 + font_size
-            page.insert_text((rect.x0 + padding, baseline), label, fontname="hebo",
-                             fontsize=label_font_size, color=(0, 0, 0), overlay=True)
-            measured_confidence = pymupdf.get_text_length(confidence, fontname="hebo", fontsize=font_size)
-            page.insert_text((right - measured_confidence, baseline), confidence, fontname="hebo",
-                             fontsize=font_size, color=(0, 0, 0), overlay=True)
-
-
-def _mark_document_starts(pymupdf, document, rendered_by_page_id):
-    """Paint persistent page-content markers, also visible in viewer thumbnails.
-
-    Use the explicit boolean, not the confidence or inferred container membership.
-    Draw inside existing page bounds so all image/detection coordinates stay valid.
-    """
-    starts = sorted(
-        (rendered for rendered in rendered_by_page_id.values()
-         if rendered.page.startsDocument is not None
-         and rendered.page.startsDocument.val is True),
-        key=lambda rendered: rendered.pdf_index,
-    )
-    for rendered in starts:
-        page = document[rendered.pdf_index]
-        rect = pymupdf.Rect(0, 0, rendered.content_width, page.rect.height)
-        short_edge = min(rect.width, rect.height)
-        width = short_edge * 0.012
-        frame = pymupdf.Rect(rect.x0 + width / 2, rect.y0 + width / 2,
-                            rect.x1 - width / 2, rect.y1 - width / 2)
-        page.draw_rect(frame, color=_DOCUMENT_START_COLOR, width=width, overlay=True)
-        font_size = short_edge * 0.024
-        label = f"DOCUMENT START  {rendered.page.startsDocument.confidence:.2f}"
-        label_width = pymupdf.get_text_length(label, fontname="hebo", fontsize=font_size)
-        banner_width = label_width + font_size * 1.5
-        left = rect.x0 + (rect.width - banner_width) / 2
-        banner = pymupdf.Rect(left, rect.y0, left + banner_width, rect.y0 + font_size * 1.8)
-        page.draw_rect(banner, color=None, fill=_DOCUMENT_START_COLOR, overlay=True)
-        page.insert_text((left + font_size * 0.75, rect.y0 + font_size * 1.25), label,
-                         fontname="hebo", fontsize=font_size, color=(1, 1, 1), overlay=True)
-    return starts
+        starts = rendered.page.startsDocument
+        kind, side, number = rendered.page.pageType, rendered.page.side, rendered.page.pageNumber
+        items = (
+            (_DOCUMENT_START_COLOR if starts is not None and starts.val else _UNKNOWN_COLOR,
+             None, "--" if starts is None else f"{starts.confidence:.2f}"),
+            (_PAGE_TYPE_COLORS.get(kind.text, _UNKNOWN_COLOR) if kind else _UNKNOWN_COLOR,
+             "NONE" if kind is None else kind.text, "--" if kind is None else f"{kind.confidence:.2f}"),
+            (_SIDE_COLORS.get(side.text, _UNKNOWN_COLOR) if side else _UNKNOWN_COLOR,
+             "NONE" if side is None else side.text, "--" if side is None else f"{side.confidence:.2f}"),
+            (_PAGE_NUMBER_COLORS[number_states[rendered.page.id]],
+             "NONE" if number is None or not number.text.strip() else " ".join(number.text.split()),
+             "--" if number is None or not number.text.strip() else f"{number.confidence:.2f}"),
+        )
+        for color, label, confidence in items:
+            square = pymupdf.Rect(center - square_size / 2, top,
+                                   center + square_size / 2, top + square_size)
+            page.draw_rect(square, color=None, fill=color, overlay=True)
+            baseline = square.y1 + font_size * 1.5
+            for text in (() if label is None else (label,)) + (confidence,):
+                measured = pymupdf.get_text_length(text, fontname="hebo", fontsize=font_size)
+                size = font_size * min(1., (rect.width - 2 * padding) / max(measured, 1e-9))
+                text_width = pymupdf.get_text_length(text, fontname="hebo", fontsize=size)
+                page.insert_text((center - text_width / 2, baseline), text, fontname="hebo",
+                                 fontsize=size, color=(0, 0, 0), overlay=True)
+                baseline += font_size * 1.5
+            top = baseline + font_size
 
 
 def _detection_text_heights(metakat_io: MetakatIO) -> dict[UUID, float]:

@@ -27,139 +27,72 @@ def _run(scan_index):
     return [(scan_index, uuid4())]
 
 
-@pytest.mark.parametrize("page_type", [PageType.NORMAL_PAGE, PageType.TITLE_PAGE, PageType.TABLE_OF_CONTENTS, None])
-@pytest.mark.parametrize("starts", [False, True])
-def test_page_type_frames_preserve_document_start_frame(tmp_path, page_image, page_type, starts):
-    volume = MetakatVolume(id=uuid4())
-    page = MetakatPage(
-        id=uuid4(), batch_id=uuid4(), batch_index=0, pageIndex=0, parent_id=volume.id,
-        pageType=None if page_type is None else (page_type, 0.9), startsDocument=(starts, 0.9),
-    )
-    page_image(tmp_path / "page.jpg")
-    io = MetakatIO(batch_id=uuid4(), elements=[volume, page], page_to_image_mapping={page.id: "page.jpg"})
-    output = tmp_path / "frames.pdf"
-    pdf_module.create_interactive_pdf(tmp_path, io, output)
-    with pymupdf.open(output) as document:
-        rendered = document[0]
-        drawings = rendered.get_drawings()
-        blue = [d for d in drawings if d["color"] == pytest.approx(pdf_module._DOCUMENT_START_COLOR)]
-        assert len(blue) == int(starts)
-        for kind, color in pdf_module._PAGE_TYPE_FRAME_COLORS.items():
-            frames = [d for d in drawings if d["color"] == pytest.approx(color)]
-            assert len(frames) == int(page_type == kind)
-            if frames:
-                image_rect = rendered.get_image_rects(rendered.get_images()[0][0])[0]
-                assert image_rect.contains(frames[0]["rect"])
-                if starts:
-                    assert blue[0]["rect"].contains(frames[0]["rect"])
-                    assert frames[0]["rect"].x0 > blue[0]["rect"].x0
-
-
-@pytest.mark.parametrize("page_type", [PageType.TITLE_PAGE, max(PageType, key=lambda kind: len(kind.value)), None])
-def test_page_panel_has_ordered_values_and_two_decimal_confidences(tmp_path, page_image, page_type):
-    volume = MetakatVolume(id=uuid4())
-    page = MetakatPage(
-        id=uuid4(), batch_id=uuid4(), batch_index=0, parent_id=volume.id,
-        pageType=None if page_type is None else (page_type, .914),
-        side=("left", .876), pageNumber=_v("[123]", .999), startsDocument=(True, .9),
-    )
-    page_image(tmp_path / "page.jpg")
-    io = MetakatIO(batch_id=page.batch_id, elements=[volume, page],
-                   page_to_image_mapping={page.id: "page.jpg"})
-    output = tmp_path / "panel.pdf"
-    before = io.model_dump_json()
-    pdf_module.create_interactive_pdf(tmp_path, io, output)
-    with pymupdf.open(output) as doc:
-        rendered = doc[0]
-        image = rendered.get_image_rects(rendered.get_images()[0][0])[0]
-        expected_width = pdf_module._panel_dimensions(pymupdf, min(image.width, image.height))[0]
-        assert rendered.rect.width - image.width == pytest.approx(expected_width)
-        previous_y = 0
-        for label, confidence in (("NONE" if page_type is None else page_type.value,
-                                   "--" if page_type is None else "0.91"),
-                                  ("left", "0.88"), ("[123]", "1.00")):
-            box, = rendered.search_for(label)
-            conf, = rendered.search_for(confidence)
-            assert box.x0 >= image.x1
-            assert conf.x0 > box.x1
-            assert box.y0 > previous_y
-            assert conf.y1 == pytest.approx(box.y1)
-            assert rendered.rect.contains(box) and rendered.rect.contains(conf)
-            previous_y = box.y1
-        assert not any(field in rendered.get_text() for field in ("pageType", "pageNumber", "side:"))
-    assert io.model_dump_json() == before
-
-
-@pytest.mark.parametrize("number", [None, "", "   "])
-def test_missing_page_numbers_are_none_in_third_panel_row(tmp_path, page_image, number):
-    volume = MetakatVolume(id=uuid4())
-    page = MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=0, parent_id=volume.id,
-                       pageType=(PageType.TITLE_PAGE, .9), side=("right", .8),
-                       pageNumber=None if number is None else _v(number, .9))
-    page_image(tmp_path / "page.jpg")
-    io = MetakatIO(batch_id=page.batch_id, elements=[volume, page],
-                   page_to_image_mapping={page.id: "page.jpg"})
-    output = tmp_path / "missing.pdf"
-    pdf_module.create_interactive_pdf(tmp_path, io, output)
-    with pymupdf.open(output) as doc:
-        box, = doc[0].search_for("NONE")
-        side, = doc[0].search_for("right")
-        confidence, = doc[0].search_for("--")
-        assert box.y0 > side.y1
-        assert box.x1 < confidence.x0
-        assert box.y1 == pytest.approx(confidence.y1)
+def test_all_page_types_and_sides_have_colors():
+    assert set(pdf_module._PAGE_TYPE_COLORS) == {p.value for p in PageType}
+    assert len(set(pdf_module._PAGE_TYPE_COLORS.values())) == len(PageType)
+    assert len(set(pdf_module._SIDE_COLORS.values())) == 3
 
 
 @pytest.mark.parametrize("downscale", [False, True])
-def test_document_start_markers_are_page_content_and_have_bookmarks(tmp_path, page_image, downscale):
+@pytest.mark.parametrize("starts", [None, False, True])
+def test_four_panel_squares_and_stacked_confidences(tmp_path, page_image, downscale, starts):
     volume = MetakatVolume(id=uuid4())
-    pages = []
-    mapping = {}
-    for index, flag in enumerate((None, True, False, True)):
-        page = MetakatPage(
-            id=uuid4(), batch_id=uuid4(), batch_index=index, pageIndex=index,
-            parent_id=volume.id,
-            startsDocument=None if flag is None else (flag, 0.0 if index == 3 else 0.95),
-        )
-        pages.append(page)
-        filename = f"page-{index}.jpg"
-        page_image(tmp_path / filename)
-        mapping[page.id] = filename
-    chapter = MetakatChapter(
-        id=uuid4(), parent_id=volume.id, pageIndexStart=_run(2),
-        titleTocPage=[_v("Existing chapter", 0.9)],
+    page = MetakatPage(
+        id=uuid4(), batch_id=uuid4(), batch_index=0, parent_id=volume.id,
+        pageType=(PageType.TITLE_PAGE, .914), side=("left", .876),
+        pageNumber=_v("[123]", .999),
+        startsDocument=None if starts is None else (starts, .95),
     )
-    metakat_io = MetakatIO(
-        batch_id=uuid4(), elements=[volume, *pages, chapter], page_to_image_mapping=mapping,
-    )
-    before = metakat_io.model_dump_json()
-    output = tmp_path / "marked.pdf"
-    pdf_module.create_interactive_pdf(tmp_path, metakat_io, output, downscale=downscale)
-    with pymupdf.open(output) as document:
-        assert document.get_toc() == [
-            [1, "Existing chapter", 3],
-            [1, "Detected document starts", 2],
-            [2, "Document start 1 | scan page 2", 2],
-            [2, "Document start 2 | scan page 4", 4],
-        ]
-        for index, page in enumerate(document):
-            marked = index in (1, 3)
-            assert ("DOCUMENT START" in page.get_text()) is marked
-            frames = [drawing for drawing in page.get_drawings()
-                      if drawing["color"] is not None and
-                      drawing["color"] == pytest.approx(pdf_module._DOCUMENT_START_COLOR)]
-            assert bool(frames) is marked
-            if marked:
-                image_rect = page.get_image_rects(page.get_images()[0][0])[0]
-                assert frames[0]["width"] == pytest.approx(min(image_rect.width, image_rect.height) * 0.012)
-                assert image_rect.contains(frames[0]["rect"])
-                banner, = page.search_for("DOCUMENT START")
-                confidence, = page.search_for("0.00" if index == 3 else "0.95")
-                assert confidence.x0 > banner.x1
-                combined = banner | confidence
-                assert (combined.x0 + combined.x1) / 2 == pytest.approx(image_rect.width / 2, abs=1)
-                assert page.rect.contains(frames[0]["rect"])
-    assert metakat_io.model_dump_json() == before
+    page_image(tmp_path / "page.jpg")
+    io = MetakatIO(batch_id=page.batch_id, elements=[volume, page],
+                   page_to_image_mapping={page.id: "page.jpg"})
+    original = io.model_dump_json()
+    output = tmp_path / "panel.pdf"
+    pdf_module.create_interactive_pdf(tmp_path, io, output, downscale=downscale)
+    with pymupdf.open(output) as doc:
+        rendered = doc[0]
+        image = rendered.get_image_rects(rendered.get_images()[0][0])[0]
+        squares = [d for d in rendered.get_drawings()
+                   if d["fill"] is not None and abs(d["rect"].width-d["rect"].height) < 1e-4]
+        assert len(squares) == 4
+        colors = (pdf_module._DOCUMENT_START_COLOR if starts else pdf_module._UNKNOWN_COLOR,
+                  pdf_module._PAGE_TYPE_COLORS["titlePage"], pdf_module._SIDE_COLORS["left"],
+                  pdf_module._PAGE_NUMBER_COLORS["bracketed"])
+        labels = (None, "titlePage", "left", "[123]")
+        confidences = ("--" if starts is None else "0.95", "0.91", "0.88", "1.00")
+        for index, (square, color, label, confidence) in enumerate(zip(squares, colors, labels, confidences)):
+            assert square["fill"] == pytest.approx(color)
+            assert square["rect"].x0 >= image.x1
+            conf, = rendered.search_for(confidence)
+            assert conf.y0 > square["rect"].y1
+            if label:
+                text, = rendered.search_for(label)
+                assert square["rect"].y1 < text.y0 < text.y1 < conf.y0
+            if index < 3:
+                assert conf.y1 < squares[index+1]["rect"].y0
+        assert not any(d["color"] is not None for d in rendered.get_drawings())
+        assert doc.get_toc() == ([[1, "Detected document starts", 1],
+                                  [2, "Document start 1 | scan page 1", 1]] if starts else [])
+    assert io.model_dump_json() == original
+
+
+def test_number_sequence_states_account_for_gaps_and_reset_at_boundaries():
+    batch = uuid4()
+    def pages(numbers, starts=()):
+        return [MetakatPage(id=uuid4(), batch_id=batch, batch_index=i,
+                           pageNumber=None if n is None else _v(n, .9),
+                           startsDocument=(i in starts, .9)) for i, n in enumerate(numbers)]
+    for numbers, boundaries, expected in (
+        (["10", "11", "[12]", "15", "16"], (),
+         ["normal", "normal", "bracketed", "discontinuity", "normal"]),
+        (["10", None, "12", "1", "2"], (3,),
+         ["normal", "missing", "normal", "normal", "normal"]),
+        (["i", "ii", "1", "2", "[5]"], (),
+         ["normal", "normal", "normal", "normal", "discontinuity"]),
+    ):
+        sample = pages(numbers, boundaries)
+        states = pdf_module._page_number_states(sample)
+        assert [states[p.id] for p in sample] == expected
 
 
 def test_single_document_creates_chapter_outline_and_toc_link(tmp_path, page_image):
@@ -726,15 +659,14 @@ def test_metadata_strip_keeps_labels_outside_unchanged_image(tmp_path, page_imag
         assert tuple(image_rect) == pytest.approx(tuple(original))
         assert rendered.rect.width > original.width
         assert rendered.rect.height == pytest.approx(original.height)
-        assert rendered.rect.width - original.width < original.width * .23
+        assert rendered.rect.width - original.width < original.width * .27
         strip = pymupdf.Rect(original.x1, 0, rendered.rect.x1, rendered.rect.y1)
         drawings = rendered.get_drawings()
         assert any(d["fill"] == (1., 1., 1.) and strip.contains(d["rect"])
                    for d in drawings)
         for drawing in drawings:
-            if drawing["color"] in (pdf_module._DOCUMENT_START_COLOR,
-                                     *pdf_module._PAGE_TYPE_FRAME_COLORS.values()):
-                assert original.contains(drawing["rect"])
+            assert drawing["color"] is None
+            assert strip.contains(drawing["rect"])
         for text in ("titlePage", "123"):
             labels = rendered.search_for(text)
             assert len(labels) == 1
