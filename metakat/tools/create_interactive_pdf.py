@@ -36,6 +36,7 @@ _NOTE_SIZE = 18.0
 _DETECTION_BOX_COLOR = (0.85, 0.1, 0.1)
 _DETECTION_BOX_LINE_WIDTH = 0.6
 _DETECTION_BOX_OPACITY = 0.55
+_DOCUMENT_START_COLOR = (0.0, 0.35, 0.8)
 _BIBLIO_FIELD_NAMES = (
     "title",
     "subTitle",
@@ -157,6 +158,12 @@ def create_interactive_pdf(
             metakat_io,
             rendered_by_page_id,
         )
+        document_starts = _mark_document_starts(pymupdf, document, rendered_by_page_id)
+        if document_starts:
+            outline.append([1, "Detected document starts", document_starts[0].pdf_index + 1])
+            for number, rendered in enumerate(document_starts, 1):
+                outline.append([2, f"Document start {number} | scan page {rendered.pdf_index + 1}",
+                                rendered.pdf_index + 1])
         if outline:
             document.set_toc(outline)
 
@@ -183,6 +190,38 @@ def create_interactive_pdf(
         len(outline),
     )
     return destination
+
+
+def _mark_document_starts(pymupdf, document, rendered_by_page_id):
+    """Paint persistent page-content markers, also visible in viewer thumbnails.
+
+    Use the explicit boolean, not the confidence or inferred container membership.
+    Draw inside existing page bounds so all image/detection coordinates stay valid.
+    """
+    starts = sorted(
+        (rendered for rendered in rendered_by_page_id.values()
+         if rendered.page.startsDocument is not None
+         and rendered.page.startsDocument.text is True),
+        key=lambda rendered: rendered.pdf_index,
+    )
+    for rendered in starts:
+        page = document[rendered.pdf_index]
+        rect = page.rect
+        short_edge = min(rect.width, rect.height)
+        width = short_edge * 0.012
+        frame = pymupdf.Rect(rect.x0 + width / 2, rect.y0 + width / 2,
+                            rect.x1 - width / 2, rect.y1 - width / 2)
+        page.draw_rect(frame, color=_DOCUMENT_START_COLOR, width=width, overlay=True)
+        font_size = short_edge * 0.024
+        label = "DOCUMENT START"
+        label_width = pymupdf.get_text_length(label, fontname="hebo", fontsize=font_size)
+        banner_width = label_width + font_size * 1.5
+        left = rect.x0 + (rect.width - banner_width) / 2
+        banner = pymupdf.Rect(left, rect.y0, left + banner_width, rect.y0 + font_size * 1.8)
+        page.draw_rect(banner, color=None, fill=_DOCUMENT_START_COLOR, overlay=True)
+        page.insert_text((left + font_size * 0.75, rect.y0 + font_size * 1.25), label,
+                         fontname="hebo", fontsize=font_size, color=(1, 1, 1), overlay=True)
+    return starts
 
 
 def _detection_text_heights(metakat_io: MetakatIO) -> dict[UUID, float]:

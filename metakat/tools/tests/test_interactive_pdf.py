@@ -27,6 +27,51 @@ def _run(scan_index):
     return [(scan_index, uuid4())]
 
 
+@pytest.mark.parametrize("downscale", [False, True])
+def test_document_start_markers_are_page_content_and_have_bookmarks(tmp_path, page_image, downscale):
+    volume = MetakatVolume(id=uuid4())
+    pages = []
+    mapping = {}
+    for index, flag in enumerate((None, True, False, True)):
+        page = MetakatPage(
+            id=uuid4(), batch_id=uuid4(), batch_index=index, pageIndex=index,
+            parent_id=volume.id,
+            startsDocument=None if flag is None else (flag, 0.0 if index == 3 else 0.95),
+        )
+        pages.append(page)
+        filename = f"page-{index}.jpg"
+        page_image(tmp_path / filename)
+        mapping[page.id] = filename
+    chapter = MetakatChapter(
+        id=uuid4(), parent_id=volume.id, pageIndexStart=_run(2),
+        titleTocPage=[_v("Existing chapter", 0.9)],
+    )
+    metakat_io = MetakatIO(
+        batch_id=uuid4(), elements=[volume, *pages, chapter], page_to_image_mapping=mapping,
+    )
+    before = metakat_io.model_dump_json()
+    output = tmp_path / "marked.pdf"
+    pdf_module.create_interactive_pdf(tmp_path, metakat_io, output, downscale=downscale)
+    with pymupdf.open(output) as document:
+        assert document.get_toc() == [
+            [1, "Existing chapter", 3],
+            [1, "Detected document starts", 2],
+            [2, "Document start 1 | scan page 2", 2],
+            [2, "Document start 2 | scan page 4", 4],
+        ]
+        for index, page in enumerate(document):
+            marked = index in (1, 3)
+            assert ("DOCUMENT START" in page.get_text()) is marked
+            frames = [drawing for drawing in page.get_drawings()
+                      if drawing["color"] is not None and
+                      drawing["color"] == pytest.approx(pdf_module._DOCUMENT_START_COLOR)]
+            assert bool(frames) is marked
+            if marked:
+                assert frames[0]["width"] == pytest.approx(min(page.rect.width, page.rect.height) * 0.012)
+                assert page.rect.contains(frames[0]["rect"])
+    assert metakat_io.model_dump_json() == before
+
+
 def test_single_document_creates_chapter_outline_and_toc_link(tmp_path, page_image):
     page_image(tmp_path / "first.jpg")
     page_image(tmp_path / "second.jpg")

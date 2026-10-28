@@ -417,11 +417,23 @@ and no model runtime can still render a batch another machine processed.
 - one PDF page per MetaKat page, in batch order, built from the batch image, so
   every annotation sits over the page region it was detected in;
 - a PDF outline of the documents and their chapters, for navigation;
+- a blue frame and a visible `DOCUMENT START` banner on each page whose
+  `startsDocument.text` is `true`, plus a `Detected document starts` bookmark
+  section for jumping between these pages;
 - clickable rectangles that move between a TOC entry and the chapter it points
   to, in both directions;
 - sticky notes carrying the recognized page number, page type, and
   bibliographic values;
 - a bounding box drawn over every detection the pipeline recorded.
+
+Document-start markers are ordinary PDF page content, so they remain visible
+without opening notes or enabling annotations, including in rendered sidebar
+thumbnails. PDF does not provide a portable way to set a separate thumbnail
+highlight or background color in Ubuntu's document viewer. The blue frame serves
+as the thumbnail marker; the viewer's outline/bookmarks sidebar provides direct
+navigation. Missing or false start flags are not marked, and document grouping
+alone does not create a detected-start marker. Page dimensions and detection
+coordinates stay unchanged.
 
 The PDF is written atomically, through a temporary file in the destination
 directory, so an interrupted render leaves no partial output in place.
