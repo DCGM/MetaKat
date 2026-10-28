@@ -55,7 +55,7 @@ def test_full_width_panel_bands_and_stacked_confidences(tmp_path, page_image, do
         bands = [d for d in rendered.get_drawings()
                  if d["fill"] is not None and d["rect"].height < image.height]
         assert len(bands) == 4
-        colors = (pdf_module._DOCUMENT_START_COLOR if starts else pdf_module._UNKNOWN_COLOR,
+        colors = (pdf_module._boundary_color(page.startsDocument),
                   pdf_module._PAGE_TYPE_COLORS["titlePage"], pdf_module._SIDE_COLORS["left"],
                   pdf_module._PAGE_NUMBER_COLORS["bracketed"])
         labels = (None, "titlePage", "left", "[123]")
@@ -680,3 +680,15 @@ def test_metadata_strip_keeps_labels_outside_unchanged_image(tmp_path, page_imag
             assert len(labels) == 1
             assert labels[0].x0 >= original.x1
             assert rendered.rect.contains(labels[0])
+
+
+@pytest.mark.parametrize("probability, expected", [
+    (0., (1., 1., 1.)), (.25, (1., .5, .5)), (.5, (1., 0., 0.)),
+    (.75, (.5, .175, .4)), (1., pdf_module._DOCUMENT_START_COLOR),
+])
+def test_boundary_color_uses_probability_not_decision_confidence(probability, expected):
+    from metakat.schemas.base_objects import BooleanValue
+    for flag in (False, True):
+        value = BooleanValue(val=flag, confidence=probability if flag else 1.-probability)
+        assert pdf_module._boundary_color(value) == pytest.approx(expected)
+    assert pdf_module._boundary_color(None) == pdf_module._UNKNOWN_COLOR
