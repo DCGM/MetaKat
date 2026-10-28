@@ -20,6 +20,9 @@ class PageTypeInput:
     image_path: str | None
     ocr_path: str | None = None
     page_number: str | None = None
+    # Optional complete bottom-level document metadata, independent of predictions.
+    document_start: bool | None = None
+    document_end: bool | None = None
 
 
 class PageTypePrediction(BaseModel):

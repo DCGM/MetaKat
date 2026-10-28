@@ -1,4 +1,4 @@
-"""Deployment architecture: BERT, four separate feature MLPs and five task heads."""
+"""Deployment architecture: BERT, five separate feature MLPs and five task heads."""
 import torch
 from torch import nn
 
@@ -54,7 +54,7 @@ class Fusion(nn.Module):
         if kind != 'separate_mlp':
             raise ValueError('Context inference requires separate_mlp fusion')
         self.kind = kind
-        self.names = ('image', 'text', 'stats', 'pagination')
+        self.names = ('image', 'text', 'stats', 'pagination', 'boundaries')
         self.branches = nn.ModuleDict()
         for name in self.names:
             self.branches[name] = nn.Sequential(nn.Linear(dims[name], hidden_size), nn.GELU(),
@@ -69,7 +69,9 @@ class Fusion(nn.Module):
         for i, name in enumerate(self.names):
             x = self.branches[name](features[name])
             # Mask after biased/nonlinear branch operations, including future custom feature sources.
-            presence = features['pagination'][..., 4:5] if name == 'pagination' else flags[..., i:i + 1]
+            # Unknown boundary state is meaningful: keep this branch active.
+            presence = (1 if name == 'boundaries' else features['pagination'][..., 4:5]
+                        if name == 'pagination' else flags[..., i:i + 1])
             parts.append(x * presence)
         return self.scale * self.norm(self.projection(torch.cat(parts + [flags], dim=-1)))
 
@@ -113,8 +115,9 @@ class PageTagger(nn.Module):
 def from_specification(spec):
     if (spec.get('auxiliary_edges') is not True or spec.get('backbone', {}).get('kind') != 'bert'
             or spec.get('fusion') != 'separate_mlp' or spec.get('dims', {}).get('pagination') != 5
-            or set(spec.get('dims', {})) != {'image', 'text', 'stats', 'pagination'}):
-        raise ValueError('Context inference requires pagination-aware BERT with separate MLPs and auxiliary start/end heads')
+            or spec.get('scan_borders') or spec.get('dims', {}).get('boundaries') != 5
+            or set(spec.get('dims', {})) != {'image', 'text', 'stats', 'pagination', 'boundaries'}):
+        raise ValueError('Context inference requires five-bit boundary and pagination-aware BERT with separate MLPs and auxiliary start/end heads')
     b = spec['backbone']
     backbone = BertBackbone.create(pretrained=False, config=b['config'])
     if 'initial_scale' in b:

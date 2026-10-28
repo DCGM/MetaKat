@@ -3,6 +3,7 @@
 CLI accepts a JSON list of {image_path, ocr_path} in scan order. Paths are
 relative to that list's directory; a null path means a missing modality.
 """
+from contextlib import nullcontext
 import argparse
 import json
 from pathlib import Path
@@ -23,6 +24,7 @@ from .models import from_specification
 from .labels import PAGE_TYPES, PLACEMENTS
 from .merging import InferenceConfig, StreamMerger, window_spans
 from .pagination import POLICY, encode_page_numbers
+from .boundaries import encode_boundary_features
 
 
 @torch.inference_mode()
@@ -31,7 +33,7 @@ def scan_features(model, features, config, device='cpu'):
     n = len(features['presence'])
     if not n:
         raise ValueError('Cannot scan an empty feature stream')
-    spans = window_spans(n, config.window_size, config.stride)
+    spans = window_spans(n, config.window_size, config.stride, config.tail)
     merger = StreamMerger(n, model.num_types, config)
     was_training = model.training
     model.eval()
@@ -47,7 +49,10 @@ def scan_features(model, features, config, device='cpu'):
                 attention[i, :e - s] = True
                 for name, value in features.items():
                     arrays[name][i, :e - s] = torch.as_tensor(value[s:e], device=device)
-            output = model(arrays, attention)
+            # Match the selected experiment: FP32 parameters, FP16 CUDA compute.
+            with (torch.autocast('cuda', dtype=torch.float16)
+                  if torch.device(device).type == 'cuda' else nullcontext()):
+                output = model(arrays, attention)
             for i, (s, e) in enumerate(batch_spans):
                 merger.add(s, e, {k: v[i, :e - s].detach().float().cpu().numpy()
                                  for k, v in output.items()})
@@ -62,11 +67,11 @@ class PageTypeCoreEngineContext(PageTypeCoreEngine):
         self.device = torch.device(self.config.get('device', 'cuda' if torch.cuda.is_available() else 'cpu'))
         # Deployment artifacts contain tensors and primitive metadata only, never optimizer/RNG pickle.
         state = torch.load(self.config['checkpoint_path'], map_location='cpu', weights_only=True)
-        if (state.get('format') != 'metakat_context_v3'
+        if (state.get('format') != 'metakat_context_v4'
                 or tuple(state['page_types']) != PAGE_TYPES or tuple(state['placements']) != PLACEMENTS):
             raise ValueError('Unsupported context inference artifact or label order; export the training checkpoint first')
         self.model = from_specification(state['specification'])
-        base_dims = {k: v for k, v in self.model.dims.items() if k != 'pagination'}
+        base_dims = {k: v for k, v in self.model.dims.items() if k not in ('pagination', 'boundaries')}
         self.pagination = state.get('pagination')
         if (not isinstance(self.pagination, dict) or set(self.pagination) != {'policy', 'cap'}
                 or self.pagination['policy'] != POLICY):
@@ -107,6 +112,14 @@ class PageTypeCoreEngineContext(PageTypeCoreEngine):
         # Retain only compact per-page vectors. Never retain all images or OCR text.
         values = {name: np.zeros((len(pages), dim), np.float32) for name, dim in self.model.dims.items()}
         values['presence'] = np.zeros((len(pages), 3), np.float32)
+        starts = [p.document_start for p in pages]
+        ends = [p.document_end for p in pages]
+        metadata = {}
+        if any(v is not None for v in starts + ends):
+            if any(v is None for v in starts + ends):
+                raise ValueError('Complete start and end metadata required for every page')
+            metadata = dict(document_starts=starts, document_ends=ends)
+        values['boundaries'] = encode_boundary_features(len(pages), True, True, **metadata)
         for first in range(0, len(pages), self.feature_chunk_size):
             chunk = pages[first:first + self.feature_chunk_size]
             stats, stats_present, texts = self.stats.encode([p.ocr_path for p in chunk])
@@ -119,8 +132,6 @@ class PageTypeCoreEngineContext(PageTypeCoreEngine):
             values['pagination'][target] = encode_page_numbers(
                 [p.page_number for p in chunk], self.pagination['cap'])
             flags = np.stack((image_present, text_present, stats_present), axis=-1)
-            if not flags.any(axis=-1).all():
-                raise ValueError('Every page needs at least an image or OCR input')
             values['presence'][target] = flags
         return values
 
@@ -155,7 +166,9 @@ def main():
     for raw in raw_pages:
         paths = {name: str(args.pages.parent / raw[name]) if raw.get(name) is not None else None
                  for name in ('image_path', 'ocr_path')}
-        pages.append(PageTypeInput(**paths, page_number=raw.get('page_number')))
+        pages.append(PageTypeInput(**paths, page_number=raw.get('page_number'),
+                                   document_start=raw.get('document_start'),
+                                   document_end=raw.get('document_end')))
     engine = PageTypeCoreEngineContext(config)
     predictions = engine.process(pages)
     args.output.write_text(json.dumps([p.model_dump(mode='json') for p in predictions], indent=2) + '\n')

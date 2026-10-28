@@ -285,18 +285,19 @@ An optional `inference` mapping overrides settings exported with the checkpoint:
 ```json
 {
   "inference": {
-    "window_size": 256,
-    "stride": 128,
+    "window_size": 512,
+    "stride": 448,
+    "tail": "regular",
+    "edge_ignore": 0,
     "merge": "center_logits",
-    "edge_ramp": 64,
+    "edge_ramp": 32,
     "start_threshold": 0.5,
     "batch_size": 64
   }
 }
 ```
 
-These are example overrides, not an instruction to replace the selected
-checkpoint's settings. Only override them for an evaluated deployment setup.
+These are the selected deployment settings (512 positions, 64-page overlap). Only override them for an evaluated deployment setup.
 The window cannot exceed the checkpoint's learned position limit. The shared
 `boundary_policy` mapping is documented under
 [boundary policy configuration](#boundary-policy-configuration).
@@ -312,20 +313,24 @@ python -m page_sequence.export --checkpoint /path/to/best.pt --output /models/co
 The exporter reads the training pickle once and writes tensors plus primitive
 metadata. MetaKat loads this deployment artifact with `weights_only=True`.
 It contains architecture, class order, feature normalization/schema, pagination
-policy and cap, and inference settings. Optimizer state, RNG, and training
+policy and cap, and deployment inference settings (512/448, regular tail,
+centre-weighted logits, ramp 32, no discarded edges). These replace the historical
+training-validation overlap rather than copying it into deployment. Optimizer state, RNG, and training
 source paths are omitted. Export the selected `best.pt`, rather than assuming
 the last update is best. No trained checkpoint is bundled with the code.
 
-The only accepted format is `metakat_context_v3`, with:
+The only accepted format is `metakat_context_v4`, with:
 
-- a BERT backbone and separate image, text, statistics, and pagination MLPs;
+- a BERT backbone and separate image, text, statistics, pagination, and boundary MLPs;
+- five boundary bits per page: scan start, scan end, document metadata provided,
+  document start, document end;
 - per-page type and side heads;
 - the learned adjacent-pair boundary head;
 - independent linear page-start and page-end heads.
 
 Loading validates the architecture, label order, all five heads with strict
 weight loading, pagination policy, feature schema, and encoder dimensions.
-Legacy v1/v2 artifacts, missing head weights, and other architectures fail;
+Legacy v1/v2/v3 artifacts, missing head weights, and other architectures fail;
 artifact/schema checks precede loading the feature encoders.
 
 Use the same encoders as the training dump:
@@ -407,7 +412,13 @@ BERT attends bidirectionally within each window. Learned absolute position
 embeddings reset for every window. Window size, stride, edge ramp, merge rule,
 boundary threshold, and batch size come from the exported artifact unless
 explicitly overridden. Scans shorter than the window, including a single page,
-are supported. Longer scans are processed in overlapping windows.
+are supported. Longer scans are processed in overlapping windows. The default
+window is 512 pages with stride 448 (overlap 64). Window starts advance regularly;
+the last window stays at its scheduled start and accepts a shorter input. For
+1,024 pages the spans are `[0,512)`, `[448,960)`, `[896,1024)`: the last input
+has 128 pages. There is no backward shift to make the last window full.
+CUDA uses FP16 autocast with FP32 model parameters and FP32 merge accumulators;
+CPU uses FP32.
 
 The default experiment strategy accumulates centre-weighted logits over
 overlaps and applies softmax or sigmoid afterward. Available merge values are
@@ -427,7 +438,15 @@ page representation. Their influence on the boundary head is through the shared
 encoder learned during training. Their probabilities are neither inputs to the
 pair head nor manually combined with its score at inference. Consistency
 regularization is a training loss; it adds no inference parameters or decoding
-rule. No known document boundaries or existing page labels are model inputs.
+rule. Scan start/end bits are set only at the true endpoints, then sliced with
+each window. By default the document metadata bits are unknown. The standalone
+page list / `PageTypeInput` may supply `document_start` and `document_end` for
+every page (including explicit false values); a partial set is rejected. These
+are model inputs, not output overrides. A single known document can therefore
+supply true only at its first/last page. Ordinary pipeline input supplies scan
+endpoints and available page numbers; existing page-type labels are not inputs.
+Fully missing image/OCR pages retain their position with zero features and
+modality-presence bits, as in training.
 The separate [resolver](#bottom-document-resolution) then uses predicted types
 and pair-boundary scores to choose the final partition.
 
