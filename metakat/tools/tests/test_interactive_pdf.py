@@ -27,7 +27,7 @@ def _run(scan_index):
     return [(scan_index, uuid4())]
 
 
-@pytest.mark.parametrize("page_type", [PageType.TITLE_PAGE, PageType.TABLE_OF_CONTENTS, None])
+@pytest.mark.parametrize("page_type", [PageType.NORMAL_PAGE, PageType.TITLE_PAGE, PageType.TABLE_OF_CONTENTS, None])
 @pytest.mark.parametrize("starts", [False, True])
 def test_page_type_frames_preserve_document_start_frame(tmp_path, page_image, page_type, starts):
     volume = MetakatVolume(id=uuid4())

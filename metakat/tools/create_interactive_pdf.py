@@ -38,6 +38,7 @@ _DETECTION_BOX_LINE_WIDTH = 0.6
 _DETECTION_BOX_OPACITY = 0.55
 _DOCUMENT_START_COLOR = (0.0, 0.35, 0.8)
 _PAGE_TYPE_FRAME_COLORS = {
+    PageType.NORMAL_PAGE.value: (0.45, 0.45, 0.45),
     PageType.TITLE_PAGE.value: (0.0, 0.6, 0.3),
     PageType.TABLE_OF_CONTENTS.value: (0.95, 0.5, 0.0),
 }
