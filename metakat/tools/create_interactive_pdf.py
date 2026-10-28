@@ -8,7 +8,7 @@ import os
 import tempfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -69,6 +69,7 @@ class _RenderedPage:
     pdf_index: int
     scale_x: float
     scale_y: float
+    content_width: float | None = None
 
 
 def _load_pymupdf():
@@ -96,7 +97,8 @@ def create_interactive_pdf(
     """Create an interactive PDF, optionally reducing embedded raster resolution.
 
     The long-edge target is soft: small detected/OCR text can require more pixels.
-    Source images, schema geometry and physical PDF page dimensions stay unchanged.
+    Source images and schema geometry stay unchanged; a white metadata strip
+    extends each PDF page to the right without moving or scaling its image.
     """
     if not math.isfinite(min_text_pixels) or min_text_pixels <= 0:
         raise ValueError('min_text_pixels must be finite and positive')
@@ -133,6 +135,7 @@ def create_interactive_pdf(
             min_text_pixels=min_text_pixels,
             max_image_dimension=max_image_dimension,
         )
+        rendered_by_page_id = _add_metadata_strips(pymupdf, document, rendered_by_page_id)
         page_maps = _document_page_maps(groups, rendered_by_page_id)
         outline, chapter_destinations = _build_outline(
             metakat_io,
@@ -199,6 +202,24 @@ def create_interactive_pdf(
     return destination
 
 
+def _add_metadata_strips(pymupdf, document, rendered_by_page_id):
+    """Extend the canvas; image pixels and all source-coordinate transforms stay put."""
+    result = {}
+    for page_id, rendered in rendered_by_page_id.items():
+        page = document[rendered.pdf_index]
+        rect = page.rect
+        strip_width = max(min(rect.width, rect.height) * 0.45, 100.)
+        page.set_mediabox(pymupdf.Rect(0, 0, rect.width + strip_width, rect.height))
+        page.draw_rect(pymupdf.Rect(rect.width, 0, rect.width + strip_width, rect.height),
+                       color=None, fill=(1, 1, 1), overlay=False)
+        result[page_id] = replace(rendered, content_width=rect.width)
+    return result
+
+
+def _metadata_rect(pymupdf, page, rendered):
+    return pymupdf.Rect(rendered.content_width, 0, page.rect.x1, page.rect.y1)
+
+
 def _mark_page_types(pymupdf, document, rendered_by_page_id):
     """Use distinct thumbnail-visible frames, inset when a blue start frame exists."""
     for rendered in rendered_by_page_id.values():
@@ -225,8 +246,8 @@ def _insert_page_type_labels(pymupdf, document, rendered_by_page_id):
         text = "NONE" if value is None else str(getattr(value.text, "value", value.text))
         label = text
         page = document[rendered.pdf_index]
-        rect = page.rect
-        short_edge = min(rect.width, rect.height)
+        rect = _metadata_rect(pymupdf, page, rendered)
+        short_edge = min(rendered.content_width, rect.height)
         margin, padding = short_edge * 0.025, short_edge * 0.012
         # PDF text-note icons have a fixed viewer size; reserve their full width.
         gap, note_size = short_edge * 0.01, _NOTE_SIZE
@@ -263,8 +284,8 @@ def _insert_page_number_labels(pymupdf, document, rendered_by_page_id):
         text = " ".join(number.text.split()) if number is not None else ""
         label = text or 'NONE'
         page = document[rendered.pdf_index]
-        rect = page.rect
-        short_edge = min(rect.width, rect.height)
+        rect = _metadata_rect(pymupdf, page, rendered)
+        short_edge = min(rendered.content_width, rect.height)
         margin = short_edge * 0.025
         padding = short_edge * 0.012
         font_size = short_edge * 0.028
@@ -303,7 +324,8 @@ def _mark_document_starts(pymupdf, document, rendered_by_page_id):
         frame = pymupdf.Rect(rect.x0 + width / 2, rect.y0 + width / 2,
                             rect.x1 - width / 2, rect.y1 - width / 2)
         page.draw_rect(frame, color=_DOCUMENT_START_COLOR, width=width, overlay=True)
-        font_size = short_edge * 0.024
+        rect = _metadata_rect(pymupdf, page, rendered)
+        font_size = min(short_edge * 0.024, rect.width / 12)
         label = "DOCUMENT START"
         label_width = pymupdf.get_text_length(label, fontname="hebo", fontsize=font_size)
         banner_width = label_width + font_size * 1.5

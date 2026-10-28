@@ -209,10 +209,11 @@ def test_single_document_creates_chapter_outline_and_toc_link(tmp_path, page_ima
         links = document[0].get_links()
         assert len(links) == 1
         assert links[0]["page"] == 1
+        image_rect = document[0].get_image_rects(document[0].get_images()[0][0])[0]
         expected = pymupdf.Rect(
-            10 * document[0].rect.width / 100,
+            10 * image_rect.width / 100,
             20 * document[0].rect.height / 200,
-            40 * document[0].rect.width / 100,
+            40 * image_rect.width / 100,
             60 * document[0].rect.height / 200,
         )
         actual = links[0]["from"]
@@ -704,3 +705,35 @@ def test_standalone_downscale_options_are_forwarded(tmp_path):
           mock.patch.object(pdf_module,'create_interactive_pdf') as create):
         pdf_module.main()
     assert create.call_args.kwargs == {'downscale':True,'min_text_pixels':20.,'max_image_dimension':2000}
+
+
+@pytest.mark.parametrize("downscale", [False, True])
+def test_metadata_strip_keeps_labels_outside_unchanged_image(tmp_path, page_image, downscale):
+    page_image(tmp_path / "page.jpg")
+    volume = MetakatVolume(id=uuid4())
+    page = MetakatPage(
+        id=uuid4(), batch_id=uuid4(), batch_index=0, parent_id=volume.id,
+        pageType=(PageType.TITLE_PAGE, .9), pageNumber=_v("123", .8),
+        startsDocument=(True, .9),
+    )
+    io = MetakatIO(batch_id=page.batch_id, elements=[volume, page],
+                   page_to_image_mapping={page.id: "page.jpg"})
+    output = tmp_path / "strip.pdf"
+    with pymupdf.open(tmp_path / "page.jpg") as source:
+        original = source[0].rect
+    pdf_module.create_interactive_pdf(tmp_path, io, output,
+                                      downscale=downscale, max_image_dimension=50)
+    with pymupdf.open(output) as document:
+        rendered = document[0]
+        image_rect = rendered.get_image_rects(rendered.get_images()[0][0])[0]
+        assert tuple(image_rect) == pytest.approx(tuple(original))
+        assert rendered.rect.width > original.width
+        assert rendered.rect.height == pytest.approx(original.height)
+        for text in ("titlePage", "123", "DOCUMENT START"):
+            labels = rendered.search_for(text)
+            assert len(labels) == 1
+            assert labels[0].x0 >= original.x1
+            assert rendered.rect.contains(labels[0])
+        notes = [a for a in rendered.annots() if a.info["subject"] == "Page type"]
+        assert len(notes) == 1
+        assert notes[0].rect.x0 >= original.x1
