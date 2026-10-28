@@ -37,6 +37,10 @@ _DETECTION_BOX_COLOR = (0.85, 0.1, 0.1)
 _DETECTION_BOX_LINE_WIDTH = 0.6
 _DETECTION_BOX_OPACITY = 0.55
 _DOCUMENT_START_COLOR = (0.0, 0.35, 0.8)
+_PAGE_TYPE_FRAME_COLORS = {
+    PageType.TITLE_PAGE.value: (0.0, 0.6, 0.3),
+    PageType.TABLE_OF_CONTENTS.value: (0.95, 0.5, 0.0),
+}
 _BIBLIO_FIELD_NAMES = (
     "title",
     "subTitle",
@@ -158,6 +162,7 @@ def create_interactive_pdf(
             metakat_io,
             rendered_by_page_id,
         )
+        _mark_page_types(pymupdf, document, rendered_by_page_id)
         document_starts = _mark_document_starts(pymupdf, document, rendered_by_page_id)
         _insert_page_number_labels(pymupdf, document, rendered_by_page_id)
         _insert_page_type_labels(pymupdf, document, rendered_by_page_id)
@@ -194,12 +199,31 @@ def create_interactive_pdf(
     return destination
 
 
+def _mark_page_types(pymupdf, document, rendered_by_page_id):
+    """Use distinct thumbnail-visible frames, inset when a blue start frame exists."""
+    for rendered in rendered_by_page_id.values():
+        value = rendered.page.pageType
+        color = _PAGE_TYPE_FRAME_COLORS.get(value.text) if value is not None else None
+        if color is None:
+            continue
+        page = document[rendered.pdf_index]
+        rect = page.rect
+        short_edge = min(rect.width, rect.height)
+        width = short_edge * 0.012
+        starts = rendered.page.startsDocument
+        inset = short_edge * 0.016 if starts is not None and starts.text is True else 0
+        offset = inset + width / 2
+        frame = pymupdf.Rect(rect.x0 + offset, rect.y0 + offset,
+                            rect.x1 - offset, rect.y1 - offset)
+        page.draw_rect(frame, color=color, width=width, overlay=True)
+
+
 def _insert_page_type_labels(pymupdf, document, rendered_by_page_id):
     """Keep page types visible, with their confidence note directly to the right."""
     for rendered in rendered_by_page_id.values():
         value = rendered.page.pageType
         text = "NONE" if value is None else str(getattr(value.text, "value", value.text))
-        label = f"TYPE: {text}"
+        label = text
         page = document[rendered.pdf_index]
         rect = page.rect
         short_edge = min(rect.width, rect.height)
@@ -237,7 +261,7 @@ def _insert_page_number_labels(pymupdf, document, rendered_by_page_id):
     for rendered in rendered_by_page_id.values():
         number = rendered.page.pageNumber
         text = " ".join(number.text.split()) if number is not None else ""
-        label = f"PAGE: {text or 'NONE'}"
+        label = text or 'NONE'
         page = document[rendered.pdf_index]
         rect = page.rect
         short_edge = min(rect.width, rect.height)

@@ -27,6 +27,33 @@ def _run(scan_index):
     return [(scan_index, uuid4())]
 
 
+@pytest.mark.parametrize("page_type", [PageType.TITLE_PAGE, PageType.TABLE_OF_CONTENTS, None])
+@pytest.mark.parametrize("starts", [False, True])
+def test_page_type_frames_preserve_document_start_frame(tmp_path, page_image, page_type, starts):
+    volume = MetakatVolume(id=uuid4())
+    page = MetakatPage(
+        id=uuid4(), batch_id=uuid4(), batch_index=0, pageIndex=0, parent_id=volume.id,
+        pageType=None if page_type is None else (page_type, 0.9), startsDocument=(starts, 0.9),
+    )
+    page_image(tmp_path / "page.jpg")
+    io = MetakatIO(batch_id=uuid4(), elements=[volume, page], page_to_image_mapping={page.id: "page.jpg"})
+    output = tmp_path / "frames.pdf"
+    pdf_module.create_interactive_pdf(tmp_path, io, output)
+    with pymupdf.open(output) as document:
+        rendered = document[0]
+        drawings = rendered.get_drawings()
+        blue = [d for d in drawings if d["color"] == pytest.approx(pdf_module._DOCUMENT_START_COLOR)]
+        assert len(blue) == int(starts)
+        for kind, color in pdf_module._PAGE_TYPE_FRAME_COLORS.items():
+            frames = [d for d in drawings if d["color"] == pytest.approx(color)]
+            assert len(frames) == int(page_type == kind)
+            if frames:
+                assert rendered.rect.contains(frames[0]["rect"])
+                if starts:
+                    assert blue[0]["rect"].contains(frames[0]["rect"])
+                    assert frames[0]["rect"].x0 > blue[0]["rect"].x0
+
+
 def test_page_type_label_has_its_detail_note_to_the_right(tmp_path, page_image):
     volume = MetakatVolume(id=uuid4())
     pages, mapping = [], {}
@@ -44,8 +71,9 @@ def test_page_type_label_has_its_detail_note_to_the_right(tmp_path, page_image):
     pdf_module.create_interactive_pdf(tmp_path, io, output)
     with pymupdf.open(output) as document:
         for page, expected in zip(document, (PageType.TITLE_PAGE.value, "NONE")):
-            matches = page.search_for(f"TYPE: {expected}")
+            matches = page.search_for(expected, clip=pymupdf.Rect(0, 0, page.rect.width, page.rect.height / 4))
             assert len(matches) == 1
+            assert "TYPE:" not in page.get_text()
             label = matches[0]
             assert page.rect.contains(label)
             assert label.x0 > page.rect.width / 2
@@ -82,8 +110,9 @@ def test_page_numbers_are_visible_bottom_right_without_detection_geometry(tmp_pa
     pdf_module.create_interactive_pdf(tmp_path, io, output)
     with pymupdf.open(output) as document:
         for page, expected in zip(document, ("42", "[43]", "xiv", "NONE", "NONE", "NONE")):
-            matches = page.search_for(f"PAGE: {expected}")
+            matches = page.search_for(expected, clip=pymupdf.Rect(0, page.rect.height * 0.9, page.rect.width, page.rect.height))
             assert len(matches) == 1
+            assert "PAGE:" not in page.get_text()
             bounds = matches[0]
             assert bounds.x0 > page.rect.width / 2
             assert bounds.y0 > page.rect.height * 0.9

@@ -420,15 +420,18 @@ and no model runtime can still render a batch another machine processed.
 - a blue frame and a visible `DOCUMENT START` banner on each page whose
   `startsDocument.text` is `true`, plus a `Detected document starts` bookmark
   section for jumping between these pages;
+- green frames for title pages and orange frames for TOC pages; when such a page
+  also starts a document, its colored frame sits inside the blue document-start
+  frame so both signals remain visible in thumbnails;
 - clickable rectangles that move between a TOC entry and the chapter it points
   to, in both directions;
 - sticky notes carrying the recognized page number, page type, and
   bibliographic values;
-- an always-visible `TYPE: <page type>` label near the top-right corner,
+- an always-visible page-type name near the top-right corner,
   below the document-start banner, with its detail note immediately to the right;
-  missing types show `TYPE: NONE`;
-- an always-visible `PAGE: <number>` label on a white background in the
-  bottom-right corner of every page, or `PAGE: NONE` for a missing/empty number;
+  missing types show `NONE`;
+- an always-visible page number on a white background in the
+  bottom-right corner of every page, or `NONE` for a missing/empty number;
   this uses the final page-number value (including brackets for inferred numbers)
   and needs no detection geometry;
 - a bounding box drawn over every detection the pipeline recorded.
