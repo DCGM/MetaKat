@@ -290,14 +290,14 @@ def _page_number_states(pages):
 
 
 def _insert_page_info_panel(pymupdf, document, rendered_by_page_id):
-    """Four color squares with vertically stacked values and confidences."""
+    """Four full-width color bands with proportional height and stacked labels."""
     number_states = _page_number_states([r.page for r in rendered_by_page_id.values()])
     for rendered in rendered_by_page_id.values():
         page = document[rendered.pdf_index]
         rect = _metadata_rect(pymupdf, page, rendered)
         short_edge = min(rendered.content_width, rect.height)
         _, font_size, padding = _panel_dimensions(pymupdf, short_edge)
-        square_size = short_edge * 0.075
+        band_height = rect.width * 0.5
         center = (rect.x0 + rect.x1) / 2
         top = padding + font_size * 0.5
         starts = rendered.page.startsDocument
@@ -314,10 +314,9 @@ def _insert_page_info_panel(pymupdf, document, rendered_by_page_id):
              "--" if number is None or not number.text.strip() else f"{number.confidence:.2f}"),
         )
         for color, label, confidence in items:
-            square = pymupdf.Rect(center - square_size / 2, top,
-                                   center + square_size / 2, top + square_size)
-            page.draw_rect(square, color=None, fill=color, overlay=True)
-            baseline = square.y1 + font_size * 1.5
+            band = pymupdf.Rect(rect.x0, top, rect.x1, top + band_height)
+            page.draw_rect(band, color=None, fill=color, overlay=True)
+            baseline = band.y1 + font_size * 1.5
             for text in (() if label is None else (label,)) + (confidence,):
                 measured = pymupdf.get_text_length(text, fontname="hebo", fontsize=font_size)
                 size = font_size * min(1., (rect.width - 2 * padding) / max(measured, 1e-9))

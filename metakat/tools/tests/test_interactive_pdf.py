@@ -35,7 +35,7 @@ def test_all_page_types_and_sides_have_colors():
 
 @pytest.mark.parametrize("downscale", [False, True])
 @pytest.mark.parametrize("starts", [None, False, True])
-def test_four_panel_squares_and_stacked_confidences(tmp_path, page_image, downscale, starts):
+def test_full_width_panel_bands_and_stacked_confidences(tmp_path, page_image, downscale, starts):
     volume = MetakatVolume(id=uuid4())
     page = MetakatPage(
         id=uuid4(), batch_id=uuid4(), batch_index=0, parent_id=volume.id,
@@ -52,24 +52,26 @@ def test_four_panel_squares_and_stacked_confidences(tmp_path, page_image, downsc
     with pymupdf.open(output) as doc:
         rendered = doc[0]
         image = rendered.get_image_rects(rendered.get_images()[0][0])[0]
-        squares = [d for d in rendered.get_drawings()
-                   if d["fill"] is not None and abs(d["rect"].width-d["rect"].height) < 1e-4]
-        assert len(squares) == 4
+        bands = [d for d in rendered.get_drawings()
+                 if d["fill"] is not None and d["rect"].height < image.height]
+        assert len(bands) == 4
         colors = (pdf_module._DOCUMENT_START_COLOR if starts else pdf_module._UNKNOWN_COLOR,
                   pdf_module._PAGE_TYPE_COLORS["titlePage"], pdf_module._SIDE_COLORS["left"],
                   pdf_module._PAGE_NUMBER_COLORS["bracketed"])
         labels = (None, "titlePage", "left", "[123]")
         confidences = ("--" if starts is None else "0.95", "0.91", "0.88", "1.00")
-        for index, (square, color, label, confidence) in enumerate(zip(squares, colors, labels, confidences)):
-            assert square["fill"] == pytest.approx(color)
-            assert square["rect"].x0 >= image.x1
+        for index, (band, color, label, confidence) in enumerate(zip(bands, colors, labels, confidences)):
+            assert band["fill"] == pytest.approx(color)
+            assert band["rect"].x0 == pytest.approx(image.x1)
+            assert band["rect"].x1 == pytest.approx(rendered.rect.x1)
+            assert band["rect"].height == pytest.approx(band["rect"].width * .5)
             conf, = rendered.search_for(confidence)
-            assert conf.y0 > square["rect"].y1
+            assert conf.y0 > band["rect"].y1
             if label:
                 text, = rendered.search_for(label)
-                assert square["rect"].y1 < text.y0 < text.y1 < conf.y0
+                assert band["rect"].y1 < text.y0 < text.y1 < conf.y0
             if index < 3:
-                assert conf.y1 < squares[index+1]["rect"].y0
+                assert conf.y1 < bands[index+1]["rect"].y0
         assert not any(d["color"] is not None for d in rendered.get_drawings())
         assert doc.get_toc() == ([[1, "Detected document starts", 1],
                                   [2, "Document start 1 | scan page 1", 1]] if starts else [])
