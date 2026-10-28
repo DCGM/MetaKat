@@ -259,12 +259,24 @@ artifact does not contain the image or text encoder weights.
 ```json
 {
   "name": "page_type_core_engine_context",
-  "checkpoint_path": "page_type/core/context.pt",
-  "image_checkpoint_path": "page_type/core/dino/exported_last.pt",
-  "text_model_dir": "page_type/core/mmbert",
-  "image_checkpoint_sha256": "d08f6d05da58efff5748274f487c2583d94cad5ee9e0490a57e40c3a3832f80e",
   "device": "cuda",
-  "image_batch_size": 32,
+  "checkpoint_path": "page_type/core/context.pt",
+  "inference": {
+    "window_size": 512,
+    "stride": 448,
+    "tail": "regular",
+    "merge": "center_logits",
+    "edge_ramp": 32,
+    "edge_ignore": 0,
+    "start_threshold": 0.5,
+    "batch_size": 8
+  },
+  "image_checkpoint_path": "page_type/core/dino/exported_last.pt",
+  "image": {
+    "batch_size": 32,
+    "expected_sha256": "d08f6d05da58efff5748274f487c2583d94cad5ee9e0490a57e40c3a3832f80e"
+  },
+  "text_model_dir": "page_type/core/mmbert",
   "text": {
     "batch_size": 8,
     "max_tokens_per_batch": 16384,
@@ -275,7 +287,7 @@ artifact does not contain the image or text encoder weights.
 ```
 
 `device` defaults to CUDA when available, otherwise CPU. The example explicitly
-selects CUDA. `image_checkpoint_sha256` is optional and verifies the image
+selects CUDA. `image.expected_sha256` is optional and verifies the image
 checkpoint before loading it. Text batch size and token budget are independent
 of the contextual model's window batch size. There is no shared outer chunk size.
 DINO batches images directly; mmBERT consumes OCR text lazily in bounded batches.

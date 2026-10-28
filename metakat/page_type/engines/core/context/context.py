@@ -98,8 +98,7 @@ class PageTypeCoreEngineContext(PageTypeCoreEngine):
         self.sides = [PageSideType.LEFT, PageSideType.RIGHT, PageSideType.SINGLE]
         # Load feature encoders only after checkpoint/feature validation succeeds.
         self.dino = DinoEncoder(self.config['image_checkpoint_path'], self.device,
-                                self.config.get('image_batch_size', 32),
-                                self.config.get('image_checkpoint_sha256'))
+                                **self.config.get('image', {}))
         self.mmbert = MmbertEncoder(self.config['text_model_dir'], self.device,
                                     **self.config.get('text', {}))
         if {'image': self.dino.dim, 'text': self.mmbert.dim, 'stats': self.stats.dim} != base_dims:

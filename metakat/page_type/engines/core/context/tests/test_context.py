@@ -95,10 +95,12 @@ def artifact(tmp_path):
 
 def test_core_loads_artifact_and_emits_all_three_tasks_without_training_dependencies(tmp_path):
     path, _ = artifact(tmp_path)
-    with patch('metakat.page_type.engines.core.context.context.DinoEncoder', return_value=SimpleNamespace(dim=4)), \
+    with patch('metakat.page_type.engines.core.context.context.DinoEncoder', return_value=SimpleNamespace(dim=4)) as dino, \
          patch('metakat.page_type.engines.core.context.context.MmbertEncoder', return_value=SimpleNamespace(dim=3)):
         engine = PageTypeCoreEngineContext({'name': 'page_type_core_engine_context', 'device': 'cpu',
-            'checkpoint_path': str(path), 'image_checkpoint_path': 'dino.pt', 'text_model_dir': 'mmbert'})
+            'checkpoint_path': str(path), 'image_checkpoint_path': 'dino.pt',
+            'image': {'batch_size': 7, 'expected_sha256': 'test-digest'}, 'text_model_dir': 'mmbert'})
+    dino.assert_called_once_with('dino.pt', torch.device('cpu'), batch_size=7, expected_sha256='test-digest')
     engine.features = lambda pages: features(len(pages), engine.model.dims)
     assert engine.page_types[PAGE_TYPES.index('Colophon')] is PageType.COLOPHON
     result = engine.process([PageTypeInput('same.jpg')] * 20)
