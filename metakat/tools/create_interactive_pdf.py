@@ -210,7 +210,7 @@ def _add_metadata_strips(pymupdf, document, rendered_by_page_id):
         strip_width = _panel_dimensions(pymupdf, min(rect.width, rect.height))[0]
         page.set_mediabox(pymupdf.Rect(0, 0, rect.width + strip_width, rect.height))
         page.draw_rect(pymupdf.Rect(rect.width, 0, rect.width + strip_width, rect.height),
-                       color=None, fill=(1, 1, 1), overlay=False)
+                       color=None, fill=(1, 1, 1), overlay=True)
         result[page_id] = replace(rendered, content_width=rect.width)
     return result
 
@@ -227,7 +227,7 @@ def _mark_page_types(pymupdf, document, rendered_by_page_id):
         if color is None:
             continue
         page = document[rendered.pdf_index]
-        rect = page.rect
+        rect = pymupdf.Rect(0, 0, rendered.content_width, page.rect.height)
         short_edge = min(rect.width, rect.height)
         width = short_edge * 0.012
         starts = rendered.page.startsDocument
@@ -239,9 +239,9 @@ def _mark_page_types(pymupdf, document, rendered_by_page_id):
 
 
 def _panel_dimensions(pymupdf, short_edge):
-    font_size = short_edge * 0.020
-    padding = short_edge * 0.012
-    gap = font_size * 0.8
+    font_size = short_edge * 0.014
+    padding = short_edge * 0.006
+    gap = font_size * 0.5
     label_width = max(pymupdf.get_text_length(value, fontname="hebo", fontsize=font_size)
                       for value in ("NONE", *(kind.value for kind in PageType)))
     confidence_width = pymupdf.get_text_length("1.00", fontname="hebo", fontsize=font_size)
@@ -257,8 +257,7 @@ def _insert_page_info_panel(pymupdf, document, rendered_by_page_id):
             pymupdf, min(rendered.content_width, rect.height))
         right = rect.x1 - padding
         label_width = rect.width - 2 * padding - gap - confidence_width
-        # Reserve the same banner space on every page so rows never move.
-        top = padding + font_size * 2.5
+        top = padding + font_size * 0.5
         for index, value in enumerate((rendered.page.pageType, rendered.page.side,
                                        rendered.page.pageNumber)):
             text = "" if value is None else str(getattr(value.text, "value", value.text))
@@ -288,15 +287,14 @@ def _mark_document_starts(pymupdf, document, rendered_by_page_id):
     )
     for rendered in starts:
         page = document[rendered.pdf_index]
-        rect = page.rect
+        rect = pymupdf.Rect(0, 0, rendered.content_width, page.rect.height)
         short_edge = min(rect.width, rect.height)
         width = short_edge * 0.012
         frame = pymupdf.Rect(rect.x0 + width / 2, rect.y0 + width / 2,
                             rect.x1 - width / 2, rect.y1 - width / 2)
         page.draw_rect(frame, color=_DOCUMENT_START_COLOR, width=width, overlay=True)
-        rect = _metadata_rect(pymupdf, page, rendered)
-        font_size = min(short_edge * 0.024, rect.width / 12)
-        label = "DOCUMENT START"
+        font_size = short_edge * 0.024
+        label = f"DOCUMENT START  {rendered.page.startsDocument.confidence:.2f}"
         label_width = pymupdf.get_text_length(label, fontname="hebo", fontsize=font_size)
         banner_width = label_width + font_size * 1.5
         left = rect.x0 + (rect.width - banner_width) / 2

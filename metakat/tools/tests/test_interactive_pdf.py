@@ -48,7 +48,8 @@ def test_page_type_frames_preserve_document_start_frame(tmp_path, page_image, pa
             frames = [d for d in drawings if d["color"] == pytest.approx(color)]
             assert len(frames) == int(page_type == kind)
             if frames:
-                assert rendered.rect.contains(frames[0]["rect"])
+                image_rect = rendered.get_image_rects(rendered.get_images()[0][0])[0]
+                assert image_rect.contains(frames[0]["rect"])
                 if starts:
                     assert blue[0]["rect"].contains(frames[0]["rect"])
                     assert frames[0]["rect"].x0 > blue[0]["rect"].x0
@@ -73,7 +74,7 @@ def test_page_panel_has_ordered_values_and_two_decimal_confidences(tmp_path, pag
         image = rendered.get_image_rects(rendered.get_images()[0][0])[0]
         expected_width = pdf_module._panel_dimensions(pymupdf, min(image.width, image.height))[0]
         assert rendered.rect.width - image.width == pytest.approx(expected_width)
-        previous_y = rendered.search_for("DOCUMENT START")[0].y1
+        previous_y = 0
         for label, confidence in (("NONE" if page_type is None else page_type.value,
                                    "--" if page_type is None else "0.91"),
                                   ("left", "0.88"), ("[123]", "1.00")):
@@ -149,7 +150,14 @@ def test_document_start_markers_are_page_content_and_have_bookmarks(tmp_path, pa
                       drawing["color"] == pytest.approx(pdf_module._DOCUMENT_START_COLOR)]
             assert bool(frames) is marked
             if marked:
-                assert frames[0]["width"] == pytest.approx(min(page.rect.width, page.rect.height) * 0.012)
+                image_rect = page.get_image_rects(page.get_images()[0][0])[0]
+                assert frames[0]["width"] == pytest.approx(min(image_rect.width, image_rect.height) * 0.012)
+                assert image_rect.contains(frames[0]["rect"])
+                banner, = page.search_for("DOCUMENT START")
+                confidence, = page.search_for("0.00" if index == 3 else "0.95")
+                assert confidence.x0 > banner.x1
+                combined = banner | confidence
+                assert (combined.x0 + combined.x1) / 2 == pytest.approx(image_rect.width / 2, abs=1)
                 assert page.rect.contains(frames[0]["rect"])
     assert metakat_io.model_dump_json() == before
 
@@ -718,7 +726,16 @@ def test_metadata_strip_keeps_labels_outside_unchanged_image(tmp_path, page_imag
         assert tuple(image_rect) == pytest.approx(tuple(original))
         assert rendered.rect.width > original.width
         assert rendered.rect.height == pytest.approx(original.height)
-        for text in ("titlePage", "123", "DOCUMENT START"):
+        assert rendered.rect.width - original.width < original.width * .23
+        strip = pymupdf.Rect(original.x1, 0, rendered.rect.x1, rendered.rect.y1)
+        drawings = rendered.get_drawings()
+        assert any(d["fill"] == (1., 1., 1.) and strip.contains(d["rect"])
+                   for d in drawings)
+        for drawing in drawings:
+            if drawing["color"] in (pdf_module._DOCUMENT_START_COLOR,
+                                     *pdf_module._PAGE_TYPE_FRAME_COLORS.values()):
+                assert original.contains(drawing["rect"])
+        for text in ("titlePage", "123"):
             labels = rendered.search_for(text)
             assert len(labels) == 1
             assert labels[0].x0 >= original.x1
