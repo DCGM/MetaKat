@@ -160,6 +160,7 @@ def create_interactive_pdf(
         )
         document_starts = _mark_document_starts(pymupdf, document, rendered_by_page_id)
         _insert_page_number_labels(pymupdf, document, rendered_by_page_id)
+        _insert_page_type_labels(pymupdf, document, rendered_by_page_id)
         if document_starts:
             outline.append([1, "Detected document starts", document_starts[0].pdf_index + 1])
             for number, rendered in enumerate(document_starts, 1):
@@ -191,6 +192,44 @@ def create_interactive_pdf(
         len(outline),
     )
     return destination
+
+
+def _insert_page_type_labels(pymupdf, document, rendered_by_page_id):
+    """Keep page types visible, with their confidence note directly to the right."""
+    for rendered in rendered_by_page_id.values():
+        value = rendered.page.pageType
+        text = "NONE" if value is None else str(getattr(value.text, "value", value.text))
+        label = f"TYPE: {text}"
+        page = document[rendered.pdf_index]
+        rect = page.rect
+        short_edge = min(rect.width, rect.height)
+        margin, padding = short_edge * 0.025, short_edge * 0.012
+        # PDF text-note icons have a fixed viewer size; reserve their full width.
+        gap, note_size = short_edge * 0.01, _NOTE_SIZE
+        font_size = short_edge * 0.028
+        text_width = pymupdf.get_text_length(label, fontname="hebo", fontsize=font_size)
+        available_width = rect.width - 2 * margin - note_size - gap - 2 * padding
+        if text_width > available_width:
+            font_size *= available_width / text_width
+            text_width = available_width
+        right = rect.x1 - margin - note_size - gap
+        # Sit below the document-start banner, away from top-left bibliography notes.
+        top = rect.y0 + margin + short_edge * 0.05
+        box = pymupdf.Rect(right - text_width - 2 * padding, top,
+                           right, top + max(font_size * 1.4 + 2 * padding, note_size))
+        page.draw_rect(box, color=(0.25, 0.25, 0.25), fill=(1, 1, 1),
+                       width=short_edge * 0.0015, overlay=True)
+        page.insert_text((box.x0 + padding, box.y0 + box.height / 2 + font_size * 0.35), label,
+                         fontname="hebo", fontsize=font_size, color=(0, 0, 0), overlay=True)
+        if value is not None:
+            note_top = box.y0 + (box.height - note_size) / 2
+            note_rect = pymupdf.Rect(right + gap, note_top,
+                                     right + gap + note_size, note_top + note_size)
+            annotation = page.add_text_annot(note_rect.top_left,
+                _detection_note_text("pageType", text, value.confidence), icon="Note")
+            annotation.set_rect(note_rect)
+            annotation.set_info(title="MetaKat", subject="Page type")
+            annotation.update()
 
 
 def _insert_page_number_labels(pymupdf, document, rendered_by_page_id):
@@ -879,17 +918,6 @@ def _insert_page_metadata_notes(
         if rendered is None:
             continue
         pdf_page = document[rendered.pdf_index]
-        if page.pageType is not None:
-            page_type, confidence = page.pageType.text, page.pageType.confidence
-            page_type_text = (
-                page_type.value if hasattr(page_type, "value") else str(page_type)
-            )
-            _add_sticky_note(
-                pdf_page,
-                _corner_note_point(pdf_page.rect, "top_right"),
-                _detection_note_text("pageType", page_type_text, confidence),
-                subject="Page type",
-            )
         if page.pageNumber is not None:
             page_number_rectangle = _evidence_rectangle(
                 pymupdf,

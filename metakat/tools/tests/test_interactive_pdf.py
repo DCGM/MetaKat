@@ -27,6 +27,42 @@ def _run(scan_index):
     return [(scan_index, uuid4())]
 
 
+def test_page_type_label_has_its_detail_note_to_the_right(tmp_path, page_image):
+    volume = MetakatVolume(id=uuid4())
+    pages, mapping = [], {}
+    for index, page_type in enumerate((PageType.TITLE_PAGE, None)):
+        page = MetakatPage(
+            id=uuid4(), batch_id=uuid4(), batch_index=index, pageIndex=index,
+            parent_id=volume.id, pageType=None if page_type is None else (page_type, 0.91),
+            startsDocument=(True, 0.9),
+        )
+        pages.append(page)
+        mapping[page.id] = f"type-{index}.jpg"
+        page_image(tmp_path / mapping[page.id])
+    io = MetakatIO(batch_id=uuid4(), elements=[volume, *pages], page_to_image_mapping=mapping)
+    output = tmp_path / "types.pdf"
+    pdf_module.create_interactive_pdf(tmp_path, io, output)
+    with pymupdf.open(output) as document:
+        for page, expected in zip(document, (PageType.TITLE_PAGE.value, "NONE")):
+            matches = page.search_for(f"TYPE: {expected}")
+            assert len(matches) == 1
+            label = matches[0]
+            assert page.rect.contains(label)
+            assert label.x0 > page.rect.width / 2
+            assert label.y0 > page.search_for("DOCUMENT START")[0].y1
+            assert label.y1 < page.rect.height / 4
+            notes = [a for a in (page.annots() or []) if a.info["subject"] == "Page type"]
+            if expected == "NONE":
+                assert not notes
+            else:
+                assert len(notes) == 1
+                assert notes[0].rect.x0 > label.x1
+                assert notes[0].rect.y0 < label.y1
+                assert notes[0].rect.y1 > label.y0
+                assert page.rect.contains(notes[0].rect)
+                assert notes[0].info["content"] == f"pageType: {expected} (0.91)"
+
+
 def test_page_numbers_are_visible_bottom_right_without_detection_geometry(tmp_path, page_image):
     volume = MetakatVolume(id=uuid4())
     pages, mapping = [], {}

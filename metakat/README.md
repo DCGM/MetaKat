@@ -424,6 +424,9 @@ and no model runtime can still render a batch another machine processed.
   to, in both directions;
 - sticky notes carrying the recognized page number, page type, and
   bibliographic values;
+- an always-visible `TYPE: <page type>` label near the top-right corner,
+  below the document-start banner, with its detail note immediately to the right;
+  missing types show `TYPE: NONE`;
 - an always-visible `PAGE: <number>` label on a white background in the
   bottom-right corner of every page, or `PAGE: NONE` for a missing/empty number;
   this uses the final page-number value (including brackets for inferred numbers)
