@@ -307,6 +307,14 @@ def _boundary_color(starts):
                  for red, blue in zip((1., 0., 0.), _DOCUMENT_START_COLOR))
 
 
+def _side_color(side):
+    """Fade from white at zero confidence to the side color at confidence one."""
+    if side is None:
+        return _UNKNOWN_COLOR
+    color = _SIDE_COLORS.get(side.text, _UNKNOWN_COLOR)
+    return tuple(1. - side.confidence * (1. - channel) for channel in color)
+
+
 def _insert_page_info_panel(pymupdf, document, rendered_by_page_id):
     """Use the full panel height, reserving only space for stacked labels."""
     number_states = _page_number_states([r.page for r in rendered_by_page_id.values()])
@@ -324,7 +332,7 @@ def _insert_page_info_panel(pymupdf, document, rendered_by_page_id):
              None, "--" if starts is None else f"{_boundary_probability(starts):.2f}"),
             (_PAGE_TYPE_COLORS.get(kind.text, _UNKNOWN_COLOR) if kind else _UNKNOWN_COLOR,
              "NONE" if kind is None else kind.text, "--" if kind is None else f"{kind.confidence:.2f}"),
-            (_SIDE_COLORS.get(side.text, _UNKNOWN_COLOR) if side else _UNKNOWN_COLOR,
+            (_side_color(side),
              "NONE" if side is None else side.text, "--" if side is None else f"{side.confidence:.2f}"),
             (_PAGE_NUMBER_COLORS[number_states[rendered.page.id]],
              "NONE" if number is None or not number.text.strip() else " ".join(number.text.split()),

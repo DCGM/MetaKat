@@ -56,7 +56,7 @@ def test_full_width_panel_bands_and_stacked_confidences(tmp_path, page_image, do
                  if d["fill"] is not None and d["rect"].height < image.height]
         assert len(bands) == 4
         colors = (pdf_module._boundary_color(page.startsDocument),
-                  pdf_module._PAGE_TYPE_COLORS["titlePage"], pdf_module._SIDE_COLORS["left"],
+                  pdf_module._PAGE_TYPE_COLORS["titlePage"], pdf_module._side_color(page.side),
                   pdf_module._PAGE_NUMBER_COLORS["bracketed"])
         labels = (None, "titlePage", "left", "[123]")
         confidences = ("--" if starts is None else "0.95" if starts else "0.05", "0.91", "0.88", "1.00")
@@ -692,3 +692,12 @@ def test_boundary_color_uses_probability_not_decision_confidence(probability, ex
         value = BooleanValue(val=flag, confidence=probability if flag else 1.-probability)
         assert pdf_module._boundary_color(value) == pytest.approx(expected)
     assert pdf_module._boundary_color(None) == pdf_module._UNKNOWN_COLOR
+
+
+@pytest.mark.parametrize("side", ["left", "right", "singlePage"])
+@pytest.mark.parametrize("confidence", [0., .5, 1.])
+def test_side_color_fades_from_white_to_full_color(side, confidence):
+    from types import SimpleNamespace
+    expected = tuple(1. - confidence * (1. - channel) for channel in pdf_module._SIDE_COLORS[side])
+    assert pdf_module._side_color(SimpleNamespace(text=side, confidence=confidence)) == pytest.approx(expected)
+    assert pdf_module._side_color(None) == pdf_module._UNKNOWN_COLOR
