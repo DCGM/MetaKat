@@ -260,17 +260,6 @@ artifact does not contain the image or text encoder weights.
 {
   "name": "page_type_core_engine_context",
   "device": "cuda",
-  "checkpoint_path": "page_type/core/context.pt",
-  "inference": {
-    "window_size": 512,
-    "stride": 448,
-    "tail": "regular",
-    "merge": "center_logits",
-    "edge_ramp": 32,
-    "edge_ignore": 0,
-    "start_threshold": 0.5,
-    "batch_size": 8
-  },
   "image_checkpoint_path": "page_type/core/dino/exported_last.pt",
   "image": {
     "batch_size": 32,
@@ -282,6 +271,17 @@ artifact does not contain the image or text encoder weights.
     "max_tokens_per_batch": 16384,
     "max_length": 8192,
     "max_chars": 4000
+  },
+  "checkpoint_path": "page_type/core/context.pt",
+  "inference": {
+    "window_size": 512,
+    "stride": 448,
+    "tail": "regular",
+    "merge": "center_logits",
+    "edge_ramp": 32,
+    "edge_ignore": 0,
+    "start_threshold": 0.5,
+    "batch_size": 8
   }
 }
 ```
