@@ -24,12 +24,30 @@ def dump_image_reference(path, image_size):
     return cv2.resize(rgb, (image_size, image_size), interpolation=cv2.INTER_AREA)
 
 
-def test_dino_image_resize_matches_dump_for_narrow_and_normal_images(tmp_path):
+def test_dino_image_resize_matches_dump_for_thumbnails(tmp_path):
     rng = np.random.default_rng(16)
-    for h, w in [(300, 500), (800, 1)]:
+    for h, w in [(256, 180), (200, 256), (256, 1)]:
         path = tmp_path / f'{h}_{w}.jpg'
         Image.fromarray(rng.integers(0, 256, (h, w, 3), dtype=np.uint8)).save(path)
         np.testing.assert_array_equal(DinoEncoder.load_image(path), dump_image_reference(str(path), 224))
+
+
+def test_dino_full_resolution_goes_through_the_original_two_step_thumbnail(tmp_path):
+    """Full resolution -> 512 px JPEG Q90 -> 256 px JPEG Q90, as the training vectors were made."""
+    rng = np.random.default_rng(16)
+    for h, w in [(1301, 877), (600, 1100), (3000, 33)]:
+        source = tmp_path / f'{h}_{w}.png'
+        Image.fromarray(rng.integers(0, 256, (h, w, 3), dtype=np.uint8)).save(source)
+        image = cv2.imread(str(source))
+        for size in (512, 256):
+            scale = size / max(image.shape[:2])
+            image = cv2.resize(image, (max(1, round(image.shape[1] * scale)), max(1, round(image.shape[0] * scale))),
+                               interpolation=cv2.INTER_AREA)
+            cv2.imwrite(str(tmp_path / f'{size}.jpg'), image, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            image = cv2.imread(str(tmp_path / f'{size}.jpg'))
+        assert max(image.shape[:2]) == 256
+        np.testing.assert_array_equal(DinoEncoder.load_image(source),
+                                      dump_image_reference(str(tmp_path / '256.jpg'), 224))
 
 
 @pytest.mark.parametrize('streaming', [False, True])
