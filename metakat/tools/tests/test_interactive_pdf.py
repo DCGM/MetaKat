@@ -64,7 +64,7 @@ def test_full_width_panel_bands_and_stacked_confidences(tmp_path, page_image, do
             assert band["fill"] == pytest.approx(color)
             assert band["rect"].x0 == pytest.approx(image.x1)
             assert band["rect"].x1 == pytest.approx(rendered.rect.x1)
-            assert band["rect"].height == pytest.approx(band["rect"].width * .5)
+            assert band["rect"].height == pytest.approx(bands[0]["rect"].height)
             conf, = rendered.search_for(confidence)
             assert conf.y0 > band["rect"].y1
             if label:
@@ -72,6 +72,12 @@ def test_full_width_panel_bands_and_stacked_confidences(tmp_path, page_image, do
                 assert band["rect"].y1 < text.y0 < text.y1 < conf.y0
             if index < 3:
                 assert conf.y1 < bands[index+1]["rect"].y0
+        _, font_size, padding = pdf_module._panel_dimensions(pymupdf, min(image.width, image.height))
+        assert bands[0]["rect"].y0 == pytest.approx(0)
+        last_confidence, = rendered.search_for("1.00")
+        assert last_confidence.y1 < rendered.rect.y1
+        assert rendered.rect.y1 - last_confidence.y1 < font_size + padding
+        assert sum(band["rect"].height for band in bands) > image.height * .7
         assert not any(d["color"] is not None for d in rendered.get_drawings())
         assert doc.get_toc() == ([[1, "Detected document starts", 1],
                                   [2, "Document start 1 | scan page 1", 1]] if starts else [])

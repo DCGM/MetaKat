@@ -290,16 +290,15 @@ def _page_number_states(pages):
 
 
 def _insert_page_info_panel(pymupdf, document, rendered_by_page_id):
-    """Four full-width color bands with proportional height and stacked labels."""
+    """Use the full panel height, reserving only space for stacked labels."""
     number_states = _page_number_states([r.page for r in rendered_by_page_id.values()])
     for rendered in rendered_by_page_id.values():
         page = document[rendered.pdf_index]
         rect = _metadata_rect(pymupdf, page, rendered)
         short_edge = min(rendered.content_width, rect.height)
         _, font_size, padding = _panel_dimensions(pymupdf, short_edge)
-        band_height = rect.width * 0.5
         center = (rect.x0 + rect.x1) / 2
-        top = padding + font_size * 0.5
+        top = 0.
         starts = rendered.page.startsDocument
         kind, side, number = rendered.page.pageType, rendered.page.side, rendered.page.pageNumber
         items = (
@@ -313,6 +312,11 @@ def _insert_page_info_panel(pymupdf, document, rendered_by_page_id):
              "NONE" if number is None or not number.text.strip() else " ".join(number.text.split()),
              "--" if number is None or not number.text.strip() else f"{number.confidence:.2f}"),
         )
+        # One confidence line for starts; a value and confidence for the other
+        # three. Allocate all remaining height equally to the color patches.
+        line_counts = [1 if label is None else 2 for _, label, _ in items]
+        text_height = sum((count * 1.5 + 0.5) * font_size for count in line_counts)
+        band_height = (rect.height - text_height - len(items) * padding) / len(items)
         for color, label, confidence in items:
             band = pymupdf.Rect(rect.x0, top, rect.x1, top + band_height)
             page.draw_rect(band, color=None, fill=color, overlay=True)
@@ -324,7 +328,8 @@ def _insert_page_info_panel(pymupdf, document, rendered_by_page_id):
                 page.insert_text((center - text_width / 2, baseline), text, fontname="hebo",
                                  fontsize=size, color=(0, 0, 0), overlay=True)
                 baseline += font_size * 1.5
-            top = baseline + font_size
+            line_count = 1 if label is None else 2
+            top = band.y1 + (line_count * 1.5 + 0.5) * font_size + padding
 
 
 def _detection_text_heights(metakat_io: MetakatIO) -> dict[UUID, float]:
