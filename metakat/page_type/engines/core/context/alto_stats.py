@@ -14,19 +14,21 @@ class AltoStatsEncoder:
         self.names = self.stats.grouped_names()
         self.dim = len(self.names)
 
-    def encode(self, paths):
+    def encode(self, paths, *, return_texts=True):
         values = np.zeros((len(paths), self.dim), np.float32)
         present = np.zeros(len(paths), bool)
-        texts = []
+        texts = [] if return_texts else None
         for i, path in enumerate(paths):
             if path is None:
-                texts.append(None)
+                if return_texts:
+                    texts.append(None)
                 continue
             parsed = parse_ocr(Path(path).read_bytes())
             if parsed is None:
                 raise ValueError(f'OCR has no Page element: {path}')
             text = alto_text(parsed)
-            texts.append(text)
+            if return_texts:
+                texts.append(text)
             full = np.asarray(text_vector(text) + alto_features(parsed), np.float32)
             # Training raw stats passed through the sparse FP16 store before grouping.
             full = full.astype(np.float16).astype(np.float32)[None]
@@ -36,6 +38,18 @@ class AltoStatsEncoder:
             values[i] = vector[0] / np.sqrt(self.dim)
             present[i] = True
         return values, present, texts
+
+    @staticmethod
+    def iter_texts(paths):
+        """Read one OCR page at a time for the separate text modality pass."""
+        for path in paths:
+            if path is None:
+                yield None
+                continue
+            parsed = parse_ocr(Path(path).read_bytes())
+            if parsed is None:
+                raise ValueError(f'OCR has no Page element: {path}')
+            yield alto_text(parsed)
 
     def validate_feature_state(self, state, dims):
         expected = {

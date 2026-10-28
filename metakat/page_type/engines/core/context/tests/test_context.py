@@ -127,6 +127,11 @@ def test_ocr_empty_vs_missing_and_bounded_normalization(tmp_path):
     values, present, texts = stats.encode([str(p), None, str(blank)])
     assert present.tolist() == [True, False, True]
     assert texts == ['Obsah', None, '']
+    np.testing.assert_array_equal(list(stats.iter_texts([str(p), None, str(blank)])), texts)
+    compact, flags, omitted = stats.encode([str(p), None, str(blank)], return_texts=False)
+    np.testing.assert_array_equal(compact, values)
+    np.testing.assert_array_equal(flags, present)
+    assert omitted is None
     assert values.shape == (3, 147)
     assert np.isfinite(values).all() and (values >= 0).all()
     assert values.max() <= 1 / np.sqrt(147) + 1e-8
@@ -142,22 +147,27 @@ def test_dense_normalization_handles_zero_missing_and_extreme_values():
     np.testing.assert_allclose(result, [[0, 0], [.6, .8], [.6, .8], [0, 0]], atol=1e-7)
 
 
-def test_feature_extraction_is_chunked_and_missing_ocr_is_masked():
+def test_feature_extraction_runs_complete_modality_passes_and_preserves_missing_ocr():
     engine = object.__new__(PageTypeCoreEngineContext)
     engine.model = SimpleNamespace(dims={'image': 4, 'text': 3, 'stats': 2, 'pagination': 5, 'boundaries': 5})
-    engine.feature_chunk_size = 2
     engine.pagination = {'cap': 10000}
     seen = []
     def image_encode(paths):
-        seen.append(len(paths))
+        seen.append(("image", len(paths)))
         return np.ones((len(paths), 4), np.float32), np.ones(len(paths), bool)
     engine.dino = SimpleNamespace(encode=image_encode)
-    engine.stats = SimpleNamespace(encode=lambda paths: (
-        np.zeros((len(paths), 2), np.float32), np.zeros(len(paths), bool), [None] * len(paths)))
-    engine.mmbert = SimpleNamespace(encode=lambda texts: (
-        np.zeros((len(texts), 3), np.float32), np.zeros(len(texts), bool)))
+    def stats_encode(paths, *, return_texts):
+        assert return_texts is False
+        seen.append(('stats', len(paths)))
+        return np.zeros((len(paths), 2), np.float32), np.zeros(len(paths), bool), None
+    def text_encode(texts, *, count):
+        seen.append(('text', count))
+        assert list(texts) == [None] * count
+        return np.zeros((count, 3), np.float32), np.zeros(count, bool)
+    engine.stats = SimpleNamespace(encode=stats_encode, iter_texts=lambda paths: (None for _ in paths))
+    engine.mmbert = SimpleNamespace(encode=text_encode)
     f = engine.features([PageTypeInput('page.jpg')] * 5)
-    assert seen == [2, 2, 1]
+    assert seen == [('image', 5), ('stats', 5), ('text', 5)]
     np.testing.assert_array_equal(f['presence'], [[1, 0, 0]] * 5)
     assert not f['text'].any() and not f['stats'].any()
     np.testing.assert_allclose(f['image'], .5)
@@ -187,9 +197,8 @@ def test_pagination_artifact_extracts_existing_numbers_and_handles_all_missing(t
          patch('metakat.page_type.engines.core.context.context.MmbertEncoder', return_value=SimpleNamespace(dim=3)):
         engine = PageTypeCoreEngineContext({'name': 'context', 'device': 'cpu',
             'checkpoint_path': str(path), 'image_checkpoint_path': 'dino.pt', 'text_model_dir': 'mmbert'})
-    engine.feature_chunk_size = 2
     engine.dino.encode = lambda paths: (np.ones((len(paths), 4), np.float32), np.ones(len(paths), bool))
-    engine.mmbert.encode = lambda texts: (np.zeros((len(texts), 3), np.float32), np.zeros(len(texts), bool))
+    engine.mmbert.encode = lambda texts, count: (np.zeros((count, 3), np.float32), np.zeros(count, bool))
     numbers = ['12', '[13]', 'XIV', '55 [58]', None, '5,6', '12a']
     pages = [PageTypeInput('page.jpg', page_number=n) for n in numbers]
     f = engine.features(pages)
@@ -248,7 +257,7 @@ def test_boundary_features_keep_true_scan_endpoints_and_complete_metadata(tmp_pa
             'checkpoint_path': str(path), 'image_checkpoint_path': 'dino.pt', 'text_model_dir': 'mmbert'})
     # Fully missing pages must preserve their scan positions, including singleton scans.
     engine.dino.encode = lambda paths: (np.zeros((len(paths), 4), np.float32), np.zeros(len(paths), bool))
-    engine.mmbert.encode = lambda texts: (np.zeros((len(texts), 3), np.float32), np.zeros(len(texts), bool))
+    engine.mmbert.encode = lambda texts, count: (np.zeros((count, 3), np.float32), np.zeros(count, bool))
     unknown = engine.features([PageTypeInput(None)] * 3)
     np.testing.assert_array_equal(unknown['boundaries'], [[1,0,0,0,0], [0,0,0,0,0], [0,1,0,0,0]])
     np.testing.assert_array_equal(engine.features([PageTypeInput(None)])['boundaries'], [[1,1,0,0,0]])

@@ -245,7 +245,7 @@ python -m metakat.page_type.engines.core.page_type_core_engine_vit \
 
 ### Engine: context classification (`page_type_core_engine_context`)
 
-The engine extracts image and OCR features in bounded chunks, adds available
+The engine completes the image pass, then OCR statistics, then the text pass; it adds available
 pagination, and classifies overlapping windows of the ordered scan with BERT.
 It predicts page type, side, and an adjacent-page boundary score. The inherited
 `process()` then resolves bottom-level documents across the complete scan.
@@ -264,7 +264,6 @@ artifact does not contain the image or text encoder weights.
   "text_model_dir": "page_type/core/mmbert",
   "image_checkpoint_sha256": "d08f6d05da58efff5748274f487c2583d94cad5ee9e0490a57e40c3a3832f80e",
   "device": "cuda",
-  "feature_chunk_size": 128,
   "image_batch_size": 32,
   "text": {
     "batch_size": 8,
@@ -278,7 +277,10 @@ artifact does not contain the image or text encoder weights.
 `device` defaults to CUDA when available, otherwise CPU. The example explicitly
 selects CUDA. `image_checkpoint_sha256` is optional and verifies the image
 checkpoint before loading it. Text batch size and token budget are independent
-of feature chunk size and the contextual model's window batch size.
+of the contextual model's window batch size. There is no shared outer chunk size.
+DINO batches images directly; mmBERT consumes OCR text lazily in bounded batches.
+The separate statistics and text passes read each OCR file twice so all page
+texts do not need to remain in RAM. Model weights remain loaded across passes.
 
 An optional `inference` mapping overrides settings exported with the checkpoint:
 
@@ -372,15 +374,17 @@ these inputs with availability flags. Missing branches are masked after their
 MLPs so biases do not create a false signal.
 
 CPU encoders compute in FP32. CUDA uses FP16 DINO and BF16 mmBERT computation,
-matching the dump. The context model runs in FP32. CPU/GPU feature extraction
+matching the dump. The context model uses FP16 autocast on CUDA with FP32 parameters;
+CPU inference uses FP32. CPU/GPU feature extraction
 can produce small numerical differences.
 
 Feature extraction retains compact per-page vectors and merged outputs
 proportional to page count, rather than all decoded images or OCR texts at
-once. Image, text-token, feature-chunk, and window batches are bounded
+once. Image, text-token, and window batches are bounded
 separately. A missing OCR mapping masks both text and statistics; a genuinely
 blank OCR page remains present. A missing image mapping masks image features.
-A page missing both image and OCR input fails even if pagination is available.
+A page missing both image and OCR retains its scan position with zero modality
+features and availability flags. Pagination and boundary inputs remain available.
 
 #### Pagination signal
 

@@ -32,11 +32,14 @@ def test_dino_image_resize_matches_dump_for_narrow_and_normal_images(tmp_path):
         np.testing.assert_array_equal(DinoEncoder.load_image(path), dump_image_reference(str(path), 224))
 
 
-def test_mmbert_head_truncation_masked_mean_and_missing_text():
+@pytest.mark.parametrize('streaming', [False, True])
+def test_mmbert_head_truncation_masked_mean_and_missing_text(streaming):
     encoder = object.__new__(MmbertEncoder)
     encoder.device = torch.device('cpu')
     encoder.batch_size, encoder.max_tokens_per_batch, encoder.max_length, encoder.max_chars = 3, 12, 5, 4
     seen = []
+    consumed = []
+    calls = []
     class Tokenizer:
         pad_token_id = 0
         def __call__(self, texts, **kwargs):
@@ -44,16 +47,29 @@ def test_mmbert_head_truncation_masked_mean_and_missing_text():
             return {'input_ids': [[1] + [ord(c) for c in text] + [2] for text in texts]}
     class Model:
         def __call__(self, input_ids, attention_mask):
+            if streaming and not calls:
+                assert len(consumed) == 3  # Fourth page has not been read yet.
+            calls.append(True)
             values = input_ids.float().unsqueeze(-1)
             values[~attention_mask.bool()] = float('nan')
             return SimpleNamespace(last_hidden_state=values)
     encoder.tokenizer, encoder.model, encoder.dim = Tokenizer(), Model(), 1
-    vectors, present = encoder.encode(['abcde', None, '  ', 'x'])
+    texts = ['abcde', None, '  ', 'x']
+    def source():
+        for text in texts:
+            consumed.append(text)
+            yield text
+    vectors, present = (encoder.encode(source(), count=4) if streaming else encoder.encode(texts))
     assert seen == ['abcd', '', 'x']
     assert present.tolist() == [True, False, True, True]
     # Long input retains its final special token, rather than the fourth character.
     expected = np.array([[(1 + 97 + 98 + 99 + 2) / 5], [0], [1.5], [41]], np.float16).astype(np.float32)
     np.testing.assert_array_equal(vectors, expected)
+    if streaming:
+        with pytest.raises(ValueError, match='shorter'):
+            encoder.encode(iter([None]), count=2)
+        with pytest.raises(ValueError, match='longer'):
+            encoder.encode(iter([None]), count=0)
 
 
 @pytest.mark.parametrize('size, mode', [((256, 1), 'RGB'), ((1, 256), 'RGB'), ((180, 256), 'L'), ((256, 3), 'CMYK')])

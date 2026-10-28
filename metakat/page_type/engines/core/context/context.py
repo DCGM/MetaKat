@@ -104,9 +104,6 @@ class PageTypeCoreEngineContext(PageTypeCoreEngine):
                                     **self.config.get('text', {}))
         if {'image': self.dino.dim, 'text': self.mmbert.dim, 'stats': self.stats.dim} != base_dims:
             raise ValueError('Feature encoder dimensions differ from context checkpoint')
-        self.feature_chunk_size = self.config.get('feature_chunk_size', 128)
-        if not isinstance(self.feature_chunk_size, int) or self.feature_chunk_size < 1:
-            raise ValueError('feature_chunk_size must be positive')
 
     def features(self, pages):
         # Retain only compact per-page vectors. Never retain all images or OCR text.
@@ -120,19 +117,21 @@ class PageTypeCoreEngineContext(PageTypeCoreEngine):
                 raise ValueError('Complete start and end metadata required for every page')
             metadata = dict(document_starts=starts, document_ends=ends)
         values['boundaries'] = encode_boundary_features(len(pages), True, True, **metadata)
-        for first in range(0, len(pages), self.feature_chunk_size):
-            chunk = pages[first:first + self.feature_chunk_size]
-            stats, stats_present, texts = self.stats.encode([p.ocr_path for p in chunk])
-            images, image_present = self.dino.encode([p.image_path for p in chunk])
-            text, text_present = self.mmbert.encode(texts)
-            target = slice(first, first + len(chunk))
-            values['image'][target] = normalize_dense(images, image_present)
-            values['text'][target] = normalize_dense(text, text_present)
-            values['stats'][target] = stats
-            values['pagination'][target] = encode_page_numbers(
-                [p.page_number for p in chunk], self.pagination['cap'])
-            flags = np.stack((image_present, text_present, stats_present), axis=-1)
-            values['presence'][target] = flags
+        # Complete each modality pass before starting the next. Encoders own
+        # their batching; only compact vectors persist between passes.
+        images, image_present = self.dino.encode([p.image_path for p in pages])
+        values['image'] = normalize_dense(images, image_present)
+        del images
+        paths = [p.ocr_path for p in pages]
+        stats, stats_present, _ = self.stats.encode(paths, return_texts=False)
+        values['stats'] = stats
+        # Re-read OCR lazily: do not retain every page's text in RAM. The text
+        # encoder consumes only its current batch from this iterator.
+        text, text_present = self.mmbert.encode(self.stats.iter_texts(paths), count=len(pages))
+        values['text'] = normalize_dense(text, text_present)
+        values['pagination'] = encode_page_numbers(
+            [p.page_number for p in pages], self.pagination['cap'])
+        values['presence'] = np.stack((image_present, text_present, stats_present), axis=-1).astype(np.float32)
         return values
 
     def predict(self, pages: list[PageTypeInput]) -> list[PageTypePrediction]:
