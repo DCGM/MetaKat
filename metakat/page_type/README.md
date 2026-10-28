@@ -444,7 +444,10 @@ CPU uses FP32.
 The default experiment strategy accumulates centre-weighted logits over
 overlaps and applies softmax or sigmoid afterward. Weights are
 `min(1, distance / edge_ramp)` with no additive floor. The first included page
-is at distance 1; distance 0 denotes the artificial boundary. Available merge values are
+is at distance 1; distance 0 denotes the artificial boundary. With ignored
+edges the formula becomes
+`clip((distance - edge_ignore) / (edge_ramp - edge_ignore), 0, 1)`, so
+full weight is still reached at `edge_ramp`. Require `edge_ignore < edge_ramp`. Available merge values are
 `center_logits`, `uniform_logits`, `center_probs`, `uniform_probs`, and `central`
 (the most central window, with an earlier-window tie break). Page and adjacent
 pair coverage are tracked separately.
