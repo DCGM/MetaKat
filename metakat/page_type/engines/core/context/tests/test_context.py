@@ -43,7 +43,7 @@ def test_scan_matches_single_window_and_is_bidirectional():
     backbone.initial_scale = .02  # vocab_size=1 contains only BERT's zero padding row
     model = PageTagger(backbone, {'image': 4, 'text': 3, 'stats': 2, 'pagination': 5, 'boundaries': 5}, 'separate_mlp').eval()
     f = features(7, model.dims)
-    cfg = InferenceConfig(window_size=8, stride=4)
+    cfg = InferenceConfig(window_size=8, overlap=4)
     result = scan_features(model, f, cfg)
     with torch.inference_mode():
         direct = model({k: torch.from_numpy(v[None]) for k, v in f.items()}, torch.ones(1, 7, dtype=torch.bool))
@@ -62,8 +62,8 @@ def test_overlap_has_every_page_and_pair_and_is_batch_size_invariant(n, merge):
     torch.manual_seed(5)
     model = PageTagger(tiny_backbone(), {'image': 4, 'text': 3, 'stats': 2, 'pagination': 5, 'boundaries': 5}).eval()
     f = features(n, model.dims)
-    a = scan_features(model, f, InferenceConfig(window_size=8, stride=4, merge=merge, batch_size=1))
-    b = scan_features(model, f, InferenceConfig(window_size=8, stride=4, merge=merge, batch_size=3))
+    a = scan_features(model, f, InferenceConfig(window_size=8, overlap=4, merge=merge, batch_size=1))
+    b = scan_features(model, f, InferenceConfig(window_size=8, overlap=4, merge=merge, batch_size=3))
     assert a['type'].shape == (n,)
     assert np.isnan(a['starts_document_probs'][0])
     assert np.isfinite(a['starts_document_probs'][1:]).all()
@@ -85,7 +85,7 @@ def artifact(tmp_path):
     model = PageTagger(tiny_backbone(), dict(dims, pagination=5, boundaries=5), 'separate_mlp')
     state = {'format': 'metakat_context_v4', 'specification': model.specification(), 'model': model.state_dict(),
              'features': feature_state(stats, dims), 'page_types': PAGE_TYPES, 'placements': PLACEMENTS,
-             'inference': {'window_size': 8, 'stride': 4}}
+             'inference': {'window_size': 8, 'overlap': 4}}
     path = tmp_path / 'model.pt'
     from metakat.page_type.engines.core.context.pagination import POLICY
     state['pagination'] = {'policy': POLICY, 'cap': 10000}
@@ -276,3 +276,20 @@ def test_default_regular_tail_uses_short_input_without_shift():
     cfg = InferenceConfig()
     assert cfg.window_size == 512 and cfg.stride == 448 and cfg.tail == 'regular'
     assert window_spans(1024, cfg.window_size, cfg.stride, cfg.tail) == [(0,512),(448,960),(896,1024)]
+
+
+def test_overlap_overrides_legacy_artifact_stride_without_changing_tiling():
+    from metakat.page_type.engines.core.context.merging import window_spans
+    legacy = {'window_size': 512, 'stride': 448}
+    current = {'window_size': 512, 'overlap': 64}
+    assert InferenceConfig.from_artifact(legacy) == InferenceConfig.from_artifact(current)
+    overridden = InferenceConfig.from_artifact(legacy, {'overlap': 128})
+    assert overridden.overlap == 128 and overridden.stride == 384
+    assert window_spans(1024, overridden.window_size, overridden.stride, overridden.tail) == [
+        (0,512), (384,896), (768,1024)]
+    assert legacy == {'window_size': 512, 'stride': 448}
+    with pytest.raises(ValueError, match='Use inference.overlap'):
+        InferenceConfig.from_artifact(current, {'stride': 448})
+    for overlap in (0, -1, 512):
+        with pytest.raises(ValueError, match='overlap'):
+            InferenceConfig(overlap=overlap)

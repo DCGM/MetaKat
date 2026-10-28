@@ -8,7 +8,7 @@ import numpy as np
 @dataclass(frozen=True)
 class InferenceConfig:
     window_size: int = 512
-    stride: int = 448
+    overlap: int = 64
     merge: str = 'center_logits'
     edge_ramp: int = 32
     start_threshold: float = .5
@@ -17,16 +17,34 @@ class InferenceConfig:
     edge_ignore: int = 0
 
     def __post_init__(self):
-        if not (self.window_size >= 2 and 1 <= self.stride < self.window_size):
-            raise ValueError('stride must be 1..window_size-1 to cover every adjacent pair')
+        if not (self.window_size >= 2 and 1 <= self.overlap < self.window_size):
+            raise ValueError('overlap must be 1..window_size-1 to cover every adjacent pair')
         if self.merge not in ('center_logits', 'uniform_logits', 'uniform_probs', 'center_probs', 'central'):
             raise ValueError('unknown merge strategy')
         if self.edge_ramp < 1 or self.batch_size < 1 or not 0 < self.start_threshold < 1:
             raise ValueError('invalid inference settings')
-        if not 0 <= 2 * self.edge_ignore <= self.window_size - self.stride:
+        if not 0 <= 2 * self.edge_ignore <= self.overlap:
             raise ValueError('edge_ignore must be nonnegative and at most half the overlap')
         if self.tail not in ('anchored', 'regular'):
             raise ValueError('tail must be anchored or regular')
+
+    @property
+    def stride(self):
+        """Internal window advance; public configuration uses overlap."""
+        return self.window_size - self.overlap
+
+    @classmethod
+    def from_artifact(cls, settings, overrides=None):
+        settings, overrides = dict(settings), dict(overrides or {})
+        # Existing v4 artifacts store stride. Normalize before applying user
+        # overrides so their overlap is never shadowed by an inherited stride.
+        if 'stride' in settings:
+            if 'overlap' in settings:
+                raise ValueError('Artifact cannot specify both stride and overlap')
+            settings['overlap'] = settings.get('window_size', 512) - settings.pop('stride')
+        if 'stride' in overrides:
+            raise ValueError('Use inference.overlap instead of inference.stride')
+        return cls(**(settings | overrides))
 
 
 def window_spans(n, size, stride, tail='anchored'):

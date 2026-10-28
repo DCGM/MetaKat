@@ -275,7 +275,7 @@ artifact does not contain the image or text encoder weights.
   "checkpoint_path": "page_type/core/context.pt",
   "inference": {
     "window_size": 512,
-    "stride": 448,
+    "overlap": 64,
     "tail": "regular",
     "merge": "center_logits",
     "edge_ramp": 32,
@@ -294,13 +294,18 @@ DINO batches images directly; mmBERT consumes OCR text lazily in bounded batches
 The separate statistics and text passes read each OCR file twice so all page
 texts do not need to remain in RAM. Model weights remain loaded across passes.
 
-An optional `inference` mapping overrides settings exported with the checkpoint:
+An optional `inference` mapping overrides settings exported with the checkpoint.
+`window_size` counts pages per window and `overlap` counts pages shared by
+consecutive windows. The engine derives the advance as `window_size - overlap`;
+`edge_ramp` controls merging weights, not window positions. Existing artifacts
+with stored `stride` are converted automatically; user configuration uses
+`overlap` only:
 
 ```json
 {
   "inference": {
     "window_size": 512,
-    "stride": 448,
+    "overlap": 64,
     "tail": "regular",
     "edge_ignore": 0,
     "merge": "center_logits",
@@ -425,11 +430,11 @@ There is no inference-time dropout.
 #### Scanning and merging
 
 BERT attends bidirectionally within each window. Learned absolute position
-embeddings reset for every window. Window size, stride, edge ramp, merge rule,
+embeddings reset for every window. Window size, overlap, edge ramp, merge rule,
 boundary threshold, and batch size come from the exported artifact unless
 explicitly overridden. Scans shorter than the window, including a single page,
 are supported. Longer scans are processed in overlapping windows. The default
-window is 512 pages with stride 448 (overlap 64). Window starts advance regularly;
+window is 512 pages with overlap 64; the internal advance is therefore 448 pages. Window starts advance regularly;
 the last window stays at its scheduled start and accepts a shorter input. For
 1,024 pages the spans are `[0,512)`, `[448,960)`, `[896,1024)`: the last input
 has 128 pages. There is no backward shift to make the last window full.

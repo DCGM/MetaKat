@@ -81,7 +81,7 @@ class PageTypeCoreEngineContext(PageTypeCoreEngine):
             raise ValueError('Context checkpoint type count mismatch')
         self.model.load_state_dict(state['model'], strict=True)
         self.model.to(self.device).eval()
-        self.inference = InferenceConfig(**(state.get('inference', {}) | self.config.get('inference', {})))
+        self.inference = InferenceConfig.from_artifact(state.get('inference', {}), self.config.get('inference', {}))
         if self.inference.window_size > getattr(self.model.backbone, 'max_length', float('inf')):
             raise ValueError('Inference window exceeds checkpoint position limit')
         self.stats = AltoStatsEncoder(state['features']['normalization'])
