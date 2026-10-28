@@ -27,6 +27,35 @@ def _run(scan_index):
     return [(scan_index, uuid4())]
 
 
+def test_page_numbers_are_visible_bottom_right_without_detection_geometry(tmp_path, page_image):
+    volume = MetakatVolume(id=uuid4())
+    pages, mapping = [], {}
+    numbers = ("42", "[43]", "xiv", None, "", "   ")
+    for index, number in enumerate(numbers):
+        page = MetakatPage(
+            id=uuid4(), batch_id=uuid4(), batch_index=index, pageIndex=index,
+            parent_id=volume.id, pageNumber=None if number is None else _v(number, 0.9),
+            startsDocument=(True, 0.9),
+        )
+        pages.append(page)
+        mapping[page.id] = f"page-{index}.jpg"
+        page_image(tmp_path / mapping[page.id])
+    io = MetakatIO(batch_id=uuid4(), elements=[volume, *pages], page_to_image_mapping=mapping)
+    before = io.model_dump_json()
+    output = tmp_path / "numbers.pdf"
+    pdf_module.create_interactive_pdf(tmp_path, io, output)
+    with pymupdf.open(output) as document:
+        for page, expected in zip(document, ("42", "[43]", "xiv", "NONE", "NONE", "NONE")):
+            matches = page.search_for(f"PAGE: {expected}")
+            assert len(matches) == 1
+            bounds = matches[0]
+            assert bounds.x0 > page.rect.width / 2
+            assert bounds.y0 > page.rect.height * 0.9
+            assert page.rect.contains(bounds)
+            assert "DOCUMENT START" in page.get_text()
+    assert io.model_dump_json() == before
+
+
 @pytest.mark.parametrize("downscale", [False, True])
 def test_document_start_markers_are_page_content_and_have_bookmarks(tmp_path, page_image, downscale):
     volume = MetakatVolume(id=uuid4())

@@ -159,6 +159,7 @@ def create_interactive_pdf(
             rendered_by_page_id,
         )
         document_starts = _mark_document_starts(pymupdf, document, rendered_by_page_id)
+        _insert_page_number_labels(pymupdf, document, rendered_by_page_id)
         if document_starts:
             outline.append([1, "Detected document starts", document_starts[0].pdf_index + 1])
             for number, rendered in enumerate(document_starts, 1):
@@ -190,6 +191,33 @@ def create_interactive_pdf(
         len(outline),
     )
     return destination
+
+
+def _insert_page_number_labels(pymupdf, document, rendered_by_page_id):
+    """Show the resulting number even without detection geometry or a sticky note."""
+    for rendered in rendered_by_page_id.values():
+        number = rendered.page.pageNumber
+        text = " ".join(number.text.split()) if number is not None else ""
+        label = f"PAGE: {text or 'NONE'}"
+        page = document[rendered.pdf_index]
+        rect = page.rect
+        short_edge = min(rect.width, rect.height)
+        margin = short_edge * 0.025
+        padding = short_edge * 0.012
+        font_size = short_edge * 0.028
+        text_width = pymupdf.get_text_length(label, fontname="hebo", fontsize=font_size)
+        available_width = rect.width - 2 * margin - 2 * padding
+        if text_width > available_width:
+            font_size *= available_width / text_width
+            text_width = available_width
+        right = rect.x1 - margin
+        bottom = rect.y1 - margin
+        box = pymupdf.Rect(right - text_width - 2 * padding,
+                           bottom - font_size * 1.4 - 2 * padding, right, bottom)
+        page.draw_rect(box, color=(0.25, 0.25, 0.25), fill=(1, 1, 1),
+                       width=short_edge * 0.0015, overlay=True)
+        page.insert_text((box.x0 + padding, box.y0 + padding + font_size), label,
+                         fontname="hebo", fontsize=font_size, color=(0, 0, 0), overlay=True)
 
 
 def _mark_document_starts(pymupdf, document, rendered_by_page_id):

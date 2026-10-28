@@ -424,6 +424,10 @@ and no model runtime can still render a batch another machine processed.
   to, in both directions;
 - sticky notes carrying the recognized page number, page type, and
   bibliographic values;
+- an always-visible `PAGE: <number>` label on a white background in the
+  bottom-right corner of every page, or `PAGE: NONE` for a missing/empty number;
+  this uses the final page-number value (including brackets for inferred numbers)
+  and needs no detection geometry;
 - a bounding box drawn over every detection the pipeline recorded.
 
 Document-start markers are ordinary PDF page content, so they remain visible
