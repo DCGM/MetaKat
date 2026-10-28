@@ -10,7 +10,7 @@ from metakat.page_type.engines.core.context.context import PageTypeCoreEngineCon
 from metakat.page_type.engines.core.context.labels import PAGE_TYPES, PLACEMENTS
 from metakat.page_type.engines.core.context.merging import InferenceConfig, OverlapMergeConfig
 from metakat.page_type.engines.core.context.models import BertBackbone, PageTagger
-from metakat.page_type.engines.core.page_type_core_engine import PageTypeInput
+from metakat.page_type.engines.core.page_type_core_engine import PageTypeInput, PageTypePrediction
 from metakat.schemas.base_objects import PageType
 
 ALTO = b'''<alto><Layout><Page WIDTH="100" HEIGHT="200"><PrintSpace><TextBlock>
@@ -316,3 +316,25 @@ def test_grouped_overlap_merge_defaults_rescale_and_preserve_nested_overrides():
 def test_grouped_overlap_merge_rejects_invalid_policy(policy):
     with pytest.raises(ValueError, match='overlap_merge'):
         InferenceConfig.from_artifact({'overlap_merge':{}}, {'overlap_merge':policy})
+
+
+def test_context_process_preserves_model_boundaries_without_resolver():
+    engine = object.__new__(PageTypeCoreEngineContext)
+    # Deliberately conflicting types and starts must survive unchanged.
+    predictions = [
+        PageTypePrediction(pageType=(PageType.NORMAL_PAGE, .99)),
+        PageTypePrediction(pageType=(PageType.BACK_COVER, .99), startsDocument=(True, .73)),
+        PageTypePrediction(pageType=(PageType.FRONT_COVER, .99), startsDocument=(False, .81)),
+    ]
+    engine.predict = lambda pages: predictions
+    engine.config = {'boundary_policy': {'invalid': 'unused'}}
+    with patch('metakat.page_type.engines.core.boundaries.resolve_boundaries',
+               side_effect=AssertionError('Context must bypass boundary resolution')):
+        assert engine.process([PageTypeInput(None)] * 3) == predictions
+
+
+def test_context_process_still_validates_prediction_count():
+    engine = object.__new__(PageTypeCoreEngineContext)
+    engine.predict = lambda pages: []
+    with pytest.raises(ValueError, match='exactly one prediction'):
+        engine.process([PageTypeInput(None)])

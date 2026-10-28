@@ -51,6 +51,16 @@ class PageTypeCoreEngineViT(PageTypeCoreEngine):
                 logger.info("Processed %d/%d images", i + 1, len(pages))
         return predictions
 
+    def process(self, pages: list[PageTypeInput]) -> list[PageTypePrediction]:
+        from .boundaries import BoundaryPolicy, resolve_boundaries
+
+        predictions = super().process(pages)
+        policy = BoundaryPolicy(**self.config.get('boundary_policy', {}))
+        resolution = resolve_boundaries(predictions, policy)
+        return [p.model_copy(update={'startsDocument': None if i == 0 else
+                    (resolution.starts[i], resolution.confidence[i])})
+                for i, p in enumerate(predictions)]
+
     def predict_probs(self, image_path: str) -> List[float]:
         image = Image.open(image_path).convert("RGB")
         inputs = self.processor(images=image, return_tensors="pt").to(self.device)

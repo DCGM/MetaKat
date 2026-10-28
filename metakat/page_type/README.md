@@ -29,7 +29,7 @@
 
 The `metakat.page_type` package classifies every page of an ordered scan batch
 and establishes its bottom-level document boundaries: monographs or individual
-issues within periodicals. It writes page types, optional sides, and resolved
+issues within periodicals. It writes page types, optional sides, and document
 start flags into `MetakatPage`.
 
 Page-type processing has two boundaries:
@@ -54,7 +54,10 @@ flowchart LR
     B[Page-type bind engine]
     M[MetakatIO pageType + side + startsDocument]
 
-    P --> C --> R --> B --> M
+    P --> C
+    C -->|Context: model boundaries| B
+    C -->|ViT: type-based boundaries| R --> B
+    B --> M
 ```
 
 ## Page-type core engine contract
@@ -71,11 +74,12 @@ The shared base class exposes the pipeline entry point:
 process(pages: list[PageTypeInput]) -> list[PageTypePrediction]
 ```
 
-`predict()` returns raw model decisions. `process()` validates those results,
-requires exactly one result for each input, and then applies the shared
-[bottom-document resolver](#bottom-document-resolution). Page types and sides
-are preserved; `startsDocument` is replaced with the resolved decision at each
-internal position. The first position returns `startsDocument=None`: it
+`predict()` returns model decisions. The shared `process()` validates those
+results and requires exactly one result for each input. The context engine
+preserves all merged model outputs, including `startsDocument`, without
+boundary postprocessing. Only the ViT engine adds the
+[bottom-document resolver](#bottom-document-resolution) to infer boundaries
+from page types. The first position returns `startsDocument=None`: it
 implicitly begins the scan, with no claim about a preceding page.
 
 Both methods retain input order. Position identifies a page, so repeated
@@ -127,7 +131,7 @@ Every core receives its configuration mapping directly. To add one:
 1. subclass `PageTypeCoreEngine` and call its constructor with the core mapping;
 2. implement `predict()` with the complete ordered input and result contract,
    returning one result per page and leaving unsupported optional tasks unset;
-3. retain the inherited `process()` handoff to the boundary resolver;
+3. retain the inherited `process()` validation; add boundary inference only if the engine needs it;
 4. register the config `name` in `page_type_core_engines` in core `definitions.py`,
    including its runtime requirements;
 5. test registration, model-label mapping, result alignment, missing inputs, and
@@ -201,7 +205,7 @@ The registered core implementations are:
 | Config `name` | Implementation |
 |---|---|
 | `page_type_core_engine_vit` | Existing per-image ViT classifier, followed by the shared boundary resolver with page-type evidence. |
-| `page_type_core_engine_context` | DINOv2, mmBERT, grouped OCR statistics, and optional pagination supplied to contextual BERT; overlapping-window merging followed by the shared boundary resolver. |
+| `page_type_core_engine_context` | DINOv2, mmBERT, grouped OCR statistics, and optional pagination supplied to contextual BERT; overlapping-window merging with model boundary decisions preserved. |
 
 ### Engine: ViT (`page_type_core_engine_vit`)
 
@@ -230,7 +234,7 @@ model labels, and a semantic mapping for every class. A configuration-level
 `id2label` is rejected; use `labels` instead.
 
 `predict()` returns only page types; `side` and `startsDocument` are unset.
-`process()` adds type-based boundary decisions through the shared resolver,
+`process()` adds type-based boundary decisions through the resolver,
 without a learned start score. Every page requires an image. This core handles
 the complete input list internally even though its classifier is per-image.
 
@@ -248,7 +252,8 @@ python -m metakat.page_type.engines.core.page_type_core_engine_vit \
 The engine completes the image pass, then OCR statistics, then the text pass; it adds available
 pagination, and classifies overlapping windows of the ordered scan with BERT.
 It predicts page type, side, and an adjacent-page boundary score. The inherited
-`process()` then resolves bottom-level documents across the complete scan.
+`process()` validates and returns these merged predictions directly. No
+page-type-based boundary resolver is applied.
 
 #### Configuration
 
@@ -344,9 +349,9 @@ re-exported; obsolete settings are rejected. Only the regular short-tail
 strategy is supported. The engine logs the effective
 policy and resolved page counts at startup.
 
-The window cannot exceed the checkpoint's learned position limit. The shared
-`boundary_policy` mapping is documented under
-[boundary policy configuration](#boundary-policy-configuration).
+The window cannot exceed the checkpoint's learned position limit.
+`boundary_policy` is used only by the ViT engine; it has no effect on context
+engine predictions.
 
 #### Model files and architecture
 
@@ -504,8 +509,8 @@ supply true only at its first/last page. Ordinary pipeline input supplies scan
 endpoints and available page numbers; existing page-type labels are not inputs.
 Fully missing image/OCR pages retain their position with zero features and
 modality-presence bits, as in training.
-The separate [resolver](#bottom-document-resolution) then uses predicted types
-and pair-boundary scores to choose the final partition.
+The merged pair-boundary decisions are the final context-engine boundaries;
+page types do not postprocess or override them.
 
 #### Standalone inference
 
@@ -527,20 +532,20 @@ python -m metakat.page_type.engines.core.context.context \
 Model paths resolve relative to that file; page paths resolve relative to
 `pages.json`. Output is a position-aligned JSON list of semantic `pageType`,
 `side`, and `startsDocument` tuples serialized as arrays. This command calls
-`process()`, including boundary resolution. `predict()` exposes raw model
-outputs; `scan_features()` exposes raw merged probabilities for evaluation.
+`process()`, which validates and preserves the model decisions.
+`scan_features()` exposes merged probabilities for evaluation.
 
 ## Bottom-document resolution
 
-Both registered engines run the standalone policy in
+Only the ViT engine runs the standalone policy in
 `engines/core/boundaries.py` after raw prediction. It finds the best partition
-of the whole scan into bottom-level documents, preserving predicted page
-types and sides. It works with learned start probabilities when present and
-falls back to page-type evidence when they are absent.
+of the whole scan into bottom-level documents from page-type evidence,
+preserving predicted page types. The context engine bypasses this policy and
+uses its merged model boundary decisions directly.
 
 ### Boundary policy configuration
 
-Either core accepts the following `boundary_policy` mapping. Values shown are
+The ViT core accepts the following `boundary_policy` mapping. Values shown are
 the defaults; all must be finite and nonnegative.
 
 ```json
@@ -596,9 +601,9 @@ margin. It describes the resolver's preference, not calibrated probability or
 measured accuracy. Continuation wins exact score ties. Position zero remains
 implicit and returns `startsDocument=None`.
 
-These initial weights require development-set tuning. Raw model evaluation
-and resolved pipeline behavior are distinct: use `predict()` or
-`scan_features()` when assessing the model before this policy is applied.
+These initial weights require development-set tuning. For ViT, raw
+`predict()` results and resolved `process()` boundaries are distinct. Context
+model evaluation and pipeline inference both bypass this policy.
 
 ## Available bind implementation
 
@@ -663,9 +668,9 @@ result-count mismatches, invalid predictions, missing required inputs, and
 incompatible context artifacts fail explicitly. Unreadable feature inputs
 also fail rather than becoming silent missing data.
 
-For model diagnosis, inspect raw `predict()` results or merged
-`scan_features()` probabilities before the shared resolver. For policy diagnosis,
-compare those decisions with `process()` and its resolver-change log, and tune
-weights on development data. Start/end auxiliary heads and consistency losses
+For context-model diagnosis, inspect `predict()` results or merged
+`scan_features()` probabilities; `process()` preserves those decisions.
+For ViT policy diagnosis, compare raw `predict()` results with `process()`
+and tune resolver weights on development data. Start/end auxiliary heads and consistency losses
 belong to training; final boundary policy choices are documented here alongside
 the engine that applies them.

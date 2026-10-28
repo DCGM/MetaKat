@@ -75,19 +75,11 @@ class PageTypeCoreEngine(ABC):
 
     @abstractmethod
     def predict(self, pages: list[PageTypeInput]) -> list[PageTypePrediction]:
-        """Raw model predictions, before bottom-document boundary resolution."""
+        """Model predictions in input order, including any supported boundary outputs."""
         pass
 
     def process(self, pages: list[PageTypeInput]) -> list[PageTypePrediction]:
-        from .boundaries import BoundaryPolicy, resolve_boundaries
         predictions = [PageTypePrediction.model_validate(p) for p in self.predict(pages)]
         if len(predictions) != len(pages):
             raise ValueError('Page-type model must return exactly one prediction per input page')
-        policy = BoundaryPolicy(**self.config.get('boundary_policy', {}))
-        resolution = resolve_boundaries(predictions, policy)
-        if resolution.model_disagreements:
-            logger.info('Boundary resolver changed %d model decisions at scan positions %s',
-                        len(resolution.model_disagreements), resolution.model_disagreements)
-        return [p.model_copy(update={'startsDocument': None if i == 0 else
-                    (resolution.starts[i], resolution.confidence[i])})
-                for i, p in enumerate(predictions)]
+        return predictions
