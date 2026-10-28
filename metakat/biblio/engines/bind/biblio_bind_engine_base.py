@@ -582,12 +582,12 @@ class BiblioBindEngineBase(BiblioBindEngine):
 
     @staticmethod
     def _has_page_type(page: MetakatPage, *page_types: PageType) -> bool:
-        # MetakatPage.pageType is a (type, confidence) tuple, so comparing the
+        # MetakatPage.pageType is a typed value object, so comparing the
         # attribute itself against PageType members never holds - the type has
-        # to be read out of the tuple. MetakatBaseModel sets use_enum_values,
+        # to be read from its text field. MetakatBaseModel sets use_enum_values,
         # which stores the type as PageType's plain string value; PageType
         # subclasses str, so it still compares equal to its own member.
-        return page.pageType is not None and page.pageType[0] in page_types
+        return page.pageType is not None and page.pageType.text in page_types
 
     @staticmethod
     def _nudge_over_cover(
@@ -1071,7 +1071,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
         # Select only pages that are predicted as title pages with confidence
         candidates = [
             page for page in pages
-            if page.pageType and page.pageType[0] == PageType.TITLE_PAGE
+            if page.pageType and page.pageType.text == PageType.TITLE_PAGE
         ]
 
         retained = []
@@ -1087,7 +1087,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 j += 1
 
             # Keep only the one with the highest confidence from the group
-            best = max(group, key=lambda p: p.pageType[1])
+            best = max(group, key=lambda p: p.pageType.confidence)
             retained.append(best)
 
             # Skip all the grouped elements

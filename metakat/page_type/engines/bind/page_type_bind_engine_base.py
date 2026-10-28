@@ -4,7 +4,7 @@ import os
 
 from metakat.page_type.engines.bind.page_type_bind_engine import PageTypeBindEngine
 from metakat.page_type.engines.core.page_type_core_engine import PageTypeInput, PageTypePrediction
-from metakat.schemas.base_objects import MetakatIO, ProarcIO, MetakatPage
+from metakat.schemas.base_objects import MetakatIO, ProarcIO, MetakatPage, is_annotated
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class PageTypeBindEngineBase(PageTypeBindEngine):
             raise ValueError("Page batch_index values must be unique for scan order")
         if len({p.id for p in pages}) != len(pages):
             raise ValueError("Page IDs must be unique")
-        if not pages:
+        if not pages or all(is_annotated(page.pageType) for page in pages):
             return result
 
         def path(mapping, page_id):
@@ -38,7 +38,8 @@ class PageTypeBindEngineBase(PageTypeBindEngine):
         # Validate every output before attaching any predictions.
         predictions = [PageTypePrediction.model_validate(p) for p in predictions]
         for page, prediction in zip(pages, predictions, strict=True):
-            page.pageType = prediction.pageType
+            if not is_annotated(page.pageType):
+                page.pageType = prediction.pageType
             if prediction.side is not None:
                 page.side = prediction.side
             if prediction.startsDocument is not None:

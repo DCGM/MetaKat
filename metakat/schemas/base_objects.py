@@ -1,8 +1,8 @@
 import enum
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator, StringConstraints
-from typing import Optional, Tuple, List, Union, Dict, Annotated, Literal
-from uuid import UUID
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator, StrictBool, StringConstraints
+from typing import Optional, Tuple, List, Union, Dict, Annotated, Literal, Generic, TypeVar
+from uuid import UUID, uuid4
 
 # MetaKat
 ###################################################
@@ -224,8 +224,10 @@ class Value(MetakatBaseModel):
     """One extracted value: the text, how sure we are of it, and its identity.
 
     A plain model with no custom serialisation - it exports as an object with
-    these four keys and is validated back from one, and code reads the fields
-    by name.
+    named fields and is validated back from one, and code reads fields by name.
+    `annotated` is an optional externally authoritative-value flag; only explicit
+    true protects a value. Absence, null and false do not. It does not imply
+    human verification. Enforcement is currently limited to page numbers/types.
 
     `lang` is the language the text is written in. MODS itself tags the
     container rather than the value - <titleInfo lang="eng" type="translated">
@@ -240,6 +242,40 @@ class Value(MetakatBaseModel):
     confidence: Confidence
     lang: Optional[str] = None  # iso639-2b
     id: UUID
+    annotated: Optional[StrictBool] = Field(default=None, exclude_if=lambda value: value is None)
+
+
+ClassifiedType = TypeVar('ClassifiedType')
+
+
+class ClassifiedValue(MetakatBaseModel, Generic[ClassifiedType]):
+    """Typed classifier value with the same object fields as extracted text.
+
+    Older value/confidence pairs are accepted on input and normalize to objects.
+    Classifier values have no OCR detection, so generate an identity when omitted.
+    """
+    text: ClassifiedType
+    confidence: Confidence
+    lang: Optional[str] = None
+    id: UUID = Field(default_factory=uuid4)
+    annotated: Optional[StrictBool] = Field(default=None, exclude_if=lambda value: value is None)
+
+    @model_validator(mode='before')
+    @classmethod
+    def accept_legacy_pair(cls, value):
+        if isinstance(value, (tuple, list)) and len(value) == 2:
+            return {'text': value[0], 'confidence': value[1]}
+        return value
+
+
+def is_annotated(value) -> bool:
+    """Only an explicitly supplied true flag protects a present value."""
+    return value is not None and getattr(value, 'annotated', None) is True
+
+
+def classification_pair(value):
+    """Adapt schema values and compact internal core predictions for resolvers."""
+    return (value.text, value.confidence) if isinstance(value, ClassifiedValue) else value
 
 
 class MetakatGroup(MetakatBaseModel):
@@ -362,14 +398,14 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     copyrightDate: Optional[List[Value]] = None
 
     # <language> and <physicalDescription><form>. Classifier outputs rather
-    # than detected text spans, so they carry a confidence but no detection
-    # UUID - the same shape MetakatPage already uses for pageType and side.
+    # than detected text spans; they use typed value objects without an OCR
+    # detection - the same shape used for pageType and side.
     # `language` is a list because a document legitimately has several (the
     # periodical records in the sample packages carry both "cze" and "pol");
     # `form` is singular because the marcform axis admits one answer per
     # document.
-    language: Optional[List[Tuple[str, Confidence]]] = None  # iso639-2b codes
-    form: Optional[Tuple[FormType, Confidence]] = None
+    language: Optional[List[ClassifiedValue[str]]] = None  # iso639-2b codes
+    form: Optional[ClassifiedValue[FormType]] = None
 
     # <note type="statement of responsibility">
     statementOfResponsibility: Optional[List[Value]] = None
@@ -451,12 +487,12 @@ class MetakatPage(MetakatBaseModel):
     # that attaches pages to units, for the page it read the unit's title from.
     representative: bool = False
     pageNumber: Optional[Value] = None
-    pageType: Optional[Tuple[PageType, Confidence]] = None
-    side: Optional[Tuple[PageSideType, Confidence]] = None
+    pageType: Optional[ClassifiedValue[PageType]] = None
+    side: Optional[ClassifiedValue[PageSideType]] = None
     # Resolved decision that this page starts a bottom-level document (e.g. an issue).
     # Confidence is a resolver score confidence, not a calibrated model probability.
     # None means unavailable, including the first page without a predecessor.
-    startsDocument: Optional[Tuple[bool, Confidence]] = None
+    startsDocument: Optional[ClassifiedValue[StrictBool]] = None
     imageDim: Optional[MetakatPageDimensions] = None
     altoDim: Optional[MetakatPageDimensions] = None
 
@@ -517,10 +553,10 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     pageIndexStart/pageIndexEnd already say which pages those are.
     """
 
-    # <genre type="...">. A classifier output, so a confidence but no
-    # detection UUID; in practice only articles carry a meaningful genre
+    # <genre type="...">. A typed classifier value; in practice only articles
+    # carry a meaningful genre
     # specialisation.
-    articleGenre: Optional[Tuple[ArticleGenre, Confidence]] = None
+    articleGenre: Optional[ClassifiedValue[ArticleGenre]] = None
 
     # An internal part has no <originInfo>, so this date has no place in its
     # MODS record and is kept only in the record's provenance. Recording it
@@ -528,7 +564,7 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     dateIssued: Optional[List[Value]] = None
 
     # <language>, a classifier output like articleGenre.
-    language: Optional[List[Tuple[str, Confidence]]] = None  # iso639-2b codes
+    language: Optional[List[ClassifiedValue[str]]] = None  # iso639-2b codes
 
     # <abstract> and <subject><topic>
     abstract: Optional[List[Value]] = None

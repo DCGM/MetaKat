@@ -18,6 +18,7 @@ from metakat.schemas.base_objects import (
     MetakatPage,
     ProarcIO,
     Value,
+    is_annotated,
 )
 
 
@@ -42,6 +43,9 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
             ),
             key=lambda page: page.batch_index,
         )
+        if not pages or all(is_annotated(page.pageNumber) for page in pages):
+            logger.info("Skipping page-number core: no pages need a prediction")
+            return metakat_io
         image_mapping = metakat_io.page_to_image_mapping or {}
         alto_mapping = metakat_io.page_to_alto_mapping or {}
         processable_pages = [
@@ -55,6 +59,10 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
                 "Skipping %d page(s) without both image and ALTO mappings",
                 skipped,
             )
+
+        if not any(not is_annotated(page.pageNumber) for page in processable_pages):
+            logger.info("Skipping page-number core: no processable page needs a prediction")
+            return metakat_io
 
         images = [
             os.path.join(batch_dir, image_mapping[page.id])
@@ -114,6 +122,9 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
                     "Page-number core returned an unknown page key: "
                     f"{page_key}"
                 )
+            if is_annotated(metakat_page.pageNumber):
+                logger.debug("Keeping annotated page number on page %s", page_key)
+                continue
             if (
                 metakat_page.pageNumber is not None
                 and metakat_page.pageNumber.confidence >= evidence.confidence

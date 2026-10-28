@@ -275,6 +275,41 @@ local vLLM server - finds the GPU free.
    - [`bind`](chapter/README.md#available-bind-implementation)
      - [`chapter_bind_engine_base`](chapter/README.md#engine-base-chapter_bind_engine_base)
 
+## Supplied annotations
+
+Text readings use value objects with `text`, `confidence`, `lang` and `id`.
+The classifier fields `pageType`, `side`, `startsDocument`, `language`, `form` and
+`articleGenre` use the same object shape with a typed `text` value. Document starts
+are booleans, not strings. Classifier values generate an ID when none is supplied;
+extracted text values still require one. Older classifier value/confidence arrays
+are accepted as input, but JSON output uses objects.
+
+Every value supports an optional `annotated` boolean. Missing flags are omitted
+from output; null and false do not protect a value. Only explicit `true` marks an
+externally supplied value that the supported binder must preserve, regardless of
+confidence. It does not imply human verification. For example:
+
+```json
+{
+  "pageNumber": {
+    "text": "55 [58]", "confidence": 1.0,
+    "id": "11111111-1111-4111-8111-111111111111", "annotated": true
+  },
+  "pageType": {"text": "titlePage", "confidence": 1.0, "annotated": true}
+}
+```
+
+Pass a supplied MetaKatIO document to the CLI with
+`--metakat-json /data/batch/supplied-metakat.json`; the JSON object above illustrates
+fields inside a page element, not a complete input document.
+
+Annotation enforcement is currently implemented only for page numbers and page
+types. Their binders skip the core when every relevant page value is annotated.
+Otherwise the core still sees the whole processable scan, and binding preserves
+annotated values while updating other pages. Skipping an all-annotated page-type
+batch also skips optional side/document-start inference. Other stages and fields
+will receive annotation handling separately.
+
 ## Pipeline invocation
 
 `process_batch.py` is configured by one complete YAML or JSON engine pipeline.

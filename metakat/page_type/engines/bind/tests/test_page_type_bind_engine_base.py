@@ -32,13 +32,13 @@ def test_binder_propagates_all_heads_in_scan_order_without_mutating_input(metaka
         PageTypeInput('/batch/z.jpg', '/batch/first.alto'),
         PageTypeInput('/batch/a.jpg', '/batch/second.xml')])
     assert [p.id for p in result.elements] == [second.id, first.id]
-    assert result.elements[0].pageType == (PageType.COLOPHON, .7)
-    assert result.elements[0].side == (PageSideType.LEFT, .6)
-    assert result.elements[0].startsDocument == (False, .95)
+    assert (result.elements[0].pageType.text, result.elements[0].pageType.confidence) == (PageType.COLOPHON, .7)
+    assert (result.elements[0].side.text, result.elements[0].side.confidence) == (PageSideType.LEFT, .6)
+    assert (result.elements[0].startsDocument.text, result.elements[0].startsDocument.confidence) == (False, .95)
     assert result.elements[1].startsDocument is None
     assert all(p.pageType is None and p.side is None for p in io.elements)
     # New field survives the internal interchange format.
-    assert MetakatIO.model_validate_json(result.model_dump_json()).elements[0].startsDocument == (False, .95)
+    assert MetakatIO.model_validate_json(result.model_dump_json()).elements[0].startsDocument == result.elements[0].startsDocument
 
 
 def test_old_classifier_optional_heads_leave_existing_values(metakat_page):
@@ -46,7 +46,7 @@ def test_old_classifier_optional_heads_leave_existing_values(metakat_page):
     io = MetakatIO(batch_id=metakat_page.batch_id, elements=[metakat_page])
     binder = binder_for([PageTypePrediction(pageType=(PageType.TITLE_PAGE, .9))])
     result = binder.process('/batch', io)
-    assert result.elements[0].pageType == (PageType.TITLE_PAGE, .9)
+    assert (result.elements[0].pageType.text, result.elements[0].pageType.confidence) == (PageType.TITLE_PAGE, .9)
     assert result.elements[0].side == metakat_page.side
     assert result.elements[0].startsDocument is None
     assert binder.core_engine.process.call_args.args[0] == [PageTypeInput(None, None)]
@@ -58,7 +58,7 @@ def test_repeated_image_paths_keep_distinct_positions(metakat_page):
                    page_to_image_mapping={metakat_page.id: 'same.jpg', second.id: 'same.jpg'})
     binder = binder_for([PageTypePrediction(pageType=(t, .9)) for t in (PageType.COVER, PageType.BLANK)])
     result = binder.process('/batch', io)
-    assert [p.pageType[0] for p in result.elements] == [PageType.COVER, PageType.BLANK]
+    assert [p.pageType.text for p in result.elements] == [PageType.COVER, PageType.BLANK]
 
 
 def test_missing_results_are_rejected(metakat_page):
@@ -91,3 +91,40 @@ def test_existing_page_numbers_are_passed_verbatim_in_scan_order(metakat_page):
     assert binder.core_engine.process.call_args.args[0] == [
         PageTypeInput(None, page_number='[12]'), PageTypeInput(None, page_number='55 [58]')]
     assert [p.pageNumber for p in result.elements] == [second.pageNumber, metakat_page.pageNumber]
+
+
+def test_all_annotated_types_skip_core_even_with_missing_auxiliary_fields(metakat_page):
+    metakat_page.pageType={'text':'frontCover','confidence':.1,'annotated':True}
+    io=MetakatIO(batch_id=metakat_page.batch_id,elements=[metakat_page])
+    binder=binder_for([])
+    result=binder.process('/batch',io)
+    assert result == io and result is not io
+    binder.core_engine.process.assert_not_called()
+    assert result.elements[0].side is None
+
+
+def test_mixed_annotation_preserves_supplied_type_and_full_scan_context(metakat_page):
+    metakat_page.pageType={'text':'frontCover','confidence':.1,'annotated':True}
+    second=MetakatPage(id=uuid4(),batch_id=metakat_page.batch_id,batch_index=1,
+                       pageType={'text':'blank','confidence':.2,'annotated':False})
+    io=MetakatIO(batch_id=metakat_page.batch_id,elements=[metakat_page,second])
+    binder=binder_for([PageTypePrediction(pageType=(PageType.NORMAL_PAGE,.99),side=(PageSideType.LEFT,.8)),
+                       PageTypePrediction(pageType=(PageType.TITLE_PAGE,.9),startsDocument=(True,.8))])
+    result=binder.process('/batch',io)
+    assert len(binder.core_engine.process.call_args.args[0]) == 2
+    assert result.elements[0].pageType == metakat_page.pageType
+    assert result.elements[0].side.text == 'left'
+    assert result.elements[1].pageType.text == 'titlePage'
+    assert result.elements[1].startsDocument.text is True
+    assert second.pageType.text == 'blank'
+
+
+@pytest.mark.parametrize('flag',[None,False])
+def test_missing_or_false_annotation_does_not_skip_type_prediction(metakat_page,flag):
+    value={'text':'blank','confidence':1.}
+    if flag is not None:value['annotated']=flag
+    metakat_page.pageType=value
+    binder=binder_for([PageTypePrediction(pageType=(PageType.TITLE_PAGE,.4))])
+    result=binder.process('/batch',MetakatIO(batch_id=metakat_page.batch_id,elements=[metakat_page]))
+    binder.core_engine.process.assert_called_once()
+    assert result.elements[0].pageType.text == 'titlePage'

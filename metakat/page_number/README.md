@@ -507,7 +507,10 @@ by the bind contract but is not used by this implementation.
 
 #### Page selection and core invocation
 
-The binder sorts all `MetakatPage` elements by `batch_index`. Only pages with
+The binder sorts all `MetakatPage` elements by `batch_index`. It skips the core
+when every page number is annotated, the batch is empty, or no processable page
+needs a number. In mixed batches, annotated pages stay in the core input to retain
+sequence context; their values are preserved when results are bound. Only pages with
 both `page_to_image_mapping` and `page_to_alto_mapping` entries are passed to
 the core; skipped pages are logged. Image and ALTO paths are resolved relative
 to `batch_dir`.
@@ -524,9 +527,16 @@ the page's existing `pageNumber` value:
 
 | Condition | Binding decision |
 |---|---|
+| Existing value has `annotated: true` | Retain it regardless of model confidence. |
 | No existing `MetakatPage.pageNumber` | Bind the core result. |
 | Core confidence is greater than the existing confidence | Replace the existing value with the core result. |
 | Core confidence is equal to or lower than the existing confidence | Retain the existing value. |
+
+`annotated` is optional. Only an explicitly present boolean `true` protects a
+value; absent, null and false use the confidence rules above. It marks externally
+authoritative input, including DB-supplied numbers, without implying human review.
+Annotated values retain their identity and evidence mappings. Pagination used by
+page-type models still filters bracketed/inferred numbers independently.
 
 When a core result is bound, the binder writes:
 

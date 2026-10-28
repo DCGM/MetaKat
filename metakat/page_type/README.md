@@ -547,25 +547,33 @@ MetaKat pages, including pages with missing mappings. It does not preselect
 only title pages, split documents, or reorder pages by filename. `proarc_io`
 is accepted by the shared bind interface but is not used by this implementation.
 An input without page elements returns a copied `MetakatIO` without invoking
-the core.
+the core. The core is also skipped when every page type has `annotated: true`,
+even if side or document-start values are absent. In a mixed batch every page
+still reaches the core, including annotated pages, to preserve context.
 
 ### Field mapping and precedence
 
 | Core result | MetaKat binding |
 |---|---|
-| `pageType` | Always replaces `MetakatPage.pageType`. |
+| `pageType` | Replaces `MetakatPage.pageType` unless its existing value has `annotated: true`. |
 | `side` | Replaces `MetakatPage.side` when supplied; otherwise preserves the existing value. |
 | `startsDocument` | Replaces `MetakatPage.startsDocument` when supplied; otherwise preserves the existing value, including at the scan's first position. |
 
 Unlike page-number confidence precedence, this binder does not compare new
-and existing confidences. A supplied value replaces its corresponding field.
+and existing confidences. Only an explicitly present boolean annotation flag
+protects an existing page type; absent, null and false allow replacement. The flag
+is not yet enforced for side or document-start outputs. Bound classifier fields
+use typed value objects with `text`, `confidence`, `lang`, `id` and optional
+`annotated`. Older input pairs are accepted and normalize to objects; the internal
+core prediction contract remains compact value/confidence pairs.
 Optional absent tasks remain compatible with the ViT model and other cores
 that do not predict sides. All outputs are validated before any field is bound.
 
 `startsDocument` survives internal JSON serialization. Bibliographic grouping
 consumes it to establish bottom-level containers and higher hierarchy. MODS
 records the resulting hierarchy rather than exporting this internal flag
-directly. The binder does not create detection geometry, UUIDs, or parent links.
+directly. The binder does not create detection geometry or parent links. Classifier value
+objects receive identities without creating OCR detection mappings.
 
 ## Observability and revision
 

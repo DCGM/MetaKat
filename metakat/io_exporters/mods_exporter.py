@@ -419,14 +419,15 @@ def section_order(model: type) -> list[str]:
 def _genre(record: _Record) -> None:
     element = record.element
     genre_type = getattr(element, "articleGenre", None) if element.type == DocumentType.ARTICLE.value else None
-    genre, genre_id = record.container(record.root, "genre", **({"type": genre_type[0]} if genre_type else {}))
+    genre, genre_id = record.container(record.root, "genre", **({"type": genre_type.text} if genre_type else {}))
     genre.text = element.type
     if genre_type:
-        _classified(record, genre_id, "type", "articleGenre", *genre_type)
+        _classified(record, genre_id, "type", "articleGenre", genre_type.text, genre_type.confidence)
 
 
 def _languages(record: _Record) -> None:
-    for code, confidence in record.element.language or []:
+    for value in record.element.language or []:
+        code, confidence = value.text, value.confidence
         language, target = record.container(record.root, "language")
         record.leaf(language, "languageTerm", code, type="code", authority="iso639-2b")
         _classified(record, target, "languageTerm", "language", code, confidence)
@@ -436,8 +437,8 @@ def _form(record: _Record) -> None:
     form = getattr(record.element, "form", None)
     if form is not None:
         description, target = record.container(record.root, "physicalDescription")
-        record.leaf(description, "form", form[0], authority="marcform")
-        _classified(record, target, "form", "form", *form)
+        record.leaf(description, "form", form.text, authority="marcform")
+        _classified(record, target, "form", "form", form.text, form.confidence)
 
 
 def _provenance_only_dates(record: _Record) -> None:
@@ -499,7 +500,7 @@ def _unit_record(record: _Record, created: datetime) -> None:
 
 def _page_record(record: _Record) -> None:
     page: MetakatPage = record.element
-    page_type = page.pageType[0] if page.pageType else None
+    page_type = page.pageType.text if page.pageType else None
     if page.pageNumber is not None:
         attributes = {"type": page_type} if page_type else {}
         part, target = record.container(record.root, "part", **attributes)
@@ -514,12 +515,12 @@ def _page_record(record: _Record) -> None:
         record.leaf(detail, "number", str(page.pageIndex))
     if page.side is not None:
         note, target = record.container(record.root, "note")
-        note.text = page.side[0]
-        _classified(record, target, "note", "side", page.side[0], page.side[1], page.id)
+        note.text = page.side.text
+        _classified(record, target, "note", "side", page.side.text, page.side.confidence, page.id)
     genre, genre_id = record.container(record.root, "genre", **({"type": page_type} if page_type else {}))
     genre.text = "reprePage" if page.representative else "page"
     if page_type:
-        _classified(record, genre_id, "type", "pageType", page_type, page.pageType[1], page.id)
+        _classified(record, genre_id, "type", "pageType", page_type, page.pageType.confidence, page.id)
     _identifier(record)
 
 

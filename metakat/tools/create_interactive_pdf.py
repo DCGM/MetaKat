@@ -641,7 +641,7 @@ def _insert_page_metadata_notes(
             continue
         pdf_page = document[rendered.pdf_index]
         if page.pageType is not None:
-            page_type, confidence = page.pageType
+            page_type, confidence = page.pageType.text, page.pageType.confidence
             page_type_text = (
                 page_type.value if hasattr(page_type, "value") else str(page_type)
             )
@@ -750,7 +750,7 @@ def _insert_page_metadata_notes(
                 page
                 for page in candidate_pages
                 if page.pageType is not None
-                and page.pageType[0] == PageType.TITLE_PAGE.value
+                and page.pageType.text == PageType.TITLE_PAGE.value
             ),
             key=lambda page: page.batch_index,
         )

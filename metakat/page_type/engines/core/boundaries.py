@@ -8,7 +8,7 @@ partition, and max-marginal score gaps describe decision confidence.
 from dataclasses import dataclass
 import math
 
-from metakat.schemas.base_objects import PageType
+from metakat.schemas.base_objects import PageType, classification_pair
 
 
 OPENING = frozenset((PageType.FRONT_COVER, PageType.FRONT_END_PAPER,
@@ -42,7 +42,7 @@ class BoundaryResolution:
 
 
 def _type(prediction):
-    value = prediction.pageType
+    value = classification_pair(prediction.pageType)
     return (value[0], float(value[1])) if value is not None else (None, 0.)
 
 
@@ -61,7 +61,7 @@ def _emission(prediction, state, policy):
 
 def _cut_score(previous, current, policy):
     score = -policy.split_penalty
-    value = current.startsDocument
+    value = classification_pair(current.startsDocument)
     if value is not None:
         flag, confidence = value
         p = float(confidence) if flag else 1. - float(confidence)
@@ -129,5 +129,5 @@ def resolve_boundaries(predictions, policy=None):
             max(emissions[i][b] + suffix[b] for b in range(a, 3)),
             cuts[i] + max(emissions[i][b] + suffix[b] for b in range(3))) for a in range(3)]
     disagreements = tuple(i for i, p in enumerate(predictions)
-                          if i and p.startsDocument is not None and bool(p.startsDocument[0]) != starts[i])
+                          if i and p.startsDocument is not None and bool(classification_pair(p.startsDocument)[0]) != starts[i])
     return BoundaryResolution(tuple(starts), tuple(confidence), score, disagreements)
