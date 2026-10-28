@@ -442,7 +442,9 @@ CUDA uses FP16 autocast with FP32 model parameters and FP32 merge accumulators;
 CPU uses FP32.
 
 The default experiment strategy accumulates centre-weighted logits over
-overlaps and applies softmax or sigmoid afterward. Available merge values are
+overlaps and applies softmax or sigmoid afterward. Weights are
+`min(1, distance / edge_ramp)` with no additive floor. The first included page
+is at distance 1; distance 0 denotes the artificial boundary. Available merge values are
 `center_logits`, `uniform_logits`, `center_probs`, `uniform_probs`, and `central`
 (the most central window, with an earlier-window tie break). Page and adjacent
 pair coverage are tracked separately.
