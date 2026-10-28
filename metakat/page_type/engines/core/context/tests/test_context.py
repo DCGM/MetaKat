@@ -293,25 +293,25 @@ def test_grouped_overlap_merge_defaults_rescale_and_preserve_nested_overrides():
     from metakat.page_type.engines.core.context.merging import context_weights
     defaults = InferenceConfig.from_artifact({'overlap_merge':{}})
     assert defaults.overlap == 64
-    assert (defaults.ramp_end, defaults.ignored_edge_pages, defaults.power) == (48, 12, 3)
-    values = context_weights(5, 70, 70, defaults.ramp_end, defaults.ignored_edge_pages, defaults.power)
+    assert (defaults.ramp_end, defaults.ignored_edge_pages, defaults.ramp_power) == (48, 12, 3)
+    values = context_weights(5, 70, 70, defaults.ramp_end, defaults.ignored_edge_pages, defaults.ramp_power)
     np.testing.assert_array_equal(values[:12], np.zeros(12))
     assert values[29] == .125 and values[47] == 1
     for overlap, ramp, ignored in [(256,192,48), (128,96,24), (64,48,12), (32,24,6), (16,12,3)]:
         current = InferenceConfig.from_artifact(asdict(defaults), {'overlap': overlap})
-        assert (current.ramp_end, current.ignored_edge_pages, current.power) == (ramp, ignored, 3)
-    custom = {'overlap_merge': {'ignored_edge_fraction_of_overlap': .09375, 'power': 4}}
-    changed = InferenceConfig.from_artifact(custom, {'overlap_merge': {'power': 1}})
+        assert (current.ramp_end, current.ignored_edge_pages, current.ramp_power) == (ramp, ignored, 3)
+    custom = {'overlap_merge': {'ignored_edge_fraction_of_overlap': .09375, 'ramp_power': 4}}
+    changed = InferenceConfig.from_artifact(custom, {'overlap_merge': {'ramp_power': 1}})
     assert changed.overlap_merge.ramp_end_fraction_of_overlap == .75
-    assert (changed.ramp_end, changed.ignored_edge_pages, changed.power) == (48, 6, 1)
-    assert custom['overlap_merge']['power'] == 4
+    assert (changed.ramp_end, changed.ignored_edge_pages, changed.ramp_power) == (48, 6, 1)
+    assert custom['overlap_merge']['ramp_power'] == 4
 
 
 
 @pytest.mark.parametrize('policy', [
     {'ramp_end_fraction_of_overlap': 0}, {'ramp_end_fraction_of_overlap': float('nan')},
     {'ignored_edge_fraction_of_overlap': 1}, {'ignored_edge_fraction_of_overlap': -.1},
-    {'power': 0}, {'power': 1.5}, {'method': 'unknown'},
+    {'ramp_power': 0}, {'ramp_power': 1.5}, {'method': 'unknown'},
 ])
 def test_grouped_overlap_merge_rejects_invalid_policy(policy):
     with pytest.raises(ValueError, match='overlap_merge'):

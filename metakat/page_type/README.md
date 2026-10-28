@@ -283,7 +283,7 @@ artifact does not contain the image or text encoder weights.
       "method": "center_logits",
       "ramp_end_fraction_of_overlap": 0.75,
       "ignored_edge_fraction_of_overlap": 0.1875,
-      "power": 3
+      "ramp_power": 3
     }
   }
 }
@@ -315,7 +315,7 @@ predictions. Only the current grouped configuration is accepted:
       "method": "center_logits",
       "ramp_end_fraction_of_overlap": 0.75,
       "ignored_edge_fraction_of_overlap": 0.1875,
-      "power": 3
+      "ramp_power": 3
     }
   }
 }
@@ -329,17 +329,17 @@ the ignored region is 12 pages. The formulas are:
 ```text
 ramp_end = max(1, floor(overlap * overlap_merge.ramp_end_fraction_of_overlap))
 ignore   = floor(overlap * overlap_merge.ignored_edge_fraction_of_overlap)
-weight   = clip((distance - ignore) / (ramp_end - ignore), 0, 1) ** overlap_merge.power
+weight   = clip((distance - ignore) / (ramp_end - ignore), 0, 1) ** overlap_merge.ramp_power
 ```
 
 There is no additive weight floor. Changing overlap automatically rescales
 the ramp and ignore counts. The ignored-edge fraction must be in `[0,0.5]`; the
-resulting ignored pages may not exceed half the overlap. `power` must be a
+resulting ignored pages may not exceed half the overlap. `ramp_power` must be a
 positive integer. Power 1 is linear; power 3 is the selected cubic policy.
 The ramp fraction must be positive and finite.
 
 The `overlap_merge` override is merged by field with artifact settings, so
-changing only `power` retains its other settings. Artifacts must store this grouped policy. Unsupported artifacts must be
+changing only `ramp_power` retains its other settings. Artifacts must store this grouped policy. Unsupported artifacts must be
 re-exported; obsolete settings are rejected. Only the regular short-tail
 strategy is supported. The engine logs the effective
 policy and resolved page counts at startup.
@@ -474,7 +474,7 @@ CPU uses FP32.
 
 The default experiment strategy accumulates centre-weighted logits over
 overlaps and applies softmax or sigmoid afterward. Weights are
-`clip((distance - ignore) / (ramp - ignore), 0, 1) ** power` with no
+`clip((distance - ignore) / (ramp - ignore), 0, 1) ** ramp_power` with no
 additive floor, where all three controls come from `overlap_merge`. The ignored edge is before
 the active ramp; no portion of the active ramp is discarded. The first
 included page is at distance 1. True scan endpoints are exempt from the

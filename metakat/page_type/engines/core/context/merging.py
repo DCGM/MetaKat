@@ -12,7 +12,7 @@ class OverlapMergeConfig:
     method: str = 'center_logits'
     ramp_end_fraction_of_overlap: float = .75
     ignored_edge_fraction_of_overlap: float = .1875
-    power: int = 3
+    ramp_power: int = 3
 
     def __post_init__(self):
         if self.method not in ('center_logits', 'uniform_logits', 'uniform_probs', 'center_probs', 'central'):
@@ -25,8 +25,8 @@ class OverlapMergeConfig:
             raise ValueError('overlap_merge.ramp_end_fraction_of_overlap must be positive')
         if not 0 <= self.ignored_edge_fraction_of_overlap <= .5:
             raise ValueError('overlap_merge.ignored_edge_fraction_of_overlap must be in [0,0.5]')
-        if type(self.power) is not int or self.power < 1:
-            raise ValueError('overlap_merge.power must be a positive integer')
+        if type(self.ramp_power) is not int or self.ramp_power < 1:
+            raise ValueError('overlap_merge.ramp_power must be a positive integer')
 
 
 @dataclass(frozen=True)
@@ -71,8 +71,8 @@ class InferenceConfig:
         return int(self.overlap * self.overlap_merge.ignored_edge_fraction_of_overlap)
 
     @property
-    def power(self):
-        return self.overlap_merge.power
+    def ramp_power(self):
+        return self.overlap_merge.ramp_power
 
     @classmethod
     def from_artifact(cls, settings, overrides=None):
@@ -102,7 +102,7 @@ def window_spans(n, size, stride, tail='regular'):
     return [(s, min(n, s + size)) for s in starts]
 
 
-def context_weights(start, end, n, ramp, ignore=0, power=3):
+def context_weights(start, end, n, ramp, ignore=0, ramp_power=3):
     r = np.arange(end - start)
     # True stream endpoints have no missing outside context to penalize.
     left = r + 1 if start > 0 else np.full(end - start, np.inf)
@@ -114,8 +114,8 @@ def context_weights(start, end, n, ramp, ignore=0, power=3):
         # ramp still reaches full weight at the original distance `ramp`.
         if ignore >= ramp:
             raise ValueError('ignore must be smaller than ramp')
-        return np.power(np.clip((distance - ignore) / (ramp - ignore), 0, 1), power).astype(np.float32)
-    return np.power(np.minimum(1, distance / ramp), power).astype(np.float32)
+        return np.power(np.clip((distance - ignore) / (ramp - ignore), 0, 1), ramp_power).astype(np.float32)
+    return np.power(np.minimum(1, distance / ramp), ramp_power).astype(np.float32)
 
 
 def softmax(x):
@@ -148,7 +148,7 @@ class StreamMerger:
         if not 0 <= start < end <= self.n:
             raise ValueError('window outside stream')
         c = self.config
-        w = context_weights(start, end, self.n, c.ramp_end, c.ignored_edge_pages, c.power)
+        w = context_weights(start, end, self.n, c.ramp_end, c.ignored_edge_pages, c.ramp_power)
         if c.merge.startswith('uniform'):
             w[w > 0] = 1
         pair_w = np.r_[0, np.minimum(w[:-1], w[1:])].astype(np.float32)
