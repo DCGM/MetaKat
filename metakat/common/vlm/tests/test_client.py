@@ -103,6 +103,25 @@ def test_an_invalid_reply_is_asked_for_again():
     assert len(endpoint.requests) == 3
 
 
+def test_sdk_retries_do_not_add_attempts(monkeypatch):
+    import openai
+
+    options = {}
+    endpoint = _Endpoint("not json")
+
+    def create_client(**kwargs):
+        options.update(kwargs)
+        return endpoint.client()
+
+    monkeypatch.setattr(openai, "OpenAI", create_client)
+    client = VLMClient(_config(max_attempts=1))
+    with pytest.raises(VLMResponseError, match="1 attempt"):
+        client.request_json(PROMPTS, [IMAGE], SCHEMA)
+
+    assert options["max_retries"] == 0
+    assert len(endpoint.requests) == 1
+
+
 def test_no_valid_reply_within_the_attempts_raises():
     endpoint = _Endpoint("no", "still no")
     client = VLMClient(_config(max_attempts=2), endpoint.client())

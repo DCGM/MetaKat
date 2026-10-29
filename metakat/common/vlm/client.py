@@ -59,6 +59,7 @@ class VLMConfig:
     api_key_env: Optional[str] = None
     api: str = "completions"
     response_format: str = "schema"
+    # Total attempts, including the first request; 1 disables repeated attempts.
     max_attempts: int = 3
     timeout: float = 300.0
     max_tokens: Optional[int] = None
@@ -188,7 +189,7 @@ class VLMClient:
             from openai import OpenAI
 
             client = OpenAI(base_url=config.api_url, api_key=config.resolve_api_key(),
-                            timeout=config.timeout)
+                            timeout=config.timeout, max_retries=0)
         self._client = client
 
     def request_json(
