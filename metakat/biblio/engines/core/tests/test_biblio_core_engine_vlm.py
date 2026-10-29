@@ -161,6 +161,53 @@ def test_a_page_is_read_grouped_and_located_in_the_alto(page):
     assert [agent.role for agent in page_result.reading.agents] == [AgentRole.AUTHOR, AgentRole.ILLUSTRATOR]
 
 
+@pytest.mark.parametrize("engine_class", [BiblioCoreEngineVLMMonograph, BiblioCoreEngineVLMPeriodical])
+def test_metadata_fields_can_share_words_but_values_within_one_field_compete(page, engine_class):
+    from text_geometry_aligner import ALTOReader
+
+    engine = engine_class(_config(), client=object())
+    located = engine._locate(ALTOReader().read(page[1]), {
+        "statementOfResponsibility": ["K. J. ERBEN"],
+        "agents": [{"name": "ERBEN"}],
+        "titleInfo": [{"title": "KYTICE", "subTitle": "KYTICE"}],
+    })
+    assert "S3" in {word.alto_word_id for word in located["statementOfResponsibility", 0].words}
+    assert located["agents", 0, "name"].words[0].alto_word_id == "S3"
+    assert sum(located["titleInfo", 0, key].alto_geometry is not None
+               for key in ("title", "subTitle")) == 1
+
+
+@pytest.mark.parametrize("engine_class", [BiblioCoreEngineVLMMonograph, BiblioCoreEngineVLMPeriodical])
+def test_inferred_publishers_do_not_take_geometry_from_printed_publishers(page, engine_class):
+    from text_geometry_aligner import ALTOReader
+
+    reply = {"publication": [
+        {"publisher": ["ERBEN"], "publisherInferred": True},
+        {"publisher": ["ERBEN"], "publisherInferred": False},
+    ]}
+    original = json.loads(json.dumps(reply))
+    located = engine_class(_config(), client=object())._locate(ALTOReader().read(page[1]), reply)
+    assert ("publication", 0, "publisher", 0) not in located
+    assert located["publication", 1, "publisher", 0].words[0].alto_word_id == "S3"
+    assert reply == original
+
+
+@pytest.mark.parametrize("engine_class", [BiblioCoreEngineVLMMonograph, BiblioCoreEngineVLMPeriodical])
+def test_repeated_place_prefers_the_occurrence_next_to_its_imprint_date(page, engine_class):
+    from text_geometry_aligner import ALTOReader
+    from pathlib import Path
+
+    path = Path(page[1])
+    early_place = ('<TextBlock ID="EARLY"><TextLine ID="EARLY_LINE">'
+                   '<String ID="EARLY_PLACE" CONTENT="Praze" HPOS="410" VPOS="200" '
+                   'WIDTH="100" HEIGHT="30"/></TextLine></TextBlock>')
+    path.write_text(_ALTO.replace('<TextBlock ID="TB2">', early_place + '<TextBlock ID="TB2">'))
+    located = engine_class(_config(), client=object())._locate(ALTOReader().read(path), {
+        "publication": [{"placeTerm": ["Praze"], "dateIssued": "1853"}],
+    })
+    assert located["publication", 0, "placeTerm", 0].words[0].alto_word_id == "S9"
+
+
 def test_a_value_not_found_in_the_alto_keeps_only_its_page(page):
     engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(_REPLY).client())
 

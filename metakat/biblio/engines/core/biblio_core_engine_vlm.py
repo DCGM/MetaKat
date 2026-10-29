@@ -5,13 +5,15 @@ all of its page images and their ALTO text in one request and returns the
 bibliographic statements it can read as JSON, one record for the span. The
 model names no regions, so each value is located afterwards by finding its
 text among the ALTO words of the span's pages (text-geometry-aligner's text
-alignment, exact then fuzzy, every word given to at most one value), on the
+alignment, exact then fuzzy, sharing words across top-level metadata fields), on the
 first page, in span order, where it is found. A value found there gets that
 page, the box of its words and their ALTO IDs; one that is not - the model read
 it from the image differently from the OCR, or no page has ALTO - keeps only
 the span's first page.
-Ambiguous text, such as a place printed twice, may occasionally be located on
-the wrong occurrence. The model gives no per-value confidence, so every value
+Equally good repeated matches prefer nearby sibling fields, such as the date
+and publisher of an imprint. Within a top-level field words remain exclusive;
+inferred publishers are never given geometry. Ambiguous text can still be located
+on the wrong occurrence. The model gives no per-value confidence, so every value
 carries the configured `confidence` (0.95 unless set).
 
 The model is either behind an API (`vlm.api_url`) or a local one that vLLM
@@ -301,7 +303,8 @@ def _alignable(reply: Any, label_keys: frozenset[str] = frozenset()) -> Any:
     JSON path.
     """
     if isinstance(reply, Mapping):
-        return {key: None if key in label_keys else _alignable(value, label_keys)
+        return {key: None if key in label_keys or (key == "publisher" and reply.get("publisherInferred") is True)
+                else _alignable(value, label_keys)
                 for key, value in reply.items()}
     if isinstance(reply, list):
         return [_alignable(value, label_keys) for value in reply]
@@ -336,6 +339,7 @@ def alto_text(words) -> str:
 
 def _text_aligner():
     from text_geometry_aligner import CPSATCandidateSelector, TextAligner
+    from text_geometry_aligner.normalization import TextNormalizationPipeline
     from text_geometry_aligner.text_matching.candidate_generators import (
         AnchoredFuzzyTextCandidateGenerator,
         CompositeCandidateGenerator,
@@ -352,4 +356,8 @@ def _text_aligner():
             time_limit_seconds=_SELECTION_TIME_LIMIT_SECONDS,
             require_optimal=False,
         ),
+        normalizer=TextNormalizationPipeline.from_optional_names(["lowercase", "strip-punctuation"]),
+        min_similarity=0.5,
+        share_words_depth=1,
+        prefer_sibling_proximity=True,
     )

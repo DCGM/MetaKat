@@ -576,8 +576,16 @@ For each span the engine sends one request:
    images as the longest span;
 3. locates every text value of the reply among the ALTO words of the span's
    pages with text-geometry-aligner's text alignment: exact matches, then
-   fuzzy ones within the aligner's default error limits, with each ALTO word
-   given to at most one value (CP-SAT selection); a value found on several
+   fuzzy ones within the aligner's default error limits. Matching lowercases
+   and strips punctuation, rejecting similarity below 0.5. CP-SAT gives each
+   word to at most one value within a top-level metadata key; different keys
+   may share it, so an agent's name can also occur in a responsibility statement,
+   or the same firm can be publisher and printer. Equally good repeated matches
+   prefer nearby sibling fields, such as the place beside its imprint date.
+   These are the title-page dataset preparation settings; ordered TOC anchors
+   and column reordering are not used for unordered bibliographic fields.
+   Inferred publishers and coded values are excluded from geometry matching.
+   A value found on several
    pages is taken from the first, in page order;
 4. builds the `BiblioSpanResult` from the reply.
 
