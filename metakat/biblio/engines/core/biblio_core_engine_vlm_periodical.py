@@ -1,0 +1,231 @@
+"""The VLM biblio core of periodicals: the periodical prompt and schema in vlm/periodical/.
+
+The OCR text of a page is given as for books, with the dense body text cut
+out (body_text_cut): newspaper-like first pages carry columns of article
+text under the masthead, which hold no data of the periodical and only cost
+tokens. The prompt says so, and was developed with the same cut
+(smart_digiline periodical.2026-10-20, ocr_text.py).
+
+The schema asks for more than the core result holds; what has no place in it
+is not read. Of the reply this engine reads:
+
+- every `periodical` object as a title with its subtitle;
+- `volume` and `issue` as the periodical volume and issue: the volume's number
+  and year, the issue's number, date and name (`issuePartName`);
+- every `publication`, without its `publisherInferred` flag, `manufacture`,
+  and the `frequency`, as part of the first imprint;
+- the `agents` in a role the core has a field for, each with its
+  `description` as its affiliations: an editor of a periodical is its
+  `redaktor`, which the periodical binder gives to the issue; an author,
+  translator, illustrator and photographer keep their role; a contributor,
+  composer, reviewer, issuing body and other role are not read.
+
+Not read: `supplement` (the binder binds issues only), the statements of
+responsibility, `etal`, `distribution`, `issn`, `isbn`, the types and terms of
+address of the agents and the languages.
+"""
+from __future__ import annotations
+
+import dataclasses
+import logging
+import xml.etree.ElementTree as ET
+from collections.abc import Mapping
+from typing import Any, Optional, Sequence
+
+from metakat.biblio.engines.core.biblio_core_engine_vlm import (
+    RESOURCES,
+    BiblioCoreEngineVLMBase,
+    EvidenceFactory,
+    ReplyValues,
+    kept_containers,
+)
+from metakat.biblio.engines.core.models import (
+    AgentRole,
+    BiblioAgent,
+    BiblioManufacture,
+    BiblioPage,
+    BiblioPublication,
+    BiblioReading,
+    BiblioSpanResult,
+    BiblioTitleInfo,
+)
+
+logger = logging.getLogger(__name__)
+
+_PERIODICAL = RESOURCES / "periodical"
+_ROLES = {"editor": AgentRole.REDAKTOR, "author": AgentRole.AUTHOR, "translator": AgentRole.TRANSLATOR,
+          "illustrator": AgentRole.ILLUSTRATOR, "photographer": AgentRole.PHOTOGRAPHER}
+
+# The dense body text: within one TextBlock, at least MIN_RUN consecutive
+# lines whose height is within HEIGHT_TOLERANCE of the page's body height and
+# which follow each other with a gap of at most MAX_GAP body heights.
+MIN_RUN = 12
+HEIGHT_TOLERANCE = 0.2
+MAX_GAP = 1.0
+OMITTED = "[... {} lines of body text omitted ...]"
+
+
+class BiblioCoreEngineVLMPeriodical(BiblioCoreEngineVLMBase):
+    """The title pages of a periodical, read with the periodical prompt (vlm/periodical/)."""
+
+    DEFAULT_SCHEMA_PATH = _PERIODICAL / "schema.json"
+    DEFAULT_SYSTEM_PROMPT_PATH = _PERIODICAL / "prompt_system.txt"
+    DEFAULT_USER_PROMPT_PATH = _PERIODICAL / "prompt_user.txt"
+    # Labels the model chooses, not text on the page.
+    LABEL_KEYS = frozenset({"role", "type", "lang", "language", "originalLanguage"})
+
+    def page_text(self, page: BiblioPage, alto_page) -> str:
+        return body_text_cut(page.alto)
+
+    def page_from_reply(self, reply, evidence, page_keys):
+        return page_from_reply(reply, evidence, page_keys)
+
+
+def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
+                    page_keys: Sequence[str]) -> Optional[BiblioSpanResult]:
+    """Build a span result from a reply in vlm/periodical/schema.json; None when nothing was read."""
+    values = ReplyValues(evidence)
+    title_infos = [
+        BiblioTitleInfo(
+            title=values.one(path + ("periodicalTitle",), item.get("periodicalTitle")),
+            sub_title=values.one(path + ("periodicalSubTitle",), item.get("periodicalSubTitle")),
+        )
+        for path, item in values.items(reply, "periodical")
+    ]
+    publications = [
+        BiblioPublication(
+            places=values.many(path + ("placeTerm",), item.get("placeTerm")),
+            publishers=values.many(path + ("publisher",), item.get("publisher")),
+            date_issued=values.one(path + ("dateIssued",), item.get("dateIssued")),
+        )
+        for path, item in values.items(reply, "publication")
+    ]
+    frequency = values.one(("frequency",), reply.get("frequency"))
+    if frequency is not None:
+        # The frequency is part of the imprint: <originInfo> holds it.
+        first = publications[0] if publications else BiblioPublication()
+        publications[:1] = [dataclasses.replace(first, frequency=frequency)]
+    manufactures = [
+        BiblioManufacture(
+            places=values.many(path + ("manufacturePlaceTerm",), item.get("manufacturePlaceTerm")),
+            manufacturers=values.many(path + ("manufacturePublisher",), item.get("manufacturePublisher")),
+            date=values.one(path + ("manufactureDate",), item.get("manufactureDate")),
+        )
+        for path, item in values.items(reply, "manufacture")
+    ]
+    agents = []
+    for path, item in values.items(reply, "agents"):
+        role = _ROLES.get(item.get("role"))
+        name = values.one(path + ("name",), item.get("name"))
+        if role is None:
+            logger.debug("Span %s: a %s is not read", page_keys[0], item.get("role"))
+        elif name is not None:
+            agents.append(BiblioAgent(role=role, name=name,
+                                      affiliations=values.many(path + ("description",), item.get("description"))))
+    if reply.get("supplement") is True:
+        logger.info("Span %s is a supplement; it is read as an issue", page_keys[0])
+
+    def level(key: str, number: str, date: str, name: Optional[str] = None) -> Optional[BiblioReading]:
+        # As the YOLO core does: the level's number (and name) is a titleInfo
+        # part, its date the date of an imprint.
+        item = reply.get(key)
+        if not isinstance(item, Mapping):
+            return None
+        reading = BiblioReading(
+            title_infos=kept_containers((BiblioTitleInfo(
+                part_number=values.one((key, number), item.get(number)),
+                part_name=None if name is None else values.one((key, name), item.get(name)),
+            ),)),
+            publications=kept_containers((BiblioPublication(date_issued=values.one((key, date), item.get(date))),)),
+        )
+        return None if reading.is_empty() else reading
+
+    reading = BiblioReading(
+        title_infos=kept_containers(title_infos),
+        publications=kept_containers(publications),
+        manufactures=kept_containers(manufactures),
+        agents=tuple(agents),
+    )
+    result = BiblioSpanResult(
+        page_keys=tuple(page_keys),
+        reading=reading,
+        periodical_volume=level("volume", "volumePartNumber", "volumeDateIssued"),
+        periodical_issue=level("issue", "issuePartNumber", "issueDateIssued", "issuePartName"),
+    )
+    return None if result.is_empty() else result
+
+
+def body_text_cut(alto_path: str) -> str:
+    """The OCR text of a page as for books, each dense run of body text replaced by one marker line.
+
+    The body height is the line height most of the page's text is set in:
+    the median of the line heights weighted by their characters. Mastheads,
+    large lines, short info lines and imprints at the foot of the page stay."""
+    blocks = _alto_blocks(alto_path)
+    body = _body_height(blocks)
+    texts = []
+    for block in blocks:
+        lines, omitted = [], 0
+        for (_, _, text), drop in zip(block, _dense_lines(block, body)):
+            if drop:
+                omitted += 1
+                continue
+            if omitted:
+                lines.append(OMITTED.format(omitted))
+                omitted = 0
+            lines.append(text)
+        if omitted:
+            lines.append(OMITTED.format(omitted))
+        texts.append("\n".join(lines))
+    return "\n\n".join(texts)
+
+
+def _alto_blocks(path: str) -> list[list[tuple[float, float, str]]]:
+    # Per TextBlock its lines as (top, height, text), empty lines left out.
+    blocks = []
+    for block in ET.parse(path).iter():
+        if not block.tag.endswith("TextBlock"):
+            continue
+        lines = []
+        for line in block:
+            if line.tag.endswith("TextLine"):
+                words = [string.get("CONTENT", "") for string in line if string.tag.endswith("String")]
+                if any(words):
+                    lines.append((float(line.get("VPOS", 0)), float(line.get("HEIGHT", 0)),
+                                  " ".join(word for word in words if word)))
+        if lines:
+            blocks.append(lines)
+    return blocks
+
+
+def _body_height(blocks) -> float:
+    lines = sorted((height, len(text)) for block in blocks for _, height, text in block)
+    total, accumulated = sum(chars for _, chars in lines), 0
+    for height, chars in lines:
+        accumulated += chars
+        if accumulated >= total / 2:
+            return height
+    return 0.0
+
+
+def _dense_lines(block, body: float) -> list[bool]:
+    dense = [False] * len(block)
+    run: list[int] = []
+
+    def close():
+        if len(run) >= MIN_RUN:
+            for index in run:
+                dense[index] = True
+        run.clear()
+
+    for index, (top, height, _) in enumerate(block):
+        if abs(height - body) > HEIGHT_TOLERANCE * body:
+            close()
+            continue
+        if run:
+            previous_top, previous_height, _ = block[run[-1]]
+            if top < previous_top or top - (previous_top + previous_height) > MAX_GAP * body:
+                close()
+        run.append(index)
+    close()
+    return dense

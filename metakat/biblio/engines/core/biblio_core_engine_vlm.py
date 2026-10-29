@@ -20,9 +20,10 @@ metakat.common.vlm.local_server). Both run the same engine: what differs
 between engines is the JSON the model is asked for. `BiblioCoreEngineVLMBase`
 does everything but that; a subclass names its output schema and implements
 `page_from_reply`, the mapping of a reply in that schema onto the core result.
-`BiblioCoreEngineVLM` is the one implementation so far, with its schema,
-prompts and mapping in vlm/; a model trained for another output schema needs
-its own subclass.
+The monograph and periodical engines (biblio_core_engine_vlm_monograph,
+biblio_core_engine_vlm_periodical) are the implementations, each with its
+schema and prompts in vlm/<kind>/; a model trained for another output schema
+needs its own subclass.
 
 Configuration, besides `name`:
 
@@ -33,9 +34,10 @@ Configuration, besides `name`:
 - `system_prompt_path`, `user_prompt_path` - the prompts, when not the
   engine's own; the system prompt receives the variables `ocr` (the ALTO text
   of the span: of its one page as it is, of several pages each under a
-  `--- Page k of n ---` line), `page_count` (the pages of the span) and
-  `schema` (the output schema as JSON), and the page images are attached to
-  the user prompt in page order;
+  `--- Page k of n ---` line), `page_count` (the pages of the span),
+  `schema` (the output schema as JSON) and `annotations` (always None: the
+  prompts were developed with human annotations, which MetaKat does not
+  have), and the page images are attached to the user prompt in page order;
 - `schema_path` - the output schema, for an engine that has none of its own;
 - `confidence` - the confidence given to every value.
 """
@@ -52,17 +54,10 @@ from typing import Any, Callable, ClassVar, Iterable, Optional, Sequence
 
 from metakat.biblio.engines.core.biblio_core_engine import BiblioCoreEngine
 from metakat.biblio.engines.core.models import (
-    AgentRole,
-    BiblioAgent,
     BiblioCoreResult,
-    BiblioManufacture,
     BiblioPage,
-    BiblioPublication,
-    BiblioReading,
-    BiblioSeries,
     BiblioSpan,
     BiblioSpanResult,
-    BiblioTitleInfo,
     container_values,
 )
 from metakat.common.models import AltoRefs, BoundingBox, DetectionEvidence
@@ -78,7 +73,7 @@ from metakat.common.vlm.local_server import LocalModelConfig, serve
 
 logger = logging.getLogger(__name__)
 
-_RESOURCES = Path(__file__).parent / "vlm"
+RESOURCES = Path(__file__).parent / "vlm"
 _CONFIG_KEYS = {"name", "vlm", "local", "system_prompt_path", "user_prompt_path", "schema_path", "confidence"}
 # Set by the local server, not by the configuration of a local model.
 _LOCAL_VLM_KEYS = {"api_url", "model", "api_key", "api_key_env"}
@@ -205,9 +200,11 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
                 logger.warning("Page %s has no ALTO: its values will have no box", page.page_key)
             alto_pages.append(alto_page)
         prompts = render_prompts(self.prompts, {
-            "ocr": span_text([None if a is None else alto_text(a.words) for a in alto_pages]),
+            "ocr": span_text([None if alto_page is None else self.page_text(page, alto_page)
+                              for page, alto_page in zip(span, alto_pages)]),
             "page_count": len(span),
             "schema": json.dumps(self.schema, ensure_ascii=False, indent=2),
+            "annotations": None,
         })
         try:
             reply = client.request_json(
@@ -247,6 +244,10 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
         logger.info("Span %s: located %d value(s) in the ALTO", request_id, len(located))
         return result
 
+    def page_text(self, page: BiblioPage, alto_page) -> str:
+        """The OCR text of one page for the prompt: a line per TextLine, a blank line between blocks."""
+        return alto_text(alto_page.words)
+
     def _path(self, key: str, default: Optional[Path]) -> str:
         path = self.config.get(key) or default
         if path is None:
@@ -264,132 +265,32 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
         }
 
 
-class BiblioCoreEngineVLM(BiblioCoreEngineVLMBase):
-    """The output schema grouped like the core result (vlm/schema.json).
-
-    One object per title, imprint, printer statement, series and name, plus
-    what the page says about a periodical volume or issue, each JSON key named
-    after the MetaKat field it fills. Used by API and local models alike; a
-    local model's prompts may replace the ones in vlm/, its schema may not.
-    """
-
-    DEFAULT_SCHEMA_PATH = _RESOURCES / "schema.json"
-    DEFAULT_SYSTEM_PROMPT_PATH = _RESOURCES / "prompt_system.txt"
-    DEFAULT_USER_PROMPT_PATH = _RESOURCES / "prompt_user.txt"
-    # An agent's role is a label, not text on the page.
-    LABEL_KEYS = frozenset({"role"})
-
-    def page_from_reply(self, reply, evidence, page_keys):
-        return page_from_reply(reply, evidence, page_keys)
+def kept_containers(containers: Iterable) -> tuple:
+    """The containers that hold at least one value."""
+    return tuple(container for container in containers if next(container_values(container), None) is not None)
 
 
-def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
-                    page_keys: Sequence[str]) -> Optional[BiblioSpanResult]:
-    """Build a span result from a reply in vlm/schema.json.
+class ReplyValues:
+    """The text values of a reply as evidence, each by its JSON path (see EvidenceFactory)."""
 
-    Containers left without any value are dropped.
-    """
+    def __init__(self, evidence: EvidenceFactory):
+        self.evidence = evidence
 
-    def one(path: tuple, value: Any) -> Optional[DetectionEvidence]:
-        return evidence(path, value) if isinstance(value, str) else None
+    def one(self, path: tuple, value: Any) -> Optional[DetectionEvidence]:
+        return self.evidence(path, value) if isinstance(value, str) else None
 
-    def many(path: tuple, values: Any) -> tuple:
+    def many(self, path: tuple, values: Any) -> tuple:
         return tuple(
-            item for index, value in enumerate(values or ())
-            if (item := one(path + (index,), value)) is not None
+            item for index, value in enumerate(values if isinstance(values, list) else ())
+            if (item := self.one(path + (index,), value)) is not None
         )
 
-    def items(key: str) -> Iterable[tuple[tuple, Mapping[str, Any]]]:
+    @staticmethod
+    def items(reply: Mapping[str, Any], key: str) -> Iterator[tuple[tuple, Mapping[str, Any]]]:
+        """(JSON path, object) of every object in the list under `key`."""
         for index, item in enumerate(reply.get(key) or ()):
             if isinstance(item, Mapping):
                 yield (key, index), item
-
-    title_infos = tuple(
-        BiblioTitleInfo(
-            title=one(path + ("title",), item.get("title")),
-            sub_title=one(path + ("subTitle",), item.get("subTitle")),
-            part_number=one(path + ("partNumber",), item.get("partNumber")),
-            part_name=one(path + ("partName",), item.get("partName")),
-        )
-        for path, item in items("titleInfo")
-    )
-    publications = tuple(
-        BiblioPublication(
-            places=many(path + ("placeTerm",), item.get("placeTerm")),
-            publishers=many(path + ("publisher",), item.get("publisher")),
-            date_issued=one(path + ("dateIssued",), item.get("dateIssued")),
-            edition=one(path + ("edition",), item.get("edition")),
-            frequency=one(path + ("frequency",), item.get("frequency")),
-        )
-        for path, item in items("publication")
-    )
-    manufactures = tuple(
-        BiblioManufacture(
-            places=many(path + ("manufacturePlaceTerm",), item.get("manufacturePlaceTerm")),
-            manufacturers=many(path + ("manufacturePublisher",), item.get("manufacturePublisher")),
-            date=one(path + ("manufactureDate",), item.get("manufactureDate")),
-        )
-        for path, item in items("manufacture")
-    )
-    series = tuple(
-        BiblioSeries(
-            name=one(path + ("seriesName",), item.get("seriesName")),
-            part_number=one(path + ("seriesPartNumber",), item.get("seriesPartNumber")),
-            part_name=one(path + ("seriesPartName",), item.get("seriesPartName")),
-        )
-        for path, item in items("series")
-    )
-    agents = []
-    for path, item in items("agents"):
-        name = one(path + ("name",), item.get("name"))
-        try:
-            role = AgentRole(item.get("role"))
-        except ValueError:
-            logger.warning("Span %s: skipping a name with unknown role %r", page_keys[0], item.get("role"))
-            continue
-        if name is None:
-            continue
-        agents.append(BiblioAgent(
-            role=role,
-            name=name,
-            affiliations=many(path + ("affiliation",), item.get("affiliation")),
-            emails=many(path + ("email",), item.get("email")),
-        ))
-
-    reading = BiblioReading(
-        title_infos=_kept(title_infos),
-        publications=_kept(publications),
-        manufactures=_kept(manufactures),
-        series=_kept(series),
-        agents=tuple(agents),
-    )
-    periodical_volume = _periodical(reply, "periodicalVolume", one)
-    periodical_issue = _periodical(reply, "periodicalIssue", one)
-    if reading.is_empty() and periodical_volume is None and periodical_issue is None:
-        return None
-    return BiblioSpanResult(
-        page_keys=tuple(page_keys),
-        reading=reading,
-        periodical_volume=periodical_volume,
-        periodical_issue=periodical_issue,
-    )
-
-
-def _periodical(reply: Mapping[str, Any], key: str, one) -> Optional[BiblioReading]:
-    # As the YOLO core does: the level's number is a titleInfo part number,
-    # its date the date of an imprint.
-    level = reply.get(key)
-    if not isinstance(level, Mapping):
-        return None
-    reading = BiblioReading(
-        title_infos=_kept((BiblioTitleInfo(part_number=one((key, "partNumber"), level.get("partNumber"))),)),
-        publications=_kept((BiblioPublication(date_issued=one((key, "dateIssued"), level.get("dateIssued"))),)),
-    )
-    return None if reading.is_empty() else reading
-
-
-def _kept(containers: Iterable) -> tuple:
-    return tuple(container for container in containers if next(container_values(container), None) is not None)
 
 
 def _alignable(reply: Any, label_keys: frozenset[str] = frozenset()) -> Any:
@@ -404,7 +305,8 @@ def _alignable(reply: Any, label_keys: frozenset[str] = frozenset()) -> Any:
                 for key, value in reply.items()}
     if isinstance(reply, list):
         return [_alignable(value, label_keys) for value in reply]
-    if isinstance(reply, str) and not reply.strip():
+    # Only text is printed on the page: a flag or a number is not looked for.
+    if not isinstance(reply, str) or not reply.strip():
         return None
     return reply
 

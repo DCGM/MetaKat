@@ -1,0 +1,469 @@
+{
+  "type": "object",
+  "properties": {
+    "titleInfo": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "integer",
+                  "enum": [
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "partNumber": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "partName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "level",
+                "partNumber",
+                "partName"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "lang": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/languageCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "subTitle",
+          "parts",
+          "lang"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "series": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "seriesName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seriesPartNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seriesPartName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seriesIssn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seriesEditor": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lang": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/languageCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "seriesName",
+          "seriesPartNumber",
+          "seriesPartName",
+          "seriesIssn",
+          "seriesEditor",
+          "lang"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "statementOfResponsibility": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "author",
+              "illustrator",
+              "photographer",
+              "translator",
+              "editor",
+              "composer",
+              "reviewer",
+              "issuingBody"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "termsOfAddress": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "role",
+          "name",
+          "termsOfAddress",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "etal": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "publication": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "placeTerm": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "publisher": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "publisherInferred": {
+            "type": "boolean"
+          },
+          "dateIssued": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "edition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "placeTerm",
+          "publisher",
+          "publisherInferred",
+          "dateIssued",
+          "edition"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "manufacture": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "manufacturePlaceTerm": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "manufacturePublisher": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "manufactureDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "manufacturePlaceTerm",
+          "manufacturePublisher",
+          "manufactureDate"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "distribution": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "distributionPlaceTerm": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "distributor": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "distributionDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "distributionPlaceTerm",
+          "distributor",
+          "distributionDate"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "copyrightDate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "isbn": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "illustrativeContent": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "language": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/languageCode"
+      }
+    },
+    "originalLanguage": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/languageCode"
+      }
+    }
+  },
+  "required": [
+    "titleInfo",
+    "series",
+    "statementOfResponsibility",
+    "agents",
+    "etal",
+    "publication",
+    "manufacture",
+    "distribution",
+    "copyrightDate",
+    "isbn",
+    "illustrativeContent",
+    "language",
+    "originalLanguage"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "languageCode": {
+      "type": "string",
+      "enum": [
+        "cze",
+        "slo",
+        "ger",
+        "eng",
+        "fre",
+        "ita",
+        "lat",
+        "pol",
+        "rus",
+        "hun",
+        "grc",
+        "gre",
+        "dut",
+        "spa",
+        "por",
+        "swe",
+        "dan",
+        "nor",
+        "nno",
+        "nob",
+        "fin",
+        "est",
+        "lav",
+        "lit",
+        "bel",
+        "ukr",
+        "bul",
+        "mac",
+        "hrv",
+        "srp",
+        "slv",
+        "bos",
+        "cnr",
+        "rum",
+        "alb",
+        "ice",
+        "gle",
+        "wel",
+        "gla",
+        "bre",
+        "baq",
+        "cat",
+        "glg",
+        "oci",
+        "pro",
+        "roh",
+        "ltz",
+        "fry",
+        "yid",
+        "heb",
+        "epo",
+        "vol",
+        "ina",
+        "ido",
+        "chu",
+        "gmh",
+        "goh",
+        "enm",
+        "ang",
+        "frm",
+        "fro",
+        "dum",
+        "hsb",
+        "dsb",
+        "wen",
+        "csb",
+        "rom",
+        "mlt",
+        "arm",
+        "geo",
+        "tur",
+        "ota",
+        "per",
+        "ara",
+        "san",
+        "hin",
+        "chi",
+        "jpn",
+        "kor",
+        "syr",
+        "cop",
+        "egy",
+        "akk",
+        "arc",
+        "fao",
+        "smi",
+        "sme",
+        "non",
+        "got",
+        "tat",
+        "kaz",
+        "mon",
+        "vie",
+        "tha",
+        "ind",
+        "may",
+        "swa",
+        "afr",
+        "ben",
+        "urd",
+        "tam",
+        "tib",
+        "bur",
+        "amh",
+        "gez",
+        "pli",
+        "lad",
+        "rup",
+        "fur",
+        "srd",
+        "cos",
+        "wln",
+        "nds",
+        "gsw",
+        "sla",
+        "gem",
+        "roa",
+        "mul",
+        "und",
+        "zxx",
+        "mis"
+      ]
+    }
+  }
+}

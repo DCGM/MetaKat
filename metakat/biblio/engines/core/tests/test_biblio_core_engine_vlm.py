@@ -5,9 +5,13 @@ import pytest
 from PIL import Image
 
 from metakat.biblio.engines.core.biblio_core_engine_vlm import (
-    BiblioCoreEngineVLM,
     BiblioCoreEngineVLMBase,
     alto_text,
+)
+from metakat.biblio.engines.core.biblio_core_engine_vlm_monograph import BiblioCoreEngineVLMMonograph
+from metakat.biblio.engines.core.biblio_core_engine_vlm_periodical import (
+    BiblioCoreEngineVLMPeriodical,
+    body_text_cut,
 )
 from metakat.biblio.engines.core.definitions import check_biblio_core_engine
 from metakat.biblio.engines.core.models import (
@@ -57,19 +61,38 @@ _ALTO = """\
 </alto>
 """
 
-_REPLY = {
-    "titleInfo": [{"title": "KYTICE", "subTitle": "z pověstí národních", "partNumber": None, "partName": ""}],
-    "publication": [{"placeTerm": ["Praze"], "publisher": [], "dateIssued": "1853",
-                     "edition": None, "frequency": None}],
-    "manufacture": [{"manufacturePlaceTerm": [], "manufacturePublisher": [], "manufactureDate": None}],
-    "series": [],
-    "agents": [
-        {"role": "author", "name": "K. J. ERBEN", "affiliation": [], "email": []},
-        {"role": "illustrator", "name": "Mikoláš Aleš", "affiliation": [], "email": []},
-    ],
-    "periodicalVolume": None,
-    "periodicalIssue": None,
-}
+def _empty(schema, definitions=None):
+    """The reply that reads nothing, valid against the schema: every list empty, every value null."""
+    definitions = schema.get("$defs", definitions)
+    kind = schema.get("type")
+    kinds = kind if isinstance(kind, list) else [kind]
+    if "object" in kinds:
+        return {key: _empty(value, definitions) for key, value in schema["properties"].items()}
+    if "array" in kinds:
+        return []
+    if "boolean" in kinds:
+        return False
+    return None
+
+
+def _reply(engine_class, **fields):
+    schema = json.loads(engine_class.DEFAULT_SCHEMA_PATH.read_text(encoding="utf-8"))
+    return {**_empty(schema), **fields}
+
+
+def _agent(role, name, **fields):
+    return {"role": role, "name": name, "termsOfAddress": [], "description": [], **fields}
+
+
+_REPLY = _reply(
+    BiblioCoreEngineVLMMonograph,
+    titleInfo=[{"title": "KYTICE", "subTitle": "z pověstí národních", "parts": [], "lang": "cze"}],
+    publication=[{"placeTerm": ["Praze"], "publisher": [], "publisherInferred": False, "dateIssued": "1853",
+                  "edition": None}],
+    manufacture=[{"manufacturePlaceTerm": [], "manufacturePublisher": [], "manufactureDate": None}],
+    agents=[_agent("author", "K. J. ERBEN"), _agent("illustrator", "Mikoláš Aleš")],
+    language=["cze"],
+)
 
 
 class _Endpoint:
@@ -88,7 +111,7 @@ class _Endpoint:
 
 def _config(**overrides):
     return {
-        "name": "biblio_core_engine_vlm",
+        "name": "biblio_core_engine_vlm_monograph",
         "vlm": {"api_url": "https://example.org/v1", "model": "some/model", "api_key": "secret",
                 "max_attempts": 2},
         **overrides,
@@ -117,7 +140,7 @@ def _values(page_result):
 
 def test_a_page_is_read_grouped_and_located_in_the_alto(page):
     endpoint = _Endpoint(_REPLY)
-    engine = BiblioCoreEngineVLM(_config(), client=endpoint.client())
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=endpoint.client())
 
     result = engine.process(_span(page))
 
@@ -139,7 +162,7 @@ def test_a_page_is_read_grouped_and_located_in_the_alto(page):
 
 
 def test_a_value_not_found_in_the_alto_keeps_only_its_page(page):
-    engine = BiblioCoreEngineVLM(_config(), client=_Endpoint(_REPLY).client())
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(_REPLY).client())
 
     illustrator = _values(engine.process(_span(page)).spans[0])[("BiblioAgent", "illustrator")]
 
@@ -148,39 +171,25 @@ def test_a_value_not_found_in_the_alto_keeps_only_its_page(page):
 
 def test_the_prompt_holds_the_alto_text_and_the_schema_and_the_image_is_attached(page):
     endpoint = _Endpoint(_REPLY)
-    engine = BiblioCoreEngineVLM(_config(), client=endpoint.client())
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=endpoint.client())
 
     engine.process(_span(page))
 
     [system, user] = endpoint.requests[0]["messages"]
     assert "K. J. ERBEN\n\nKYTICE\nz pověstí národních\n\nV Praze 1853" in system["content"][0]["text"]
-    assert '"periodicalIssue"' in system["content"][0]["text"]
+    assert "The image of the page follows." in system["content"][0]["text"]
     assert user["content"][-1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
     assert endpoint.requests[0]["response_format"]["json_schema"]["schema"] == engine.schema
 
 
-def test_periodical_levels_are_read_apart_from_the_record(page):
-    reply = {**_REPLY,
-             "periodicalVolume": {"partNumber": "XII", "dateIssued": None},
-             "periodicalIssue": {"partNumber": None, "dateIssued": None}}
-    engine = BiblioCoreEngineVLM(_config(), client=_Endpoint(reply).client())
-
-    page_result = engine.process(_span(page)).spans[0]
-
-    [title_info] = page_result.periodical_volume.title_infos
-    assert title_info.part_number.text == "XII" and title_info.part_number.bbox is None
-    # A level with nothing read is absent.
-    assert page_result.periodical_issue is None
-
-
 def test_a_page_without_a_valid_reply_is_skipped(page):
-    engine = BiblioCoreEngineVLM(_config(), client=_Endpoint("nope", '{"titleInfo": 1}').client())
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint("nope", '{"titleInfo": 1}').client())
 
     assert engine.process(_span(page)).spans == (None,)
 
 
 def test_a_page_without_alto_is_read_without_boxes(page):
-    engine = BiblioCoreEngineVLM(_config(), client=_Endpoint(_REPLY).client())
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(_REPLY).client())
 
     page_result = engine.process([[BiblioPage(page[0])]]).spans[0]
 
@@ -188,14 +197,13 @@ def test_a_page_without_alto_is_read_without_boxes(page):
 
 
 def test_a_reply_with_nothing_read_gives_no_page(page):
-    empty = {key: ([] if isinstance(value, list) else None) for key, value in _REPLY.items()}
-    engine = BiblioCoreEngineVLM(_config(), client=_Endpoint(empty).client())
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(_reply(BiblioCoreEngineVLMMonograph)).client())
 
     assert engine.process(_span(page)).spans == (None,)
 
 
 def test_the_confidence_is_configurable(page):
-    engine = BiblioCoreEngineVLM(_config(confidence=0.7), client=_Endpoint(_REPLY).client())
+    engine = BiblioCoreEngineVLMMonograph(_config(confidence=0.7), client=_Endpoint(_REPLY).client())
 
     page_result = engine.process(_span(page)).spans[0]
 
@@ -209,19 +217,20 @@ def test_the_confidence_is_configurable(page):
 ])
 def test_invalid_configuration_is_rejected(overrides, message):
     with pytest.raises(ValueError, match=message):
-        BiblioCoreEngineVLM(_config(**overrides), client=object())
+        BiblioCoreEngineVLMMonograph(_config(**overrides), client=object())
 
 
 def test_the_engine_is_registered():
-    check_biblio_core_engine({"name": "biblio_core_engine_vlm"})
+    check_biblio_core_engine({"name": "biblio_core_engine_vlm_monograph"})
+    check_biblio_core_engine({"name": "biblio_core_engine_vlm_periodical"})
 
 
 def test_a_local_model_is_served_only_while_the_pages_are_read(page, fake_vllm, monkeypatch, tmp_path):
     monkeypatch.setenv("FAKE_VLLM_REPLY", json.dumps(_REPLY))
     prompt = tmp_path / "model_prompt.txt"
     prompt.write_text("Our own prompt. OCR: {{ ocr }}", encoding="utf-8")
-    engine = BiblioCoreEngineVLM({
-        "name": "biblio_core_engine_vlm",
+    engine = BiblioCoreEngineVLMMonograph({
+        "name": "biblio_core_engine_vlm_monograph",
         "local": {"model_dir": str(tmp_path / "qwen-biblio"), "vllm_args": ["--max-model-len", "8192"]},
         "system_prompt_path": str(prompt),
         "vlm": {"response_format": "schema", "max_attempts": 1},
@@ -242,14 +251,14 @@ def test_a_local_model_is_served_only_while_the_pages_are_read(page, fake_vllm, 
 ])
 def test_a_local_model_takes_no_endpoint(vlm, message):
     with pytest.raises(ValueError, match=message):
-        BiblioCoreEngineVLM({"name": "biblio_core_engine_vlm", "local": {"model_dir": "m"}, "vlm": vlm})
+        BiblioCoreEngineVLMMonograph({"name": "biblio_core_engine_vlm_monograph", "local": {"model_dir": "m"}, "vlm": vlm})
 
 
 def test_the_default_engine_maps_only_its_own_schema(tmp_path):
     (tmp_path / "schema.json").write_text("{}", encoding="utf-8")
 
     with pytest.raises(ValueError, match="maps only its own output schema"):
-        BiblioCoreEngineVLM(_config(schema_path=str(tmp_path / "schema.json")), client=object())
+        BiblioCoreEngineVLMMonograph(_config(schema_path=str(tmp_path / "schema.json")), client=object())
 
 
 class _ShortTitleEngine(BiblioCoreEngineVLMBase):
@@ -322,17 +331,18 @@ def second_page(tmp_path):
 
 
 def test_a_span_is_read_in_one_request_and_each_value_keeps_the_page_it_is_on(page, second_page):
-    reply = {**_REPLY, "titleInfo": [{"title": "KYTICE", "subTitle": None, "partNumber": "DÍL DRUHÝ",
-                                      "partName": None}]}
+    reply = {**_REPLY, "titleInfo": [{"title": "KYTICE", "subTitle": None, "lang": None,
+                                      "parts": [{"level": 1, "partNumber": "DÍL DRUHÝ", "partName": None}]}]}
     endpoint = _Endpoint(reply)
-    engine = BiblioCoreEngineVLM(_config(), client=endpoint.client())
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=endpoint.client())
 
     [result] = engine.process(_span(page, second_page)).spans
 
     assert result.page_keys == ("0001_page", "0002_page")
     [system, user] = endpoint.requests[0]["messages"]
     text = system["content"][0]["text"]
-    assert "The 2 attached scans are consecutive title pages" in text
+    assert "you are given 2 consecutive pages of one document" in text
+    assert "OCR text of the pages, each under its own heading" in text
     assert "--- Page 1 of 2 ---\nK. J. ERBEN" in text and "--- Page 2 of 2 ---\nDÍL DRUHÝ" in text
     assert [part["type"] for part in user["content"]].count("image_url") == 2
     values = _values(result)
@@ -345,15 +355,15 @@ def test_a_span_is_read_in_one_request_and_each_value_keeps_the_page_it_is_on(pa
 
 def test_a_single_page_prompt_says_nothing_about_several_pages(page):
     endpoint = _Endpoint(_REPLY)
-    BiblioCoreEngineVLM(_config(), client=endpoint.client()).process(_span(page))
+    BiblioCoreEngineVLMMonograph(_config(), client=endpoint.client()).process(_span(page))
 
     text = endpoint.requests[0]["messages"][0]["content"][0]["text"]
-    assert "attached scans" not in text and "--- Page" not in text
+    assert "SEVERAL PAGES" not in text and "--- Page" not in text
 
 
 def test_every_span_gets_its_own_result_in_order(page, second_page):
-    empty = {key: ([] if isinstance(value, list) else None) for key, value in _REPLY.items()}
-    engine = BiblioCoreEngineVLM(_config(), client=_Endpoint(empty, _REPLY).client())
+    empty = _reply(BiblioCoreEngineVLMMonograph)
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(empty, _REPLY).client())
 
     first, second = engine.process(_span(page) + _span(second_page)).spans
 
@@ -362,4 +372,139 @@ def test_every_span_gets_its_own_result_in_order(page, second_page):
 
 def test_a_page_in_two_spans_is_rejected(page):
     with pytest.raises(ValueError, match="more than one place"):
-        BiblioCoreEngineVLM(_config(), client=object()).process(_span(page) + _span(page))
+        BiblioCoreEngineVLMMonograph(_config(), client=object()).process(_span(page) + _span(page))
+
+
+# --- the monograph engine -----------------------------------------------------
+
+
+def test_the_monograph_engine_keeps_the_deepest_part_and_the_roles_it_has_fields_for(page):
+    reply = {**_REPLY,
+             "titleInfo": [{"title": "KYTICE", "subTitle": None, "lang": "cze", "parts": [
+                 {"level": 1, "partNumber": "I", "partName": "PŮDA"},
+                 {"level": 2, "partNumber": "4", "partName": "ČECHY"},
+                 {"level": 2, "partNumber": "5", "partName": "MORAVA"}]}],
+             "series": [{"seriesName": "SVĚTOVÁ KNIHOVNA", "seriesPartNumber": "sv. 312", "seriesPartName": None,
+                         "seriesIssn": "1211-3298", "seriesEditor": ["JOSEF TŮMA"], "lang": "cze"}],
+             "agents": [_agent("translator", "J. V. NOVÁK", termsOfAddress=["Dr."],
+                               description=["c. k. professor v Praze"]),
+                        _agent("composer", "B. SMETANA"), _agent("issuingBody", "UNIVERZITA KARLOVA")],
+             "statementOfResponsibility": ["Přeložil Dr. J. V. NOVÁK"], "isbn": ["80-7004-015"]}
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(reply).client())
+
+    result = engine.process(_span(page)).spans[0]
+
+    [title_info] = result.reading.title_infos
+    assert (title_info.part_number.text, title_info.part_name.text) == ("4", "ČECHY")
+    [series] = result.reading.series
+    assert (series.name.text, series.part_number.text) == ("SVĚTOVÁ KNIHOVNA", "sv. 312")
+    [translator] = result.reading.agents
+    assert translator.role == AgentRole.TRANSLATOR
+    assert [a.text for a in translator.affiliations] == ["c. k. professor v Praze"]
+    assert result.periodical_volume is None and result.periodical_issue is None
+
+
+# --- the periodical engine ----------------------------------------------------
+
+
+def _periodical_config(**overrides):
+    return _config(name="biblio_core_engine_vlm_periodical", **overrides)
+
+
+_PERIODICAL_REPLY = _reply(
+    BiblioCoreEngineVLMPeriodical,
+    periodical=[{"periodicalTitle": "KYTICE", "periodicalSubTitle": None, "lang": "cze"}],
+    volume={"volumePartNumber": "XII", "volumeDateIssued": "1853"},
+    issue={"issuePartNumber": "9", "issueDateIssued": None, "issuePartName": "Vánoční číslo"},
+    frequency="Vychází každou sobotu",
+    agents=[_agent("editor", "K. J. ERBEN", type="personal"),
+            _agent("issuingBody", "Spolek", type="corporate")],
+    publication=[{"placeTerm": ["Praze"], "publisher": [], "publisherInferred": False, "dateIssued": None}],
+)
+
+
+def test_the_periodical_engine_reads_the_volume_the_issue_and_the_editor_as_redaktor(page):
+    engine = BiblioCoreEngineVLMPeriodical(_periodical_config(), client=_Endpoint(_PERIODICAL_REPLY).client())
+
+    result = engine.process(_span(page)).spans[0]
+
+    [title_info] = result.reading.title_infos
+    assert title_info.title.text == "KYTICE" and title_info.title.alto.words == ("S4",)
+    [volume_title] = result.periodical_volume.title_infos
+    assert volume_title.part_number.text == "XII"
+    [volume_date] = result.periodical_volume.publications
+    assert volume_date.date_issued.text == "1853" and volume_date.date_issued.alto.words == ("S10",)
+    [issue_title] = result.periodical_issue.title_infos
+    assert (issue_title.part_number.text, issue_title.part_name.text) == ("9", "Vánoční číslo")
+    [publication] = result.reading.publications
+    assert [p.text for p in publication.places] == ["Praze"]
+    assert publication.frequency.text == "Vychází každou sobotu"
+    assert [(a.role, a.name.text) for a in result.reading.agents] == [(AgentRole.REDAKTOR, "K. J. ERBEN")]
+
+
+def test_a_periodical_frequency_without_an_imprint_is_an_imprint_of_its_own(page):
+    reply = {**_PERIODICAL_REPLY, "publication": []}
+    engine = BiblioCoreEngineVLMPeriodical(_periodical_config(), client=_Endpoint(reply).client())
+
+    [publication] = engine.process(_span(page)).spans[0].reading.publications
+
+    assert publication.frequency.text == "Vychází každou sobotu" and publication.places == ()
+
+
+def test_a_periodical_level_with_nothing_read_is_absent(page):
+    reply = {**_PERIODICAL_REPLY, "issue": {"issuePartNumber": None, "issueDateIssued": None, "issuePartName": None}}
+    engine = BiblioCoreEngineVLMPeriodical(_periodical_config(), client=_Endpoint(reply).client())
+
+    assert engine.process(_span(page)).spans[0].periodical_issue is None
+
+
+def _alto_lines(*blocks):
+    """ALTO of TextBlocks, each a list of (top, height, text) lines."""
+    body = "".join(
+        f'<TextBlock ID="B{b}">' + "".join(
+            f'<TextLine ID="L{b}_{i}" VPOS="{top}" HEIGHT="{height}">'
+            f'<String CONTENT="{text}" HPOS="10" VPOS="{top}" WIDTH="100" HEIGHT="{height}"/></TextLine>'
+            for i, (top, height, text) in enumerate(lines)) + "</TextBlock>"
+        for b, lines in enumerate(blocks))
+    return ('<alto xmlns="http://www.loc.gov/standards/alto/ns-v4#"><Layout><Page ID="P1" WIDTH="1000" '
+            f'HEIGHT="3000"><PrintSpace>{body}</PrintSpace></Page></Layout></alto>')
+
+
+def test_the_periodical_ocr_cuts_runs_of_body_text_and_keeps_the_masthead(tmp_path):
+    masthead = [(10, 120, "NÁRODNÍ LISTY"), (140, 30, "Ročník XII. Číslo 9.")]
+    article = [(300 + 22 * i, 20, f"line {i}") for i in range(14)]
+    short = [(700 + 22 * i, 20, f"short {i}") for i in range(5)]
+    alto = tmp_path / "page.xml"
+    alto.write_text(_alto_lines(masthead, article + short), encoding="utf-8")
+
+    text = body_text_cut(str(alto))
+
+    # The article's 14 body lines are a dense run; the 5 lines printed further down the column, more than a
+    # line apart, are a run of their own, too short to be cut.
+    assert text == ("NÁRODNÍ LISTY\nRočník XII. Číslo 9.\n\n[... 14 lines of body text omitted ...]\n"
+                    + "\n".join(f"short {i}" for i in range(5)))
+
+
+def test_the_periodical_prompt_holds_the_cut_ocr(tmp_path):
+    Image.new("RGB", (1000, 3000), "white").save(tmp_path / "p.jpg")
+    article = [(300 + 22 * i, 20, f"line {i}") for i in range(14)]
+    (tmp_path / "p.xml").write_text(_alto_lines([(10, 120, "KYTICE")], article), encoding="utf-8")
+    endpoint = _Endpoint(_PERIODICAL_REPLY)
+    engine = BiblioCoreEngineVLMPeriodical(_periodical_config(), client=endpoint.client())
+
+    engine.process([[BiblioPage(str(tmp_path / "p.jpg"), str(tmp_path / "p.xml"))]])
+
+    text = endpoint.requests[0]["messages"][0]["content"][0]["text"]
+    assert "KYTICE\n\n[... 14 lines of body text omitted ...]" in text
+    assert "LONG TEXT IS CUT FROM THE OCR" in text and "SEVERAL PAGES" not in text
+
+
+def test_the_periodical_prompt_reads_several_pages_together(page, second_page):
+    endpoint = _Endpoint(_PERIODICAL_REPLY)
+    engine = BiblioCoreEngineVLMPeriodical(_periodical_config(), client=endpoint.client())
+
+    engine.process(_span(page, second_page))
+
+    text = endpoint.requests[0]["messages"][0]["content"][0]["text"]
+    assert "you are given 2 consecutive pages of one periodical" in text
+    assert "--- Page 2 of 2 ---\nDÍL DRUHÝ" in text and "The images of the pages follow, in page order." in text

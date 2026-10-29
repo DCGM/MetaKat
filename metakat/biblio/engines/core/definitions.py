@@ -25,9 +25,15 @@ biblio_core_engines = {
         requires=('ultralytics', 'text_geometry_aligner'),
         extra='inference',
     ),
-    'biblio_core_engine_vlm': EngineEntry(
-        module='metakat.biblio.engines.core.biblio_core_engine_vlm',
-        attribute='BiblioCoreEngineVLM',
+    'biblio_core_engine_vlm_monograph': EngineEntry(
+        module='metakat.biblio.engines.core.biblio_core_engine_vlm_monograph',
+        attribute='BiblioCoreEngineVLMMonograph',
+        requires=('openai', 'jsonschema', 'jinja2', 'text_geometry_aligner', 'ortools'),
+        extra='vlm',
+    ),
+    'biblio_core_engine_vlm_periodical': EngineEntry(
+        module='metakat.biblio.engines.core.biblio_core_engine_vlm_periodical',
+        attribute='BiblioCoreEngineVLMPeriodical',
         requires=('openai', 'jsonschema', 'jinja2', 'text_geometry_aligner', 'ortools'),
         extra='vlm',
     ),

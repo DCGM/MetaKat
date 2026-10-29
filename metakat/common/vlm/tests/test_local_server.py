@@ -85,7 +85,7 @@ def test_invalid_local_model_configuration_is_rejected(config, message):
 
 def test_local_models_are_found_anywhere_in_a_configuration():
     override = {
-        "biblio": {"core": {"name": "biblio_core_engine_vlm", "local": {"model_dir": "m"}}},
+        "biblio": {"core": {"name": "biblio_core_engine_vlm_monograph", "local": {"model_dir": "m"}}},
         "chapter": {"core": {"stages": [{"local": {}}]}},
         "page_type": {"core": {"vlm": {"model": "x"}}},
     }

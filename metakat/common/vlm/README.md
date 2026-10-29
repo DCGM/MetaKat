@@ -3,8 +3,8 @@
 `metakat.common.vlm` asks a vision-language model for JSON. It is the shared
 part of every engine that reads pages with a model, so such an engine only
 brings its prompts, its JSON schema and the mapping of the reply to its
-result. The first one is the biblio core
-[`biblio_core_engine_vlm`](../../biblio/README.md#engine-vision-language-model-biblio_core_engine_vlm).
+result. The first are the biblio cores
+[`biblio_core_engine_vlm_monograph` and `biblio_core_engine_vlm_periodical`](../../biblio/README.md#engine-vision-language-model-biblio_core_engine_vlm_monograph-biblio_core_engine_vlm_periodical).
 
 It needs the `[vlm]` extra (`pip install -e ".[vlm]"`), which the worker
 extra includes.

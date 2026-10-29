@@ -1,0 +1,438 @@
+{
+  "type": "object",
+  "properties": {
+    "periodical": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "periodicalTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "periodicalSubTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lang": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/languageCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "periodicalTitle",
+          "periodicalSubTitle",
+          "lang"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "supplement": {
+      "type": "boolean"
+    },
+    "volume": {
+      "type": "object",
+      "properties": {
+        "volumePartNumber": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "volumeDateIssued": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "volumePartNumber",
+        "volumeDateIssued"
+      ],
+      "additionalProperties": false
+    },
+    "issue": {
+      "type": "object",
+      "properties": {
+        "issuePartNumber": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "issueDateIssued": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "issuePartName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "issuePartNumber",
+        "issueDateIssued",
+        "issuePartName"
+      ],
+      "additionalProperties": false
+    },
+    "frequency": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "statementOfResponsibility": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "author",
+              "illustrator",
+              "photographer",
+              "translator",
+              "editor",
+              "composer",
+              "reviewer",
+              "issuingBody",
+              "contributor",
+              "other"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "personal",
+              "corporate",
+              "conference",
+              "family"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "termsOfAddress": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "role",
+          "type",
+          "name",
+          "termsOfAddress",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "etal": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "publication": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "placeTerm": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "publisher": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "publisherInferred": {
+            "type": "boolean"
+          },
+          "dateIssued": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "placeTerm",
+          "publisher",
+          "publisherInferred",
+          "dateIssued"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "manufacture": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "manufacturePlaceTerm": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "manufacturePublisher": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "manufactureDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "manufacturePlaceTerm",
+          "manufacturePublisher",
+          "manufactureDate"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "distribution": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "distributionPlaceTerm": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "distributor": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "distributionDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "distributionPlaceTerm",
+          "distributor",
+          "distributionDate"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "issn": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "isbn": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "language": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/languageCode"
+      }
+    },
+    "originalLanguage": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/languageCode"
+      }
+    }
+  },
+  "required": [
+    "periodical",
+    "supplement",
+    "volume",
+    "issue",
+    "frequency",
+    "statementOfResponsibility",
+    "agents",
+    "etal",
+    "publication",
+    "manufacture",
+    "distribution",
+    "issn",
+    "isbn",
+    "language",
+    "originalLanguage"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "languageCode": {
+      "type": "string",
+      "enum": [
+        "cze",
+        "slo",
+        "ger",
+        "eng",
+        "fre",
+        "ita",
+        "lat",
+        "pol",
+        "rus",
+        "hun",
+        "grc",
+        "gre",
+        "dut",
+        "spa",
+        "por",
+        "swe",
+        "dan",
+        "nor",
+        "nno",
+        "nob",
+        "fin",
+        "est",
+        "lav",
+        "lit",
+        "bel",
+        "ukr",
+        "bul",
+        "mac",
+        "hrv",
+        "srp",
+        "slv",
+        "bos",
+        "cnr",
+        "rum",
+        "alb",
+        "ice",
+        "gle",
+        "wel",
+        "gla",
+        "bre",
+        "baq",
+        "cat",
+        "glg",
+        "oci",
+        "pro",
+        "roh",
+        "ltz",
+        "fry",
+        "yid",
+        "heb",
+        "epo",
+        "vol",
+        "ina",
+        "ido",
+        "chu",
+        "gmh",
+        "goh",
+        "enm",
+        "ang",
+        "frm",
+        "fro",
+        "dum",
+        "hsb",
+        "dsb",
+        "wen",
+        "csb",
+        "rom",
+        "mlt",
+        "arm",
+        "geo",
+        "tur",
+        "ota",
+        "per",
+        "ara",
+        "san",
+        "hin",
+        "chi",
+        "jpn",
+        "kor",
+        "syr",
+        "cop",
+        "egy",
+        "akk",
+        "arc",
+        "fao",
+        "smi",
+        "sme",
+        "non",
+        "got",
+        "tat",
+        "kaz",
+        "mon",
+        "vie",
+        "tha",
+        "ind",
+        "may",
+        "swa",
+        "afr",
+        "ben",
+        "urd",
+        "tam",
+        "tib",
+        "bur",
+        "amh",
+        "gez",
+        "pli",
+        "lad",
+        "rup",
+        "fur",
+        "srd",
+        "cos",
+        "wln",
+        "nds",
+        "gsw",
+        "sla",
+        "gem",
+        "roa",
+        "mul",
+        "und",
+        "zxx",
+        "mis"
+      ]
+    }
+  }
+}

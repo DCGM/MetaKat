@@ -14,7 +14,7 @@
   - [YOLO + ALTO](#engine-yolo--alto-biblio_core_engine_yolo_monograph-biblio_core_engine_yolo_periodical)
     - [Label configuration](#label-configuration)
     - [Reading a page](#reading-a-page)
-  - [Vision-language model](#engine-vision-language-model-biblio_core_engine_vlm)
+  - [Vision-language model](#engine-vision-language-model-biblio_core_engine_vlm_monograph-biblio_core_engine_vlm_periodical)
     - [Local models](#local-models)
     - [Another output schema](#another-output-schema)
 - [Available bind implementation](#available-bind-implementation)
@@ -122,7 +122,7 @@ creating those belongs to the [bind engine](#available-bind-implementation).
 How the pages of a span are read together is the core's: the
 [YOLO core](#engine-yolo--alto-biblio_core_engine_yolo_monograph-biblio_core_engine_yolo_periodical) reads each page on its
 own and merges them (`merge_span`, below), the
-[VLM core](#engine-vision-language-model-biblio_core_engine_vlm) gives the model
+[VLM core](#engine-vision-language-model-biblio_core_engine_vlm_monograph-biblio_core_engine_vlm_periodical) gives the model
 all images and OCR of the span in one request.
 
 The classes are defined in `metakat/biblio/engines/core/models.py` and built
@@ -304,7 +304,8 @@ The registered core implementations are:
 |---|---|
 | `biblio_core_engine_yolo_monograph` | YOLO geometry aligned with ALTO text, with a detector trained on books. |
 | `biblio_core_engine_yolo_periodical` | The same, with a detector trained on periodicals. |
-| `biblio_core_engine_vlm` | A vision-language model reading the page image and its ALTO text; its values located in the ALTO afterwards. |
+| `biblio_core_engine_vlm_monograph` | A vision-language model reading the span's page images and ALTO text with the book prompt; its values located in the ALTO afterwards. |
+| `biblio_core_engine_vlm_periodical` | The same with the periodical prompt, on OCR with the body text cut out. |
 
 ### Engine: YOLO + ALTO (`biblio_core_engine_yolo_monograph`, `biblio_core_engine_yolo_periodical`)
 
@@ -451,9 +452,9 @@ Configuring a label is what makes a type reachable. A `BiblioType` absent from
 `labels` is never read, so the hierarchy and issue behaviour it drives stays
 inactive for that engine.
 
-### Engine: vision-language model (`biblio_core_engine_vlm`)
+### Engine: vision-language model (`biblio_core_engine_vlm_monograph`, `biblio_core_engine_vlm_periodical`)
 
-This engine asks a vision-language model for each page's bibliographic data,
+These engines ask a vision-language model for the bibliographic data of each span of title pages,
 through the shared client in [`metakat/common/vlm`](../common/vlm/README.md).
 The model is either:
 
@@ -472,7 +473,7 @@ An API model:
 
 ```json
 {
-  "name": "biblio_core_engine_vlm",
+  "name": "biblio_core_engine_vlm_monograph",
   "vlm": {
     "api_url": "https://openrouter.ai/api/v1",
     "model": "qwen/qwen3-vl-235b-a22b-instruct",
@@ -488,7 +489,7 @@ A local model, with its files and prompt in the engine directory:
 
 ```json
 {
-  "name": "biblio_core_engine_vlm",
+  "name": "biblio_core_engine_vlm_monograph",
   "local": {
     "model_dir": "biblio/vlm/model",
     "served_model_name": "qwen-biblio",
@@ -503,7 +504,7 @@ A local model, with its files and prompt in the engine directory:
 |---|---|
 | `vlm` | How to call the model and ask it for JSON; every option is in the [client README](../common/vlm/README.md#configuration). For a local model without `api_url`, `model` and the key, which the local server sets. |
 | `local` | A local model: `model_dir` (its files, resolved against the engine directory), `served_model_name` (default: the directory's name) and `vllm_args`, the arguments of `vllm serve` that belong to the model. Host, port, GPU share and served name are set by the server and may not be given. |
-| `system_prompt_path`, `user_prompt_path` | The prompts, when not the engine's own in `engines/core/vlm/`; resolved against the engine directory. |
+| `system_prompt_path`, `user_prompt_path` | The prompts, when not the engine's own in `engines/core/vlm/<kind>/`; resolved against the engine directory. |
 | `schema_path` | The output schema, only for an engine without its own (see [Another output schema](#another-output-schema)). |
 | `confidence` | The confidence every value gets, from 0 to 1; default `0.95`. The model gives none per value. |
 
@@ -546,10 +547,10 @@ implements `page_from_reply(reply, evidence, page_keys)`, the mapping of a
 reply in its schema onto a `BiblioSpanResult`, passing every value through
 `evidence(json_path, text)`, which locates it in the ALTO.
 
-`BiblioCoreEngineVLM` is the one implementation so far, for API and local
-models alike. Its schema, prompts and mapping are in `engines/core/vlm/`; a
-local model's prompts may replace its prompts, but its schema may not be
-replaced, since its mapping reads only that schema - a configured
+The two implementations, for API and local models alike, are described in
+[The monograph and periodical engines](#the-monograph-and-periodical-engines).
+A local model's prompts may replace an engine's prompts, but its schema may
+not be replaced, since its mapping reads only that schema - a configured
 `schema_path` is rejected. A model trained for another output schema needs a
 subclass that names no schema of its own (`DEFAULT_SCHEMA_PATH = None`), so
 takes it from `schema_path`, implements its mapping, lists the keys holding
@@ -562,12 +563,13 @@ For each span the engine sends one request:
 
 1. reads the ALTO of every page of the span and writes the text into the
    system prompt (`{{ ocr }}`): a line per `TextLine`, a blank line between
-   `TextBlock`s; a span of several pages gives each page under a
-   `--- Page k of n ---` line. The prompt also receives `{{ page_count }}` and
-   the schema as `{{ schema }}`, so the two cannot drift apart. The engine's
-   own prompt tells the model, only when there are several pages, that they
-   are consecutive title pages of one document to be read as one record; a
-   one-page span gets exactly the single-page prompt;
+   `TextBlock`s (`page_text`, which an engine may override, as the periodical
+   one does); a span of several pages gives each page under a
+   `--- Page k of n ---` line. The prompt also receives `{{ page_count }}`,
+   the schema as `{{ schema }}` and `{{ annotations }}`, always `None`. The
+   engines' own prompts tell the model, only when there are several pages,
+   that they are consecutive pages of one document to be read as one record;
+   a one-page span gets exactly the single-page prompt;
 2. sends the system prompt and the user prompt with the page images attached
    in page order, and gets the reply as JSON validated against the output
    schema; a local model needs vLLM's `--limit-mm-per-prompt` to allow as many
@@ -586,18 +588,50 @@ differently from the OCR or no page has ALTO, keeps only the span's first page:
 `bbox` is `None` and `alto` is empty. Text printed twice may occasionally be
 located on the wrong occurrence.
 
-The reply is grouped the way the result is, so it maps onto the containers
-directly; each JSON key is named after the MetaKat field it fills:
+#### The monograph and periodical engines
 
-| Reply | Result |
-|---|---|
-| `titleInfo[]` - `title`, `subTitle`, `partNumber`, `partName` | one `BiblioTitleInfo` each |
-| `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`, `edition`, `frequency` | one `BiblioPublication` each |
-| `manufacture[]` - `manufacturePlaceTerm[]`, `manufacturePublisher[]`, `manufactureDate` | one `BiblioManufacture` each |
-| `series[]` - `seriesName`, `seriesPartNumber`, `seriesPartName` | one `BiblioSeries` each |
-| `agents[]` - `role`, `name`, `affiliation[]`, `email[]` | one `BiblioAgent` each, `role` an `AgentRole` value |
-| `periodicalVolume` - `partNumber`, `dateIssued` | `periodical_volume`: a `BiblioTitleInfo.part_number` and a `BiblioPublication.date_issued`, as the YOLO engine reads them |
-| `periodicalIssue` - `partNumber`, `dateIssued` | `periodical_issue`, likewise |
+| Config `name` | Prompt and schema | For |
+|---|---|---|
+| `biblio_core_engine_vlm_monograph` | `engines/core/vlm/monograph/` | books, with `biblio_bind_engine_monograph` |
+| `biblio_core_engine_vlm_periodical` | `engines/core/vlm/periodical/` | periodicals, with `biblio_bind_engine_periodical` |
+
+The prompts and schemas are the newest of their development (smart_digiline
+`biblio.2026-10-20` and `periodical.2026-10-20`, `prompts/01_prompt_dev*`),
+written for one page. MetaKat adds to each, only for a span of several pages,
+a paragraph telling the model it gets the consecutive pages of one document,
+each page's OCR under its own heading, to be read together as one record, and
+the plural forms of the OCR heading and the image line. With one page the
+rendered prompt is the original, byte for byte. The prompts keep their
+`{% if annotations %}` parts, which MetaKat never fills. The schema is not in
+the prompt text; the model gets it as the response format, so a
+`response_format` of `json` leaves the model without it.
+
+The periodical prompt was developed on OCR with the dense body text cut out:
+newspaper-like first pages carry columns of article text, which hold no data
+of the periodical. The periodical engine cuts it the same way
+(`body_text_cut`, identical to `ocr_text.py` there on all 1970 of its pages):
+within one `TextBlock`, a run of at least 12 lines set in the page's body
+height (the character-weighted median line height, ±20 %) and at most one line
+apart is replaced by `[... N lines of body text omitted ...]`.
+
+The schemas ask for more than the core result holds; what has no place in it
+is not read:
+
+| Reply | Monograph engine | Periodical engine |
+|---|---|---|
+| title | `titleInfo[]` - `title`, `subTitle`: one `BiblioTitleInfo` each | `periodical[]` - `periodicalTitle`, `periodicalSubTitle`: one `BiblioTitleInfo` each |
+| parts | of `titleInfo[].parts`, the first of the deepest `level` (a `část` within a `díl`) as `part_number`, `part_name`; the others are not kept, as a title holds one part | - |
+| volume, issue | - | `volume` (`volumePartNumber`, `volumeDateIssued`) as `periodical_volume`, `issue` (`issuePartNumber`, `issuePartName`, `issueDateIssued`) as `periodical_issue`: the number and name as a `BiblioTitleInfo`, the date as a `BiblioPublication`, as the YOLO engine reads them |
+| imprint | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`, `edition` | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`; `frequency` in the first one |
+| printer | `manufacture[]`: one `BiblioManufacture` each | the same |
+| series | `series[]` - `seriesName`, `seriesPartNumber`, `seriesPartName` | - |
+| names | `agents[]` as author, editor, translator, illustrator, photographer; `description[]` as affiliations | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue); author, translator, illustrator, photographer as such; `description[]` as affiliations |
+| not read | `statementOfResponsibility`, `etal`, `distribution`, `copyrightDate`, `isbn`, `illustrativeContent`, `seriesIssn`, `seriesEditor`, the roles composer, reviewer and issuingBody, `termsOfAddress`, `publisherInferred`, the languages | `supplement`, `statementOfResponsibility`, `etal`, `distribution`, `issn`, `isbn`, the roles contributor, composer, reviewer, issuingBody and other, the agent `type`, `termsOfAddress`, `publisherInferred`, the languages |
+
+A publisher the model inferred (`publisherInferred`, e.g. the author of a book
+published "nákladem vlastním") is read as the publisher. Only text values are
+located in the ALTO: the labels in `LABEL_KEYS` (roles, agent types, language
+codes) and the flags and levels are not.
 
 Unlike the detector, the model can tell statements apart, so the prompt asks
 for one object per statement printed on the page - two imprints, a title in

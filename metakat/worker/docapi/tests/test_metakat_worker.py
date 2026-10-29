@@ -371,7 +371,7 @@ def _run_with_override(tmp_path, worker, workspace, definition, override):
 def test_an_override_setting_up_a_local_model_fails_the_job(tmp_path, worker, workspace):
     definition = {"biblio": {"core": {"name": "biblio_core_engine_yolo_monograph"},
                              "bind": {"name": "biblio_bind_engine_monograph"}}}
-    override = {"biblio": {"core": {"name": "biblio_core_engine_vlm", "local": {"model_dir": "model"}}}}
+    override = {"biblio": {"core": {"name": "biblio_core_engine_vlm_monograph", "local": {"model_dir": "model"}}}}
 
     response, process = _run_with_override(tmp_path, worker, workspace, definition, override)
 
@@ -382,7 +382,7 @@ def test_an_override_setting_up_a_local_model_fails_the_job(tmp_path, worker, wo
 
 def test_an_override_may_replace_one_api_model_with_another(tmp_path, worker, workspace):
     def api_core(model):
-        return {"name": "biblio_core_engine_vlm",
+        return {"name": "biblio_core_engine_vlm_monograph",
                 "vlm": {"api_url": "https://openrouter.ai/api/v1", "model": model,
                         "api_key_env": "OPENROUTER_API_KEY"}}
 
