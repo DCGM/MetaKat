@@ -221,8 +221,9 @@ class BiblioBindEngineMonograph(BiblioBindEngine):
         there is one, then the volumes in document order."""
         multipart = self.is_multipart(scan)
         hierarchy = HierarchyType.MULTIPART if multipart else HierarchyType.MONOGRAPH
-        documents = split_documents(scan.documents, scan.spans, lambda span: span.part, "part") \
-            if multipart else scan.documents
+        documents = scan.documents
+        if multipart:
+            documents = split_documents(documents, scan.spans, lambda span: span.part, "part", with_opening=True)
         logger.info(f"Binding {len(documents)} {hierarchy.value} volume(s)")
         volumes: List[MetakatVolume] = []
         for document, winner in zip(documents, authoritative_spans(documents, scan.spans)):

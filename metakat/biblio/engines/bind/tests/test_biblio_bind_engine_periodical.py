@@ -148,3 +148,12 @@ def test_every_document_of_a_periodical_scan_is_an_issue():
     [volume] = _of(io, MetakatVolume)
     [title] = _of(io, MetakatTitle)
     assert {i.parent_id for i in issues} == {volume.id} and volume.parent_id == title.id
+
+
+def test_a_second_issue_starts_on_its_title_page():
+    from metakat.schemas.base_objects import PageType
+    pages = _scan((), {0: .99, 12: .99}, count=24)
+    pages[11].pageType = (PageType.FRONT_COVER, .9)
+    io, _ = _bound(pages, _read(0, 'Zlatá Praha', issue='1'), _read(12, 'Zlatá Praha', issue='2'))
+    first, second = _of(io, MetakatIssue)
+    assert _parents(io) == [first.id] * 12 + [second.id] * 12

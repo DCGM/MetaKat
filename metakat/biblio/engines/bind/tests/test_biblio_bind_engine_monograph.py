@@ -23,6 +23,7 @@ from metakat.schemas.base_objects import (
     ObjectItem,
     ObjectModel,
     PackageType,
+    PageType,
     ProarcIO,
 )
 
@@ -787,3 +788,24 @@ def test_a_single_proarc_volume_is_the_scan_only_when_the_scan_is_one_document(s
     assert len(found) == volumes
     assert set(_parents(io)) == {v.id for v in found}
     assert (found[0].id == record.id) == (volumes == 1)
+
+
+@pytest.mark.parametrize('types, start', [
+    # back cover of part 1, then part 2's front cover, end paper, blank, title page
+    ({11: PageType.BACK_COVER, 12: PageType.FRONT_COVER, 13: PageType.FRONT_END_PAPER, 14: PageType.BLANK}, 12),
+    # a blank before the earliest opening page may close part 1, so stays there
+    ({12: PageType.BLANK, 13: PageType.FRONTISPIECE, 14: PageType.BLANK}, 13),
+    # no opening page: the title page starts
+    ({14: PageType.BLANK}, 15),
+    ({}, 15),
+])
+def test_a_second_part_starts_on_the_first_page_of_its_opening(types, start):
+    pages = _scan((), {1: .99, 15: .99}, count=30)
+    for index, kind in types.items():
+        pages[index].pageType = (kind, .9)
+    io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1'), _read(15, 'Dějiny', part='Díl 2'))
+    parts = _of(io, MetakatVolume)
+    assert _parents(io) == [parts[0].id] * start + [parts[1].id] * (30 - start)
+    starting = sorted((p for p in _of(io, MetakatPage) if p.startsDocument and p.startsDocument.val),
+                      key=lambda p: p.batch_index)
+    assert [p.batch_index for p in starting] == [start]

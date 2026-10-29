@@ -33,6 +33,7 @@ from metakat.biblio.engines.core.models import (
     container_values,
 )
 from metakat.common.aux.document_groups import assign_page_indices, bottom_documents, lowest_document_groups
+from metakat.page_type.engines.core.boundaries import NEUTRAL, OPENING
 from metakat.schemas.base_objects import (
     DocumentType,
     GroupType,
@@ -466,6 +467,7 @@ def split_documents(
     spans: List[TitleSpan],
     reads_unit: Callable[[TitleSpan], bool],
     unit: str,
+    with_opening: bool = False,
 ) -> List[List[MetakatPage]]:
     """The documents with a start added where one holds two units - two parts, two issues.
 
@@ -474,21 +476,25 @@ def split_documents(
     pages apart, at least one of them reading what makes a unit
     (`reads_unit`: a part number or name, an issue number or date), and not
     the same unit twice. The new document starts on the later span's first
-    title page, whose startsDocument is set with the span's score; an
-    annotated start is never overridden. The spans are renumbered to the new
-    documents."""
+    title page or, `with_opening`, on the first page of the opening before it
+    (opening_start); that page's startsDocument is set with the span's score.
+    An annotated start is never overridden. The spans are renumbered to the
+    new documents."""
     starts = set()
-    for index in range(len(documents)):
+    for index, document in enumerate(documents):
         strong = [s for s in spans if s.document == index and s.score >= SPLIT_MINIMUM_SCORE]
         for previous, span in zip(strong, strong[1:]):
-            if (span.start - previous.end - 1 >= SPLIT_MINIMUM_GAP
+            if not (span.start - previous.end - 1 >= SPLIT_MINIMUM_GAP
                     and (reads_unit(span) or reads_unit(previous))
-                    and not same_unit(previous, span)
-                    and not is_annotated(span.pages[0].startsDocument)):
-                starts.add(span.pages[0].id)
-                span.pages[0].startsDocument = (True, span.score)
-                logger.info("Title page %s starts another %s inside a document (span score %.2f)",
-                            span.pages[0].id, unit, span.score)
+                    and not same_unit(previous, span)):
+                continue
+            start = opening_start(document, span, previous) if with_opening else span.pages[0]
+            if is_annotated(start.startsDocument):
+                continue
+            starts.add(start.id)
+            start.startsDocument = (True, span.score)
+            logger.info("Page %s starts another %s inside a document, %d page(s) before its title page "
+                        "(span score %.2f)", start.id, unit, span.start - start.batch_index, span.score)
     if not starts:
         return documents
     result: List[List[MetakatPage]] = []
@@ -502,6 +508,32 @@ def split_documents(
     for span in spans:
         span.document = document_of_page[span.pages[0].id]
     return result
+
+
+def opening_start(document: List[MetakatPage], span: TitleSpan, previous: TitleSpan) -> MetakatPage:
+    """The first page of the opening run before a title page: where a book whose title page it is begins.
+
+    A volume is scanned front cover, end papers, frontispiece, title page, so
+    the pages right before its title page belong to it. Walking back from the
+    title page over pages of opening types (front cover, end papers, front
+    jacket, frontispiece) and of neutral ones (blank, cover, fly leaf, ...),
+    the start is the earliest opening page reached; a neutral page before it
+    may close the previous volume, so stays there. Without an opening page the
+    title page itself starts. The walk stops at a page of any other type - a
+    back cover closes the previous volume - and never reaches the previous
+    span. The types are the page-type stage's own (boundaries.OPENING, NEUTRAL)."""
+    by_index = {page.batch_index: page for page in document}
+    start = span.pages[0]
+    index = span.start - 1
+    while index > previous.end and index in by_index:
+        page = by_index[index]
+        kind = page.pageType.text if page.pageType is not None else None
+        if kind in OPENING and kind != PageType.TITLE_PAGE:
+            start = page
+        elif kind not in NEUTRAL:
+            break
+        index -= 1
+    return start
 
 
 def authoritative_spans(documents: List[List[MetakatPage]], spans: List[TitleSpan]) -> List[Optional[TitleSpan]]:

@@ -1100,9 +1100,24 @@ previous strong span of the same document:
   issue number;
 - the start page's `startsDocument` is not annotated.
 
-The new document starts on the later span's first title page. Its
-`startsDocument` is set to true with the span's score as confidence, so the
-output tells where the binder added a start. A scan of monographs is never
+Where the new document starts differs by binder:
+
+- **monograph:** on the first page of the opening before the later span's
+  title page (`opening_start`). A volume is scanned front cover, end papers,
+  frontispiece, title page, so those pages belong to the new part. Walking back
+  from the title page over pages of opening types (front cover, end papers,
+  front jacket, frontispiece) and neutral ones (blank, cover, fly leaf, ...),
+  the start is the earliest opening page reached; a neutral page before it may
+  close the previous part, so stays there. The walk stops at any other type - a
+  back cover closes the previous part - and without an opening page the title
+  page itself starts. The types are the page-type stage's own
+  (`boundaries.OPENING`, `NEUTRAL`).
+- **periodical:** on the later span's first title page, the first page of an
+  issue.
+
+The start page's `startsDocument` is set to true with the span's score as
+confidence, so the output tells where the binder added a start; the score is
+not a calibrated probability. A scan of monographs is never
 split: two titles far apart in one book are a half-title and a title page, or a
 book quoting another.
 
@@ -1174,7 +1189,7 @@ contracts, and are documented so a change can be scoped against them.
 | Area | Limitation |
 |---|---|
 | Batch types | A scan is assumed to hold monographs or one multipart monograph (monograph binder), or one periodical (periodical binder). A mixed scan - such as the `boundaries_*_mixed` test batches - is bound as all one kind, and two multipart works or periodicals share one title. |
-| Split position | A second part or issue starts on its title page; the front cover, end papers or half-title before it stay with the previous document. |
+| Split position | A second issue starts on its title page, and a second part on its opening only when the page types before its title page are opening types; a misclassified cover leaves those pages with the previous document. |
 | ProArc integration | Only a record with exactly one `volume`-model object is used. Multi-object records, `title` and `unit` objects, and any issue-level guidance are ignored, and such a batch silently takes the vision-only branch. |
 | Periodical path | No production label configuration in this repository maps a detector label to `PeriodicalVolumePartNumber` or `PeriodicalVolumeDateIssued`, so the `periodical` hierarchy and the consolidation it drives are reachable but not exercised by a real run. |
 
