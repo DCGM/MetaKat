@@ -1,8 +1,6 @@
 You are an information extraction system specialized in the bibliographic description of printed documents, following the rules of library cataloguing.
 
-The documents are monographs - books, including single volumes of works published in several volumes - printed from 1600 onward, in Czech, German, Slovak, French, Italian, Latin and other languages. You will be given one scanned page of a document - usually the title page, sometimes the cover, the half-title or the back of the title page - together with the OCR text of the page{% if annotations %} and the annotations of the page: the values a human annotator marked on it, each with its class{% endif %}. The page data follow the rules below.{% if page_count > 1 %}
-
-SEVERAL PAGES: this time you are given {{ page_count }} consecutive pages of one document instead of one - its title pages, in page order, for example a half-title, the title page and the back of the title page. Their images follow in page order, and the OCR text of each page is given under its own heading "--- Page k of {{ page_count }} ---". Everything the rules below say about "the page" holds for these pages read together as the description of the one document: return ONE JSON object for all of them. A statement printed on more than one of the pages - typically the title on the half-title and again on the title page - is ONE statement: give it once, from the page that prints it most completely, usually the title page. Never combine the values of different pages into one value, and never repeat a value because it is printed on several pages.{% endif %}
+The documents are monographs - books, including single volumes of works published in several volumes - printed from 1600 onward, in Czech, German, Slovak, French, Italian, Latin and other languages. You will be given one scanned page of a document - usually the title page, sometimes the cover, the half-title or the back of the title page - together with the OCR text of the page{% if annotations %} and the annotations of the page: the values a human annotator marked on it, each with its class{% endif %}. The page data follow the rules below.
 
 Your task is to extract the bibliographic data printed on the page EXACTLY as it appears, grouped into the statements it is printed in, and to return them as ONE JSON object that follows the given schema, with no other text. Every field must be present: use null for a missing single value and [] for a missing list. If the page carries no bibliographic data, return every list empty and every single value null. Most examples below are Czech; expect the same structure in other languages.
 
@@ -171,11 +169,3 @@ The annotations are a help, not a constraint: they show WHERE bibliographic valu
 - The annotators followed other conventions in two fields: a place is usually annotated without its preposition ("PRAZE"), and a series number without its words ("12"). Give them as the rules say - with the preposition the form needs ("V PRAZE", section 7) and the series numbering whole ("Sv. 12", section 5).
 - The annotations do not say which values belong to one statement; grouping them into objects (section 3) is your task. They also never cover "statementOfResponsibility", "etal", "publisherInferred", "illustrativeContent", "copyrightDate", "isbn", "distribution", "manufactureDate", "seriesPartName", "seriesIssn", "seriesEditor", "termsOfAddress", "description", the roles "composer", "reviewer" and "issuingBody", the "level" of a part, or any language field: fill them from the image.
 {% endif %}
-PAGE DATA
-{% if page_count > 1 %}OCR text of the pages, each under its own heading:{% else %}OCR text of the page:{% endif %}
-{{ ocr }}
-{% if annotations %}
-Annotations, in the reading order of the page:
-{{ annotations }}
-{% endif %}
-{% if page_count > 1 %}The images of the pages follow, in page order.{% else %}The image of the page follows.{% endif %}

@@ -264,3 +264,46 @@ def test_zero_data_retention_routes_openrouter_only_to_zdr_endpoints(api, expect
         PROMPTS, [IMAGE], SCHEMA)
 
     assert endpoint.requests[0]["extra_body"] == expected
+
+
+def test_explicit_prompt_caching_caches_only_the_leading_prompts_under_a_stable_key():
+    endpoint = _Endpoint('{"title": null}', '{"title": null}', '{"title": null}')
+    client = VLMClient(_config(prompt_cache="explicit", zdr=True), endpoint.client())
+    pages = [VLMPrompt("user", "OCR of page 1"), VLMPrompt("user", "OCR of page 2")]
+    for user in pages:
+        client.request_json([VLMPrompt("developer", "Read the page."), user], [IMAGE], SCHEMA)
+    client.request_json([VLMPrompt("developer", "Read the cover."), pages[0]], [IMAGE], SCHEMA)
+
+    first, second, other = endpoint.requests
+    system, user = first["messages"]
+    assert system["content"] == [{"type": "text", "text": "Read the page.",
+                                  "prompt_cache_breakpoint": {"mode": "explicit"}}]
+    assert all("prompt_cache_breakpoint" not in part for part in user["content"])
+    assert first["extra_body"]["prompt_cache_options"] == {"mode": "explicit"}
+    assert first["extra_body"]["provider"] == {"zdr": True}
+    # The key follows the cached part only: the same for other page data.
+    assert first["extra_body"]["prompt_cache_key"] == second["extra_body"]["prompt_cache_key"]
+    assert other["extra_body"]["prompt_cache_key"] != first["extra_body"]["prompt_cache_key"]
+
+
+def test_prompt_caching_is_set_on_the_responses_api_too():
+    endpoint = _Endpoint('{"title": null}')
+    VLMClient(_config(api="responses", prompt_cache="explicit"), endpoint.client()).request_json(
+        PROMPTS, [IMAGE], SCHEMA)
+
+    developer, user = endpoint.requests[0]["input"]
+    assert developer["content"][0]["prompt_cache_breakpoint"] == {"mode": "explicit"}
+    assert endpoint.requests[0]["extra_body"]["prompt_cache_options"] == {"mode": "explicit"}
+
+
+def test_prompt_caching_off_marks_nothing_and_unset_sends_nothing():
+    endpoint = _Endpoint('{"title": null}', '{"title": null}')
+    VLMClient(_config(prompt_cache="off"), endpoint.client()).request_json(PROMPTS, [IMAGE], SCHEMA)
+    VLMClient(_config(), endpoint.client()).request_json(PROMPTS, [IMAGE], SCHEMA)
+
+    off, unset = endpoint.requests
+    assert off["extra_body"] == {"prompt_cache_options": {"mode": "explicit"}}
+    assert "prompt_cache_breakpoint" not in json.dumps(off["messages"])
+    assert "extra_body" not in unset
+    with pytest.raises(ValueError, match="prompt_cache must be one of"):
+        _config(prompt_cache="implicit")

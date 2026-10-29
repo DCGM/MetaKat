@@ -1,0 +1,10 @@
+{% if page_count > 1 %}SEVERAL PAGES: this time you are given {{ page_count }} consecutive pages of one periodical instead of one - pages printed one after another at the start of an issue, a volume or an annual publication, in page order, for example the title page of a volume followed by the first page of its first issue. Their images follow in page order, and the OCR text of each page is given under its own heading "--- Page k of {{ page_count }} ---", each cut as section 1 says. Everything the rules above say about "the page" holds for these pages read together: return ONE JSON object for all of them. A statement printed on more than one of the pages - typically the title in a masthead and again on a title page - is ONE statement: give it once, from the page that prints it most completely. The numbering of the volume and of the issue is read from all the pages. Never combine the values of different pages into one value, and never repeat a value because it is printed on several pages.
+
+{% endif %}PAGE DATA
+{% if page_count > 1 %}OCR text of the pages, each under its own heading:{% else %}OCR text of the page:{% endif %}
+{{ ocr }}
+{% if annotations %}
+Annotations, in the reading order of the page:
+{{ annotations }}
+{% endif %}
+{% if page_count > 1 %}The images of the pages follow, in page order.{% else %}The image of the page follows.{% endif %}

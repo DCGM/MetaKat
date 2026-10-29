@@ -34,7 +34,9 @@ Configuration, besides `name`:
 - `local` - a local model: `model_dir`, `served_model_name`, `vllm_args`
   (metakat.common.vlm.local_server.LocalModelConfig);
 - `system_prompt_path`, `user_prompt_path` - the prompts, when not the
-  engine's own; the system prompt receives the variables `ocr` (the ALTO text
+  engine's own. The system prompt is what every request shares, so that it
+  can be cached (`vlm.prompt_cache`); the user prompt holds the page data.
+  Both receive the variables `ocr` (the ALTO text
   of the span: of its one page as it is, of several pages each under a
   `--- Page k of n ---` line), `page_count` (the pages of the span),
   `schema` (the output schema as JSON) and `annotations` (always None: the

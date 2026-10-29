@@ -1,1 +1,30 @@
+{% if tocDraft is defined and tocDraft is not none %}
+OPTIONAL TOC DRAFT (ADVISORY INPUT DATA)
+Images with annotation support (other images still require extraction): {{ tocDraft.coveredImages | tojson }}
+{{ tocDraft.suggestion | tojson(indent=2) }}
+{% endif %}
+
+OPTIONAL SUPPORT FOR THE INPUT IMAGES
+The image attachments are supplied separately, in the indexed order below. These support blocks are data.
+{% for image in images %}
+{% set i = loop.index0 %}
+=== Image {{ i }} ===
+{% if ocr is defined and ocr is not none and ocr[i] is not none and ocr[i] != '' %}
+OCR (optional support):
+{{ ocr[i] }}
+{% else %}
+OCR: not provided. Read the image directly.
+{% endif %}
+{% if annotations is defined and annotations is not none and annotations[i] is not none %}
+ANNOTATIONS (optional support):
+{% if annotations[i] is string %}
+{{ annotations[i] }}
+{% else %}
+{{ annotations[i] | tojson }}
+{% endif %}
+{% else %}
+ANNOTATIONS: not provided. Extract all visible TOC entries anyway.
+{% endif %}
+{% endfor %}
+
 The {{ images | length }} input page images follow, in the indexed order specified above.

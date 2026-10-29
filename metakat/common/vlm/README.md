@@ -39,6 +39,7 @@ an error.
 | `image_detail` | - | OpenAI's image `detail` (`low`, `high`, `auto`). |
 | `image_preprocessing` | `{}` | How large images are sent, see below. |
 | `pricing` | - | What the endpoint charges per million tokens, for one that does not return the cost, see below. |
+| `prompt_cache` | - | `explicit` caches the leading system/developer prompts, `off` caches nothing, unset leaves the endpoint's default; see below. |
 
 Keys are kept out of the logs: the pipeline configuration is logged with
 `api_key` and similar keys redacted, and `VLMConfig`'s repr omits the key.
@@ -129,6 +130,26 @@ The cost is, in this order:
 - nothing for a model served locally (`source: local`);
 - otherwise unknown: no amount, not 0. A sum with an unknown part is unknown
   too, so a total never understates.
+
+### Prompt caching
+
+An engine's system prompt is the same in every request - the rules, the
+schema's explanation - and its user prompt holds what differs: the page
+data and the images. OpenAI models (GPT-5.6 and later, directly or through
+OpenRouter) look a cached prefix up only at boundaries - message ends and
+marked blocks - and charge a cache write 1.25 times the input price, a read
+0.1 times. By default they also write the last message, page data and
+images included, which no later request reads.
+
+`prompt_cache: explicit` marks the end of the leading system/developer
+prompts as the only breakpoint (`prompt_cache_breakpoint`, with
+`prompt_cache_options.mode: explicit`): the shared part is written once and
+read by the requests that follow within its lifetime (at least 30 minutes),
+and the rest is billed at the plain input price. A `prompt_cache_key`
+derived from the model, the shared prompts and the schema keeps an engine's
+requests on one provider endpoint (OpenRouter's sticky routing) and so in one
+cache. `off` writes and reads nothing. The reports show the effect:
+`cache_write` on the first request, `cached_input` on the next ones.
 
 A request the endpoint rejects fails the job as before; the attempts made
 before it are only logged. The prompt paths are written relative to the

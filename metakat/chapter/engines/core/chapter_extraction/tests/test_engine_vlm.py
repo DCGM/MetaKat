@@ -103,9 +103,11 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
 
     [request] = endpoint.requests
     system, user = request["messages"]
-    text = system["content"][0]["text"]
+    text = user["content"][0]["text"]
     words = " ".join(text.split())
-    assert "You will receive 2 scanned page images, indexed 0 to 1" in text
+    # The system prompt is the same for any pages, so it can be cached.
+    assert "{{" not in system["content"][0]["text"] and "OCR (optional support)" not in system["content"][0]["text"]
+    assert "The 2 input page images follow" in text
     # Each page's OCR under its image index, its lines and blocks kept.
     assert "OBSAH\n\nI. Úvod 5\n\nII. Les a voda 12—30" in text
     assert "=== Image 0 === OCR (optional support): OBSAH" in words
@@ -120,7 +122,7 @@ def test_a_page_without_ocr_text_is_read_from_its_image(toc_pages, tmp_path):
     endpoint = _Endpoint({"entries": []})
 
     assert ChapterExtractionEngineVLM(_config(), client=endpoint.client()).process(toc_pages).chapters == ()
-    text = endpoint.requests[0]["messages"][0]["content"][0]["text"]
+    text = endpoint.requests[0]["messages"][1]["content"][0]["text"]
     assert "=== Image 1 === OCR: not provided. Read the image directly." in " ".join(text.split())
 
 

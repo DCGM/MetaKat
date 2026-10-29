@@ -38,7 +38,9 @@ as for the VLM biblio cores. Configuration, besides `name`:
 - `vlm` - how to call the model (metakat.common.vlm.VLMConfig);
 - `local` - a local model (metakat.common.vlm.local_server.LocalModelConfig);
 - `system_prompt_path`, `user_prompt_path` - the prompts, when not the
-  stage's own; the system prompt receives `images` (the page keys, one per
+  stage's own. The system prompt is what every request shares, so that it
+  can be cached (`vlm.prompt_cache`); the user prompt holds the page data.
+  Both receive `images` (the page keys, one per
   attached image, in page order), `ocr` (the ALTO text of each page, a line
   per TextLine and a blank line between blocks, None for a page without
   text), and `annotations` and `tocDraft`, always None: the prompt was

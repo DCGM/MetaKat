@@ -130,6 +130,12 @@ def _span(*pages):
     return [[BiblioPage(image, alto) for image, alto in pages]]
 
 
+def _prompt_text(request):
+    """The text of all the request's messages."""
+    return "\n".join(part["text"] for message in request["messages"]
+                     for part in message["content"] if part["type"] == "text")
+
+
 def _values(page_result):
     return {
         (type(container).__name__, field): evidence
@@ -223,8 +229,8 @@ def test_the_prompt_holds_the_alto_text_and_the_schema_and_the_image_is_attached
     engine.process(_span(page))
 
     [system, user] = endpoint.requests[0]["messages"]
-    assert "K. J. ERBEN\n\nKYTICE\nz pověstí národních\n\nV Praze 1853" in system["content"][0]["text"]
-    assert "The image of the page follows." in system["content"][0]["text"]
+    assert "K. J. ERBEN\n\nKYTICE\nz pověstí národních\n\nV Praze 1853" in user["content"][0]["text"]
+    assert "The image of the page follows." in user["content"][0]["text"]
     assert user["content"][-1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
     assert endpoint.requests[0]["response_format"]["json_schema"]["schema"] == engine.schema
 
@@ -387,7 +393,7 @@ def test_a_span_is_read_in_one_request_and_each_value_keeps_the_page_it_is_on(pa
 
     assert result.page_keys == ("0001_page", "0002_page")
     [system, user] = endpoint.requests[0]["messages"]
-    text = system["content"][0]["text"]
+    text = user["content"][0]["text"]
     assert "you are given 2 consecutive pages of one document" in text
     assert "OCR text of the pages, each under its own heading" in text
     assert "--- Page 1 of 2 ---\nK. J. ERBEN" in text and "--- Page 2 of 2 ---\nDÍL DRUHÝ" in text
@@ -404,8 +410,21 @@ def test_a_single_page_prompt_says_nothing_about_several_pages(page):
     endpoint = _Endpoint(_REPLY)
     BiblioCoreEngineVLMMonograph(_config(), client=endpoint.client()).process(_span(page))
 
-    text = endpoint.requests[0]["messages"][0]["content"][0]["text"]
+    text = _prompt_text(endpoint.requests[0])
     assert "SEVERAL PAGES" not in text and "--- Page" not in text
+
+
+@pytest.mark.parametrize("engine_class", [BiblioCoreEngineVLMMonograph, BiblioCoreEngineVLMPeriodical])
+def test_the_system_prompt_is_the_same_for_every_span_so_it_can_be_cached(page, second_page, engine_class, tmp_path):
+    Image.new("RGB", (1000, 1500), "white").save(tmp_path / "0003_page.jpg")
+    (tmp_path / "0003_page.xml").write_text(_PART_ALTO, encoding="utf-8")
+    third_page = str(tmp_path / "0003_page.jpg"), str(tmp_path / "0003_page.xml")
+    endpoint = _Endpoint(_reply(engine_class), _reply(engine_class))
+    config = _config() if engine_class is BiblioCoreEngineVLMMonograph else _periodical_config()
+    engine_class(config, client=endpoint.client()).process(_span(page) + _span(second_page, third_page))
+
+    first, second = (request["messages"][0]["content"][0]["text"] for request in endpoint.requests)
+    assert first == second and "PAGE DATA" not in first
 
 
 def test_every_span_gets_its_own_result_in_order(page, second_page):
@@ -556,7 +575,7 @@ def test_the_periodical_prompt_holds_the_cut_ocr(tmp_path):
 
     engine.process([[BiblioPage(str(tmp_path / "p.jpg"), str(tmp_path / "p.xml"))]])
 
-    text = endpoint.requests[0]["messages"][0]["content"][0]["text"]
+    text = _prompt_text(endpoint.requests[0])
     assert "KYTICE\n\n[... 14 lines of body text omitted ...]" in text
     assert "LONG TEXT IS CUT FROM THE OCR" in text and "SEVERAL PAGES" not in text
 
@@ -567,6 +586,6 @@ def test_the_periodical_prompt_reads_several_pages_together(page, second_page):
 
     engine.process(_span(page, second_page))
 
-    text = endpoint.requests[0]["messages"][0]["content"][0]["text"]
+    text = _prompt_text(endpoint.requests[0])
     assert "you are given 2 consecutive pages of one periodical" in text
     assert "--- Page 2 of 2 ---\nDÍL DRUHÝ" in text and "The images of the pages follow, in page order." in text

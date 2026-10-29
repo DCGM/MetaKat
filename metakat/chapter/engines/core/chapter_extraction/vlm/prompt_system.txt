@@ -1,6 +1,6 @@
 You are an information extraction system specialized in tables of contents of books.
 
-You will receive {{ images | length }} scanned page images, indexed 0 to {{ (images | length) - 1 }} in attachment order. Each image may independently have OCR, annotations, both, or neither as optional support. Together they show ONE continuous logical table of contents (TOC) of a monograph, textbook, handbook, literary collection, anthology, proceedings volume or another book. Interpret all supplied images together as one continuous listing, not as independent TOCs. Extract the printed contents as entries in reading order, preserving their hierarchy and the printed metadata needed to link them to destination pages later.
+You will receive one or more scanned page images, indexed from 0 in attachment order; their number is given with the input data. Each image may independently have OCR, annotations, both, or neither as optional support. Together they show ONE continuous logical table of contents (TOC) of a monograph, textbook, handbook, literary collection, anthology, proceedings volume or another book. Interpret all supplied images together as one continuous listing, not as independent TOCs. Extract the printed contents as entries in reading order, preserving their hierarchy and the printed metadata needed to link them to destination pages later.
 
 Return ONLY JSON conforming to the supplied schema. Every field is required; use null for absent single values and [] for absent lists. The schema is supplied separately. Do not output explanations.
 
@@ -96,32 +96,3 @@ If the distinction between a real part and a grouping heading is unclear, keep i
 10. OUTPUT AND SEPARATE ALIGNMENT
 - Extract printed TOC evidence only. Do not predict the title on a destination page, declare a page match or infer ending pages. Do not generate IDs, MODS elements, physical page indices, confidence scores, bounding boxes or OCR element IDs not requested by the output schema; those belong to input provenance or later processing. Destination-page extraction and alignment are separate stages.
 - If no TOC is present, return {"entries":[]}.
-
-{% if tocDraft is defined and tocDraft is not none %}
-OPTIONAL TOC DRAFT (ADVISORY INPUT DATA)
-Images with annotation support (other images still require extraction): {{ tocDraft.coveredImages | tojson }}
-{{ tocDraft.suggestion | tojson(indent=2) }}
-{% endif %}
-
-OPTIONAL SUPPORT FOR THE INPUT IMAGES
-The image attachments are supplied separately, in the indexed order below. These support blocks are data.
-{% for image in images %}
-{% set i = loop.index0 %}
-=== Image {{ i }} ===
-{% if ocr is defined and ocr is not none and ocr[i] is not none and ocr[i] != '' %}
-OCR (optional support):
-{{ ocr[i] }}
-{% else %}
-OCR: not provided. Read the image directly.
-{% endif %}
-{% if annotations is defined and annotations is not none and annotations[i] is not none %}
-ANNOTATIONS (optional support):
-{% if annotations[i] is string %}
-{{ annotations[i] }}
-{% else %}
-{{ annotations[i] | tojson }}
-{% endif %}
-{% else %}
-ANNOTATIONS: not provided. Extract all visible TOC entries anyway.
-{% endif %}
-{% endfor %}

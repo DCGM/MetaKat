@@ -22,10 +22,23 @@ raised at once rather than retried.
 
 Every call is reported (metakat.common.vlm.report): its attempts, their
 tokens and their cost.
+
+Prompt caching (`prompt_cache`, OpenAI models and OpenRouter): the leading
+system/developer prompts are meant to be the same in every request of an
+engine and the user prompt to hold what differs - the page data and the
+images. `explicit` marks the end of the leading prompts as the one cache
+breakpoint, so only that part is written to the cache (OpenAI: at 1.25 times
+the input price) and read back by the next request (0.1 times); what follows
+is billed as usual and never written. A `prompt_cache_key` derived from the
+model, the leading prompts and the schema keeps the requests on one provider
+endpoint (OpenRouter's sticky routing) and one cache (OpenAI). `off` caches
+nothing; unset leaves the endpoint's default, which for current OpenAI models
+writes the whole prompt, page data included, at the write price.
 """
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import json
 import logging
@@ -46,6 +59,7 @@ logger = logging.getLogger(__name__)
 _APIS = ("completions", "responses")
 _RESPONSE_FORMATS = ("schema", "json", "raw")
 _ROLES = ("system", "developer", "user")
+_PROMPT_CACHE_MODES = ("explicit", "off")
 # Image types every OpenAI-compatible vision endpoint accepts as a data URL;
 # anything else (TIFF, JPEG 2000) is re-encoded as JPEG.
 _SENT_AS_IS = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}
@@ -84,6 +98,8 @@ class VLMConfig:
     image_preprocessing: ImagePreprocessing = field(default_factory=ImagePreprocessing)
     # The cost of the requests when the endpoint does not return it (VLMPricing).
     pricing: Optional[VLMPricing] = None
+    # Prompt caching: explicit, off, or unset for the endpoint's default.
+    prompt_cache: Optional[str] = None
 
     def __post_init__(self) -> None:
         for name in ("api_url", "model"):
@@ -103,6 +119,9 @@ class VLMConfig:
             raise ValueError("VLM zdr must be true or false")
         if not isinstance(self.image_preprocessing, ImagePreprocessing):
             raise ValueError("VLM image_preprocessing must be an ImagePreprocessing")
+        if self.prompt_cache is not None and self.prompt_cache not in _PROMPT_CACHE_MODES:
+            raise ValueError(
+                f"VLM prompt_cache must be one of {', '.join(_PROMPT_CACHE_MODES)}: {self.prompt_cache!r}")
         if self.pricing is not None and not isinstance(self.pricing, VLMPricing):
             raise ValueError("VLM pricing must be a VLMPricing")
         if self.api_key is None and self.api_key_env is None:
@@ -352,6 +371,7 @@ class VLMClient:
             request["service_tier"] = self.config.service_tier
         if self.config.zdr:
             request.setdefault("extra_body", {})["provider"] = {"zdr": True}
+        self._prompt_cache(request, prompts, [message["content"] for message in messages], json_schema)
 
         def reply_text(response):
             return response.choices[0].message.content
@@ -389,12 +409,34 @@ class VLMClient:
         if self.config.service_tier is not None:
             request["service_tier"] = self.config.service_tier
         if self.config.zdr:
-            request["extra_body"] = {"provider": {"zdr": True}}
+            request.setdefault("extra_body", {})["provider"] = {"zdr": True}
+        self._prompt_cache(request, prompts, [item["content"] for item in inputs], json_schema)
 
         def reply_text(response):
             return response.output_text
 
         return request, self._client.responses.create, reply_text
+
+    def _prompt_cache(self, request, prompts, contents, json_schema) -> None:
+        """Set the request's prompt caching; `contents` are the content blocks of each prompt's message."""
+        if self.config.prompt_cache is None:
+            return
+        extra = request.setdefault("extra_body", {})
+        # Explicit mode caches only at marked blocks; none marked, nothing.
+        extra["prompt_cache_options"] = {"mode": "explicit"}
+        if self.config.prompt_cache == "off":
+            return
+        leading = 0
+        while leading < len(prompts) and prompts[leading].role in ("system", "developer"):
+            leading += 1
+        blocks = [block for content in contents[:leading] for block in content
+                  if block["type"] in ("text", "input_text")]
+        if not blocks:
+            return
+        blocks[-1]["prompt_cache_breakpoint"] = {"mode": "explicit"}
+        cached = [self.config.model, [prompt.text for prompt in prompts[:leading]], json_schema]
+        extra["prompt_cache_key"] = hashlib.sha256(
+            json.dumps(cached, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:32]
 
 
 def parse_reply(text: Optional[str], json_schema: Optional[Mapping[str, Any]] = None) -> Any:
