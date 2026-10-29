@@ -370,7 +370,7 @@ def _run_with_override(tmp_path, worker, workspace, definition, override):
 
 def test_an_override_setting_up_a_local_model_fails_the_job(tmp_path, worker, workspace):
     definition = {"biblio": {"core": {"name": "biblio_core_engine_yolo"},
-                             "bind": {"name": "biblio_bind_engine_base"}}}
+                             "bind": {"name": "biblio_bind_engine_monograph"}}}
     override = {"biblio": {"core": {"name": "biblio_core_engine_vlm", "local": {"model_dir": "model"}}}}
 
     response, process = _run_with_override(tmp_path, worker, workspace, definition, override)
@@ -387,7 +387,7 @@ def test_an_override_may_replace_one_api_model_with_another(tmp_path, worker, wo
                         "api_key_env": "OPENROUTER_API_KEY"}}
 
     definition = {"biblio": {"core": api_core("qwen/qwen3.8-27b:free"),
-                             "bind": {"name": "biblio_bind_engine_base"}}}
+                             "bind": {"name": "biblio_bind_engine_monograph"}}}
     override = {"biblio": {"core": {"vlm": {"model": "google/gemma-4-31b-it:free"}}}}
 
     response, process = _run_with_override(tmp_path, worker, workspace, definition, override)

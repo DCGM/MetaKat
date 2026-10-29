@@ -262,7 +262,7 @@ local vLLM server - finds the GPU free.
      - [`biblio_core_engine_yolo`](biblio/README.md#engine-yolo--alto-biblio_core_engine_yolo)
      - [`biblio_core_engine_vlm`](biblio/README.md#engine-vision-language-model-biblio_core_engine_vlm)
    - [`bind`](biblio/README.md#available-bind-implementation)
-     - [`biblio_bind_engine_base`](biblio/README.md#engine-base-biblio_bind_engine_base)
+     - [`biblio_bind_engine_monograph`, `biblio_bind_engine_periodical`](biblio/README.md#available-bind-implementation)
 4. [`chapter`](chapter/README.md#purpose)
    - [`core`](chapter/README.md#chapter-core-engine-contract)
      - [`chapter_core_engine_pipeline`](chapter/README.md#replaceable-three-stage-pipeline-processing)

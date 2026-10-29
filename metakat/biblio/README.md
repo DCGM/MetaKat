@@ -18,7 +18,6 @@
     - [Local models](#local-models)
     - [Another output schema](#another-output-schema)
 - [Available bind implementation](#available-bind-implementation)
-  - [Base](#engine-base-biblio_bind_engine_base)
   - [Binding flow](#binding-flow)
   - [What a scan holds](#what-a-scan-holds)
   - [Documents](#documents)
@@ -29,7 +28,7 @@
   - [Title creation](#title-creation)
   - [Anchor pages](#anchor-pages)
   - [Groups](#groups)
-  - [Batch kind](#batch-kind)
+  - [Multipart or monographs](#multipart-or-monographs)
   - [Parts and issues inside one document](#parts-and-issues-inside-one-document)
   - [Hierarchy binding](#hierarchy-binding)
   - [Detection geometry retention](#detection-geometry-retention)
@@ -228,7 +227,7 @@ Every core engine receives its configuration mapping directly. To add one:
 5. test engine loading, reading, grouping, spans of several pages, and page
    key validation.
 
-[`BiblioBindEngineBase`](#engine-base-biblio_bind_engine_base) can bind any
+Both [bind engines](#available-bind-implementation) can bind any
 implementation satisfying this contract.
 
 ## Core and bind orchestration
@@ -254,7 +253,7 @@ mappings under `biblio`:
       }
     },
     "bind": {
-      "name": "biblio_bind_engine_base"
+      "name": "biblio_bind_engine_monograph"
     }
   }
 }
@@ -593,28 +592,31 @@ fails the job, since every other span would fail the same way.
 
 ## Available bind implementation
 
-The registered bind implementation is:
+A scan is either a monograph scan or a periodical scan, never both, and each
+has its own binder; an engine names the one for the scans it is made for:
 
-| Config `name` | Implementation |
-|---|---|
-| `biblio_bind_engine_base` | Invoke any compatible biblio core engine, build volumes and issues from its page readings, and bind the resulting hierarchy into `MetakatIO`. |
+| Config `name` | Scans | Implementation |
+|---|---|---|
+| `biblio_bind_engine_monograph` | one monograph, several unrelated monographs, or one multipart monograph (the `chapter` and `monograph` engines) | `BiblioBindEngineMonograph` |
+| `biblio_bind_engine_periodical` | the volumes and issues of one periodical | `BiblioBindEnginePeriodical` |
 
-### Engine: Base (`biblio_bind_engine_base`)
-
-The Base bind engine deep-copies the supplied `MetakatIO`, invokes its
-configured core engine over the batch's title pages, and returns the modified
-copy.
+Both invoke any compatible biblio core engine. They read a scan the same way -
+its documents, their title-page spans, one candidate record per span - and
+write the result the same way; those steps are plain functions in
+`biblio_binding.py`, not a base class, since the two share steps but no
+binding policy. Each binder deep-copies the supplied `MetakatIO` and returns
+the modified copy.
 
 #### Configuration
 
 ```json
 {
-  "name": "biblio_bind_engine_base"
+  "name": "biblio_bind_engine_monograph"
 }
 ```
 
-The binder has no configurable thresholds. Every decision rule described below
-is fixed in the implementation.
+The binders have no configurable thresholds. Every decision rule described
+below is fixed in the implementation.
 
 ### Binding flow
 
@@ -625,45 +627,53 @@ flowchart TD
     B[title_page_spans: runs of consecutive title pages, per document]
     C[Biblio core engine over the spans]
     D[read_spans: per span one candidate MetakatVolume, optionally one MetakatIssue, and a score]
+    M{Monograph binder}
     E{One document and one ProArc volume?}
     F[resolve_single_proarc_volume: group, match, merge to exactly one MetakatVolume holding every page]
-    K1[batch_kind: monographs, one multipart monograph or one periodical]
-    P[split_documents: a start on the title page of a second part or issue]
-    G[bind: one leaf per document named by its strongest span; volumes and title]
+    K1[is_multipart: monographs or one multipart monograph]
+    P[split_documents: a start on the title page of a second part]
+    G[bind: one volume per document named by its strongest span; the title of a multipart work]
+    Q[Periodical binder: split_documents on a second issue; one issue per document; volume runs; title]
     I[Finalize groups; page indices; representative pages]
     J[Drop detections not referenced by a kept element]
     K[MetakatIO with title, volume, and issue elements plus geometry maps]
 
-    A --> S --> B --> C --> D --> E
+    A --> S --> B --> C --> D --> M
+    M -- monograph --> E
     E -- yes --> F --> I
     E -- no --> K1 --> P --> G --> I
+    M -- periodical --> Q --> I
     I --> J --> K
 ```
 
-The two branches are mutually exclusive by design. When the scan is one
+`read_scan` (steps up to the candidates) and `write_scan` (from finalizing
+groups) are shared; the steps between them are the binder's. In the monograph
+binder the two branches are mutually exclusive by design. When the scan is one
 document and a single catalogued ProArc volume object is present, the record
 controls volume identity and the absence of title-level structure, so the
-batch kind, the splits and `get_title` are skipped outright rather than run as
-a no-op. Every other input — several documents, periodicals, multipart works,
-plain monographs without a ProArc record, and any ProArc record with a
-different object count or model — takes the vision-only branch.
+multipart decision, the splits and the title are skipped outright rather than
+run as a no-op. Every other input — several documents, multipart works, plain
+monographs without a ProArc record, and any ProArc record with a different
+object count or model — takes the vision-only branch. The periodical binder
+does not use the ProArc record.
 
 ### What a scan holds
 
-The binder assumes what a real batch can hold, as agreed for ProArc batches:
+The binders assume what a real batch can hold, as agreed for ProArc batches:
 
-| A batch holds | Leaves | Above them |
-|---|---|---|
-| one monograph | one `monograph` volume | nothing |
-| several unrelated monographs | one `monograph` volume each | nothing - no title gathers them |
-| one multipart monograph | its parts, `multipart` volumes | one `MetakatTitle` (`multipart`) |
-| one periodical | its issues | its volumes in scan order (volume, its issues, next volume, its issues), under one `MetakatTitle` (`periodical`) |
+| A batch holds | Binder | Leaves | Above them |
+|---|---|---|---|
+| one monograph | monograph | one `monograph` volume | nothing |
+| several unrelated monographs | monograph | one `monograph` volume each | nothing - no title gathers them |
+| one multipart monograph | monograph | its parts, `multipart` volumes | one `MetakatTitle` (`multipart`) |
+| one periodical | periodical | its issues | its volumes in scan order (volume, its issues, next volume, its issues), under one `MetakatTitle` (`periodical`) |
 
 Never in one batch: two multipart monographs, two periodicals, or any mix -
 monographs with a multipart monograph, monographs with issues. The kind of the
-scan is therefore one decision for every document ([batch kind](#batch-kind)):
-once a batch reads as issues, every bottom-level document is an issue; once it
-reads as parts, every document is a part of the one multipart monograph.
+scan is therefore one decision for every document: in the periodical binder
+every bottom-level document is an issue; in the monograph binder, once the
+scan [reads as parts](#multipart-or-monographs), every document is a part of
+the one multipart monograph, and otherwise every document is a monograph.
 
 ### Documents
 
@@ -694,7 +704,7 @@ in that index raises `ValueError`.
 
 ### Candidate element construction
 
-`get_volume_issue_from_page` turns one span's `BiblioSpanResult` into one
+`span_candidates` (shared) turns one span's `BiblioSpanResult` into one
 `MetakatVolume` and one `MetakatIssue`. `read_spans` then records as each
 candidate's anchor the page its title was read from - see
 [Anchor pages](#anchor-pages) - and the span's **score**: the page-type
@@ -741,12 +751,14 @@ Both elements are candidates; emission is conditional:
 | Element | Emitted when |
 |---|---|
 | `MetakatVolume` | `title` is set. |
-| `MetakatIssue` | the volume was emitted, `title` is set, and at least one of `partNumber` or `dateIssued` is set. |
+| `MetakatIssue` | the volume was emitted and `title` is set. |
 
 A span without a title therefore names nothing, and all of its evidence
-becomes unreferenced. `MetakatIssue.parent_id` is deliberately left
-unset at creation: an issue's volume is decided in
-[hierarchy binding](#hierarchy-binding), once every page has been read.
+becomes unreferenced. Each binder takes the candidate it binds: the monograph
+binder the volume, the periodical binder the issue (and the volume for the
+volume number or year). `MetakatIssue.parent_id` is deliberately left unset at
+creation: an issue's volume is decided in
+[hierarchy binding](#hierarchy-binding), once every span has been read.
 
 ### Proarc single-volume resolution
 
@@ -953,7 +965,7 @@ first page; otherwise none.
 ### Periodical volume consolidation
 
 In a periodical scan the volumes are contiguous runs of issues: volume, its
-issues, next volume, its issues. `_periodical_volumes` walks the issues in scan
+issues, next volume, its issues. The periodical binder's `periodical_volumes` walks the issues in scan
 order. The volume reading of an issue's [authoritative span](#hierarchy-binding)
 - a `periodical` volume candidate with a `partNumber` or a `dateIssued` - is
 offered to the current volume's bag; when the bag rejects it, it starts the
@@ -992,14 +1004,14 @@ Each bag becomes one deep-copied root volume, whose id is re-anchored to
 
 ### Title creation
 
-`get_title` scans the elements for the volume with the highest-confidence
-`title` among those whose `hierarchy` is `periodical` or `multipart`, and
-builds:
+`title_from` (shared) takes the volume with the highest-confidence `title`
+among the volumes it is given - the parts of a multipart scan, the periodical
+volumes of a periodical one - and builds:
 
 ```python
 MetakatTitle(
     id=uuid4(),
-    hierarchy=volume.hierarchy,
+    hierarchy=hierarchy,        # multipart or periodical, as the binder says
     title=volume.title,
     subTitle=volume.subTitle,
     groups=volume.groups,
@@ -1010,10 +1022,7 @@ The `Value`s are shared with the source volume, so the title reuses that
 volume's detection UUIDs rather than creating new ones; of the volume's
 groups, finalizing keeps what holds the title's own values - its `titleInfo`.
 `MetakatTitle.hierarchy`
-rejects `monograph` at the schema level, which is why only the two other
-hierarchies are eligible. The candidates are the periodical volumes of a
-periodical scan and the parts of a multipart one; a monograph scan has no
-title. When no candidate has a title, the title is unnamed
+rejects `monograph` at the schema level; a scan of monographs has no title. When no candidate has a title, the title is unnamed
 (`MetakatTitle(hierarchy=...)` without fields), since the scan's kind says one
 exists. The title is prepended to the element list, ahead of the volumes and
 issues, and becomes the parent of every periodical volume or part.
@@ -1057,39 +1066,33 @@ carries the groups through its decisions about records.
 - **Choosing between records** - a leaf keeps its authoritative span's
   groups; a periodical volume bag keeps its root volume, groups included; a
   title takes its volume's groups.
-- **Finalizing** - before the elements are written, `_finalize_groups` drops
+- **Finalizing** - before the elements are written, `finalize_groups` drops
   from each group the values its record no longer holds - the less confident
   of two readings, a field a merge does not keep - and drops groups left with
   fewer than two members.
 
-### Batch kind
+### Multipart or monographs
 
-`batch_kind` decides what [every document of the scan](#what-a-scan-holds) is:
-
-1. A ProArc record of a `periodical` package: a periodical.
-2. Otherwise the documents named by a span vote. At least `_KIND_MINIMUM_SHARE`
-   (`0.5`) of them reading as a periodical - an issue candidate or a
-   `periodical` volume candidate in one of their spans - make a periodical,
-   unless ProArc says `monograph`.
-3. Otherwise at least that share reading a part number or part name (a
-   `multipart` candidate) make one multipart monograph.
-4. Otherwise, and when no document is named, monographs.
-
-A share rather than a single reading keeps one stray part number from turning
-a batch of unrelated monographs into a multipart work, while a multipart batch
+The monograph binder's `is_multipart` decides whether the scan is one
+multipart monograph: at least `PART_MINIMUM_SHARE` (`0.5`) of the documents
+named by a span read a part number or part name (a `multipart` candidate).
+Otherwise, and when no document is named, every document is a monograph. A
+share rather than a single reading keeps one stray part number from turning a
+batch of unrelated monographs into a multipart work, while a multipart batch
 needs only every other part to show its number.
 
 ### Parts and issues inside one document
 
 The page-type stage finds the boundary between two parts of one multipart work
 much less often than other boundaries: consecutive parts look like one book.
-`split_documents` adds the missed start where a document clearly holds two
-units. In a **multipart** or **periodical** scan, a later span starts a new
-document when, against the previous strong span of the same document:
+`split_documents` (shared) adds the missed start where a document clearly holds
+two units. The monograph binder runs it in a **multipart** scan, the
+periodical binder always. A later span starts a new document when, against the
+previous strong span of the same document:
 
-- both score at least `_SPLIT_MINIMUM_SCORE` (`0.5`) - a weak or unread title
+- both score at least `SPLIT_MINIMUM_SCORE` (`0.5`) - a weak or unread title
   page never splits;
-- at least `_SPLIT_MINIMUM_GAP` (`10`) pages lie between them - a half-title
+- at least `SPLIT_MINIMUM_GAP` (`10`) pages lie between them - a half-title
   and a title page do not;
 - at least one of them reads a part number or name (an issue number or date,
   or a `periodical` volume, in a periodical);
@@ -1099,20 +1102,20 @@ document when, against the previous strong span of the same document:
 
 The new document starts on the later span's first title page. Its
 `startsDocument` is set to true with the span's score as confidence, so the
-output tells where the binder added a start. A monograph scan is never split:
-two titles far apart in one book are a half-title and a title page, or a book
-quoting another.
+output tells where the binder added a start. A scan of monographs is never
+split: two titles far apart in one book are a half-title and a title page, or a
+book quoting another.
 
 ### Hierarchy binding
 
-`bind(documents, spans, kind, anchors)` turns each document into exactly one
-leaf unit of the scan's kind, attaches every page of the document to it, and
-builds the hierarchy above the leaves.
+Each binder's `bind(scan)` turns each document into exactly one leaf unit,
+attaches every page of the document to it, and builds the hierarchy above the
+leaves.
 
 **The authoritative span.** Of the spans of a document that name something,
-the one with the highest score names the leaf: its candidate volume (a
-monograph or a part, with the scan's `hierarchy`) or, in a periodical, its
-candidate issue. The other spans of the document are ignored - a weak title
+the one with the highest score names the leaf (`authoritative_spans`, shared):
+its candidate volume in the monograph binder (a monograph or a part, with the
+scan's `hierarchy`), its candidate issue in the periodical binder. The other spans of the document are ignored - a weak title
 page with little read, a half-title far from the title page - and their
 detections are dropped. In `B N T T N N N N N T T T N N N N N N T N N B` with
 the spans scoring `0.9`, `0.7` and `0.4`, the first `TT` names the document. A
@@ -1121,11 +1124,11 @@ pages rather than being merged into a neighbour.
 
 **Above the leaves**, by the scan's kind:
 
-| Kind | Hierarchy |
+| Scan | Hierarchy |
 |---|---|
-| monographs | none: every leaf is a `monograph` volume without a parent |
-| multipart | one title (see [Title creation](#title-creation)), parent of every part |
-| periodical | the [volumes](#periodical-volume-consolidation), each the parent of its run of issues, under one title |
+| monographs (monograph binder) | none: every leaf is a `monograph` volume without a parent |
+| multipart (monograph binder) | one title (see [Title creation](#title-creation)), parent of every part |
+| periodical (periodical binder) | the [volumes](#periodical-volume-consolidation), each the parent of its run of issues, under one title |
 
 Pages are then numbered 1..n within each leaf by `assign_page_indices()`, and
 representative pages are marked (see [Anchor pages](#anchor-pages)).
@@ -1170,7 +1173,7 @@ contracts, and are documented so a change can be scoped against them.
 
 | Area | Limitation |
 |---|---|
-| Batch types | A scan is assumed to hold monographs, one multipart monograph or one periodical. A mixed scan - such as the `boundaries_*_mixed` test batches - is bound as all one kind, and two multipart works or periodicals share one title. |
+| Batch types | A scan is assumed to hold monographs or one multipart monograph (monograph binder), or one periodical (periodical binder). A mixed scan - such as the `boundaries_*_mixed` test batches - is bound as all one kind, and two multipart works or periodicals share one title. |
 | Split position | A second part or issue starts on its title page; the front cover, end papers or half-title before it stay with the previous document. |
 | ProArc integration | Only a record with exactly one `volume`-model object is used. Multi-object records, `title` and `unit` objects, and any issue-level guidance are ignored, and such a batch silently takes the vision-only branch. |
 | Periodical path | No production label configuration in this repository maps a detector label to `PeriodicalVolumePartNumber` or `PeriodicalVolumeDateIssued`, so the `periodical` hierarchy and the consolidation it drives are reachable but not exercised by a real run. |

@@ -4,10 +4,12 @@ from typing import Any
 from metakat.engine_config import require_config_mapping, require_engine_name
 
 from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
-from metakat.biblio.engines.bind.biblio_bind_engine_base import BiblioBindEngineBase
+from metakat.biblio.engines.bind.biblio_bind_engine_monograph import BiblioBindEngineMonograph
+from metakat.biblio.engines.bind.biblio_bind_engine_periodical import BiblioBindEnginePeriodical
 
 biblio_bind_engines = {
-    'biblio_bind_engine_base': BiblioBindEngineBase,
+    'biblio_bind_engine_monograph': BiblioBindEngineMonograph,
+    'biblio_bind_engine_periodical': BiblioBindEnginePeriodical,
 }
 
 def load_biblio_bind_engine(
