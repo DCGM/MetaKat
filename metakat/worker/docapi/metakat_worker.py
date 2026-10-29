@@ -115,6 +115,7 @@ class MetakatWorker(DocWorkerWrapper):
                     ordered_image_filenames=ordered_image_filenames,
                     engine_name=job.engine_name,
                     engine_version=job.engine_version,
+                    engine_dir=engine_dir,
                     output_metakat_json=os.path.join(result_dir, "metakat.json"),
                     output_mods_dir=os.path.join(result_dir, "mods"),
                     # For inspection only, so kept beside result.zip like the

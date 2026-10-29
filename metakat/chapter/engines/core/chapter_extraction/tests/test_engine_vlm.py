@@ -130,6 +130,18 @@ def test_no_valid_reply_gives_no_toc(toc_pages):
     assert engine.process(toc_pages).chapters == ()
 
 
+def test_the_call_is_reported_with_its_pages_whether_it_succeeds_or_not(toc_pages):
+    read = ChapterExtractionEngineVLM(_config(), client=_Endpoint(_REPLY).client()).process(toc_pages)
+    failed = ChapterExtractionEngineVLM(_config(), client=_Endpoint("nope", "nope").client()).process(toc_pages)
+
+    [report] = read.reports
+    assert (report.status, report.page_keys, report.core_engine) == (
+        "ok", ("0007", "0008"), "chapter_extraction_engine_vlm")
+    assert [ref.role for ref in report.prompts] == ["developer", "user", "schema"]
+    [report] = failed.reports
+    assert (report.status, len(report.attempts)) == ("failed", 2)
+
+
 def test_no_toc_pages_need_no_request():
     assert ChapterExtractionEngineVLM(_config(), client=object()).process(()).chapters == ()
 

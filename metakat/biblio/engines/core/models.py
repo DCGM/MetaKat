@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Iterator, Optional, Sequence
 
 from metakat.common.models import DetectionEvidence
+from metakat.common.vlm.report import VLMCallReport
 from metakat.schemas.base_objects import GroupType
 
 
@@ -167,9 +168,14 @@ class BiblioSpanResult:
 
 @dataclass(frozen=True)
 class BiblioCoreResult:
-    """One entry per input span, in input order: its result, or None when nothing was read on it."""
+    """One entry per input span, in input order: its result, or None when nothing was read on it.
+
+    `reports` has one entry per VLM call, a failed one included, naming the
+    pages it sent by their keys; a core without a VLM has none.
+    """
 
     spans: tuple[Optional[BiblioSpanResult], ...] = ()
+    reports: tuple[VLMCallReport, ...] = ()
 
 
 def container_values(container: BiblioContainer) -> Iterator[tuple[str, DetectionEvidence]]:

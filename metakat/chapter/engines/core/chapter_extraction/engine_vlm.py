@@ -61,11 +61,13 @@ from metakat.chapter.engines.core.chapter_page_number_parsers import (
 from metakat.chapter.engines.core.models import ChapterBase, ChapterPageInput, TocBase
 from metakat.common.models import AltoRefs, BoundingBox, DetectionEvidence
 from metakat.common.vlm import (
+    VLMCallReport,
     VLMClient,
     VLMConfig,
     VLMImage,
     VLMResponseError,
     load_prompts,
+    prompt_refs,
     render_prompts,
 )
 from metakat.common.vlm.local_server import LocalModelConfig, serve
@@ -107,12 +109,15 @@ class ChapterExtractionEngineVLM:
             vlm.update(api_url="http://127.0.0.1", model=self.local.served_model_name, api_key="local")
         self.vlm_config = VLMConfig.from_config(vlm, "Chapter extraction vlm config")
         self._client = client
-        self.prompts = load_prompts([
+        prompt_files = [
             {"role": "developer",
              "path": str(self.config.get("system_prompt_path") or _RESOURCES / "prompt_system.txt")},
             {"role": "user", "path": str(self.config.get("user_prompt_path") or _RESOURCES / "prompt_user.txt")},
-        ])
+        ]
+        self.prompts = load_prompts(prompt_files)
         self.schema = json.loads((_RESOURCES / "schema.json").read_text(encoding="utf-8"))
+        self.prompt_refs = prompt_refs([*((entry["role"], entry["path"]) for entry in prompt_files),
+                                        ("schema", _RESOURCES / "schema.json")])
         self.confidence = self.config.get("confidence", DEFAULT_CONFIDENCE)
         if (
             isinstance(self.confidence, bool)
@@ -140,10 +145,11 @@ class ChapterExtractionEngineVLM:
         images = [VLMImage.from_file(page.image_path, self.vlm_config.image_preprocessing, page.alto_path) for page in pages]
         try:
             with self._model() as client:
-                reply = client.request_json(prompts, images, self.schema, request_id=f"{keys[0]}+{len(keys) - 1}")
+                answer = client.request(prompts, images, self.schema, request_id=f"{keys[0]}+{len(keys) - 1}")
         except VLMResponseError as error:
             logger.error("Chapter extraction got no valid TOC for pages %s: %s", keys, error)
-            return TocBase(())
+            return TocBase((), reports=() if error.report is None else (self._report(error.report, keys),))
+        reply, report = answer.data, self._report(answer.report, keys)
 
         entries = [entry for entry in reply.get("entries") or () if isinstance(entry, Mapping)]
         located = self._locate(entries, alto_pages)
@@ -162,10 +168,13 @@ class ChapterExtractionEngineVLM:
                 alto=AltoRefs() if region is None else AltoRefs.from_words(region.words),
             )
 
-        result = TocBase(build_hierarchy(entries, evidence, keys))
+        result = TocBase(build_hierarchy(entries, evidence, keys), reports=(report,))
         logger.info("Chapter extraction produced %d entry/entries, %d root(s); located %d value(s) in the ALTO",
                     len(entries), len(result.chapters), len(located))
         return result
+
+    def _report(self, report: VLMCallReport, page_keys: Sequence[str]) -> VLMCallReport:
+        return report.for_engine(self.config.get("name") or "chapter_extraction_engine_vlm", self.prompt_refs, page_keys)
 
     @contextlib.contextmanager
     def _model(self) -> Iterator[VLMClient]:
@@ -174,7 +183,7 @@ class ChapterExtractionEngineVLM:
             yield VLMClient(self.vlm_config, self._client)
             return
         with serve(self.local) as api_url:
-            yield VLMClient(dataclasses.replace(self.vlm_config, api_url=api_url), self._client)
+            yield VLMClient(dataclasses.replace(self.vlm_config, api_url=api_url), self._client, local=True)
 
     def _locate(self, entries: Sequence[Mapping[str, Any]], alto_pages) -> dict:
         """(entry index, field) -> (page index, aligned region) of every value found in the ALTO.

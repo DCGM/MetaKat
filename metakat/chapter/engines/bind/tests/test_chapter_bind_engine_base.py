@@ -1,6 +1,7 @@
 import dataclasses
 import logging
 import types
+from datetime import datetime, timezone
 from unittest import mock
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from metakat.chapter.engines.core.chapter_page_number_parsers import (
 )
 from metakat.chapter.engines.core.models import ChapterResult, TocResult
 from metakat.common.models import AltoRefs, BoundingBox, PageDimensions
+from metakat.common.vlm import VLMCallReport
 from metakat.chapter.engines.core.physical_page_numbers.parsers import (
     DecoratedPageNumberParser,
 )
@@ -24,6 +26,7 @@ from metakat.schemas.base_objects import (
     MetakatIssue,
     MetakatPage,
     MetakatPageDimensions,
+    MetakatVLMAttempt,
     MetakatVolume,
     Value,
 )
@@ -150,6 +153,28 @@ def test_process_omits_page_numbers_when_none_are_available(bind_engine):
         ["/batch/page.xml"],
         page_numbers=None,
     )
+
+
+def test_a_call_is_reported_on_its_toc_pages_and_their_document(bind_engine):
+    batch_id = uuid4()
+    volume = MetakatVolume(id=uuid4(), hierarchy=HierarchyType.MONOGRAPH)
+    pages = _pages(3, volume.id, batch_id=batch_id)
+    call = VLMCallReport(api="completions", api_url="u", model="m", reasoning_effort=None,
+                         started_utc=datetime.now(timezone.utc), duration_s=1.0,
+                         attempts=(MetakatVLMAttempt(status="ok", duration_s=1.0),))
+    metakat_io = MetakatIO(
+        batch_id=batch_id,
+        elements=[volume, *pages],
+        page_to_image_mapping={page.id: f"p{page.batch_index}.jpg" for page in pages},
+        page_to_alto_mapping={page.id: f"p{page.batch_index}.xml" for page in pages},
+    )
+    bind_engine.core_engine = types.SimpleNamespace(process=mock.Mock(return_value=TocResult(
+        (), reports=(call.for_engine("chapter_extraction_engine_vlm", (), ("p1", "p2")),))))
+
+    [report] = bind_engine.process("/batch", metakat_io).vlm_processing_reports
+
+    assert report.element_ids == [pages[1].id, pages[2].id, volume.id]
+    assert (report.stage, report.core_engine) == ("chapter", "chapter_extraction_engine_vlm")
 
 
 def test_issues_are_processed_as_independent_documents(bind_engine, evidence):

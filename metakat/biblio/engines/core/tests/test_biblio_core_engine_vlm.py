@@ -417,6 +417,21 @@ def test_every_span_gets_its_own_result_in_order(page, second_page):
     assert first is None and second.page_keys == ("0002_page",)
 
 
+def test_every_call_is_reported_with_its_pages_and_prompts_a_failed_one_too(page, second_page):
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint("nope", "nope", _REPLY).client())
+
+    result = engine.process(_span(page) + _span(second_page))
+
+    failed, read = result.reports
+    assert result.spans[0] is None
+    assert (failed.status, failed.page_keys, len(failed.attempts)) == ("failed", ("0001_page",), 2)
+    assert (read.status, read.page_keys) == ("ok", ("0002_page",))
+    assert read.core_engine == "biblio_core_engine_vlm_monograph"
+    assert [ref.role for ref in read.prompts] == ["developer", "user", "schema"]
+    assert read.prompts[2].path.endswith("monograph/schema.json")
+    assert read.images[0].original == (1000, 1500)
+
+
 def test_a_page_in_two_spans_is_rejected(page):
     with pytest.raises(ValueError, match="more than one place"):
         BiblioCoreEngineVLMMonograph(_config(), client=object()).process(_span(page) + _span(page))

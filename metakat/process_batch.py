@@ -29,6 +29,7 @@ from metakat.engine_config import (
     prepare_engine_config,
     require_config_mapping,
 )
+from metakat.common.vlm.report import describe_cost, localize_prompt_paths, total_cost
 from metakat.io_parsers.parser_proarc_json import parse_proarc_json
 from metakat.logging_utils import redacted_for_logging
 
@@ -163,6 +164,7 @@ def main():
         allowed_image_extensions=set(args.allowed_image_extensions),
         engine_name=args.engine_name,
         engine_version=args.engine_version,
+        engine_dir=engine_config_path.parent,
         pdf_downscale=args.pdf_downscale,
         pdf_min_text_pixels=args.pdf_min_text_pixels,
         pdf_max_image_dimension=args.pdf_max_image_dimension,
@@ -181,6 +183,7 @@ def process_batch(
     allowed_image_extensions: Optional[Set] = None,
     engine_name: Optional[str] = None,
     engine_version: Optional[str] = None,
+    engine_dir: Optional[str | Path] = None,
     output_mods_dir: Optional[str] = None,
     output_mods_overview: Optional[str] = None,
     pdf_downscale: bool = False,
@@ -207,6 +210,8 @@ def process_batch(
         engine_name: Name of the engine being run, recorded in MetakatIO.engine;
             optional, since a plain pipeline run need not know it
         engine_version: Version of that engine; ignored without engine_name
+        engine_dir: The engine's directory, its config's paths are relative to;
+            the VLM reports name the prompts within it by their path there
         output_mods_dir: Directory for one MODS 3.8 record per unit and page,
             each named by its uuid
         output_mods_overview: Text file with every MODS record in the order of
@@ -256,6 +261,13 @@ def process_batch(
         finally:
             del bind_engine_obj
             release_gpu_memory()
+
+    if metakat_io.vlm_processing_reports:
+        reports = metakat_io.vlm_processing_reports
+        localize_prompt_paths(reports, engine_dir)
+        logger.info("VLM calls: %d, %d failed, %s", len(reports),
+                    sum(report.status == "failed" for report in reports),
+                    describe_cost(total_cost([report.cost for report in reports])))
 
     logger.info("")
     MetakatIO.model_validate_json(json.dumps(metakat_io.model_dump(mode="json")))

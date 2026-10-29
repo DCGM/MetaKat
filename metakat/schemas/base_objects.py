@@ -1,7 +1,8 @@
 import enum
+from datetime import datetime
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator, StrictBool, StringConstraints
-from typing import Optional, Tuple, List, Union, Dict, Annotated, Literal, Generic, TypeVar
+from typing import Any, Optional, Tuple, List, Union, Dict, Annotated, Literal, Generic, TypeVar
 from uuid import UUID, uuid4
 
 # MetaKat
@@ -721,6 +722,105 @@ class MetakatAltoRefs(MetakatBaseModel):
     words: List[str] = Field(default_factory=list)   # String/@ID
 
 
+class MetakatTokenUsage(MetakatBaseModel):
+    """Tokens of a VLM request as the endpoint counted them; None where it did not say.
+
+    `cached_input` is the part of `input` read from the provider's prompt
+    cache, `reasoning` the part of `output` spent on reasoning.
+    """
+
+    input: Optional[int] = None
+    cached_input: Optional[int] = None
+    cache_write: Optional[int] = None
+    output: Optional[int] = None
+    reasoning: Optional[int] = None
+
+
+class MetakatCost(MetakatBaseModel):
+    """What a VLM request cost, and where the amount comes from.
+
+    `source` is `provider` when the endpoint returned the cost (OpenRouter
+    does), `config` when it was computed from the token counts and the
+    `pricing` of the engine's VLM config, `local` for a model MetaKat served
+    itself. An unknown cost has no amount, not 0.
+    """
+
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    source: Optional[Literal["provider", "config", "local", "mixed"]] = None
+
+
+class MetakatPromptRef(MetakatBaseModel):
+    """A prompt template or output schema file a VLM request was made from.
+
+    `origin` `metakat` means a path within the metakat package (an engine's
+    own prompt), `engine` one within the engine's directory (a configured
+    prompt); without an origin the path is absolute. `sha256` is the file's,
+    so an edited prompt is told apart even at the same path.
+    """
+
+    role: Literal["system", "developer", "user", "schema"]
+    origin: Optional[Literal["metakat", "engine"]] = None
+    path: str
+    sha256: str
+
+
+class MetakatVLMImage(MetakatBaseModel):
+    """A page image as sent: its size (width, height) before and after image_preprocessing."""
+
+    page_id: UUID
+    original: Tuple[int, int]
+    sent: Tuple[int, int]
+    # The page's smallest text in pixels of the original, when it was measured.
+    smallest_text_px: Optional[float] = None
+
+
+class MetakatVLMAttempt(MetakatBaseModel):
+    """One request to the endpoint; `invalid_reply` came back but was no valid JSON for the schema."""
+
+    status: Literal["ok", "invalid_reply"]
+    error: Optional[str] = None
+    duration_s: float
+    generation_id: Optional[str] = None
+    served_model: Optional[str] = None
+    provider: Optional[str] = None
+    tokens: MetakatTokenUsage = Field(default_factory=MetakatTokenUsage)
+    cost: MetakatCost = Field(default_factory=MetakatCost)
+    # The endpoint's usage object as it returned it.
+    usage: Optional[Dict[str, Any]] = None
+
+
+class MetakatVLMProcessingReport(MetakatBaseModel):
+    """One VLM call of an engine: what was asked of which model, every attempt, tokens and cost.
+
+    `element_ids` are the elements the call concerned: the pages it sent and
+    the element their reading went into (the issue or volume of title pages,
+    the document of TOC pages). A call is reported once however many elements
+    it concerned, so summing reports counts every call once. `tokens` and
+    `cost` are the sums over the attempts, failed ones included; the cost has
+    no amount when any attempt's is unknown. `status` is `failed` when no
+    attempt gave a valid reply.
+    """
+
+    id: UUID = Field(default_factory=uuid4)
+    element_ids: List[UUID]
+    status: Literal["ok", "failed"]
+    stage: str
+    metakat_engine: Optional[MetakatEngine] = None
+    core_engine: str
+    prompts: List[MetakatPromptRef]
+    started_utc: datetime
+    duration_s: float
+    cost: MetakatCost
+    api: str
+    api_url: str
+    model: str
+    reasoning_effort: Optional[str] = None
+    images: List[MetakatVLMImage] = Field(default_factory=list)
+    tokens: MetakatTokenUsage
+    attempts: List[MetakatVLMAttempt]
+
+
 class MetakatApplication(MetakatBaseModel):
     """The MetaKat software that ran the engine.
 
@@ -747,6 +847,9 @@ class MetakatIO(MetakatBaseModel):
     detection_to_bbox: Optional[Dict[UUID, Tuple[float, float, float, float]]] = None
     # Only detections whose ALTO provides at least one ID have an entry.
     detection_to_alto: Optional[Dict[UUID, MetakatAltoRefs]] = None
+    # Only runs with a VLM engine have any; left out of the JSON otherwise.
+    vlm_processing_reports: Optional[List[MetakatVLMProcessingReport]] = Field(
+        default=None, exclude_if=lambda value: value is None)
 
 MetakatIO.model_rebuild()
 ###################################################

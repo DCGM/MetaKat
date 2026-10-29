@@ -33,6 +33,7 @@ from metakat.biblio.engines.core.models import (
     container_values,
 )
 from metakat.common.aux.document_groups import assign_page_indices, bottom_documents, lowest_document_groups
+from metakat.common.vlm.report import VLMCallReport
 from metakat.schemas.base_objects import (
     DocumentType,
     GroupType,
@@ -327,6 +328,9 @@ class Scan:
     detection_to_bbox: dict
     detection_to_page: dict
     detection_to_alto: dict
+    # The core's VLM calls and the pages their page keys name.
+    reports: Tuple[VLMCallReport, ...] = ()
+    page_by_key: Dict[str, MetakatPage] = dataclasses.field(default_factory=dict)
 
 
 def read_scan(core_engine, batch_dir: str, metakat_io: MetakatIO) -> Scan:
@@ -363,7 +367,8 @@ def read_scan(core_engine, batch_dir: str, metakat_io: MetakatIO) -> Scan:
     }
     bboxes, page_ids, alto, anchors = read_spans(spans, core_result, page_key_to_metakat_page)
     logger.info(f"{sum(span.names for span in spans)} span(s) name a document")
-    return Scan(metakat_io, pages, documents, spans, anchors, bboxes, page_ids, alto)
+    return Scan(metakat_io, pages, documents, spans, anchors, bboxes, page_ids, alto,
+                core_result.reports, page_key_to_metakat_page)
 
 
 def write_scan(scan: Scan, elements: List[MetakatElement]) -> MetakatIO:
@@ -399,6 +404,16 @@ def write_scan(scan: Scan, elements: List[MetakatElement]) -> MetakatIO:
     alto = {k: v for k, v in scan.detection_to_alto.items() if k in referenced}
     if alto:
         metakat_io.detection_to_alto = {**(metakat_io.detection_to_alto or {}), **alto}
+
+    # A call concerned the title pages it sent and the unit they now belong to.
+    reports = []
+    for report in scan.reports:
+        pages = [scan.page_by_key[key] for key in report.page_keys]
+        reports.append(report.to_metakat(
+            [page.id for page in pages], stage="biblio", engine=metakat_io.engine,
+            also=[page.parent_id for page in pages if page.parent_id is not None]))
+    if reports:
+        metakat_io.vlm_processing_reports = [*(metakat_io.vlm_processing_reports or []), *reports]
     return metakat_io
 
 

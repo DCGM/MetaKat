@@ -64,11 +64,13 @@ from metakat.biblio.engines.core.models import (
 )
 from metakat.common.models import AltoRefs, BoundingBox, DetectionEvidence
 from metakat.common.vlm import (
+    VLMCallReport,
     VLMClient,
     VLMConfig,
     VLMImage,
     VLMResponseError,
     load_prompts,
+    prompt_refs,
     render_prompts,
 )
 from metakat.common.vlm.local_server import LocalModelConfig, serve
@@ -127,17 +129,20 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
         self.vlm_config = VLMConfig.from_config(vlm, "Biblio core vlm config")
         self._client = client
 
-        self.prompts = load_prompts([
+        prompt_files = [
             {"role": "developer", "path": self._path("system_prompt_path", self.DEFAULT_SYSTEM_PROMPT_PATH)},
             {"role": "user", "path": self._path("user_prompt_path", self.DEFAULT_USER_PROMPT_PATH)},
-        ])
+        ]
+        self.prompts = load_prompts(prompt_files)
         if self.DEFAULT_SCHEMA_PATH is not None and "schema_path" in self.config:
             raise ValueError(
                 f"{type(self).__name__} maps only its own output schema; a model with another "
                 "schema needs an engine implementing that schema's mapping"
             )
-        self.schema = json.loads(
-            Path(self._path("schema_path", self.DEFAULT_SCHEMA_PATH)).read_text(encoding="utf-8"))
+        schema_path = self._path("schema_path", self.DEFAULT_SCHEMA_PATH)
+        self.schema = json.loads(Path(schema_path).read_text(encoding="utf-8"))
+        self.prompt_refs = prompt_refs([*((entry["role"], entry["path"]) for entry in prompt_files),
+                                        ("schema", schema_path)])
 
         self.confidence = self.config.get("confidence", DEFAULT_CONFIDENCE)
         if (
@@ -174,11 +179,16 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
         spans = list(spans)
         if not any(spans):
             return BiblioCoreResult(spans=tuple(None for _ in spans))
+        results, reports = [], []
         with self._model() as client:
-            results = tuple(self.read_span(client, span) if span else None for span in spans)
+            for span in spans:
+                result, report = self.read_span(client, span) if span else (None, None)
+                results.append(result)
+                if report is not None:
+                    reports.append(report)
         logger.info("Biblio core read bibliographic information on %d of %d span(s)",
                     sum(result is not None for result in results), len(spans))
-        return BiblioCoreResult(spans=results)
+        return BiblioCoreResult(spans=tuple(results), reports=tuple(reports))
 
     @contextlib.contextmanager
     def _model(self) -> Iterator[VLMClient]:
@@ -187,10 +197,12 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
             yield VLMClient(self.vlm_config, self._client)
             return
         with serve(self.local) as api_url:
-            yield VLMClient(dataclasses.replace(self.vlm_config, api_url=api_url), self._client)
+            yield VLMClient(dataclasses.replace(self.vlm_config, api_url=api_url), self._client, local=True)
 
-    def read_span(self, client: VLMClient, span: Sequence[BiblioPage]) -> Optional[BiblioSpanResult]:
-        """One span's readings; None when the model gave none or no valid reply."""
+    def read_span(
+        self, client: VLMClient, span: Sequence[BiblioPage],
+    ) -> tuple[Optional[BiblioSpanResult], Optional[VLMCallReport]]:
+        """One span's readings, None when the model gave none or no valid reply, and the report of its call."""
         from text_geometry_aligner import ALTOReader
 
         page_keys = [page.page_key for page in span]
@@ -209,7 +221,7 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
             "annotations": None,
         })
         try:
-            reply = client.request_json(
+            answer = client.request(
                 prompts,
                 [VLMImage.from_file(page.image, self.vlm_config.image_preprocessing, page.alto) for page in span],
                 self.schema,
@@ -217,7 +229,8 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
             )
         except VLMResponseError as error:
             logger.error("Biblio core skips span %s: %s", request_id, error)
-            return None
+            return None, self._report(error.report, page_keys)
+        reply, report = answer.data, self._report(answer.report, page_keys)
 
         # Per JSON path, the first page of the span whose ALTO holds the value.
         located: dict[tuple, tuple[str, Any]] = {}
@@ -244,7 +257,10 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
 
         result = self.page_from_reply(reply, evidence, page_keys)
         logger.info("Span %s: located %d value(s) in the ALTO", request_id, len(located))
-        return result
+        return result, report
+
+    def _report(self, report: Optional[VLMCallReport], page_keys: Sequence[str]) -> Optional[VLMCallReport]:
+        return None if report is None else report.for_engine(self.name, self.prompt_refs, page_keys)
 
     def page_text(self, page: BiblioPage, alto_page) -> str:
         """The OCR text of one page for the prompt: a line per TextLine, a blank line between blocks."""

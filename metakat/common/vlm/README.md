@@ -38,6 +38,7 @@ an error.
 | `zdr` | `false` | OpenRouter only: route the request only to Zero Data Retention endpoints (`provider.zdr`); a model without one fails instead of falling back. |
 | `image_detail` | - | OpenAI's image `detail` (`low`, `high`, `auto`). |
 | `image_preprocessing` | `{}` | How large images are sent, see below. |
+| `pricing` | - | What the endpoint charges per million tokens, for one that does not return the cost, see below. |
 
 Keys are kept out of the logs: the pipeline configuration is logged with
 `api_key` and similar keys redacted, and `VLMConfig`'s repr omits the key.
@@ -96,6 +97,43 @@ gives confidences, a mean word confidence of at least 0.5 count: PERO OCR
 reads cloth covers, paper texture and blank paper as low-confidence lines,
 and specks as one or two characters. A page without such a line is scaled by
 the maxes only.
+
+## Cost and reports
+
+Every call is reported (`report.py`): each attempt, an invalid reply included
+since it is paid too, with the endpoint's generation id, the model and
+provider that served it, its tokens and its cost. The engines add the pages
+they sent, with each image's size before and after `image_preprocessing`,
+their name and the prompt and schema files with their sha256. The bind
+engines write the reports to the MetakatIO as `vlm_processing_reports`, one
+per call, with the ids of the elements it concerned: the pages sent and the
+unit their reading went into (the issue or volume of biblio title pages, the
+document of chapter TOC pages). A call is reported once however many elements
+it concerned, so the reports sum to what a batch cost. A run without a VLM
+has none, and the field is left out.
+
+Tokens are read from the usage fields both OpenAI APIs define (input, cached
+input, output, reasoning); an endpoint that leaves one out leaves it unknown.
+The cost is, in this order:
+
+- the endpoint's, when it returns one: OpenRouter's `usage.cost`, in US
+  dollars (`source: provider`);
+- computed from the tokens and `pricing` (`source: config`):
+
+  | Key | Default | Meaning |
+  |---|---|---|
+  | `input`, `output` | required | Price per million input and output tokens; reasoning tokens are output. |
+  | `cached_input` | `input` | Price per million input tokens read from the prompt cache. |
+  | `currency` | `USD` | |
+
+- nothing for a model served locally (`source: local`);
+- otherwise unknown: no amount, not 0. A sum with an unknown part is unknown
+  too, so a total never understates.
+
+A request the endpoint rejects fails the job as before; the attempts made
+before it are only logged. The prompt paths are written relative to the
+metakat package (`origin: metakat`, an engine's own prompt) or to the engine's
+directory (`origin: engine`, a configured one).
 
 ## Local models
 

@@ -1,5 +1,10 @@
+from datetime import datetime, timezone
+from types import SimpleNamespace
+
 import pytest
 
+from metakat.biblio.engines.core.models import BiblioCoreResult, merge_span
+from metakat.common.vlm import VLMCallReport
 from metakat.biblio.engines.bind.biblio_bind_engine_periodical import (
     BiblioBindEnginePeriodical,
     VolumeReading,
@@ -8,11 +13,46 @@ from metakat.biblio.engines.bind.biblio_bind_engine_periodical import (
     volume_years,
 )
 from metakat.biblio.engines.bind.tests.test_biblio_binding import _of, _parents, _process, _read, _scan, _v
-from metakat.schemas.base_objects import HierarchyType, MetakatIssue, MetakatTitle, MetakatVolume
+from metakat.schemas.base_objects import (
+    HierarchyType,
+    MetakatEngine,
+    MetakatIO,
+    MetakatIssue,
+    MetakatTitle,
+    MetakatVLMAttempt,
+    MetakatVolume,
+)
 
 
 def _bound(pages, *readings):
     return _process(pages, *readings, binder=BiblioBindEnginePeriodical)
+
+
+def test_a_call_is_reported_on_its_title_pages_and_the_issue_they_belong_to():
+    pages = _scan({4}, {0: .99, 1: .99, 4: .99})
+    call = VLMCallReport(api="completions", api_url="u", model="m", reasoning_effort=None,
+                         started_utc=datetime.now(timezone.utc), duration_s=1.0,
+                         attempts=(MetakatVLMAttempt(status="ok", duration_s=1.0),))
+    binder = object.__new__(BiblioBindEnginePeriodical)
+    readings = {f'p{i}': _read(i, 'Zlatá Praha', issue=str(i)) for i in (0, 4)}
+
+    def process(spans):
+        keys = [[page.page_key for page in span] for span in spans]
+        return BiblioCoreResult(
+            spans=tuple(merge_span(k, [readings[key] for key in k if key in readings]) for k in keys),
+            reports=tuple(call.for_engine("biblio_core_engine_vlm_periodical", (), k) for k in keys))
+
+    binder.core_engine = SimpleNamespace(process=process)
+    io = MetakatIO(batch_id=pages[0].batch_id, elements=pages, engine=MetakatEngine(name="periodical", version="v1"),
+                   page_to_image_mapping={page.id: f'p{page.batch_index}.jpg' for page in pages})
+    io = binder.process('/b', io)
+
+    first, second = io.vlm_processing_reports
+    issues = _of(io, MetakatIssue)
+    assert first.element_ids == [pages[0].id, pages[1].id, issues[0].id]
+    assert second.element_ids == [pages[4].id, issues[1].id]
+    assert (first.stage, first.metakat_engine.name, first.core_engine) == (
+        "biblio", "periodical", "biblio_core_engine_vlm_periodical")
 
 
 def test_issues_run_in_volumes_in_scan_order():

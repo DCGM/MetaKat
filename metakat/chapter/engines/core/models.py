@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from metakat.common.models import DetectionEvidence, PageDimensions
+from metakat.common.vlm.report import VLMCallReport
 from metakat.chapter.engines.core.physical_page_numbers.models import (
     PageNumberNumeralSystem,
     PageNumberTextCase,
@@ -115,6 +116,9 @@ class ChapterBase:
 @dataclass(frozen=True)
 class TocBase:
     chapters: tuple[ChapterBase, ...]
+    # One per VLM call, a failed one included, naming the pages it sent by
+    # their keys; an engine without a VLM has none.
+    reports: tuple[VLMCallReport, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -128,3 +132,5 @@ class ChapterResult(ChapterBase):
 @dataclass(frozen=True)
 class TocResult:
     chapters: tuple[ChapterResult, ...]
+    # The reports of the extraction stage's TocBase.
+    reports: tuple[VLMCallReport, ...] = ()

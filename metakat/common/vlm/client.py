@@ -19,6 +19,9 @@ for again, up to `max_attempts` times: smaller models do not return valid JSON
 every time. A request the endpoint rejects - a wrong key, an unknown model, a
 parameter the model does not support - is a configuration error and is
 raised at once rather than retried.
+
+Every call is reported (metakat.common.vlm.report): its attempts, their
+tokens and their cost.
 """
 from __future__ import annotations
 
@@ -28,12 +31,15 @@ import json
 import logging
 import os
 import re
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 from metakat.common.vlm.image_preprocessing import ImagePreprocessing, smallest_text_height
+from metakat.common.vlm.report import VLMCallReport, VLMImageSize, VLMPricing, attempt
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +82,8 @@ class VLMConfig:
     # How large the images are sent (image_preprocessing); its max_pixels
     # always applies.
     image_preprocessing: ImagePreprocessing = field(default_factory=ImagePreprocessing)
+    # The cost of the requests when the endpoint does not return it (VLMPricing).
+    pricing: Optional[VLMPricing] = None
 
     def __post_init__(self) -> None:
         for name in ("api_url", "model"):
@@ -95,6 +103,8 @@ class VLMConfig:
             raise ValueError("VLM zdr must be true or false")
         if not isinstance(self.image_preprocessing, ImagePreprocessing):
             raise ValueError("VLM image_preprocessing must be an ImagePreprocessing")
+        if self.pricing is not None and not isinstance(self.pricing, VLMPricing):
+            raise ValueError("VLM pricing must be a VLMPricing")
         if self.api_key is None and self.api_key_env is None:
             raise ValueError("VLM config needs api_key or api_key_env")
 
@@ -110,6 +120,8 @@ class VLMConfig:
         if "image_preprocessing" in config:
             config["image_preprocessing"] = ImagePreprocessing.from_config(
                 config["image_preprocessing"], f"{location} image_preprocessing")
+        if config.get("pricing") is not None:
+            config["pricing"] = VLMPricing.from_config(config["pricing"], f"{location} pricing")
         return cls(**config)
 
     def resolve_api_key(self) -> str:
@@ -137,9 +149,10 @@ class VLMPrompt:
 
 @dataclass(frozen=True)
 class VLMImage:
-    """An image as sent: a data URL."""
+    """An image as sent: a data URL, and for one read from a file its sizes."""
 
     data_url: str
+    size: Optional[VLMImageSize] = None
 
     @classmethod
     def from_file(
@@ -154,7 +167,7 @@ class VLMImage:
         path = Path(path)
         preprocessing = preprocessing or ImagePreprocessing()
         with Image.open(path) as image:
-            image_format = image.format
+            image_format, original = image.format, image.size
             text_height = None
             if preprocessing.text_height is not None and alto is not None:
                 text_height = smallest_text_height(alto, image.size)
@@ -172,11 +185,24 @@ class VLMImage:
                 buffer = io.BytesIO()
                 image.save(buffer, format="JPEG", quality=90)
                 data, mime = buffer.getvalue(), "image/jpeg"
-        return cls(f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}")
+        return cls(f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
+                   VLMImageSize(original=original, sent=size, smallest_text_px=text_height))
 
 
 class VLMResponseError(RuntimeError):
-    """No valid JSON reply within `max_attempts`."""
+    """No valid JSON reply within `max_attempts`; `report` holds the attempts made."""
+
+    def __init__(self, message: str, report: Optional[VLMCallReport] = None):
+        super().__init__(message)
+        self.report = report
+
+
+@dataclass(frozen=True)
+class VLMReply:
+    """A valid reply's JSON and the report of the call that got it."""
+
+    data: Any
+    report: VLMCallReport
 
 
 def load_prompts(prompt_files: Sequence[Mapping[str, str]]) -> list[VLMPrompt]:
@@ -203,8 +229,10 @@ def render_prompts(templates: Sequence[VLMPrompt], variables: Mapping[str, Any])
 
 
 class VLMClient:
-    def __init__(self, config: VLMConfig, client: Any = None):
+    def __init__(self, config: VLMConfig, client: Any = None, *, local: bool = False):
+        # local: the model is served by MetaKat itself, so its requests cost nothing.
         self.config = config
+        self.local = local
         if client is None:
             from openai import OpenAI
 
@@ -220,30 +248,71 @@ class VLMClient:
         request_id: str = "",
     ) -> Any:
         """The model's reply as validated JSON; raises VLMResponseError when none comes."""
+        return self.request(prompts, images, json_schema, request_id).data
+
+    def request(
+        self,
+        prompts: Sequence[VLMPrompt],
+        images: Sequence[VLMImage] = (),
+        json_schema: Optional[Mapping[str, Any]] = None,
+        request_id: str = "",
+    ) -> VLMReply:
+        """The model's reply as validated JSON with the call's report; raises VLMResponseError when none comes.
+
+        A request the endpoint rejects is raised as it is: the job fails, and
+        the attempts made before it are only logged.
+        """
         if self.config.api == "responses":
             request, send, reply_text = self._responses_request(prompts, images, json_schema)
         else:
             request, send, reply_text = self._completions_request(prompts, images, json_schema)
 
+        started_utc, started = datetime.now(timezone.utc), time.monotonic()
+        attempts = []
+
+        def report() -> VLMCallReport:
+            return VLMCallReport(
+                api=self.config.api, api_url=self.config.api_url, model=self.config.model,
+                reasoning_effort=self.config.reasoning_effort, started_utc=started_utc,
+                duration_s=round(time.monotonic() - started, 3), attempts=tuple(attempts),
+                images=tuple(image.size for image in images),
+            )
+
         errors = []
-        for attempt in range(1, self.config.max_attempts + 1):
-            response = send(**request)
+        for number in range(1, self.config.max_attempts + 1):
+            attempt_started = time.monotonic()
+            try:
+                response = send(**request)
+            except Exception:
+                if attempts:
+                    logger.error("[%s] %s rejected the request after %d attempt(s): %s",
+                                 request_id, self.config.model, len(attempts), report().describe())
+                raise
             try:
                 # A reply without choices or output (some providers return an
                 # error object this way) counts as an invalid reply.
                 reply = parse_reply(reply_text(response), json_schema)
             except (AttributeError, IndexError, TypeError, ValueError) as error:
-                errors.append(f"attempt {attempt}: {error}")
+                errors.append(f"attempt {number}: {error}")
+                attempts.append(attempt(response, "invalid_reply", time.monotonic() - attempt_started,
+                                        error=str(error), pricing=self.config.pricing, local=self.local))
                 logger.warning(
                     "[%s] %s returned no valid JSON (attempt %d/%d): %s",
-                    request_id, self.config.model, attempt, self.config.max_attempts, error,
+                    request_id, self.config.model, number, self.config.max_attempts, error,
                 )
                 continue
-            logger.info("[%s] %s returned valid JSON (attempt %d)", request_id, self.config.model, attempt)
-            return reply
+            attempts.append(attempt(response, "ok", time.monotonic() - attempt_started,
+                                    pricing=self.config.pricing, local=self.local))
+            call = report()
+            logger.info("[%s] %s returned valid JSON (attempt %d): %s",
+                        request_id, self.config.model, number, call.describe())
+            return VLMReply(reply, call)
+        call = report()
+        logger.warning("[%s] %s gave no valid JSON: %s", request_id, self.config.model, call.describe())
         raise VLMResponseError(
             f"[{request_id}] {self.config.model} returned no valid JSON in "
-            f"{self.config.max_attempts} attempt(s): " + "; ".join(errors)
+            f"{self.config.max_attempts} attempt(s): " + "; ".join(errors),
+            call,
         )
 
     def _completions_request(self, prompts, images, json_schema):

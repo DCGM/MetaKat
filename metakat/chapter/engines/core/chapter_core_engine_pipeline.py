@@ -256,6 +256,8 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
             len(aligned_toc.chapters),
             _count_resolved_chapters(aligned_toc.chapters),
         )
+        if reference_toc.reports:
+            aligned_toc = replace(aligned_toc, reports=reference_toc.reports)
         return self._prune_titleless_chapters(aligned_toc)
 
     @staticmethod

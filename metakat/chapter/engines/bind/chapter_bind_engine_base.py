@@ -229,6 +229,14 @@ class ChapterBindEngineBase(ChapterBindEngine):
             metakat_io.detection_to_page_mapping.update(page_by_detection)
             if alto_by_id:
                 metakat_io.detection_to_alto = {**(metakat_io.detection_to_alto or {}), **alto_by_id}
+            # A call concerned the TOC pages it sent and the document they list.
+            reports = [
+                report.to_metakat([page_by_key[key].id for key in report.page_keys], stage="chapter",
+                                  engine=metakat_io.engine, also=[group.container.id])
+                for report in core_result.reports
+            ]
+            if reports:
+                metakat_io.vlm_processing_reports = [*(metakat_io.vlm_processing_reports or []), *reports]
         return metakat_io
 
     @staticmethod
