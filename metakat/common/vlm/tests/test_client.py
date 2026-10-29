@@ -208,3 +208,15 @@ def test_schema_and_reply_round_trip_as_json():
     endpoint = _Endpoint('{"title": null}')
     VLMClient(_config(), endpoint.client()).request_json(PROMPTS, [], SCHEMA)
     assert json.loads(json.dumps(endpoint.requests[0]["response_format"]["json_schema"]["schema"])) == SCHEMA
+
+
+@pytest.mark.parametrize("api, expected", [
+    ("completions", {"reasoning": {"effort": "medium"}, "provider": {"zdr": True}}),
+    ("responses", {"provider": {"zdr": True}}),
+])
+def test_zero_data_retention_routes_openrouter_only_to_zdr_endpoints(api, expected):
+    endpoint = _Endpoint('{"title": null}')
+    VLMClient(_config(api=api, zdr=True, reasoning_effort="medium"), endpoint.client()).request_json(
+        PROMPTS, [IMAGE], SCHEMA)
+
+    assert endpoint.requests[0]["extra_body"] == expected

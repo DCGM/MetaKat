@@ -35,6 +35,7 @@ an error.
 | `max_attempts` | `3` | How many times an invalid reply is asked for again. |
 | `timeout` | `300` | Seconds per request. |
 | `max_tokens`, `temperature`, `reasoning_effort`, `verbosity`, `service_tier` | - | Passed to the endpoint when set. `reasoning_effort` is also sent as OpenRouter's `reasoning.effort`. |
+| `zdr` | `false` | OpenRouter only: route the request only to Zero Data Retention endpoints (`provider.zdr`); a model without one fails instead of falling back. |
 | `image_detail` | - | OpenAI's image `detail` (`low`, `high`, `auto`). |
 | `image_max_side` | - | Longest image side in pixels; larger images are scaled down before sending, which saves tokens on large scans. |
 

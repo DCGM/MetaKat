@@ -66,6 +66,9 @@ class VLMConfig:
     reasoning_effort: Optional[str] = None
     verbosity: Optional[str] = None
     service_tier: Optional[str] = None
+    # OpenRouter only: route only to Zero Data Retention endpoints
+    # (provider.zdr); a model without one fails instead of falling back.
+    zdr: bool = False
     image_detail: Optional[str] = None
     # Longest image side in pixels sent to the model; larger images are
     # scaled down. None sends the image as it is.
@@ -85,6 +88,8 @@ class VLMConfig:
             )
         if not isinstance(self.max_attempts, int) or self.max_attempts < 1:
             raise ValueError("VLM max_attempts must be a positive integer")
+        if not isinstance(self.zdr, bool):
+            raise ValueError("VLM zdr must be true or false")
         if self.image_max_side is not None and self.image_max_side < 1:
             raise ValueError("VLM image_max_side must be positive")
         if self.api_key is None and self.api_key_env is None:
@@ -255,6 +260,8 @@ class VLMClient:
             request["verbosity"] = self.config.verbosity
         if self.config.service_tier is not None:
             request["service_tier"] = self.config.service_tier
+        if self.config.zdr:
+            request.setdefault("extra_body", {})["provider"] = {"zdr": True}
 
         def reply_text(response):
             return response.choices[0].message.content
@@ -291,6 +298,8 @@ class VLMClient:
             request["reasoning"] = {"effort": self.config.reasoning_effort}
         if self.config.service_tier is not None:
             request["service_tier"] = self.config.service_tier
+        if self.config.zdr:
+            request["extra_body"] = {"provider": {"zdr": True}}
 
         def reply_text(response):
             return response.output_text
