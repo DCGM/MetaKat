@@ -5,7 +5,6 @@ from random import Random
 import pytest
 
 from metakat.common.models import BoundingBox, PageDimensions
-from metakat.page_number.engines.core.ndk_pagination import NdkPaginationConfig
 from metakat.page_number.engines.core.page_number_parsers import (
     DecoratedPageNumberParser,
 )
@@ -38,7 +37,7 @@ def make_page(i, location=None, *, displacement=0):
 def process(pages, *, recover=None, **config):
     return PageNumberPostprocessor(
         PageNumberPostprocessConfig(
-            ndk=NdkPaginationConfig(enabled=False),
+            ndk_pagination=False,
             **config,
         )
     ).process(pages, recover=recover)

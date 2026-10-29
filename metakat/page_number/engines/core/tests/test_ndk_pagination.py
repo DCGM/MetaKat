@@ -238,7 +238,7 @@ def test_full_postprocessor_supplies_after_dropping_outlier_and_keeps_diagnostic
 
 def test_ndk_stage_can_be_disabled_independently():
     pages = inputs([10, 11, None, 13, 14])
-    config = PageNumberPostprocessConfig(ndk=NdkPaginationConfig(enabled=False))
+    config = PageNumberPostprocessConfig(ndk_pagination=False)
     result = PageNumberPostprocessor(config).process(pages)
     assert result.page_numbers["p2"] is None
 
@@ -254,7 +254,7 @@ def test_ascii_suffix_sequence_omits_digraph_and_diacritics():
     [
         None,
         {"invalid": True},
-        {"enabled": 1},
+        {"enabled": True},  # the switch is postprocess.ndk_pagination
         {"profile": "old_print"},
         {"max_gap_pages": 0},
         {"minimum_anchor_confidence": float("nan")},

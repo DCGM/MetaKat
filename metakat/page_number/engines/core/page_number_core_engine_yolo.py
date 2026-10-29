@@ -61,7 +61,7 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
                 configured, bracketed=True, complete_document=True
             ),
         }
-        self._final_pass = configured.ndk.enabled
+        self._final_pass = configured.ndk_pagination
         self.page_number_resolver = PhysicalPageNumberResolver.from_config(self.config)
         self.engine_yolo_alto = EngineYOLOALTO(
             config=self.config,

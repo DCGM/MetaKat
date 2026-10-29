@@ -274,8 +274,8 @@ It then runs reusable document postprocessing across all ordered input pages.
       "minimum_offset_change": 4,
       "maximum_number_step": 2
     },
+    "ndk_pagination": true,
     "ndk": {
-      "enabled": true,
       "profile": "shared",
       "max_gap_pages": 8,
       "minimum_anchor_confidence": 0.6,
@@ -286,7 +286,8 @@ It then runs reusable document postprocessing across all ordered input pages.
 }
 ```
 
-`ndk.enabled` is the one NDK switch. It turns on both the gap filling of the
+`ndk_pagination` is the one NDK switch and `ndk` the setup of the pagination
+that it follows. The switch turns on both the gap filling of the
 preliminary pass and the whole final pass (see
 [Two passes](#two-passes-around-the-page-type-stage)); with `false` the engine
 fills nothing and the pipeline skips its second run. What the two passes
@@ -675,7 +676,7 @@ box inside that page. Invalid geometry is ignored; foreign and duplicate page
 keys are errors. Dimensions and bounding boxes must use the same coordinate
 system. The optional recovery callback receives one page input and a tuple of
 `BoundingBox` search windows, and returns more `PhysicalPageNumberEvidence`
-objects. Omit it to use existing evidence only. Set `postprocess.ndk.enabled`
+objects. Omit it to use existing evidence only. Set `postprocess.ndk_pagination`
 to false to disable archival label inference while retaining position and sequence processing.
 
 `PageNumberCoreResult.decisions` uses actions `detected`, `recovered`,

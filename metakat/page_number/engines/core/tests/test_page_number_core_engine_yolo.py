@@ -256,7 +256,7 @@ def test_one_ndk_flag_disables_the_gap_fill_and_the_final_pass(tmp_path, alignme
     with mock.patch(ALIGNER):
         on = PageNumberCoreEngineYOLO({"name": "page_number_core_engine_yolo"})
         off = PageNumberCoreEngineYOLO(
-            {"name": "page_number_core_engine_yolo", "postprocess": {"ndk": {"enabled": False}}}
+            {"name": "page_number_core_engine_yolo", "postprocess": {"ndk_pagination": False}}
         )
     assert on.has_final_pass and not off.has_final_pass
     with pytest.raises(ValueError, match="Unknown postprocess.ndk"):

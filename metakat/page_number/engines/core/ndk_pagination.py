@@ -71,7 +71,8 @@ class NdkPageContext:
 
 @dataclass(frozen=True)
 class NdkPaginationConfig:
-    enabled: bool = True
+    """Setup of the NDK pagination; whether it runs at all is `postprocess.ndk_pagination`."""
+
     profile: Literal["shared", "monograph", "periodical"] = "shared"
     max_gap_pages: int = 8
     minimum_anchor_confidence: float = 0.6
@@ -83,9 +84,8 @@ class NdkPaginationConfig:
     def __post_init__(self):
         import math
 
-        for name in ("enabled", "wholly_unnumbered"):
-            if not isinstance(getattr(self, name), bool):
-                raise ValueError(f"ndk.{name} must be boolean")
+        if not isinstance(self.wholly_unnumbered, bool):
+            raise ValueError("ndk.wholly_unnumbered must be boolean")
         if self.profile not in ("shared", "monograph", "periodical"):
             raise ValueError("ndk.profile must be shared, monograph, or periodical")
         if self.tail_mode not in ("unknown", "continue", "insert"):
@@ -158,8 +158,6 @@ class NdkPaginator:
         trailing: bool = True,
     ) -> PageNumberCoreResult:
         """leading/trailing: whether the first/last page of each unit is a real document edge."""
-        if not self.config.enabled:
-            return result
         keys = {page.page_key for page in pages}
         if len(keys) != len(pages) or set(result.page_numbers) - keys:
             raise ValueError("NDK pagination requires unique known page keys")

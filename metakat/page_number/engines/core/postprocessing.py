@@ -67,6 +67,9 @@ class PageNumberPostprocessConfig:
     position_window: int = 40
     sequence_window: int = 8
     drop_threshold: float = 0.1
+    # Fill the numbers of the pages that have none (preliminary pass) and run the final pass
+    # (see the page-number README); `ndk` sets up the pagination.
+    ndk_pagination: bool = True
     ndk: NdkPaginationConfig = field(default_factory=NdkPaginationConfig)
     segmentation: PageNumberSegmentationConfig = field(
         default_factory=PageNumberSegmentationConfig
@@ -81,6 +84,8 @@ class PageNumberPostprocessConfig:
             raise ValueError("postprocess.ndk must be an NdkPaginationConfig")
         if not isinstance(self.enabled, bool):
             raise ValueError("postprocess.enabled must be boolean")
+        if not isinstance(self.ndk_pagination, bool):
+            raise ValueError("postprocess.ndk_pagination must be boolean")
         for name in ("position_bandwidth_x", "position_bandwidth_y"):
             value = getattr(self, name)
             if (
@@ -470,9 +475,10 @@ class PageNumberPostprocessor:
                     for key in chunk.page_keys
                 }
             )
-        return NdkPaginator(self.config.ndk, **self.ndk_pass).process(
-            pages, PageNumberCoreResult(numbers, decisions, tuple(chunks))
-        )
+        observed = PageNumberCoreResult(numbers, decisions, tuple(chunks))
+        if not self.config.ndk_pagination:
+            return observed
+        return NdkPaginator(self.config.ndk, **self.ndk_pass).process(pages, observed)
 
     def _process_detections(
         self,
