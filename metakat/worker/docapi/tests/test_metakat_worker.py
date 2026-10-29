@@ -369,7 +369,7 @@ def _run_with_override(tmp_path, worker, workspace, definition, override):
 
 
 def test_an_override_setting_up_a_local_model_fails_the_job(tmp_path, worker, workspace):
-    definition = {"biblio": {"core": {"name": "biblio_core_engine_yolo"},
+    definition = {"biblio": {"core": {"name": "biblio_core_engine_yolo_monograph"},
                              "bind": {"name": "biblio_bind_engine_monograph"}}}
     override = {"biblio": {"core": {"name": "biblio_core_engine_vlm", "local": {"model_dir": "model"}}}}
 

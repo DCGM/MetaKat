@@ -13,9 +13,15 @@ _LOCATION = "Biblio core config"
 _LABEL = "Biblio core engine"
 
 biblio_core_engines = {
-    'biblio_core_engine_yolo': EngineEntry(
-        module='metakat.biblio.engines.core.biblio_core_engine_yolo',
-        attribute='BiblioCoreEngineYOLO',
+    'biblio_core_engine_yolo_monograph': EngineEntry(
+        module='metakat.biblio.engines.core.biblio_core_engine_yolo_monograph',
+        attribute='BiblioCoreEngineYOLOMonograph',
+        requires=('ultralytics', 'text_geometry_aligner'),
+        extra='inference',
+    ),
+    'biblio_core_engine_yolo_periodical': EngineEntry(
+        module='metakat.biblio.engines.core.biblio_core_engine_yolo_periodical',
+        attribute='BiblioCoreEngineYOLOPeriodical',
         requires=('ultralytics', 'text_geometry_aligner'),
         extra='inference',
     ),

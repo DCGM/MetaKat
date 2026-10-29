@@ -85,15 +85,30 @@ def parse_biblio_labels(config: Mapping[str, Any]) -> Dict[BiblioType, str]:
 
 
 class BiblioCoreEngineYOLO(BiblioCoreEngine):
+    """The YOLO + ALTO reading shared by the monograph and periodical cores.
+
+    The two run the same detector, trained on different material, so each
+    is trained to find a different subset of the same labels. A subclass
+    names its subset, BIBLIO_TYPES; a detection of another type is a label
+    the model was not trained to find, and is dropped."""
+
+    BIBLIO_TYPES: frozenset = frozenset()
+
     def __init__(self, config: Mapping[str, Any],
                  yolo_batch_size=32,
                  yolo_confidence_threshold=0.25,
                  yolo_image_size=640,
                  minimum_overlap_coverage=0.65):
+        if not self.BIBLIO_TYPES:
+            raise TypeError(f"{type(self).__name__} names no BIBLIO_TYPES; use the monograph or periodical core")
         super().__init__(config=config)
         self.labels = parse_biblio_labels(self.config)
-        self.biblio_type_by_label = {label: biblio_type for biblio_type, label in self.labels.items()}
-        logger.info("Loaded %d bibliographic label(s)", len(self.labels))
+        self.biblio_type_by_label = {label: biblio_type for biblio_type, label in self.labels.items()
+                                     if biblio_type in self.BIBLIO_TYPES}
+        self.ignored_labels = frozenset(label for biblio_type, label in self.labels.items()
+                                        if biblio_type not in self.BIBLIO_TYPES)
+        logger.info("Loaded %d bibliographic label(s), ignoring %d the model is not trained to find: %s",
+                    len(self.biblio_type_by_label), len(self.ignored_labels), sorted(self.ignored_labels))
         self.engine_yolo_alto = EngineYOLOALTO(
             config=self.config,
             yolo_batch_size=yolo_batch_size,
@@ -125,7 +140,7 @@ class BiblioCoreEngineYOLO(BiblioCoreEngine):
                 raise ValueError(
                     f"Biblio core returned duplicate page key: {alignment_page.page_key}"
                 )
-            page_result = read_page(alignment_page, self.biblio_type_by_label)
+            page_result = read_page(alignment_page, self.biblio_type_by_label, self.ignored_labels)
             if page_result is not None:
                 pages[alignment_page.page_key] = page_result
         results = tuple(
@@ -143,8 +158,11 @@ class BiblioCoreEngineYOLO(BiblioCoreEngine):
 def read_page(
     alignment_page: AlignmentPage,
     biblio_type_by_label: Mapping[str, BiblioType],
+    ignored_labels: frozenset = frozenset(),
 ) -> Optional[BiblioSpanResult]:
-    """Group one aligned page's detections into its readings, as a span of that page; None if it has none."""
+    """Group one aligned page's detections into its readings, as a span of that page; None if it has none.
+
+    A detection labelled one of ignored_labels is dropped without a warning."""
     slots: Dict[str, Dict[str, Any]] = {_READING: {}, _VOLUME: {}, _ISSUE: {}}
     agents: List[BiblioAgent] = []
     for region in alignment_page.regions:
@@ -152,6 +170,8 @@ def read_page(
         if evidence is None:
             continue
         model_label = region.label_for_export
+        if model_label in ignored_labels:
+            continue
         biblio_type = biblio_type_by_label.get(model_label)
         if biblio_type is None:
             logger.warning(

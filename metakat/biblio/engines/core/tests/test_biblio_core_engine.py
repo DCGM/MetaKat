@@ -9,11 +9,14 @@ from text_geometry_aligner import (
     InputFormat,
 )
 
+from metakat.biblio.engines.core import biblio_core_engine_yolo
 from metakat.biblio.engines.core.biblio_core_engine_yolo import (
     BiblioCoreEngineYOLO,
     parse_biblio_labels,
     read_page,
 )
+from metakat.biblio.engines.core.biblio_core_engine_yolo_monograph import BiblioCoreEngineYOLOMonograph
+from metakat.biblio.engines.core.biblio_core_engine_yolo_periodical import BiblioCoreEngineYOLOPeriodical
 from metakat.biblio.engines.core.models import (
     AgentRole,
     BiblioAgent,
@@ -319,9 +322,14 @@ class _Aligned:
         return SimpleNamespace(pages=self.pages)
 
 
-def _yolo(aligned):
-    engine = object.__new__(BiblioCoreEngineYOLO)
-    engine.biblio_type_by_label = BY_LABEL
+def _yolo(aligned, engine_class=BiblioCoreEngineYOLOMonograph, monkeypatch=None):
+    if monkeypatch is None:
+        engine = object.__new__(engine_class)
+        engine.biblio_type_by_label = BY_LABEL
+        engine.ignored_labels = frozenset()
+    else:
+        monkeypatch.setattr(biblio_core_engine_yolo, "EngineYOLOALTO", lambda **_: None)
+        engine = engine_class({"name": "yolo", "labels": LABELS})
     engine.engine_yolo_alto = aligned
     return engine
 
@@ -341,3 +349,35 @@ def test_the_yolo_core_reads_every_page_once_and_merges_each_span():
     [title_info] = first.reading.title_infos
     assert (title_info.title.text, title_info.title.page_key, title_info.part_number.text) == ("KYTICE", "p2", "Díl 2")
     assert second is None
+
+
+def test_the_yolo_base_reads_no_labels_of_its_own():
+    with pytest.raises(TypeError, match="monograph or periodical core"):
+        BiblioCoreEngineYOLO({"name": "yolo", "labels": LABELS})
+
+
+def test_the_monograph_core_drops_the_periodical_labels_its_model_is_not_trained_on(monkeypatch, caplog):
+    aligned = _Aligned(_page(("titulek", "Kytice", 0.9), ("cislo", "Č. 3", 0.8), ("redaktor", "Novák", 0.7),
+                             page_key="p1"))
+    engine = _yolo(aligned, BiblioCoreEngineYOLOMonograph, monkeypatch)
+
+    [result] = engine.process([[BiblioPage("/b/p1.jpg", "/b/p1.xml")]]).spans
+
+    assert result.periodical_issue is None and result.reading.agents == ()
+    assert result.reading.title_infos[0].title.text == "Kytice"
+    assert engine.ignored_labels == {"cislo", "datum cisla", "rocnik", "datum rocniku", "redaktor"}
+    assert "not found in the engine" not in caplog.text
+
+
+def test_the_periodical_core_reads_the_volume_issue_and_redaktor_but_no_edition(monkeypatch):
+    aligned = _Aligned(_page(("titulek", "Zlatá Praha", 0.9), ("cislo", "Č. 3", 0.8), ("rocnik", "Ročník V", 0.8),
+                             ("redaktor", "Novák", 0.7), ("vydani", "2. vydání", 0.9), page_key="p1"))
+    engine = _yolo(aligned, BiblioCoreEngineYOLOPeriodical, monkeypatch)
+
+    [result] = engine.process([[BiblioPage("/b/p1.jpg", "/b/p1.xml")]]).spans
+
+    assert result.periodical_issue.title_infos[0].part_number.text == "Č. 3"
+    assert result.periodical_volume.title_infos[0].part_number.text == "Ročník V"
+    assert [agent.role for agent in result.reading.agents] == [AgentRole.REDAKTOR]
+    assert all(publication.edition is None for publication in result.reading.publications)
+    assert engine.ignored_labels == {"vydani", "prekladatel", "fotograf"}

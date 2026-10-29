@@ -11,7 +11,7 @@
   - [Pipeline configuration](#pipeline-configuration)
   - [Processing handoff](#processing-handoff)
 - [Available core implementation](#available-core-implementation)
-  - [YOLO + ALTO](#engine-yolo--alto-biblio_core_engine_yolo)
+  - [YOLO + ALTO](#engine-yolo--alto-biblio_core_engine_yolo_monograph-biblio_core_engine_yolo_periodical)
     - [Label configuration](#label-configuration)
     - [Reading a page](#reading-a-page)
   - [Vision-language model](#engine-vision-language-model-biblio_core_engine_vlm)
@@ -120,7 +120,7 @@ rejects any other key. The result carries no MetaKat UUIDs and no hierarchy -
 creating those belongs to the [bind engine](#available-bind-implementation).
 
 How the pages of a span are read together is the core's: the
-[YOLO core](#engine-yolo--alto-biblio_core_engine_yolo) reads each page on its
+[YOLO core](#engine-yolo--alto-biblio_core_engine_yolo_monograph-biblio_core_engine_yolo_periodical) reads each page on its
 own and merges them (`merge_span`, below), the
 [VLM core](#engine-vision-language-model-biblio_core_engine_vlm) gives the model
 all images and OCR of the span in one request.
@@ -241,7 +241,7 @@ mappings under `biblio`:
 {
   "biblio": {
     "core": {
-      "name": "biblio_core_engine_yolo",
+      "name": "biblio_core_engine_yolo_monograph",
       "model_path": "biblio/core/model.pt",
       "labels": {
         "Title": "titulek",
@@ -302,20 +302,38 @@ The registered core implementations are:
 
 | Config `name` | Implementation |
 |---|---|
-| `biblio_core_engine_yolo` | YOLO geometry aligned with ALTO text. |
+| `biblio_core_engine_yolo_monograph` | YOLO geometry aligned with ALTO text, with a detector trained on books. |
+| `biblio_core_engine_yolo_periodical` | The same, with a detector trained on periodicals. |
 | `biblio_core_engine_vlm` | A vision-language model reading the page image and its ALTO text; its values located in the ALTO afterwards. |
 
-### Engine: YOLO + ALTO (`biblio_core_engine_yolo`)
+### Engine: YOLO + ALTO (`biblio_core_engine_yolo_monograph`, `biblio_core_engine_yolo_periodical`)
 
 This engine detects bibliographic regions with YOLO, aligns their geometry
 with ALTO words, reads each page's aligned regions by their labels, and merges
 the pages of each span into its `BiblioSpanResult`.
 
+The two cores are one engine, `BiblioCoreEngineYOLO`, with detectors of the
+same 22 labels trained on different material. Each is trained to find a
+different subset of those labels, which it names in `BIBLIO_TYPES`. A
+detection of a label outside it is one the model was not trained to find, so
+it is dropped without a warning. The base names no subset and cannot be
+configured.
+
+| Core | Trained on | Does not read |
+|---|---|---|
+| `biblio_core_engine_yolo_monograph` | books | `PeriodicalVolumePartNumber`, `PeriodicalVolumeDateIssued`, `PeriodicalIssuePartNumber`, `PeriodicalIssueDateIssued`, `Redaktor` |
+| `biblio_core_engine_yolo_periodical` | periodicals | `Edition`, `Translator`, `Photographer` |
+
+These are the labels with no annotation in each training set. The monograph
+core therefore never reads a periodical volume or issue. Use it with
+`biblio_bind_engine_monograph`, and the periodical core with
+`biblio_bind_engine_periodical`.
+
 #### Configuration
 
 ```json
 {
-  "name": "biblio_core_engine_yolo",
+  "name": "biblio_core_engine_yolo_monograph",
   "model_path": "biblio/core/model.pt",
   "labels": {
     "Title": "titulek",
@@ -342,7 +360,9 @@ constructed. It requires:
 `id2label` is explicitly rejected: numeric model class IDs are not part of the
 pipeline configuration. The engine keeps the mapping as `labels`
 (`dict[BiblioType, str]`) and its inverse, `biblio_type_by_label`, which it
-reads every region's label through. Both are the engine's own: the binder
+reads every region's label through. The inverse holds only the core's
+`BIBLIO_TYPES`. The labels of the other types are kept as `ignored_labels`, so
+the configuration can list every label of the model's head. Both are the engine's own: the binder
 never sees a model label.
 
 #### Geometry and text loading
