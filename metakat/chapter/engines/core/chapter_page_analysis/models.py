@@ -5,7 +5,7 @@ from typing import Protocol, Sequence
 
 from metakat.chapter.engines.core.models import ChapterPageInput
 from metakat.common.models import DetectionEvidence
-from metakat.page_number.engines.core.models import (
+from metakat.chapter.engines.core.physical_page_numbers.models import (
     PhysicalPageNumberEvidence,
 )
 

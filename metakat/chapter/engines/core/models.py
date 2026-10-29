@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from metakat.common.models import DetectionEvidence, PageDimensions
-from metakat.page_number.engines.core.models import (
+from metakat.chapter.engines.core.physical_page_numbers.models import (
     PageNumberNumeralSystem,
     PageNumberTextCase,
     apply_page_number_text_case,

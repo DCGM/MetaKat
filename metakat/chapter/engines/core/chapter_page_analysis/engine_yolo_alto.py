@@ -24,13 +24,13 @@ from metakat.chapter.engines.core.pipeline_utils import (
 )
 from metakat.engine_config import require_config_mapping
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
-from metakat.page_number.engines.core.models import (
+from metakat.chapter.engines.core.physical_page_numbers.models import (
     PhysicalPageNumberEvidence,
 )
-from metakat.page_number.engines.core.page_number_parsers import (
+from metakat.chapter.engines.core.physical_page_numbers.parsers import (
     DecoratedPageNumberParser,
 )
-from metakat.page_number.engines.core.page_number_resolver import (
+from metakat.chapter.engines.core.physical_page_numbers.resolver import (
     PageNumberSelectionMode,
     PhysicalPageNumberResolver,
 )

@@ -6,7 +6,7 @@ from typing import Any, Sequence
 
 from metakat.chapter.engines.core.models import TocResult
 from metakat.common.models import PageDimensions
-from metakat.page_number.engines.core.models import (
+from metakat.chapter.engines.core.physical_page_numbers.models import (
     PhysicalPageNumberEvidence,
 )
 from metakat.engine_config import require_config_mapping, require_engine_name

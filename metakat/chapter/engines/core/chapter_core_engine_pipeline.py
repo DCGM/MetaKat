@@ -29,7 +29,7 @@ from metakat.chapter.engines.core.chapter_page_analysis import (
     ChapterPageAnalysisEngine,
     ChapterPageAnalysisResult,
 )
-from metakat.page_number.engines.core.models import (
+from metakat.chapter.engines.core.physical_page_numbers.models import (
     PhysicalPageNumberEvidence,
 )
 

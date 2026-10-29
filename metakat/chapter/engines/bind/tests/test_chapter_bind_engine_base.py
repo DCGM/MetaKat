@@ -14,7 +14,7 @@ from metakat.chapter.engines.core.chapter_page_number_parsers import (
 )
 from metakat.chapter.engines.core.models import ChapterResult, TocResult
 from metakat.common.models import AltoRefs, BoundingBox, PageDimensions
-from metakat.page_number.engines.core.page_number_parsers import (
+from metakat.chapter.engines.core.physical_page_numbers.parsers import (
     DecoratedPageNumberParser,
 )
 from metakat.schemas.base_objects import (

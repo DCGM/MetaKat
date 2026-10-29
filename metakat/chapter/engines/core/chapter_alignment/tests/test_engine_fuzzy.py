@@ -22,7 +22,7 @@ from metakat.chapter.engines.core.models import (
     TocBase,
     TocResult,
 )
-from metakat.page_number.engines.core.models import PageNumberNumeralSystem
+from metakat.chapter.engines.core.physical_page_numbers.models import PageNumberNumeralSystem
 
 ALIGNMENT_LOGGER = (
     "metakat.chapter.engines.core.chapter_alignment.engine_fuzzy"

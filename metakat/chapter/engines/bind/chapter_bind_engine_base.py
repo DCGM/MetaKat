@@ -23,10 +23,10 @@ from metakat.common.models import (
     DetectionEvidence,
     PageDimensions,
 )
-from metakat.page_number.engines.core.models import (
+from metakat.chapter.engines.core.physical_page_numbers.models import (
     PhysicalPageNumberEvidence,
 )
-from metakat.page_number.engines.core.page_number_parsers import (
+from metakat.chapter.engines.core.physical_page_numbers.parsers import (
     DecoratedPageNumberParser,
 )
 from metakat.schemas.base_objects import (

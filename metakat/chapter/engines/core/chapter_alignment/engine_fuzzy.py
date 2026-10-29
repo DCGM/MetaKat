@@ -25,7 +25,7 @@ from metakat.chapter.engines.core.pipeline_utils import (
     normalize_text,
 )
 from metakat.engine_config import require_config_mapping
-from metakat.page_number.engines.core.models import (
+from metakat.chapter.engines.core.physical_page_numbers.models import (
     PageNumberNumeralSystem,
     PhysicalPageNumberEvidence,
 )

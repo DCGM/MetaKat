@@ -941,7 +941,10 @@ already produced during page analysis, parses each retained detection with
 [`DecoratedPageNumberParser`](../page_number/README.md#decorated-page-number-parser),
 and passes the successfully parsed `PhysicalPageNumberEvidence` candidates to
 [`PhysicalPageNumberResolver`](../page_number/README.md#physical-page-number-resolver)
-in `STANDARD` mode. The selected result, when present, is returned as
+in `STANDARD` mode. The parser, the resolver and the evidence model are the
+chapter engine's own copy (`engines/core/physical_page_numbers`) of the
+page-number stage's, linked here for their description: the two engines do
+not import from each other, and the copies evolve independently. The selected result, when present, is returned as
 destination-page-number evidence for chapter alignment.
 
 Stage 1 exposes these resolver parameters:

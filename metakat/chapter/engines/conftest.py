@@ -25,7 +25,7 @@ from metakat.chapter.engines.core.chapter_page_number_parsers import (
     ArabicRomanChapterPageNumberParser,
 )
 from metakat.common.models import BoundingBox, DetectionEvidence
-from metakat.page_number.engines.core.page_number_parsers import (
+from metakat.chapter.engines.core.physical_page_numbers.parsers import (
     DecoratedPageNumberParser,
 )
 
