@@ -5,8 +5,8 @@ Every VLM engine sends its page images through `scaled_size()`, set by the
 
 - `max_pixels` - width x height at most; always applies. Leaving it out keeps
   the default, and it cannot be switched off: sending more takes stating a
-  larger number. Endpoints reject images past their own limit (OpenAI: 30000
-  32 px patches per image, about 30.7M pixels), and the default stays below it;
+  larger number. The default keeps huge archive scans from reaching the model
+  as they are, while a newspaper page keeps its smallest text readable;
 - `max_w`, `max_h` - width and height at most, optional;
 - `text_height` - the height in pixels the smallest text on the page is
   scaled down to, optional; measured in the page's ALTO (`smallest_text_height`);
@@ -26,7 +26,11 @@ from statistics import median
 from typing import Any, Optional
 from xml.etree import ElementTree
 
-DEFAULT_MAX_PIXELS = 25_000_000
+# A broadsheet page at about 190 dpi. On the evaluation and consistency
+# batches no page needs more for its smallest text to reach 20 px, newspapers
+# included (at most 11.6M); endpoints reject far larger images anyway (OpenAI:
+# 30000 32 px patches per image, about 30.7M pixels).
+DEFAULT_MAX_PIXELS = 12_000_000
 
 # What counts as text when looking for the smallest: PERO OCR reads cloth
 # covers, paper texture, bleed-through and blank paper as lines too, with a

@@ -46,7 +46,7 @@ def test_text_height_scales_down_but_never_up():
 def test_min_pixels_limits_text_height_but_not_the_maxes_and_never_scales_up():
     assert ImagePreprocessing(text_height=10, min_pixels=2_000_000).scaled_size(4000, 2000, text_height=40) == (2000, 1000)
     assert ImagePreprocessing(text_height=10, min_pixels=2_000_000, max_w=1000).scaled_size(4000, 2000, 40) == (1000, 500)
-    assert ImagePreprocessing(text_height=10, min_pixels=20_000_000).scaled_size(4000, 2000, 40) == (4000, 2000)
+    assert ImagePreprocessing(text_height=10, min_pixels=9_000_000).scaled_size(4000, 2000, 40) == (4000, 2000)
 
 
 @pytest.mark.parametrize("config, match", [

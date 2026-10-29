@@ -84,7 +84,7 @@ re-encoded as JPEG when it is.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `max_pixels` | `25000000` | Width x height at most. Always applies: it cannot be `null`, so sending more takes stating a larger number. Endpoints reject images past their own limit - OpenAI 30000 32 px patches per image, about 30.7M pixels - and the default stays below it. |
+| `max_pixels` | `12000000` | Width x height at most. Always applies: it cannot be `null`, so sending more takes stating a larger number. The default keeps huge archive scans from reaching the model as they are; a broadsheet newspaper page fits at about 190 dpi, which keeps the smallest text of every page in the test batches at 20 px or more. Endpoints reject far larger images anyway (OpenAI: 30000 32 px patches per image, about 30.7M pixels). |
 | `max_w`, `max_h` | - | Width and height at most. |
 | `text_height` | - | Pixels the smallest text on the page is scaled down to, measured in its ALTO. |
 | `min_pixels` | - | How far `text_height` may scale a page down: a guard for text the OCR missed. Never scales up. |
