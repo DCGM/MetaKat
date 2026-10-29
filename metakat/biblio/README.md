@@ -1110,8 +1110,9 @@ Where the new document starts differs by binder:
   the start is the earliest opening page reached; a neutral page before it may
   close the previous part, so stays there. The walk stops at any other type - a
   back cover closes the previous part - and without an opening page the title
-  page itself starts. The types are the page-type stage's own
-  (`boundaries.OPENING`, `NEUTRAL`).
+  page itself starts. The types are the binder's own (`OPENING_PAGE_TYPES`,
+  `NEUTRAL_PAGE_TYPES`); the shared `split_documents` takes the start page from
+  the binder.
 - **periodical:** on the later span's first title page, the first page of an
   issue.
 

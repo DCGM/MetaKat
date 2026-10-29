@@ -20,6 +20,7 @@ from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
 from metakat.biblio.engines.bind.biblio_binding import (
     Anchors,
     Scan,
+    TitleSpan,
     authoritative_spans,
     kept,
     normalize_text,
@@ -36,6 +37,7 @@ from metakat.schemas.base_objects import (
     MetakatIO,
     MetakatPage,
     MetakatVolume,
+    PageType,
     ObjectItem,
     ObjectModel,
     ProarcIO,
@@ -87,6 +89,13 @@ _PROARC_PREFERRED_VALUE_SIMILARITY = 0.8
 # The share of the documents named by a title page that must read a part
 # number or name for the scan to be one multipart monograph (is_multipart).
 PART_MINIMUM_SHARE = 0.5
+# The page types of a volume's opening before its title page, and those that
+# can stand anywhere around it, for where a part found inside a document
+# begins (opening_start).
+OPENING_PAGE_TYPES = frozenset((PageType.FRONT_COVER, PageType.FRONT_END_PAPER, PageType.FRONT_END_SHEET,
+                                PageType.FRONT_JACKET, PageType.FRONTISPIECE))
+NEUTRAL_PAGE_TYPES = frozenset((PageType.BLANK, PageType.COVER, PageType.JACKET, PageType.SPINE,
+                                PageType.EDGE, PageType.FLY_LEAF, PageType.CALIBRATION_TABLE))
 
 
 def _substring_levenshtein_distance(target: str, source: str) -> int:
@@ -176,6 +185,32 @@ def _proarc_values(proarc_volume: ObjectItem, field_name: str) -> Optional[List[
     return getattr(proarc_volume, _PROARC_FIELD_NAMES.get(field_name, field_name))
 
 
+def opening_start(document: List[MetakatPage], span: TitleSpan, previous: TitleSpan) -> MetakatPage:
+    """The first page of the opening run before a title page: where a book whose title page it is begins.
+
+    A volume is scanned front cover, end papers, frontispiece, title page, so
+    the pages right before its title page belong to it. Walking back from the
+    title page over pages of opening types (front cover, end papers, front
+    jacket, frontispiece) and of neutral ones (blank, cover, fly leaf, ...),
+    the start is the earliest opening page reached; a neutral page before it
+    may close the previous volume, so stays there. Without an opening page the
+    title page itself starts. The walk stops at a page of any other type - a
+    back cover closes the previous volume - and never reaches the previous
+    span."""
+    by_index = {page.batch_index: page for page in document}
+    start = span.pages[0]
+    index = span.start - 1
+    while index > previous.end and index in by_index:
+        page = by_index[index]
+        kind = page.pageType.text if page.pageType is not None else None
+        if kind in OPENING_PAGE_TYPES:
+            start = page
+        elif kind not in NEUTRAL_PAGE_TYPES:
+            break
+        index -= 1
+    return start
+
+
 class BiblioBindEngineMonograph(BiblioBindEngine):
     def process(self, batch_dir: str, metakat_io: MetakatIO, proarc_io: ProarcIO = None) -> MetakatIO:
         scan = read_scan(self.core_engine, batch_dir, metakat_io)
@@ -223,7 +258,7 @@ class BiblioBindEngineMonograph(BiblioBindEngine):
         hierarchy = HierarchyType.MULTIPART if multipart else HierarchyType.MONOGRAPH
         documents = scan.documents
         if multipart:
-            documents = split_documents(documents, scan.spans, lambda span: span.part, "part", with_opening=True)
+            documents = split_documents(documents, scan.spans, lambda span: span.part, "part", opening_start)
         logger.info(f"Binding {len(documents)} {hierarchy.value} volume(s)")
         volumes: List[MetakatVolume] = []
         for document, winner in zip(documents, authoritative_spans(documents, scan.spans)):
