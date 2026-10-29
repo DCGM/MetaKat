@@ -389,3 +389,41 @@ def test_a_numbering_restart_inside_a_unit_is_not_a_unit_edge():
     assert labels_[0] == "[10]" and labels_[-1] == "[6a]"
     # nothing is supplied at the restart itself: both runs keep their own numbers
     assert labels_[6:8] == ["16", "1"]
+
+
+def test_recto_verso_labels_both_sides_of_an_alternating_run():
+    result = paginate([1, None, 2, None, 3, None, 4, None, 5, None], config=edges(recto_verso=True))
+    assert labels(result) == ["1r", "1v", "2r", "2v", "3r", "3v", "4r", "4v", "5r", "5v"]
+    assert result.decisions["p1"].pagination_rule == "recto_verso"
+    assert not result.page_numbers["p1"].bracketed and result.page_numbers["p1"].supplied
+    assert not result.page_numbers["p0"].supplied  # the printed number stays an observation
+
+
+def test_recto_verso_is_off_by_default_and_keeps_the_letters():
+    values = [1, None, 2, None, 3, None, 4, None, 5, None]
+    assert labels(paginate(values, config=edges()))[2:6] == ["2", "[2a]", "3", "[3a]"]
+
+
+def test_recto_verso_is_not_used_by_the_preliminary_pass():
+    paginator = NdkPaginator(NdkPaginationConfig(recto_verso=True), bracketed=False)
+    assert labels(paginate([1, None, 2, None, 3, None, 4, None, 5], config=paginator)) == [
+        "1", None, "2", None, "3", None, "4", None, "5"]
+
+
+def test_a_short_alternation_is_not_foliation():
+    assert labels(paginate([1, None, 2, None, 3, 4, 5], config=edges(recto_verso=True)))[2:4] == [
+        "2", "[2a]"]
+
+
+def test_several_unnumbered_pages_in_a_row_keep_the_letters_inside_a_foliated_book():
+    values = [1, None, 2, None, 3, None, 4, None, 5, None, None, None, 6, 7, 8]
+    result = labels(paginate(values, config=edges(recto_verso=True)))
+    assert result[:8] == ["1r", "1v", "2r", "2v", "3r", "3v", "4r", "4v"]
+    assert result[9:12] == ["[5a]", "[5b]", "[5c]"]  # inserted pages, not the back of a sheet
+
+
+def test_recto_verso_roman_and_setup_validation():
+    roman = labels(paginate(["i", None, "ii", None, "iii", None, "iv", None], config=edges(recto_verso=True)))
+    assert roman == ["ir", "iv", "iir", "iiv", "iiir", "iiiv", "ivr", "ivv"]
+    with pytest.raises(ValueError, match="recto_verso"):
+        NdkPaginationConfig(recto_verso="yes")

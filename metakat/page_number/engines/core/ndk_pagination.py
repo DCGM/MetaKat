@@ -79,13 +79,18 @@ class NdkPaginationConfig:
     # Must be explicitly asserted: absence of OCR is not proof of a complete,
     # wholly unnumbered volume. It takes effect in the final pass only.
     wholly_unnumbered: bool = False
+    # Monograph rule 1.1.8, the commissioner's choice: where only every second page is numbered
+    # (a strictly alternating run), label both sides of the sheet 12r, 12v instead of 12, [12a].
+    # Several unnumbered pages in a row keep the letter logic. Final pass only.
+    recto_verso: bool = False
     tail_mode: Literal["unknown", "continue", "insert"] = "unknown"
 
     def __post_init__(self):
         import math
 
-        if not isinstance(self.wholly_unnumbered, bool):
-            raise ValueError("ndk.wholly_unnumbered must be boolean")
+        for name in ("wholly_unnumbered", "recto_verso"):
+            if not isinstance(getattr(self, name), bool):
+                raise ValueError(f"ndk.{name} must be boolean")
         if self.profile not in ("shared", "monograph", "periodical"):
             raise ValueError("ndk.profile must be shared, monograph, or periodical")
         if self.tail_mode not in ("unknown", "continue", "insert"):
@@ -238,6 +243,66 @@ class NdkPaginator:
             and evidence.confidence >= self.config.minimum_anchor_confidence
         )
 
+    # Alternating steps (number, unnumbered page, next number) needed to call a run alternating.
+    RECTO_VERSO_STEPS = 3
+
+    def _recto_verso(self, pages, observed, snapshot, numbers, decisions):
+        """Rule 1.1.8: a run of sheets numbered on the front only. Both sides get the sheet's number,
+        `12r` for the numbered page and `12v` for its unnumbered back, unbracketed."""
+        steps = [
+            (left, right)
+            for left, right in zip(observed, observed[1:])
+            if right - left == 2
+            and numbers[pages[left + 1].page_key] is None
+            and self._reliable(snapshot[pages[left].page_key])
+            and self._reliable(snapshot[pages[right].page_key])
+            and snapshot[pages[left].page_key].numeral_system
+            == snapshot[pages[right].page_key].numeral_system
+            and snapshot[pages[right].page_key].value - snapshot[pages[left].page_key].value == 1
+        ]
+        runs, current = [], []
+        for step in steps:
+            if current and current[-1][1] != step[0]:
+                runs.append(current)
+                current = []
+            current.append(step)
+        runs.append(current)
+        for run in runs:
+            if len(run) < self.RECTO_VERSO_STEPS:
+                continue
+            anchors = [run[0][0]] + [right for _, right in run]
+            for index in anchors:
+                evidence = snapshot[pages[index].page_key]
+                numbers[pages[index].page_key] = replace(evidence, suffix="r")
+                previous = decisions.get(pages[index].page_key, PageNumberDecision("detected"))
+                decisions[pages[index].page_key] = replace(previous, pagination_rule="recto_verso")
+            # the back of the last sheet of the run: one unnumbered page, then the end or a numbered page
+            last = anchors[-1]
+            if last + 1 < len(pages) and (
+                last + 2 == len(pages) or numbers[pages[last + 2].page_key] is not None
+            ):
+                self._from_anchor(
+                    pages[last + 1],
+                    snapshot[pages[last].page_key].value,
+                    snapshot[pages[last].page_key],
+                    numbers,
+                    decisions,
+                    suffix_value="v",
+                    confidence=0.8,
+                    reason="recto_verso",
+                )
+            for left, right in run:
+                self._from_anchor(
+                    pages[left + 1],
+                    snapshot[pages[left].page_key].value,
+                    snapshot[pages[left].page_key],
+                    numbers,
+                    decisions,
+                    suffix_value="v",
+                    confidence=0.8,
+                    reason="recto_verso",
+                )
+
     def _supported(self, pages, index, direction, snapshot):
         """Find an independent attested continuation without crossing a reset."""
         neighbor = index + direction
@@ -264,6 +329,8 @@ class NdkPaginator:
             return
         snapshot = dict(numbers)  # supplied labels never become inference anchors
         observed = [i for i, p in enumerate(pages) if snapshot[p.page_key] is not None]
+        if self.config.recto_verso and self.bracketed:
+            self._recto_verso(pages, observed, snapshot, numbers, decisions)
         if self.config.wholly_unnumbered:
             if any(not snapshot[pages[i].page_key].supplied for i in observed):
                 raise ValueError(

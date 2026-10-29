@@ -280,6 +280,7 @@ It then runs reusable document postprocessing across all ordered input pages.
       "max_gap_pages": 8,
       "minimum_anchor_confidence": 0.6,
       "wholly_unnumbered": false,
+      "recto_verso": false,
       "tail_mode": "unknown"
     }
   }
@@ -610,6 +611,22 @@ number. The original observation action and reading remain in
 `pagination_rule` records the inference rule. `supplied=True` labels carry empty
 `text`, `bbox=None`, and empty ALTO references. The binder writes their complete
 `output_text()` and confidence without creating geometry or OCR references.
+
+#### Recto/verso (`ndk.recto_verso`)
+
+Monograph rule 1.1.8 lets a commissioner describe a book whose **sheets** (not pages) are numbered
+as `1r, 1v, 2r, 2v`, and `Ir, Iv, IIr, IIv` in Roman numerals, both sides of a sheet with the number
+printed on its front, unbracketed while the sequence is unbroken. Rule 1.1.4 offers it as the alternative
+to the letter labels (`1`, `[1a]`, `2`, `[2a]`) and leaves the choice to the commissioner; the periodical
+rules 8.8 have no such rule. It cannot be read off the scans, so it is a setting, off by default.
+
+With `recto_verso` the final pass relabels a **strictly alternating run**: at least three consecutive
+sheets, each a reliable printed number followed by exactly one unnumbered page and then the next number.
+The printed page becomes `Nr` (still an observation, with its geometry), the unnumbered one `Nv`
+(supplied, confidence at most 0.8), and the back of the run's last sheet is labelled too when it is the
+only unnumbered page before the next number or the end of the unit. Everything else keeps the letter
+logic: several unnumbered pages in a row (plates, inserts) stay `[5a]`, `[5b]`, `[5c]`.
+The preliminary pass never produces these labels.
 
 `profile` defaults to `shared`, covering rules common to both document kinds.
 `monograph` additionally allows an explicitly confirmed wholly unnumbered volume.
