@@ -18,6 +18,11 @@ class PageNumberCoreEngine(ABC):
         self.name = require_engine_name(self.config, "Page-number core config")
         logger.info("Loaded page number core engine: %s", self.name)
 
+    @property
+    def has_final_pass(self) -> bool:
+        """Whether the engine has a final pass after the page-type stage (see `process`, `final`)."""
+        return False
+
     @abstractmethod
     def process(
         self,

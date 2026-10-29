@@ -46,10 +46,16 @@ def inputs(values, contexts=None):
     return tuple(pages)
 
 
+def edges(**settings):
+    """The final pass: complete documents, so the edges are labelled too."""
+    return NdkPaginator(NdkPaginationConfig(**settings), complete_document=True)
+
+
 def paginate(values, *, config=None, contexts=None):
     pages = inputs(values, contexts)
     result = PageNumberCoreResult({p.page_key: p.selected for p in pages})
-    return NdkPaginator(config).process(pages, result)
+    paginator = config if isinstance(config, NdkPaginator) else NdkPaginator(config)
+    return paginator.process(pages, result)
 
 
 def labels(result):
@@ -113,7 +119,7 @@ def test_long_gaps_are_not_filled_by_default():
 
 
 def test_confirmed_complete_leading_gap_is_bracketed():
-    config = NdkPaginationConfig(complete_document=True)
+    config = edges()
     assert labels(paginate([None, None, None, 4, 5], config=config)) == [
         "[1]",
         "[2]",
@@ -130,7 +136,7 @@ def test_confirmed_complete_leading_gap_is_bracketed():
 
 
 def test_complete_document_does_not_automatically_resolve_ambiguous_tail():
-    result = paginate([1, 2, None], config=NdkPaginationConfig(complete_document=True))
+    result = paginate([1, 2, None], config=edges())
     assert labels(result) == ["1", "2", None]
 
 
@@ -139,13 +145,13 @@ def test_complete_document_does_not_automatically_resolve_ambiguous_tail():
     [("continue", ["1", "2", "[3]", "[4]"]), ("insert", ["1", "2", "[2a]", "[2b]"])],
 )
 def test_confirmed_tail_policies(mode, expected):
-    config = NdkPaginationConfig(complete_document=True, tail_mode=mode)
+    config = edges(tail_mode=mode)
     assert labels(paginate([1, 2, None, None], config=config)) == expected
 
 
 def test_confirmed_counting_context_resolves_tail_and_excludes_cover():
     contexts = {2: NdkPageContext(counted=True), 3: NdkPageContext(excluded=True)}
-    config = NdkPaginationConfig(complete_document=True)
+    config = edges()
     assert labels(paginate([1, 2, None, None], config=config, contexts=contexts)) == [
         "1",
         "2",
@@ -155,14 +161,12 @@ def test_confirmed_counting_context_resolves_tail_and_excludes_cover():
 
 
 def test_fully_unnumbered_volume_requires_explicit_confirmation():
-    config = NdkPaginationConfig(
-        profile="monograph", complete_document=True, wholly_unnumbered=True
-    )
+    config = edges(profile="monograph", wholly_unnumbered=True)
     assert labels(paginate([None, None, None], config=config)) == ["[1]", "[2]", "[3]"]
     with pytest.raises(ValueError, match="conflicts"):
         paginate([1, None], config=config)
     with pytest.raises(ValueError, match="complete_document"):
-        NdkPaginationConfig(wholly_unnumbered=True)
+        NdkPaginator(NdkPaginationConfig(profile="monograph", wholly_unnumbered=True))
 
 
 def test_context_can_associate_an_insert_with_following_page():
@@ -276,7 +280,7 @@ def test_leading_labels_do_not_collide_with_labels_after_page_one():
     contexts = {3: NdkPageContext(segment_of="p1", segment_index=1)}
     result = paginate(
         [None, 1, 2, None, 3, 4],
-        config=NdkPaginationConfig(complete_document=True),
+        config=edges(),
         contexts=contexts,
     )
     assert labels(result) == ["[1aa]", "1", "2", "[1a]", "3", "4"]
@@ -287,7 +291,7 @@ def test_identical_labels_in_other_units_do_not_change_leading_convention():
     contexts[3] = replace(contexts[3], segment_of="p0", segment_index=1)
     result = paginate(
         [1, 2, 3, None, 4, None, 1, 2],
-        config=NdkPaginationConfig(complete_document=True),
+        config=edges(),
         contexts=contexts,
     )
     assert result.page_numbers["p3"].output_text() == "[1a]"
@@ -302,9 +306,7 @@ def test_known_excluded_scan_does_not_advance_number_inference():
 
 
 def test_end_counting_facts_override_profile_and_conflicting_tail_policy():
-    config = NdkPaginationConfig(
-        profile="periodical", complete_document=True, tail_mode="continue"
-    )
+    config = edges(profile="periodical", tail_mode="continue")
     contexts = {2: NdkPageContext(counted=False)}
     assert labels(paginate([25, 26, None], config=config, contexts=contexts)) == [
         "25",
@@ -343,26 +345,19 @@ def test_regular_unnumbered_reverse_sides_do_not_destroy_observed_folio_confiden
 @pytest.mark.parametrize("unnumbered", [False, True])
 def test_archival_pagination_is_idempotent(unnumbered):
     pages = inputs([None, None, None] if unnumbered else [10, 11, None, 13, 14])
-    config = NdkPaginationConfig(
-        profile="monograph", complete_document=unnumbered, wholly_unnumbered=unnumbered
-    )
-    paginator = NdkPaginator(config)
+    config = NdkPaginationConfig(profile="monograph", wholly_unnumbered=unnumbered)
+    paginator = NdkPaginator(config, complete_document=unnumbered)
     original = PageNumberCoreResult({p.page_key: p.selected for p in pages})
     once = paginator.process(pages, original)
     assert paginator.process(pages, once) == once
 
 
 def test_without_brackets_only_plain_numbers_are_supplied():
-    config = NdkPaginationConfig(bracketed=False, complete_document=True, tail_mode="insert")
+    config = NdkPaginator(NdkPaginationConfig(tail_mode="insert"), bracketed=False, complete_document=True)
     assert labels(paginate([None, None, 3, 4, None, 6, 7, None, None, 10, 11, None], config=config)) == [
         None, None, "3", "4", "5", "6", "7", "8", "9", "10", "11", None]
     assert labels(paginate([25, 26, None, None, 27, 28], config=config))[2:4] == [None, None]
     assert labels(paginate([15, 16, None, None, None, 18, 19], config=config))[2:5] == [None, None, None]
-
-
-def test_bracketed_must_be_boolean():
-    with pytest.raises(ValueError, match="bracketed"):
-        NdkPaginationConfig(bracketed=1)
 
 
 def numbered_units(values, units):
@@ -378,8 +373,7 @@ def numbered_units(values, units):
         for chunk in PageNumberChunker().split(tuple(group), reason="explicit_unit")
     )
     result = PageNumberCoreResult({p.page_key: p.selected for p in pages}, {}, chunks)
-    config = NdkPaginationConfig(complete_document=True, tail_mode="insert")
-    return NdkPaginator(config).process(tuple(pages), result)
+    return edges(tail_mode="insert").process(tuple(pages), result)
 
 
 def test_each_unit_has_its_own_leading_and_trailing_edge():

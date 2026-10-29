@@ -113,10 +113,8 @@ def test_insertions_gaps_and_repeated_headers_do_not_create_false_units(values):
 
 def test_ambiguous_unnumbered_border_is_quarantined_even_with_ndk_edge_policy():
     batch = pages([90, 91, 92, 93, 94, 95, None, None, 1, 2, 3, 4, 5, 6])
-    config = PageNumberPostprocessConfig(
-        ndk=NdkPaginationConfig(complete_document=True, tail_mode="insert")
-    )
-    result = PageNumberPostprocessor(config).process(batch)
+    config = PageNumberPostprocessConfig(ndk=NdkPaginationConfig(tail_mode="insert"))
+    result = PageNumberPostprocessor(config, complete_document=True).process(batch)
     assert boundaries(result.chunks) == ["p0", "p6", "p8"]
     assert result.chunks[1].ambiguous
     assert result.chunks[1].reason == "uncertain_boundary"
@@ -262,7 +260,7 @@ def test_ndk_reuse_respects_existing_chunks_and_uncertain_boundary():
     batch = pages([90, 91, 92, 93, 94, 95, None, None, 1, 2, 3, 4, 5, 6])
     result = PageNumberPostprocessor().process(batch)
     paginated = NdkPaginator(
-        NdkPaginationConfig(complete_document=True, tail_mode="insert")
+        NdkPaginationConfig(tail_mode="insert"), complete_document=True
     ).process(tuple(batch), result)
     assert paginated == result
 

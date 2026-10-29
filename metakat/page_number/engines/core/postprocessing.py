@@ -396,8 +396,16 @@ def _valid(
 
 
 class PageNumberPostprocessor:
-    def __init__(self, config: PageNumberPostprocessConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: PageNumberPostprocessConfig | None = None,
+        *,
+        bracketed: bool = True,
+        complete_document: bool = False,
+    ) -> None:
+        """bracketed and complete_document are the pass of the NDK pagination (see NdkPaginator)."""
         self.config = config or PageNumberPostprocessConfig()
+        self.ndk_pass = {"bracketed": bracketed, "complete_document": complete_document}
 
     def process(
         self,
@@ -462,7 +470,7 @@ class PageNumberPostprocessor:
                     for key in chunk.page_keys
                 }
             )
-        return NdkPaginator(self.config.ndk).process(
+        return NdkPaginator(self.config.ndk, **self.ndk_pass).process(
             pages, PageNumberCoreResult(numbers, decisions, tuple(chunks))
         )
 

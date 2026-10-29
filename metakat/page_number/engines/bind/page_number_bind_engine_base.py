@@ -47,6 +47,8 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
 
         The scan starts and ends with a document, and the page-type stage has found where the documents
         begin, so the labels at their edges (leading `[1]`, `[1a]`, inserted leaves) can be supplied too."""
+        if not self.core_engine.has_final_pass:
+            return metakat_io
         return self._run(batch_dir, metakat_io, final=True)
 
     def _run(self, batch_dir: str, metakat_io: MetakatIO, *, final: bool) -> MetakatIO:

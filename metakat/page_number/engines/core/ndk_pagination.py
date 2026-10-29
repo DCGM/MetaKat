@@ -76,17 +76,14 @@ class NdkPaginationConfig:
     max_gap_pages: int = 8
     minimum_anchor_confidence: float = 0.6
     # Must be explicitly asserted: absence of OCR is not proof of a complete,
-    # wholly unnumbered volume. The default fills bounded gaps only.
-    complete_document: bool = False
-    # False limits the output to plain numbers: no bracketed label of any kind is supplied.
-    bracketed: bool = True
+    # wholly unnumbered volume. It takes effect in the final pass only.
     wholly_unnumbered: bool = False
     tail_mode: Literal["unknown", "continue", "insert"] = "unknown"
 
     def __post_init__(self):
         import math
 
-        for name in ("enabled", "complete_document", "bracketed", "wholly_unnumbered"):
+        for name in ("enabled", "wholly_unnumbered"):
             if not isinstance(getattr(self, name), bool):
                 raise ValueError(f"ndk.{name} must be boolean")
         if self.profile not in ("shared", "monograph", "periodical"):
@@ -107,8 +104,6 @@ class NdkPaginationConfig:
             or not 0 <= value <= 1
         ):
             raise ValueError("ndk.minimum_anchor_confidence must be in [0, 1]")
-        if self.wholly_unnumbered and not self.complete_document:
-            raise ValueError("ndk.wholly_unnumbered requires complete_document")
         if self.wholly_unnumbered and self.profile != "monograph":
             raise ValueError("ndk.wholly_unnumbered requires the monograph profile")
 
@@ -138,8 +133,21 @@ def suffix(index: int) -> str:
 
 
 class NdkPaginator:
-    def __init__(self, config: NdkPaginationConfig | None = None):
+    """bracketed=False limits the output to plain numbers (the preliminary pass). complete_document=True
+    asserts that every unit is a whole document, so its edges are labelled too (the final pass)."""
+
+    def __init__(
+        self,
+        config: NdkPaginationConfig | None = None,
+        *,
+        bracketed: bool = True,
+        complete_document: bool = False,
+    ):
         self.config = config or NdkPaginationConfig()
+        self.bracketed = bracketed
+        self.complete_document = complete_document
+        if self.config.wholly_unnumbered and not complete_document:
+            raise ValueError("ndk.wholly_unnumbered requires complete_document")
 
     def process(
         self,
@@ -349,7 +357,7 @@ class NdkPaginator:
                             confidence=min(0.55, a.confidence, b.confidence),
                             reason="mixed_gap",
                         )
-        if self.config.complete_document:
+        if self.complete_document:
             self._edges(pages, observed, snapshot, numbers, decisions, leading, trailing)
 
     def _edges(self, pages, observed, snapshot, numbers, decisions, leading, trailing):
@@ -512,7 +520,7 @@ class NdkPaginator:
         confidence,
         reason,
     ):
-        if numbers[page.page_key] is not None or (bracketed and not self.config.bracketed):
+        if numbers[page.page_key] is not None or (bracketed and not self.bracketed):
             return
         evidence = PhysicalPageNumberEvidence(
             page_key=page.page_key,

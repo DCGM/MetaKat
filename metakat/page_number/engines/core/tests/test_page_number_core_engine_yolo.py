@@ -250,3 +250,17 @@ def test_only_the_final_pass_supplies_bracketed_labels_at_document_edges(tmp_pat
     assert [final.page_numbers[f"p{i}"].output_text() for i in (0, 1)] == ["[1]", "[2]"]
     assert final.page_numbers["p9"].output_text() == "[1a]"
     assert all(final.page_numbers[f"p{i}"].supplied for i in (0, 1, 9))
+
+
+def test_one_ndk_flag_disables_the_gap_fill_and_the_final_pass(tmp_path, alignment_page):
+    with mock.patch(ALIGNER):
+        on = PageNumberCoreEngineYOLO({"name": "page_number_core_engine_yolo"})
+        off = PageNumberCoreEngineYOLO(
+            {"name": "page_number_core_engine_yolo", "postprocess": {"ndk": {"enabled": False}}}
+        )
+    assert on.has_final_pass and not off.has_final_pass
+    with pytest.raises(ValueError, match="Unknown postprocess.ndk"):
+        with mock.patch(ALIGNER):
+            PageNumberCoreEngineYOLO(
+                {"name": "page_number_core_engine_yolo", "postprocess": {"ndk": {"complete_document": True}}}
+            )

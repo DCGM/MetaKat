@@ -50,20 +50,18 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
         configured = PageNumberPostprocessConfig.from_config(self.config)
         # The scan starts and ends with a document, so the final pass asserts complete documents
         # (their borders come from the page-type stage); the preliminary pass fills plain numbers only.
+        preliminary = replace(
+            configured, ndk=replace(configured.ndk, wholly_unnumbered=False)
+        )
         self.postprocessors = {
-            final: PageNumberPostprocessor(
-                replace(
-                    configured,
-                    ndk=replace(
-                        configured.ndk,
-                        bracketed=final,
-                        complete_document=final,
-                        wholly_unnumbered=final and configured.ndk.wholly_unnumbered,
-                    ),
-                )
-            )
-            for final in (False, True)
+            False: PageNumberPostprocessor(
+                preliminary, bracketed=False, complete_document=False
+            ),
+            True: PageNumberPostprocessor(
+                configured, bracketed=True, complete_document=True
+            ),
         }
+        self._final_pass = configured.ndk.enabled
         self.page_number_resolver = PhysicalPageNumberResolver.from_config(self.config)
         self.engine_yolo_alto = EngineYOLOALTO(
             config=self.config,
@@ -72,6 +70,10 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
             yolo_image_size=yolo_image_size,
             minimum_overlap_coverage=minimum_overlap_coverage,
         )
+
+    @property
+    def has_final_pass(self) -> bool:
+        return self._final_pass
 
     def process(
         self,

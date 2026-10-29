@@ -231,7 +231,7 @@ def _final_binder(core_result):
     from unittest.mock import Mock
     from types import SimpleNamespace
     binder = object.__new__(PageNumberBindEngineBase)
-    binder.core_engine = SimpleNamespace(process=Mock(return_value=core_result))
+    binder.core_engine = SimpleNamespace(process=Mock(return_value=core_result), has_final_pass=True)
     return binder
 
 
@@ -316,3 +316,11 @@ def test_final_pass_never_replaces_an_annotated_number():
         page_key='p0', text='9', confidence=0.9, bbox=MetaKatBoundingBox(1, 1, 1, 1))
     binder = _final_binder(PageNumberCoreResult({'p0': new, 'p1': None}))
     assert binder.process_final('/batch', io).elements[0].pageNumber.text == '[3]'
+
+
+def test_final_pass_is_skipped_when_the_core_has_none():
+    io, _ = _scan(3, starts={0}, numbers=['1', None, None])
+    binder = _final_binder(PageNumberCoreResult({}))
+    binder.core_engine.has_final_pass = False
+    assert binder.process_final('/batch', io) == io
+    binder.core_engine.process.assert_not_called()

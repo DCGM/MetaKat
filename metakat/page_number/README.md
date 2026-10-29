@@ -279,8 +279,6 @@ It then runs reusable document postprocessing across all ordered input pages.
       "profile": "shared",
       "max_gap_pages": 8,
       "minimum_anchor_confidence": 0.6,
-      "complete_document": false,
-      "bracketed": true,
       "wholly_unnumbered": false,
       "tail_mode": "unknown"
     }
@@ -288,9 +286,12 @@ It then runs reusable document postprocessing across all ordered input pages.
 }
 ```
 
-`ndk.complete_document` and `ndk.bracketed` are set by the pass the engine runs
-(see [Two passes](#two-passes-around-the-page-type-stage)); the values in the
-configuration apply to direct use of `NdkPaginator` only.
+`ndk.enabled` is the one NDK switch. It turns on both the gap filling of the
+preliminary pass and the whole final pass (see
+[Two passes](#two-passes-around-the-page-type-stage)); with `false` the engine
+fills nothing and the pipeline skips its second run. What the two passes
+do differently (bracketed labels, document edges) is fixed by the pass, not
+configurable.
 
 `labels` maps the supported `PageNumberType` value `PageNumber` to the raw
 YOLO model label. When omitted, `PageNumber` defaults to `cislo strany`.
@@ -381,7 +382,7 @@ separate a known parent and child.
 
 A chunk is a **processing hypothesis**, not a confirmed whole document. Roman
 front matter and an Arabic body may belong to the same book. Consequently,
-an inferred split is never a document edge: with `complete_document=True` only
+an inferred split is never a document edge: in the final pass only
 the first chunk of a unit may receive leading labels and only its last chunk
 trailing ones (an ambiguous gap after a chunk is no edge either). Interior NDK
 rules apply inside each nonambiguous chunk. `NdkPaginator` respects chunk scopes
@@ -551,7 +552,7 @@ The pipeline runs the page-number engine twice, `page_number → page_type → p
 The preliminary pass only supports the page-type model, whose pagination input
 accepts plain numbers. The final pass knows the documents the page-type stage
 found (annotated or predicted `startsDocument`; one unit per document, passed as
-`NdkPageContext.unit_key`) and applies `complete_document`: a scan starts and ends
+`NdkPageContext.unit_key`) and treats every document as complete: a scan starts and ends
 with a document, so the first page of a document is a real edge (`[1]`..`[4]` before
 a first printed 5, `[1a]` before a printed 1) and the last page of the last chunk
 of a unit is a real trailing edge (subject to `tail_mode`). A numbering restart
@@ -611,9 +612,9 @@ number. The original observation action and reading remain in
 
 `profile` defaults to `shared`, covering rules common to both document kinds.
 `monograph` additionally allows an explicitly confirmed wholly unnumbered volume.
-It must be combined with `complete_document=True` and `wholly_unnumbered=True`;
+It takes effect in the final pass, with `wholly_unnumbered=true`;
 failed OCR alone never establishes that condition. Document edges are processed
-only with `complete_document=True`. A trailing run is ambiguous in both profiles
+only in the final pass. A trailing run is ambiguous in both profiles
 without information distinguishing a continuation from added leaves, so
 `tail_mode` defaults to `unknown`. Its explicit alternatives are `continue` and
 `insert`. No cover/blank/page-type classifier or shared schema is changed.
