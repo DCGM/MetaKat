@@ -12,6 +12,7 @@ import pytest
 
 import metakat.process_batch as process_batch_module
 from metakat.schemas.base_objects import MetakatIO
+from metakat.tools.create_interactive_pdf import DEFAULT_PAGE_HEIGHT
 
 
 def test_process_batch_calls_exporter_only_when_requested():
@@ -38,7 +39,7 @@ def test_process_batch_calls_exporter_only_when_requested():
             output_metakat_pdf="output.pdf",
         )
 
-    create.assert_called_once_with("batch", metakat_io, "output.pdf")
+    create.assert_called_once_with("batch", metakat_io, "output.pdf", page_height=DEFAULT_PAGE_HEIGHT)
 
 
 def test_process_batch_runs_page_number_before_and_after_page_type():
@@ -209,4 +210,5 @@ def test_process_batch_forwards_pdf_downscale_settings():
           mock.patch.object(process_batch_module,'create_interactive_pdf') as create):
         process_batch_module.process_batch('batch',engine_config={},output_metakat_pdf='out.pdf',
             pdf_downscale=True,pdf_min_text_pixels=20,pdf_max_image_dimension=2000)
-    create.assert_called_once_with('batch',io,'out.pdf',downscale=True,min_text_pixels=20,max_image_dimension=2000)
+    create.assert_called_once_with('batch',io,'out.pdf',page_height=DEFAULT_PAGE_HEIGHT,downscale=True,
+                                   min_text_pixels=20,max_image_dimension=2000)

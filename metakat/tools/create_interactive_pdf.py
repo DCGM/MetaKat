@@ -106,6 +106,14 @@ def _load_pymupdf():
     return pymupdf
 
 
+# Every page of the PDF is drawn this high (PDF points), so a mixed scan does not jump between huge and tiny
+# pages: the size of a scan in the PDF would otherwise follow its pixel size and resolution (400x550 to 2600x3500
+# points in one batch). At this height the metadata panel text is at least readable at 100% zoom.
+DEFAULT_PAGE_HEIGHT = 1200.
+# Smallest font of the metadata panel, whatever the page shape (PDF points).
+MINIMUM_PANEL_FONT = 9.
+
+
 def create_interactive_pdf(
     batch_dir: str | os.PathLike[str],
     metakat_io: MetakatIO,
@@ -114,14 +122,18 @@ def create_interactive_pdf(
     downscale: bool = False,
     min_text_pixels: float = 16.,
     max_image_dimension: int = 2400,
+    page_height: float | None = DEFAULT_PAGE_HEIGHT,
 ) -> Path:
     """Create an interactive PDF, optionally reducing embedded raster resolution.
 
     The long-edge target is soft: small detected/OCR text can require more pixels.
     Source images and schema geometry stay unchanged; a white metadata strip
-    extends each PDF page to the right. Textless pages inherit their document
-    display height, preserving aspect ratio and scaling all geometry together.
+    extends each PDF page to the right. All pages are drawn `page_height` points high,
+    keeping their aspect ratio and scaling all geometry together; None keeps the size
+    the scan has on its own, where textless pages inherit their document's height.
     """
+    if page_height is not None and (not math.isfinite(page_height) or page_height <= 0):
+        raise ValueError('page_height must be finite and positive, or None')
     if not math.isfinite(min_text_pixels) or min_text_pixels <= 0:
         raise ValueError('min_text_pixels must be finite and positive')
     if not isinstance(max_image_dimension, int) or isinstance(max_image_dimension, bool) or max_image_dimension < 1:
@@ -160,6 +172,7 @@ def create_interactive_pdf(
             min_text_pixels=min_text_pixels,
             max_image_dimension=max_image_dimension,
             document_defaults=document_defaults,
+            page_height=page_height,
         )
         rendered_by_page_id = _add_metadata_strips(pymupdf, document, rendered_by_page_id)
         page_maps = _document_page_maps(groups, rendered_by_page_id)
@@ -249,8 +262,8 @@ def _metadata_rect(pymupdf, page, rendered):
 
 
 def _panel_dimensions(pymupdf, short_edge):
-    font_size = short_edge * 0.018
-    padding = short_edge * 0.006
+    font_size = max(short_edge * 0.018, MINIMUM_PANEL_FONT)
+    padding = font_size / 3
     label_width = max(pymupdf.get_text_length(value, fontname="hebo", fontsize=font_size)
                       for value in ("NONE", *(kind.value for kind in PageType)))
     return label_width + 2 * padding, font_size, padding
@@ -541,6 +554,7 @@ def _render_pages(
     min_text_pixels: float = 16.,
     max_image_dimension: int = 2400,
     document_defaults: dict | None = None,
+    page_height: float | None = None,
 ) -> dict[UUID, _RenderedPage]:
     rendered: dict[UUID, _RenderedPage] = {}
     for page in pages:
@@ -565,18 +579,25 @@ def _render_pages(
 
         reference = (document_defaults or {}).get(page.id)
         reduced = None
+        if page_height is not None:
+            target = pymupdf.Rect(0, 0, page_height * image_width / image_height, page_height)
+        elif reference:
+            target = pymupdf.Rect(0, 0, reference[0] * image_width / image_height, reference[0])
+        else:
+            target = None
         if metakat_io is not None:
             height = (text_heights or {}).get(page.id)
             ratio = (reference[1] if reference else _downscale_ratio(
                 image_width, image_height, height, min_text_pixels, max_image_dimension))
             reduced = _reduced_image(image_path, image_width, image_height, ratio)
         if reduced is not None:
-            # Keep source extent for text pages; textless pages use their
-            # document reference. Coordinate scales below follow either extent.
-            with pymupdf.open(str(image_path)) as original:
-                rect = original[0].rect
-            if reference:
-                rect = pymupdf.Rect(0, 0, reference[0] * image_width / image_height, reference[0])
+            # The uniform page height, else the scan's own extent (textless pages use their document's
+            # reference). Coordinate scales below follow either extent.
+            if target is None:
+                with pymupdf.open(str(image_path)) as original:
+                    rect = original[0].rect
+            else:
+                rect = target
             pdf_page = document.new_page(width=rect.width, height=rect.height)
             pdf_page.insert_image(pdf_page.rect, stream=reduced, keep_proportion=False)
             rendered[page.id] = _RenderedPage(page, document.page_count - 1,
@@ -594,8 +615,7 @@ def _render_pages(
                 raise ValueError(
                     f"Page image must convert to one PDF page: {image_path}"
                 )
-            if reference:
-                target = pymupdf.Rect(0, 0, reference[0] * image_width / image_height, reference[0])
+            if target is not None:
                 pdf_page = document.new_page(width=target.width, height=target.height)
                 pdf_page.show_pdf_page(target, image_pdf, 0)
             else:
@@ -1378,6 +1398,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--downscale', action='store_true', help='Reduce embedded images using detected/OCR text sizes')
     parser.add_argument('--min-text-pixels', type=float, default=16., help='Minimum estimated text height after reduction (default: 16)')
     parser.add_argument('--max-image-dimension', type=int, default=2400, help='Soft long-edge target; text readability can exceed it (default: 2400)')
+    parser.add_argument('--page-height', type=float, default=DEFAULT_PAGE_HEIGHT,
+                        help=f'Height of every page in PDF points (default: {DEFAULT_PAGE_HEIGHT:g}); 0 keeps the size of each scan')
     return parser.parse_args()
 
 
@@ -1397,6 +1419,7 @@ def main() -> None:
         downscale=args.downscale,
         min_text_pixels=args.min_text_pixels,
         max_image_dimension=args.max_image_dimension,
+        page_height=args.page_height or None,
     )
 
 

@@ -448,6 +448,14 @@ coordinates stay unchanged.
 The PDF is written atomically, through a temporary file in the destination
 directory, so an interrupted render leaves no partial output in place.
 
+### Page size
+
+Every page of the interactive PDF is drawn 1200 points high, with its own aspect ratio, whatever the pixel size
+or resolution of the scan, so a mixed scan does not jump between huge and tiny pages. The metadata panel to the
+right of the page is sized from the page with a font of at least 9 points, so its text stays readable. Use
+`--pdf-page-height` (`process_batch`) or `--page-height` (standalone) to choose another height, or 0 for the
+size each scan has on its own; Python callers pass `page_height=` (None for the native size).
+
 ### Optional image downscaling
 
 For a smaller interactive PDF, add `--pdf-downscale` to `metakat.process_batch`.

@@ -40,7 +40,7 @@ from metakat.schemas.base_objects import (
     ProarcIO,
 )
 from metakat.io_exporters.mods_exporter import export_mods
-from metakat.tools.create_interactive_pdf import create_interactive_pdf
+from metakat.tools.create_interactive_pdf import DEFAULT_PAGE_HEIGHT, create_interactive_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +114,8 @@ def parse_args():
     parser.add_argument('--pdf-downscale', action='store_true', help='Reduce PDF raster resolution while retaining readable detected text')
     parser.add_argument('--pdf-min-text-pixels', type=float, default=16.)
     parser.add_argument('--pdf-max-image-dimension', type=int, default=2400)
+    parser.add_argument('--pdf-page-height', type=float, default=DEFAULT_PAGE_HEIGHT,
+                        help='Height of every PDF page in points, so mixed scans look uniform; 0 keeps the size of each scan')
     parser.add_argument('--output-mods-dir', type=str, help='Directory for one MODS record per unit and page')
     parser.add_argument('--output-mods-overview', type=str,
                         help='Text file with every MODS record in MetaKat JSON order, for inspection')
@@ -164,6 +166,7 @@ def main():
         pdf_downscale=args.pdf_downscale,
         pdf_min_text_pixels=args.pdf_min_text_pixels,
         pdf_max_image_dimension=args.pdf_max_image_dimension,
+        pdf_page_height=args.pdf_page_height or None,
     )
     
 
@@ -183,6 +186,7 @@ def process_batch(
     pdf_downscale: bool = False,
     pdf_min_text_pixels: float = 16.,
     pdf_max_image_dimension: int = 2400,
+    pdf_page_height: Optional[float] = DEFAULT_PAGE_HEIGHT,
 ) -> MetakatIO:
     """
     Process a batch directory and return the processed MetakatIO object.
@@ -198,6 +202,7 @@ def process_batch(
         pdf_downscale: Reduce embedded images using text geometry (default False)
         pdf_min_text_pixels: Minimum estimated text height in downscaled images
         pdf_max_image_dimension: Soft long-edge target; readability takes precedence
+        pdf_page_height: Height of every PDF page in points, so mixed scans look uniform (None: native size)
         allowed_image_extensions: Set of allowed image file extensions
         engine_name: Name of the engine being run, recorded in MetakatIO.engine;
             optional, since a plain pipeline run need not know it
@@ -257,8 +262,10 @@ def process_batch(
     logger.info("MetakatIO has been successfully validated")
 
     if output_metakat_pdf is not None:
-        pdf_options = (dict(downscale=True, min_text_pixels=pdf_min_text_pixels,
-                            max_image_dimension=pdf_max_image_dimension) if pdf_downscale else {})
+        pdf_options = dict(page_height=pdf_page_height)
+        if pdf_downscale:
+            pdf_options.update(downscale=True, min_text_pixels=pdf_min_text_pixels,
+                               max_image_dimension=pdf_max_image_dimension)
         create_interactive_pdf(
             batch_dir,
             metakat_io,

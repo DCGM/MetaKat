@@ -642,7 +642,8 @@ def test_standalone_downscale_options_are_forwarded(tmp_path):
             '--downscale','--min-text-pixels','20','--max-image-dimension','2000']),
           mock.patch.object(pdf_module,'create_interactive_pdf') as create):
         pdf_module.main()
-    assert create.call_args.kwargs == {'downscale':True,'min_text_pixels':20.,'max_image_dimension':2000}
+    assert create.call_args.kwargs == {'downscale':True,'min_text_pixels':20.,'max_image_dimension':2000,
+                                       'page_height':pdf_module.DEFAULT_PAGE_HEIGHT}
 
 
 @pytest.mark.parametrize("downscale", [False, True])
@@ -659,7 +660,7 @@ def test_metadata_strip_keeps_labels_outside_unchanged_image(tmp_path, page_imag
     output = tmp_path / "strip.pdf"
     with pymupdf.open(tmp_path / "page.jpg") as source:
         original = source[0].rect
-    pdf_module.create_interactive_pdf(tmp_path, io, output,
+    pdf_module.create_interactive_pdf(tmp_path, io, output, page_height=None,
                                       downscale=downscale, max_image_dimension=50)
     with pymupdf.open(output) as document:
         rendered = document[0]
@@ -667,7 +668,9 @@ def test_metadata_strip_keeps_labels_outside_unchanged_image(tmp_path, page_imag
         assert tuple(image_rect) == pytest.approx(tuple(original))
         assert rendered.rect.width > original.width
         assert rendered.rect.height == pytest.approx(original.height)
-        assert rendered.rect.width - original.width < original.width * .27
+        # the strip is as wide as the panel text needs: proportional to the page, but never below the minimum font
+        assert rendered.rect.width - original.width == pytest.approx(
+            pdf_module._panel_dimensions(pymupdf, min(original.width, original.height))[0])
         strip = pymupdf.Rect(original.x1, 0, rendered.rect.x1, rendered.rect.y1)
         drawings = rendered.get_drawings()
         assert any(d["fill"] == (1., 1., 1.) and strip.contains(d["rect"])
@@ -727,7 +730,7 @@ def test_textless_pages_inherit_height_from_their_own_document(tmp_path, downsca
                    page_to_image_mapping=images, page_to_alto_mapping=altos)
     before = io.model_dump_json()
     output = tmp_path / 'document-scales.pdf'
-    pdf_module.create_interactive_pdf(tmp_path, io, output, downscale=downscale)
+    pdf_module.create_interactive_pdf(tmp_path, io, output, downscale=downscale, page_height=None)
     with pymupdf.open(output) as doc:
         image_rects = [p.get_image_rects(p.get_images()[0][0])[0] for p in doc]
         for start in (0, 3):
@@ -738,3 +741,64 @@ def test_textless_pages_inherit_height_from_their_own_document(tmp_path, downsca
             assert image_rects[start+2].width == pytest.approx(reference.height * .05, abs=.001)
         assert image_rects[0].height != pytest.approx(image_rects[3].height)
     assert io.model_dump_json() == before
+
+
+def _scan_batch(tmp_path, sizes):
+    """Pages of different pixel sizes and resolutions, one document each, in one batch."""
+    from PIL import Image
+    volumes = [MetakatVolume(id=uuid4()) for _ in sizes]
+    pages, images = [], {}
+    for index, ((width, height), volume) in enumerate(zip(sizes, volumes)):
+        page = MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=index, pageIndex=0,
+                           parent_id=volume.id, pageType=(PageType.NORMAL_PAGE, .9))
+        name = f'scan-{index}.jpg'
+        Image.new('RGB', (width, height), 'white').save(tmp_path / name, dpi=(72 * (index + 1),) * 2)
+        images[page.id] = name
+        pages.append(page)
+    return MetakatIO(batch_id=uuid4(), elements=[*volumes, *pages], page_to_image_mapping=images), pages
+
+
+@pytest.mark.parametrize('downscale', [False, True])
+def test_every_page_has_the_same_height_whatever_the_scan(tmp_path, downscale):
+    io, pages = _scan_batch(tmp_path, [(3000, 4000), (400, 550), (800, 600), (200, 1000)])
+    output = tmp_path / 'uniform.pdf'
+    pdf_module.create_interactive_pdf(tmp_path, io, output, downscale=downscale)
+    with pymupdf.open(output) as document:
+        for page, (width, height) in zip(document, [(3000, 4000), (400, 550), (800, 600), (200, 1000)]):
+            image = page.get_image_rects(page.get_images()[0][0])[0]
+            assert image.height == pytest.approx(pdf_module.DEFAULT_PAGE_HEIGHT, abs=.01)
+            assert image.width == pytest.approx(pdf_module.DEFAULT_PAGE_HEIGHT * width / height, abs=.01)
+            assert page.rect.height == pytest.approx(pdf_module.DEFAULT_PAGE_HEIGHT, abs=.01)
+
+
+def test_page_height_can_be_set_or_switched_off(tmp_path):
+    io, pages = _scan_batch(tmp_path, [(3000, 4000), (400, 550)])
+    output = tmp_path / 'height.pdf'
+    pdf_module.create_interactive_pdf(tmp_path, io, output, page_height=700.)
+    with pymupdf.open(output) as document:
+        assert [round(p.rect.height) for p in document] == [700, 700]
+    pdf_module.create_interactive_pdf(tmp_path, io, output, page_height=None)
+    with pymupdf.open(output) as document:
+        assert document[0].rect.height != pytest.approx(document[1].rect.height)
+    for bad in (0, -1, float('nan'), float('inf')):
+        with pytest.raises(ValueError, match='page_height'):
+            pdf_module.create_interactive_pdf(tmp_path, io, output, page_height=bad)
+
+
+def test_panel_text_is_never_smaller_than_the_minimum_font_and_stays_readable_on_uniform_pages(tmp_path):
+    assert pdf_module._panel_dimensions(pymupdf, 20)[1] == pdf_module.MINIMUM_PANEL_FONT
+    assert pdf_module._panel_dimensions(pymupdf, 1000)[1] == pytest.approx(18.)
+    # the narrowest ordinary page (aspect 0.5) at the default height
+    short_edge = pdf_module.DEFAULT_PAGE_HEIGHT * .5
+    assert pdf_module._panel_dimensions(pymupdf, short_edge)[1] >= 10.
+
+
+def test_standalone_page_height_zero_means_the_native_size(tmp_path):
+    metakat_path = tmp_path / 'metakat.json'
+    metakat_path.write_text(MetakatIO(batch_id=uuid4()).model_dump_json())
+    with (mock.patch.object(sys, 'argv', ['create_interactive_pdf', '--batch-dir', str(tmp_path),
+            '--metakat-json', str(metakat_path), '--output-metakat-pdf', str(tmp_path / 'out.pdf'),
+            '--page-height', '0']),
+          mock.patch.object(pdf_module, 'create_interactive_pdf') as create):
+        pdf_module.main()
+    assert create.call_args.kwargs['page_height'] is None
