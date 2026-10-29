@@ -11,8 +11,9 @@ preceding entry of a smaller level, as the YOLO stage builds it.
 
 The model names no regions, so each value is located afterwards by finding
 its text among the ALTO words of the entry's page, then of the next page for
-an entry continuing onto it (text-geometry-aligner's text alignment, exact
-then fuzzy, every word given to at most one value). A value found gets that
+an entry continuing onto it. Ordered entry anchors disambiguate nearby fields;
+conservative two-column reading order is enabled unless entries contain parallel
+title versions. Every word is given to at most one value. A value found gets that
 page, the box of its words and their ALTO IDs; one that is not keeps only the
 entry's page. The model gives no per-value confidence, so every value carries
 the configured `confidence` (0.95 unless set).
@@ -119,7 +120,6 @@ class ChapterExtractionEngineVLM:
             or not 0 <= self.confidence <= 1
         ):
             raise ValueError("Chapter extraction confidence must be a number from 0 to 1")
-        self.aligner = _text_aligner()
 
     def process(self, toc_pages: Sequence[ChapterPageInput]) -> TocBase:
         from text_geometry_aligner import ALTOReader
@@ -182,6 +182,12 @@ class ChapterExtractionEngineVLM:
         An entry's values are looked for on the page it starts on, then the
         ones not found there on the next page, where the entry may go on."""
         located: dict[tuple[int, str], tuple[int, Any]] = {}
+        parallel_titles = any(
+            sum(bool(title.get("title") or title.get("description"))
+                for title in entry.get("titleInfo") or () if isinstance(title, Mapping)) > 1
+            for entry in entries
+        )
+        aligner = _text_aligner(reorder_columns=not parallel_titles)
         for offset in (0, 1):
             for page_index, alto_page in enumerate(alto_pages):
                 data = {"entries": [
@@ -191,7 +197,7 @@ class ChapterExtractionEngineVLM:
                 ]}
                 if not any(data["entries"]):
                     continue
-                document = self.aligner.align_data(alto_page, data)
+                document = aligner.align_data(alto_page, data)
                 for aligned in document.pages:
                     for region in aligned.regions:
                         path = region.json_text_path
@@ -265,8 +271,11 @@ def alto_text(words) -> str:
     return "\n".join(lines)
 
 
-def _text_aligner():
-    from text_geometry_aligner import CPSATCandidateSelector, TextAligner
+def _text_aligner(*, reorder_columns: bool):
+    from text_geometry_aligner import (
+        ColumnReadingOrder, CPSATCandidateSelector, OrderedGroupsCandidateGenerator, TextAligner,
+    )
+    from text_geometry_aligner.normalization import TextNormalizationPipeline
     from text_geometry_aligner.text_matching.candidate_generators import (
         AnchoredFuzzyTextCandidateGenerator,
         CompositeCandidateGenerator,
@@ -275,12 +284,18 @@ def _text_aligner():
     )
 
     return TextAligner(
-        candidate_generator=CompositeCandidateGenerator((
-            ExactTextCandidateGenerator(),
-            AnchoredFuzzyTextCandidateGenerator(FuzzyCandidateConfig()),
-        )),
+        candidate_generator=OrderedGroupsCandidateGenerator(
+            CompositeCandidateGenerator((
+                ExactTextCandidateGenerator(),
+                AnchoredFuzzyTextCandidateGenerator(FuzzyCandidateConfig()),
+            )),
+            group_depth=2,
+            reading_order=ColumnReadingOrder() if reorder_columns else None,
+        ),
         candidate_selector=CPSATCandidateSelector(
             time_limit_seconds=_SELECTION_TIME_LIMIT_SECONDS,
             require_optimal=False,
         ),
+        normalizer=TextNormalizationPipeline.from_optional_names(["lowercase", "strip-punctuation"]),
+        min_similarity=0.5,
     )

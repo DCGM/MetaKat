@@ -1603,12 +1603,21 @@ Of each entry the engine reads:
 | `pageReference`, parsed by `ArabicRomanChapterPageNumberParser` | `page_number_toc_page` |
 
 A grouping heading is an entry like any other. Not read: the parallel titles,
-the chapter descriptions, `designation`, `pages` and `lang`.
+the chapter descriptions, `designation`, `pages` and `lang`. Parallel title
+versions are inspected only to decide whether column reordering is safe.
 
 The model names no regions, so each value is located afterwards among the ALTO
 words of the entry's page, then of the next page for an entry continuing onto
-it (text-geometry-aligner's text alignment, exact then fuzzy, each word given
-to at most one value). A located value gets its page, box and ALTO IDs; one
+it. Text-geometry-aligner's `ordered-groups` mode locates one anchor per entry
+in sequence, then matches the other fields nearby without imposing their JSON
+field order. Matching uses exact/fuzzy candidates with lowercase and punctuation
+normalization. Clear sequential two-column layouts can be reordered within each
+original page; ambiguous layouts retain their OCR order. Column reordering is
+disabled for the whole TOC if any entry contains multiple nonempty `titleInfo`
+versions, avoiding left-column-first reading of parallel translations. This is
+a conservative heuristic, not a general layout classifier. The original OCR
+geometry and IDs are preserved; each word is given to at most one value within
+an alignment pass. A located value gets its page, box and ALTO IDs; one
 not found keeps only the entry's page, without a box. Every value carries the
 configured `confidence`. A TOC whose reply is still invalid after
 `max_attempts` is logged as an error and gives no chapters.

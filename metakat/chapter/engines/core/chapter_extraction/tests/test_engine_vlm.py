@@ -150,3 +150,71 @@ def test_the_stage_is_registered():
         "extraction": {"name": "chapter_extraction_engine_vlm"},
         "alignment": {"name": "chapter_alignment_engine_fuzzy"},
     })
+
+
+def _ocr_page(tmp_path, blocks):
+    from text_geometry_aligner import ALTOReader
+
+    path = tmp_path / "alignment.xml"
+    path.write_text(_ALTO.format(blocks=blocks))
+    return ALTOReader().read(path)
+
+
+def test_repeated_titles_keep_their_own_page_references(tmp_path):
+    page = _ocr_page(tmp_path,
+        _line("A", 1, ("Repeat", 100, 150), ("5", 800, 20))
+        + _line("B", 2, ("Repeat", 100, 150), ("9", 800, 20)))
+    entries = [{"tocPage": 0, "titleInfo": [{"title": "Repeat"}], "pageReference": number}
+               for number in ("5", "9")]
+    located = ChapterExtractionEngineVLM(_config(), client=object())._locate(entries, [page])
+
+    for index, block in enumerate(("A", "B")):
+        assert located[index, "title"][1].words[0].alto_line_id == f"{block}L{index + 1}"
+        assert located[index, "pageReference"][1].words[0].alto_line_id == f"{block}L{index + 1}"
+
+
+def test_interleaved_two_columns_align_in_entry_order_without_changing_ocr(tmp_path):
+    # OCR interleaves left/right rows; the TOC lists the complete left column first.
+    blocks = "".join(_line(f"{column}{row}", row + 1, (f"{prefix}{row}", x, 180))
+                     for row in range(6)
+                     for column, prefix, x in (("L", "Applesubject", 50), ("R", "Zebrathing", 600)))
+    page = _ocr_page(tmp_path, blocks)
+    originals = tuple(page.words)
+    entries = [{"tocPage": 0, "titleInfo": [{"title": f"{prefix}{row}"}]}
+               for prefix in ("Applesubject", "Zebrathing") for row in range(6)]
+
+    located = ChapterExtractionEngineVLM(_config(), client=object())._locate(entries, [page])
+
+    assert len(located) == 12
+    for index, entry in enumerate(entries):
+        region = located[index, "title"][1]
+        assert region.words[0].text == entry["titleInfo"][0]["title"]
+        assert region.words[0].bbox.x == (50 if index < 6 else 600)
+        assert region.words[0].alto_line_id == f'{"L" if index < 6 else "R"}{index % 6}L{index % 6 + 1}'
+    assert tuple(page.words) == originals
+
+
+def test_parallel_title_versions_disable_column_reordering_for_only_that_toc(monkeypatch):
+    from metakat.chapter.engines.core.chapter_extraction import engine_vlm
+
+    factory = engine_vlm._text_aligner
+    decisions = []
+
+    def record(**kwargs):
+        decisions.append(kwargs["reorder_columns"])
+        return factory(**kwargs)
+
+    monkeypatch.setattr(engine_vlm, "_text_aligner", record)
+    engine = ChapterExtractionEngineVLM(_config(), client=object())
+    engine._locate([{"titleInfo": [{"title": "Les"}, {"title": "Wald"}]}], [])
+    engine._locate([{"titleInfo": [{"title": "Les"}, {"title": None}]}], [])
+    assert decisions == [False, True]
+
+
+def test_unmatched_entry_can_continue_onto_next_page(toc_pages):
+    from text_geometry_aligner import ALTOReader
+
+    pages = [ALTOReader().read(page.alto_path) for page in toc_pages]
+    entries = [{"tocPage": 0, "titleInfo": [{"title": "Pramen"}], "pageReference": "14"}]
+    located = ChapterExtractionEngineVLM(_config(), client=object())._locate(entries, pages)
+    assert located[0, "title"][0] == located[0, "pageReference"][0] == 1
