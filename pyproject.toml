@@ -115,6 +115,7 @@ namespaces = false
 # The default prompts and JSON schema the VLM engines read at run time.
 [tool.setuptools.package-data]
 "metakat.biblio.engines.core" = ["vlm/*/*.txt", "vlm/*/*.json"]
+"metakat.chapter.engines.core.chapter_extraction" = ["vlm/*.txt", "vlm/*.json"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

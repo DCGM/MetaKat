@@ -670,6 +670,7 @@ requirements of the pipeline.
 |---|---|---|
 | [Chapter page analysis](#stage-1-chapter-page-analysis) | `chapter_page_analysis_engine_yolo_alto` | YOLO geometry aligned with ALTO text |
 | [Chapter extraction](#stage-2-chapter-extraction) | `chapter_extraction_engine_yolo_alto` | YOLO geometry aligned with ALTO text |
+| [Chapter extraction](#engine-vision-language-model-chapter_extraction_engine_vlm) | `chapter_extraction_engine_vlm` | A vision-language model reading all TOC pages in one request; its values located in the ALTO afterwards |
 | [Chapter alignment](#stage-3-chapter-alignment) | `chapter_alignment_engine_fuzzy` | Optional physical-number anchors and global CP-SAT resolution from number, position, and title evidence |
 
 ### Stage 1: Chapter page analysis
@@ -985,8 +986,10 @@ rather than `None` when no page-number evidence is found.
 
 ### Stage 2: Chapter extraction
 
-The following engine implements the
-[stage-2 contract](#stage-2-contract-chapter-extraction).
+The following engines implement the
+[stage-2 contract](#stage-2-contract-chapter-extraction): the YOLO + ALTO
+engine below and the
+[vision-language model](#engine-vision-language-model-chapter_extraction_engine_vlm).
 
 #### Engine: YOLO + ALTO (`chapter_extraction_engine_yolo_alto`)
 
@@ -1554,6 +1557,62 @@ represent arbitrary depth and a future extraction engine may return more.
 When materializing the hierarchy, this implementation converts every retained
 `PageNumber` candidate into `ChapterPageNumberEvidence` with the reusable
 [`ArabicRomanChapterPageNumberParser`](#arabic-and-roman-toc-page-number-parser).
+
+#### Engine: vision-language model (`chapter_extraction_engine_vlm`)
+
+This engine asks a vision-language model for the whole TOC at once: all
+selected TOC pages, their images attached in page order and the ALTO text of
+each under its image index, go in one request with the book TOC prompt and
+schema in `chapter_extraction/vlm/` (smart_digiline `books_toc.2026-10-20`,
+`prompt_toc.txt`, its newest revision, v3 "OCR grounding"; the complete run
+there used v2). The prompt is written for N images, so it is used as it is;
+it receives `images` (the page keys), `ocr` (a line per `TextLine`, a blank
+line between `TextBlock`s, None for a page without text) and `annotations`
+and `tocDraft`, always None. The client, the API or local endpoint and its
+configuration are those of `metakat.common.vlm`, as for the VLM biblio cores:
+
+```json
+{
+  "name": "chapter_extraction_engine_vlm",
+  "vlm": {
+    "api_url": "https://openrouter.ai/api/v1",
+    "model": "openai/gpt-6-luna",
+    "api_key_env": "OPENROUTER_API_KEY",
+    "reasoning_effort": "medium",
+    "zdr": true
+  },
+  "confidence": 0.95
+}
+```
+
+`system_prompt_path` and `user_prompt_path` may replace the prompts; the schema
+is the stage's own. `local` serves a local model with vLLM while the stage
+runs, which needs `--limit-mm-per-prompt` to allow as many images as the
+longest TOC.
+
+The model returns the entries as a flat list in reading order with their
+level, so they are built into the `TocBase` tree as the YOLO engine builds
+it: the parent of an entry is the nearest preceding entry of a smaller level.
+Of each entry the engine reads:
+
+| Reply | `ChapterBase` |
+|---|---|
+| `tocPage`, the index of the image the entry starts on | `toc_page_key` |
+| `titleInfo[0].title`, the first language version | `title_toc_page` |
+| `partNumber`, the numbering without its words | `part_number_toc_page` |
+| `pageReference`, parsed by `ArabicRomanChapterPageNumberParser` | `page_number_toc_page` |
+
+A grouping heading is an entry like any other. Not read: the parallel titles,
+the chapter descriptions, `designation`, `pages` and `lang`.
+
+The model names no regions, so each value is located afterwards among the ALTO
+words of the entry's page, then of the next page for an entry continuing onto
+it (text-geometry-aligner's text alignment, exact then fuzzy, each word given
+to at most one value). A located value gets its page, box and ALTO IDs; one
+not found keeps only the entry's page, without a box. Every value carries the
+configured `confidence`. A TOC whose reply is still invalid after
+`max_attempts` is logged as an error and gives no chapters.
+
 ### Stage 3: Chapter alignment
 
 The following engine implements the

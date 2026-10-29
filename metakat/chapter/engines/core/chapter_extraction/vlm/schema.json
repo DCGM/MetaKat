@@ -1,0 +1,251 @@
+{
+  "type": "object",
+  "properties": {
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tocPage": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "heading",
+              "item"
+            ]
+          },
+          "partNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "designation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "titleInfo": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "lang": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/languageCode"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "title",
+                "description",
+                "lang"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pageReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "start": {
+                      "type": "string"
+                    },
+                    "end": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "tocPage",
+          "level",
+          "kind",
+          "partNumber",
+          "designation",
+          "titleInfo",
+          "pageReference",
+          "pages"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "entries"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "languageCode": {
+      "type": "string",
+      "enum": [
+        "cze",
+        "slo",
+        "ger",
+        "eng",
+        "fre",
+        "ita",
+        "lat",
+        "pol",
+        "rus",
+        "hun",
+        "grc",
+        "gre",
+        "dut",
+        "spa",
+        "por",
+        "swe",
+        "dan",
+        "nor",
+        "nno",
+        "nob",
+        "fin",
+        "est",
+        "lav",
+        "lit",
+        "bel",
+        "ukr",
+        "bul",
+        "mac",
+        "hrv",
+        "srp",
+        "slv",
+        "bos",
+        "cnr",
+        "rum",
+        "alb",
+        "ice",
+        "gle",
+        "wel",
+        "gla",
+        "bre",
+        "baq",
+        "cat",
+        "glg",
+        "oci",
+        "pro",
+        "roh",
+        "ltz",
+        "fry",
+        "yid",
+        "heb",
+        "epo",
+        "vol",
+        "ina",
+        "ido",
+        "chu",
+        "gmh",
+        "goh",
+        "enm",
+        "ang",
+        "frm",
+        "fro",
+        "dum",
+        "hsb",
+        "dsb",
+        "wen",
+        "csb",
+        "rom",
+        "mlt",
+        "arm",
+        "geo",
+        "tur",
+        "ota",
+        "per",
+        "ara",
+        "san",
+        "hin",
+        "chi",
+        "jpn",
+        "kor",
+        "syr",
+        "cop",
+        "egy",
+        "akk",
+        "arc",
+        "fao",
+        "smi",
+        "sme",
+        "non",
+        "got",
+        "tat",
+        "kaz",
+        "mon",
+        "vie",
+        "tha",
+        "ind",
+        "may",
+        "swa",
+        "afr",
+        "ben",
+        "urd",
+        "tam",
+        "tib",
+        "bur",
+        "amh",
+        "gez",
+        "pli",
+        "lad",
+        "rup",
+        "fur",
+        "srd",
+        "cos",
+        "wln",
+        "nds",
+        "gsw",
+        "sla",
+        "gem",
+        "roa",
+        "mul",
+        "und",
+        "zxx",
+        "mis"
+      ]
+    }
+  }
+}

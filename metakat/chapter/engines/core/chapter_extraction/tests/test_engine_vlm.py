@@ -1,0 +1,152 @@
+import json
+from types import SimpleNamespace
+
+import pytest
+from PIL import Image
+
+from metakat.chapter.engines.core.chapter_core_engine_pipeline import check_chapter_pipeline_stages
+from metakat.chapter.engines.core.chapter_extraction.engine_vlm import ChapterExtractionEngineVLM
+from metakat.chapter.engines.core.models import ChapterPageInput, ChapterPageNumberKind
+from metakat.common.models import AltoRefs, BoundingBox
+
+# Two TOC pages: the first lists two chapters, the second a section of the
+# second chapter and an appendix whose title the OCR missed.
+_ALTO = """\
+<alto xmlns="http://www.loc.gov/standards/alto/ns-v4#">
+  <Layout><Page ID="P1" WIDTH="1000" HEIGHT="1500"><PrintSpace>{blocks}</PrintSpace></Page></Layout>
+</alto>
+"""
+
+
+def _line(block, line, *words):
+    strings = "".join(
+        f'<String ID="{block}{line}W{index}" CONTENT="{text}" HPOS="{x}" VPOS="{100 * line}" WIDTH="{width}" '
+        f'HEIGHT="30"/>'
+        for index, (text, x, width) in enumerate(words)
+    )
+    return f'<TextBlock ID="{block}"><TextLine ID="{block}L{line}">{strings}</TextLine></TextBlock>'
+
+
+_FIRST = _ALTO.format(blocks=_line("A", 1, ("OBSAH", 400, 120))
+                      + _line("B", 2, ("I.", 100, 30), ("Úvod", 140, 100), ("5", 800, 20))
+                      + _line("C", 3, ("II.", 100, 30), ("Les", 140, 60), ("a", 210, 20), ("voda", 240, 90),
+                              ("12—30", 800, 80)))
+_SECOND = _ALTO.format(blocks=_line("D", 1, ("Pramen", 160, 120), ("14", 800, 30)))
+
+_REPLY = {"entries": [
+    {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "I", "designation": "I.",
+     "titleInfo": [{"title": "Úvod", "description": None, "lang": "cze"}], "pageReference": "5", "pages": ["5"]},
+    {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "II", "designation": "II.",
+     "titleInfo": [{"title": "Les a voda", "description": "O lesích", "lang": "cze"},
+                   {"title": "Wald und Wasser", "description": None, "lang": "ger"}],
+     "pageReference": "12—30", "pages": [{"start": "12", "end": "30"}]},
+    {"tocPage": 1, "level": 2, "kind": "item", "partNumber": None, "designation": None,
+     "titleInfo": [{"title": "Pramen", "description": None, "lang": "cze"}], "pageReference": "14", "pages": ["14"]},
+    {"tocPage": 1, "level": 1, "kind": "item", "partNumber": None, "designation": None,
+     "titleInfo": [{"title": "Dodatek", "description": None, "lang": "cze"}], "pageReference": "40",
+     "pages": ["40"]},
+]}
+
+
+class _Endpoint:
+    def __init__(self, *replies):
+        self.replies = [reply if isinstance(reply, str) else json.dumps(reply) for reply in replies]
+        self.requests = []
+
+    def create(self, **request):
+        self.requests.append(request)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=self.replies.pop(0)))])
+
+    def client(self):
+        return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=self.create)))
+
+
+def _config(**overrides):
+    return {"name": "chapter_extraction_engine_vlm",
+            "vlm": {"api_url": "https://example.org/v1", "model": "some/model", "api_key": "secret",
+                    "max_attempts": 2},
+            **overrides}
+
+
+@pytest.fixture
+def toc_pages(tmp_path):
+    pages = []
+    for position, (key, alto) in enumerate((("0007", _FIRST), ("0008", _SECOND))):
+        Image.new("RGB", (1000, 1500), "white").save(tmp_path / f"{key}.jpg")
+        (tmp_path / f"{key}.xml").write_text(alto, encoding="utf-8")
+        pages.append(ChapterPageInput(key, 6 + position, tmp_path / f"{key}.jpg", tmp_path / f"{key}.xml"))
+    return pages
+
+
+def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
+    endpoint = _Endpoint(_REPLY)
+    engine = ChapterExtractionEngineVLM(_config(), client=endpoint.client())
+
+    toc = engine.process(toc_pages)
+
+    first, second, appendix = toc.chapters
+    assert (first.toc_page_key, first.title_toc_page.text, first.part_number_toc_page.text) == ("0007", "Úvod", "I")
+    assert first.title_toc_page.bbox == BoundingBox(140, 200, 100, 30)
+    assert first.title_toc_page.alto == AltoRefs(blocks=("B",), lines=("BL2",), words=("B2W1",))
+    # The first language version is the title; a range is parsed as one.
+    assert second.title_toc_page.text == "Les a voda"
+    assert second.page_number_toc_page.kind is ChapterPageNumberKind.RANGE
+    assert (second.page_number_toc_page.normalized_start(), second.page_number_toc_page.normalized_end()) == (
+        "12", "30")
+    # A level-2 entry on the next page is a child of the last level-1 entry before it.
+    [section] = second.children
+    assert (section.toc_page_key, section.title_toc_page.text) == ("0008", "Pramen")
+    assert section.page_number_toc_page.alto.words == ("D1W1",)
+    # A title the OCR does not hold keeps its page, without a box.
+    assert (appendix.title_toc_page.page_key, appendix.title_toc_page.bbox) == ("0008", None)
+    assert {evidence.confidence for evidence in (first.title_toc_page, section.title_toc_page)} == {0.95}
+
+    [request] = endpoint.requests
+    system, user = request["messages"]
+    text = system["content"][0]["text"]
+    words = " ".join(text.split())
+    assert "You will receive 2 scanned page images, indexed 0 to 1" in text
+    # Each page's OCR under its image index, its lines and blocks kept.
+    assert "OBSAH\n\nI. Úvod 5\n\nII. Les a voda 12—30" in text
+    assert "=== Image 0 === OCR (optional support): OBSAH" in words
+    assert "=== Image 1 === OCR (optional support): Pramen 14" in words
+    assert "ANNOTATIONS: not provided" in text and "OPTIONAL TOC DRAFT" not in text
+    assert [part["type"] for part in user["content"]].count("image_url") == 2
+    assert request["response_format"]["json_schema"]["schema"] == engine.schema
+
+
+def test_a_page_without_ocr_text_is_read_from_its_image(toc_pages, tmp_path):
+    (tmp_path / "0008.xml").write_text(_ALTO.format(blocks=""), encoding="utf-8")
+    endpoint = _Endpoint({"entries": []})
+
+    assert ChapterExtractionEngineVLM(_config(), client=endpoint.client()).process(toc_pages).chapters == ()
+    text = endpoint.requests[0]["messages"][0]["content"][0]["text"]
+    assert "=== Image 1 === OCR: not provided. Read the image directly." in " ".join(text.split())
+
+
+def test_no_valid_reply_gives_no_toc(toc_pages):
+    engine = ChapterExtractionEngineVLM(_config(), client=_Endpoint("nope", '{"entries": 1}').client())
+
+    assert engine.process(toc_pages).chapters == ()
+
+
+def test_no_toc_pages_need_no_request():
+    assert ChapterExtractionEngineVLM(_config(), client=object()).process(()).chapters == ()
+
+
+@pytest.mark.parametrize("overrides, message", [
+    ({"confidence": 2}, "confidence"),
+    ({"schema_path": "x"}, "unknown keys: schema_path"),
+    ({"local": {"model_dir": "m"}, "vlm": {"api_url": "u"}}, "must not set api_url"),
+])
+def test_invalid_configuration_is_rejected(overrides, message):
+    with pytest.raises(ValueError, match=message):
+        ChapterExtractionEngineVLM(_config(**overrides), client=object())
+
+
+def test_the_stage_is_registered():
+    check_chapter_pipeline_stages({
+        "page_analysis": {"name": "chapter_page_analysis_engine_yolo_alto"},
+        "extraction": {"name": "chapter_extraction_engine_vlm"},
+        "alignment": {"name": "chapter_alignment_engine_fuzzy"},
+    })

@@ -59,6 +59,12 @@ _STAGE_ENGINES = {
             requires=("ultralytics", "text_geometry_aligner"),
             extra="inference",
         ),
+        "chapter_extraction_engine_vlm": EngineEntry(
+            module="metakat.chapter.engines.core.chapter_extraction.engine_vlm",
+            attribute="ChapterExtractionEngineVLM",
+            requires=("openai", "jsonschema", "jinja2", "text_geometry_aligner", "ortools"),
+            extra="vlm",
+        ),
     },
     "alignment": {
         "chapter_alignment_engine_fuzzy": EngineEntry(
