@@ -427,3 +427,101 @@ def test_recto_verso_roman_and_setup_validation():
     assert roman == ["ir", "iv", "iir", "iiv", "iiir", "iiiv", "ivr", "ivv"]
     with pytest.raises(ValueError, match="recto_verso"):
         NdkPaginationConfig(recto_verso="yes")
+
+
+def typed(values, types, sides=None):
+    sides = sides or {}
+    return {
+        i: NdkPageContext(page_type=types.get(i), side=sides.get(i)) for i in range(len(values))
+    }
+
+
+def test_covers_and_end_sheets_are_the_pages_before_page_one_and_the_rest_are_counted():
+    values = [None, None, None, None, 3, 4, 5, 6]
+    contexts = typed(values, {0: "frontCover", 1: "frontEndSheet"})
+    assert labels(paginate(values, config=edges(), contexts=contexts))[:4] == ["[1a]", "[1b]", "[1]", "[2]"]
+    # without the types nothing says what the pages before a printed 3 are
+    assert labels(paginate(values, config=edges()))[:4] == [None] * 4
+
+
+def test_covers_before_a_printed_one_are_all_lettered():
+    values = [None, None, 1, 2, 3, 4]
+    contexts = typed(values, {0: "frontCover", 1: "titlePage"})
+    assert labels(paginate(values, config=edges(), contexts=contexts))[:2] == ["[1a]", "[1b]"]
+
+
+def test_back_covers_and_end_sheets_continue_the_numbering_in_brackets():
+    values = [1, 2, 3, 4, 5, None, None]
+    contexts = typed(values, {5: "backEndSheet", 6: "backCover"})
+    assert labels(paginate(values, config=edges(), contexts=contexts))[5:] == ["[6]", "[7]"]
+    assert labels(paginate(values, config=edges()))[5:] == [None, None]  # no types: ambiguous, as before
+
+
+def test_pages_of_unknown_type_after_the_last_printed_number_stay_unresolved():
+    values = [1, 2, 3, 4, 5, None, None]
+    contexts = typed(values, {6: "backCover"})
+    assert labels(paginate(values, config=edges(), contexts=contexts))[5:] == [None, None]
+
+
+def test_trailing_inserted_material_gets_letters_not_numbers():
+    values = [1, 2, 3, 4, 5, None]
+    contexts = typed(values, {5: "illustration"})
+    assert labels(paginate(values, config=edges(), contexts=contexts))[5] == "[5a]"
+
+
+def test_an_explicit_tail_mode_beats_the_types():
+    values = [1, 2, 3, 4, 5, None]
+    contexts = typed(values, {5: "backCover"})
+    config = edges(tail_mode="insert")
+    assert labels(paginate(values, config=config, contexts=contexts))[5] == "[5a]"
+
+
+def test_inserted_material_in_a_gap_is_not_a_counted_page():
+    values = [10, 11, 12, None, None, 15, 16, 17]
+    contexts = typed(values, {3: "illustration", 4: "illustration"})
+    assert labels(paginate(values, config=edges(), contexts=contexts))[3:5] == [None, None]
+    assert labels(paginate(values, config=edges()))[3:5] == ["13", "14"]
+
+
+def test_spines_and_edges_do_not_advance_the_numbering_and_get_no_label():
+    values = [10, 11, 12, None, None, 14, 15, 16]
+    contexts = typed(values, {3: "spine"})
+    assert labels(paginate(values, config=edges(), contexts=contexts))[3:5] == [None, "13"]
+
+
+def test_a_label_that_contradicts_the_side_gets_review_confidence():
+    values = [10, 11, None, 13, 14, 15]
+    # 12 is an even number: a left-hand page
+    wrong = paginate(values, config=edges(), contexts=typed(values, {}, {2: "right"}))
+    assert wrong.page_numbers["p2"].confidence <= 0.5
+    for side in ("left", "singlePage", None):
+        fine = paginate(values, config=edges(), contexts=typed(values, {}, {2: side}))
+        assert fine.page_numbers["p2"].confidence > 0.5
+    assert paginate(values, config=edges()).page_numbers["p2"].confidence > 0.5
+
+
+def test_recto_verso_needs_right_hand_numbered_pages_and_left_hand_backs():
+    values = [1, None, 2, None, 3, None, 4, None, 5, None]
+    ok = {i: "right" if i % 2 == 0 else "left" for i in range(10)}
+    swapped = {i: "left" if i % 2 == 0 else "right" for i in range(10)}
+    config = edges(recto_verso=True)
+    assert labels(paginate(values, config=config, contexts=typed(values, {}, ok)))[:2] == ["1r", "1v"]
+    assert labels(paginate(values, config=config, contexts=typed(values, {}, swapped)))[:2] != ["1r", "1v"]
+    unknown = {i: "singlePage" for i in range(10)}
+    assert labels(paginate(values, config=config, contexts=typed(values, {}, unknown)))[:2] == ["1r", "1v"]
+
+
+@pytest.mark.parametrize(
+    "style,expected",
+    [("1a", ["[1a]", "[1b]", "[1c]"]), ("a", ["[a]", "[b]", "[c]"]), ("1aa", ["[1aa]", "[1ab]", "[1ac]"])],
+)
+def test_leading_label_styles_of_rule_1_1_4a(style, expected):
+    config = edges(leading_label_style=style)
+    assert labels(paginate([None, None, None, 1, 2, 3], config=config))[:3] == expected
+
+
+def test_invalid_leading_label_style_and_context_facts():
+    with pytest.raises(ValueError, match="leading_label_style"):
+        NdkPaginationConfig(leading_label_style="b")
+    with pytest.raises(ValueError, match="side"):
+        NdkPageContext(side="top")

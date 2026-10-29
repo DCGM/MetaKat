@@ -26,6 +26,12 @@ from metakat.schemas.base_objects import (
 logger = logging.getLogger(__name__)
 
 
+def _text(value) -> str | None:
+    """The word of a classified value (page type, side), as the plain string the NDK context takes."""
+    text = getattr(value, "text", None)
+    return getattr(text, "value", text)
+
+
 class PageNumberBindEngineBase(PageNumberBindEngine):
     """Bind page-number core results to MetaKat without resolving candidates."""
 
@@ -117,17 +123,20 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
         pages: List[MetakatPage],
         image_mapping: dict,
     ) -> dict[str, NdkPageContext] | None:
-        """One unit per document, from the document starts, annotated or predicted; None without them.
+        """What the page-type stage found, for every page: its document (one unit per document, from the
+        document starts, annotated or predicted), its page type and its side.
 
-        The first page of a scan always starts a document and has no start prediction of its own."""
-        if any(page.startsDocument is None for page in pages[1:]):
-            return None
+        The first page of a scan always starts a document and has no start prediction of its own. Without
+        the starts of the other pages the scan is one unit."""
+        starts = all(page.startsDocument is not None for page in pages[1:])
         unit = -1
         contexts = {}
         for i, page in enumerate(pages):
-            unit += i == 0 or bool(page.startsDocument.val)
+            unit += i == 0 or (starts and bool(page.startsDocument.val))
             contexts[Path(image_mapping[page.id]).stem] = NdkPageContext(
-                unit_key=f"document-{unit}"
+                unit_key=f"document-{unit}" if starts else None,
+                page_type=_text(page.pageType),
+                side=_text(page.side),
             )
         return contexts
 

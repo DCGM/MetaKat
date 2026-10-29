@@ -281,6 +281,7 @@ It then runs reusable document postprocessing across all ordered input pages.
       "minimum_anchor_confidence": 0.6,
       "wholly_unnumbered": false,
       "recto_verso": false,
+      "leading_label_style": "1a",
       "tail_mode": "unknown"
     }
   }
@@ -566,6 +567,35 @@ numbers: the bind engine replaces every non-annotated number with the final
 result, also when its confidence is lower, removes the number of a page the final
 pass leaves unresolved, and forgets the replaced detections. Annotated numbers are
 never touched.
+
+#### What the page-type stage adds to the final pass
+
+The final pass receives the page type and side of every page (`NdkPageContext.page_type`, `.side`) next to
+the document borders. The word lists are project policy, in `ndk_pagination.py` (TYPE POLICY): the standard
+names only the inserted tables, illustrations and maps, the rest follows the conventions of the DB page
+numbers of the evaluation batches.
+
+| Page type | Use |
+|---|---|
+| `illustration`, `map`, `table`, `frontispiece` | Unnumbered **inserted material**: never a counted number; gets the letter labels (`[26a]`) and blocks a gap fill that would count it (rule 1.1.4). |
+| `spine`, `edge`, `cover`, `frontEndPaper`, `backEndPaper` | Parts of the binding that libraries label with their own codes (FC, SP, F1, C1): not paginated, no label, they do not advance the numbering. An observed number stays. |
+| `frontCover`, `frontEndSheet`, `frontJacket`, `jacket` at the start | The pages **before page 1**: `[1a]`, `[1b]`, then the counted pages `[1]`, `[2]` up to the first printed number. Only when the counting then starts exactly at 1. |
+| Any known type, except inserted material, after the last printed number | The tail is **counted**: back covers, end sheets and blank pages continue the numbering in brackets (`[259]`, `[260]`). An explicit `tail_mode` or per-page `counted` fact wins; a page of unknown type leaves the tail unresolved. |
+
+**Side.** In a book the odd pages are right-hand pages (96% of the DB numbers in the evaluation batches agree).
+A supplied plain number that contradicts the known left/right side keeps its label at review confidence (at
+most 0.5). With `recto_verso` a sheet run is accepted only if its numbered pages are right-hand (recto) and
+their unnumbered backs left-hand (verso) pages, when those sides are known (at least 80% agreement);
+`singlePage` and missing sides say nothing.
+
+`leading_label_style` selects the form of the labels before page 1 that rule 1.1.4a allows: `[1a], [1b]`
+(default), `[a], [b]`, or `[1aa], [1ab]`. The choice belongs to the commissioner.
+
+**Not supported**, because the rules need information the pipeline does not have or a commissioner's consent:
+double-page scans (`5,6`; the scan alone does not say that two pages are on it), numbered columns (`9,10`),
+printed errors written `55 [58]` (needs the owner's approval and a note), and unnumbered pages placed *before*
+the numbered page they belong to (`25, [26a], [26b], 26`, which depends on content; set
+`NdkPageContext.insert_anchor` where that is known).
 
 ### NDK archival pagination
 

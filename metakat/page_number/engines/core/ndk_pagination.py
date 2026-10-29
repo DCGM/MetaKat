@@ -28,6 +28,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# TYPE POLICY. Project policy for what the page-type stage tells the final pass. The standard names the
+# inserted unnumbered material (tables, illustrations, maps: rule 1.1.4, letter labels); the rest follows the
+# conventions of the DB page numbers of the evaluation batches: front covers and end sheets are the `[1a]`,
+# `[1b]` pages before page 1, back covers and end sheets continue the numbering in brackets, and some
+# library conventions (FC, SP, F1, C1, ...) label the physical parts of a binding outside the pagination.
+#
+# Not paginated at all: no label is supplied and they do not advance the numbering (an observed number stays).
+EXCLUDED_TYPES = frozenset({"spine", "edge", "cover", "frontEndPaper", "backEndPaper"})
+# Inserted unnumbered material: a letter label after the page before it, never a counted number.
+INSERT_TYPES = frozenset({"illustration", "map", "table", "frontispiece"})
+# Pages at the very start that are not part of the numbering: [1a], [1b], ... before page [1].
+OUTSIDE_FRONT_TYPES = frozenset({"frontCover", "frontEndSheet", "frontJacket", "jacket"})
+
+
 @dataclass(frozen=True)
 class NdkPageContext:
     """Optional source facts, supplied by a caller rather than guessed from OCR.
@@ -35,6 +49,8 @@ class NdkPageContext:
     unit_key separates issues/volumes. Excluded scans and known foldout segments
     do not advance ordinary pagination. counted distinguishes tail continuations
     from extra leaves. segment_of references another input page's key.
+    page_type (the NDK page-type word) and side (`left`, `right`, `singlePage`) are what the
+    page-type stage found; see the TYPE POLICY below for how they are used.
     """
 
     unit_key: str | None = None
@@ -43,8 +59,16 @@ class NdkPageContext:
     segment_of: str | None = None
     segment_index: int | None = None
     insert_anchor: Literal["previous", "next"] = "previous"
+    page_type: str | None = None
+    side: Literal["left", "right", "singlePage"] | None = None
 
     def __post_init__(self):
+        if self.page_type is not None and (
+            not isinstance(self.page_type, str) or not self.page_type
+        ):
+            raise ValueError("NDK page_type must be a nonempty string")
+        if self.side not in (None, "left", "right", "singlePage"):
+            raise ValueError("NDK side must be left, right or singlePage")
         if self.unit_key is not None and (
             not isinstance(self.unit_key, str) or not self.unit_key
         ):
@@ -83,6 +107,9 @@ class NdkPaginationConfig:
     # (a strictly alternating run), label both sides of the sheet 12r, 12v instead of 12, [12a].
     # Several unnumbered pages in a row keep the letter logic. Final pass only.
     recto_verso: bool = False
+    # Rule 1.1.4a: the unnumbered pages before page 1 are [1a], [1b], ...; where that does not fit the
+    # numbering later in the copy, the standard allows [a], [b], ... or [1aa], [1ab], ... instead.
+    leading_label_style: Literal["1a", "a", "1aa"] = "1a"
     tail_mode: Literal["unknown", "continue", "insert"] = "unknown"
 
     def __post_init__(self):
@@ -91,6 +118,8 @@ class NdkPaginationConfig:
         for name in ("wholly_unnumbered", "recto_verso"):
             if not isinstance(getattr(self, name), bool):
                 raise ValueError(f"ndk.{name} must be boolean")
+        if self.leading_label_style not in ("1a", "a", "1aa"):
+            raise ValueError("ndk.leading_label_style must be 1a, a or 1aa")
         if self.profile not in ("shared", "monograph", "periodical"):
             raise ValueError("ndk.profile must be shared, monograph, or periodical")
         if self.tail_mode not in ("unknown", "continue", "insert"):
@@ -177,7 +206,8 @@ class NdkPaginator:
             ordinary = [
                 p
                 for p in unit
-                if not p.pagination.excluded and p.pagination.segment_of is None
+                if not self._excluded(p, numbers[p.page_key])
+                and p.pagination.segment_of is None
             ]
             unit_numbers = {p.page_key: numbers[p.page_key] for p in unit}
             unit_decisions = {
@@ -232,6 +262,20 @@ class NdkPaginator:
             decisions.update(paginated.decisions)
         return PageNumberCoreResult(numbers, decisions, result.chunks)
 
+    @staticmethod
+    def _excluded(page, observed):
+        """Excluded by the caller, or a part of the binding that is not paginated (an observed number stays)."""
+        context = page.pagination
+        return context.excluded or (observed is None and context.page_type in EXCLUDED_TYPES)
+
+    @staticmethod
+    def _counted(page):
+        """Whether the page counts in the numbering: the caller's fact, else False for inserted material."""
+        context = page.pagination
+        if context.counted is not None:
+            return context.counted
+        return False if context.page_type in INSERT_TYPES else None
+
     def _reliable(self, evidence):
         return (
             evidence is not None
@@ -271,6 +315,8 @@ class NdkPaginator:
             if len(run) < self.RECTO_VERSO_STEPS:
                 continue
             anchors = [run[0][0]] + [right for _, right in run]
+            if not self._sides_agree(pages, anchors, [left + 1 for left, _ in run]):
+                continue
             for index in anchors:
                 evidence = snapshot[pages[index].page_key]
                 numbers[pages[index].page_key] = replace(evidence, suffix="r")
@@ -302,6 +348,18 @@ class NdkPaginator:
                     confidence=0.8,
                     reason="recto_verso",
                 )
+
+    @staticmethod
+    def _sides_agree(pages, fronts, backs):
+        """The numbered pages of a sheet run are right-hand pages (recto), the unnumbered backs left-hand.
+
+        Pages without a known left/right side say nothing; a run is refused when the known ones mostly
+        contradict the pattern."""
+        known = [(pages[i].pagination.side, "right") for i in fronts] + [
+            (pages[i].pagination.side, "left") for i in backs
+        ]
+        known = [(side, expected) for side, expected in known if side in ("left", "right")]
+        return not known or sum(side == expected for side, expected in known) / len(known) >= 0.8
 
     def _supported(self, pages, index, direction, snapshot):
         """Find an independent attested continuation without crossing a reset."""
@@ -367,7 +425,7 @@ class NdkPaginator:
                 continue  # resets, missing scans, or conflicting evidence
             missing = pages[left + 1 : right]
             if delta == gap + 1 and all(
-                p.pagination.counted is not False for p in missing
+                self._counted(p) is not False for p in missing
             ):
                 for offset, page in enumerate(missing, 1):
                     self._from_anchor(
@@ -379,7 +437,7 @@ class NdkPaginator:
                         confidence=min(0.9, a.confidence, b.confidence),
                         reason="interior_sequence",
                     )
-            elif delta == 1 and all(p.pagination.counted is not True for p in missing):
+            elif delta == 1 and all(self._counted(p) is not True for p in missing):
                 for page in missing:
                     anchor = b if page.pagination.insert_anchor == "next" else a
                     self._from_anchor(
@@ -400,8 +458,8 @@ class NdkPaginator:
                 # Choosing where inserts belong is a policy, not a visual fact.
                 extra = gap - (delta - 1)
                 for offset, page in enumerate(missing):
-                    if (page.pagination.counted is True and offset < extra) or (
-                        page.pagination.counted is False and offset >= extra
+                    if (self._counted(page) is True and offset < extra) or (
+                        self._counted(page) is False and offset >= extra
                     ):
                         break
                 else:
@@ -431,7 +489,24 @@ class NdkPaginator:
             pages, first, 1, snapshot
         ):
             anchor = snapshot[pages[first].page_key]
-            if anchor.value > first:
+            outside = 0
+            while outside < first and pages[outside].pagination.page_type in OUTSIDE_FRONT_TYPES:
+                outside += 1
+            if outside and anchor.value - (first - outside) == 1:
+                # Covers and end sheets are the pages before page 1; the pages after them are counted.
+                self._leading_letters(pages[:outside], anchor, numbers, decisions)
+                for i in range(outside, first):
+                    self._from_anchor(
+                        pages[i],
+                        anchor.value - first + i,
+                        anchor,
+                        numbers,
+                        decisions,
+                        bracketed=True,
+                        confidence=0.75,
+                        reason="leading_sequence",
+                    )
+            elif anchor.value > first:
                 for i in range(first):
                     self._from_anchor(
                         pages[i],
@@ -444,30 +519,7 @@ class NdkPaginator:
                         reason="leading_sequence",
                     )
             elif anchor.value == 1:
-                occupied = {
-                    e.output_text().casefold()
-                    for e in numbers.values()
-                    if e is not None
-                }
-                prefix = ""
-                while any(
-                    f"[{anchor.normalized}{prefix}{suffix(i + 1)}]".casefold()
-                    in occupied
-                    for i in range(first)
-                ):
-                    prefix += "a"
-                for i in range(first):
-                    self._from_anchor(
-                        pages[i],
-                        1,
-                        anchor,
-                        numbers,
-                        decisions,
-                        suffix_value=prefix + suffix(i + 1),
-                        bracketed=True,
-                        confidence=0.7,
-                        reason="leading_insert",
-                    )
+                self._leading_letters(pages[:first], anchor, numbers, decisions)
         tail = pages[last + 1 :]
         if (
             not trailing
@@ -478,13 +530,20 @@ class NdkPaginator:
             return
         anchor = snapshot[pages[last].page_key]
         mode = self.config.tail_mode
-        if all(p.pagination.counted is True for p in tail):
+        if all(self._counted(p) is True for p in tail):
             mode = "continue"
-        elif all(p.pagination.counted is False for p in tail):
+        elif all(self._counted(p) is False for p in tail):
             mode = "insert"
+        if mode == "unknown" and all(
+            p.pagination.page_type is not None and p.pagination.page_type not in INSERT_TYPES
+            for p in tail
+        ):
+            # Back covers, end sheets and blank pages after the last printed number continue the
+            # numbering in brackets (rule 1.1.4, "chybí v číselné řadě", end of the copy).
+            mode = "continue"
         if mode == "unknown":
             return
-        if any(p.pagination.counted is (mode == "insert") for p in tail):
+        if any(self._counted(p) is (mode == "insert") for p in tail):
             return  # explicit per-page facts conflict with the chosen tail rule
         for i, page in enumerate(tail, 1):
             self._from_anchor(
@@ -499,6 +558,35 @@ class NdkPaginator:
                 bracketed=True,
                 confidence=0.7,
                 reason="trailing_" + mode,
+            )
+
+    def _leading_letters(self, pages, anchor, numbers, decisions):
+        """Rule 1.1.4a: [1a], [1b], ... before page 1, or the allowed [a], [b], ... / [1aa], [1ab], ..."""
+        style = self.config.leading_label_style
+        base = "" if style == "a" else format_page_number(1, anchor)
+        if base is None:
+            return
+        occupied = {
+            e.output_text().casefold() for e in numbers.values() if e is not None
+        }
+        prefix = "a" if style == "1aa" else ""
+        while any(
+            f"[{base}{prefix}{suffix(i + 1)}]".casefold() in occupied
+            for i in range(len(pages))
+        ):
+            prefix += "a"
+        for i, page in enumerate(pages):
+            self._supply(
+                page,
+                numbers,
+                decisions,
+                base,
+                1,
+                anchor.numeral_system,
+                suffix_value=prefix + suffix(i + 1),
+                bracketed=True,
+                confidence=min(0.7, anchor.confidence),
+                reason="leading_insert",
             )
 
     def _segments(self, pages, numbers, decisions):
@@ -587,6 +675,15 @@ class NdkPaginator:
     ):
         if numbers[page.page_key] is not None or (bracketed and not self.bracketed):
             return
+        if (
+            not suffix_value
+            and system == PageNumberNumeralSystem.ARABIC
+            and page.pagination.side in ("left", "right")
+            and page.pagination.side != ("right" if value % 2 else "left")
+        ):
+            # In a book odd pages are right-hand pages (96% of the DB numbers agree): a label that
+            # contradicts the side stays, but at review confidence.
+            confidence = min(confidence, 0.5)
         evidence = PhysicalPageNumberEvidence(
             page_key=page.page_key,
             text="",

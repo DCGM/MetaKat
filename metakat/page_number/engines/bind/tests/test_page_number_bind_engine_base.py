@@ -282,7 +282,8 @@ def test_final_pass_without_document_starts_treats_the_scan_as_one_document():
     pages[1].startsDocument = None
     binder = _final_binder(PageNumberCoreResult({f'p{i}': None for i in range(3)}))
     binder.process_final('/batch', io)
-    assert binder.core_engine.process.call_args.kwargs['page_contexts'] is None
+    contexts = binder.core_engine.process.call_args.kwargs['page_contexts']
+    assert {c.unit_key for c in contexts.values()} == {None}  # one unit, but the contexts are still passed
 
 
 def test_preliminary_pass_is_the_default_without_contexts():
@@ -324,3 +325,16 @@ def test_final_pass_is_skipped_when_the_core_has_none():
     binder.core_engine.has_final_pass = False
     assert binder.process_final('/batch', io) == io
     binder.core_engine.process.assert_not_called()
+
+
+def test_final_pass_passes_the_page_type_and_side_of_every_page():
+    from metakat.schemas.base_objects import ClassifiedValue, PageSideType, PageType
+    io, pages = _scan(3, starts={0}, numbers=[None] * 3)
+    pages[0].pageType = ClassifiedValue(text=PageType.FRONT_COVER, confidence=0.9)
+    pages[0].side = ClassifiedValue(text=PageSideType.RIGHT, confidence=0.9)
+    pages[1].pageType = ClassifiedValue(text=PageType.BLANK, confidence=0.9)
+    binder = _final_binder(PageNumberCoreResult({f'p{i}': None for i in range(3)}))
+    binder.process_final('/batch', io)
+    contexts = binder.core_engine.process.call_args.kwargs['page_contexts']
+    assert [(contexts[f'p{i}'].page_type, contexts[f'p{i}'].side) for i in range(3)] == [
+        ('frontCover', 'right'), ('blank', None), (None, None)]
