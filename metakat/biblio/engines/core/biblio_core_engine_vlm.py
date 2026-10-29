@@ -1,12 +1,15 @@
 """Biblio core engines reading title pages with a vision-language model.
 
-For each page the model gets the page image and its ALTO text and returns the
-bibliographic statements it can read as JSON. The model names no regions, so
-each value is located afterwards by finding its text among the page's ALTO
-words (text-geometry-aligner's text alignment, exact then fuzzy, every word
-given to at most one value). A value found there gets the box of its words
-and their ALTO IDs; one that is not - the model read it from the image
-differently from the OCR, or the page has no ALTO - keeps only its page.
+For each span - the consecutive title pages of one document - the model gets
+all of its page images and their ALTO text in one request and returns the
+bibliographic statements it can read as JSON, one record for the span. The
+model names no regions, so each value is located afterwards by finding its
+text among the ALTO words of the span's pages (text-geometry-aligner's text
+alignment, exact then fuzzy, every word given to at most one value), on the
+first page, in span order, where it is found. A value found there gets that
+page, the box of its words and their ALTO IDs; one that is not - the model read
+it from the image differently from the OCR, or no page has ALTO - keeps only
+the span's first page.
 Ambiguous text, such as a place printed twice, may occasionally be located on
 the wrong occurrence. The model gives no per-value confidence, so every value
 carries the configured `confidence` (0.95 unless set).
@@ -28,9 +31,11 @@ Configuration, besides `name`:
 - `local` - a local model: `model_dir`, `served_model_name`, `vllm_args`
   (metakat.common.vlm.local_server.LocalModelConfig);
 - `system_prompt_path`, `user_prompt_path` - the prompts, when not the
-  engine's own; the system prompt receives the variables `ocr` (the page's
-  ALTO text) and `schema` (the output schema as JSON), and the page image is
-  attached to the user prompt;
+  engine's own; the system prompt receives the variables `ocr` (the ALTO text
+  of the span: of its one page as it is, of several pages each under a
+  `--- Page k of n ---` line), `page_count` (the pages of the span) and
+  `schema` (the output schema as JSON), and the page images are attached to
+  the user prompt in page order;
 - `schema_path` - the output schema, for an engine that has none of its own;
 - `confidence` - the confidence given to every value.
 """
@@ -43,7 +48,7 @@ import logging
 from abc import abstractmethod
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any, Callable, ClassVar, Iterable, List, Optional
+from typing import Any, Callable, ClassVar, Iterable, Optional, Sequence
 
 from metakat.biblio.engines.core.biblio_core_engine import BiblioCoreEngine
 from metakat.biblio.engines.core.models import (
@@ -51,10 +56,12 @@ from metakat.biblio.engines.core.models import (
     BiblioAgent,
     BiblioCoreResult,
     BiblioManufacture,
-    BiblioPageResult,
+    BiblioPage,
     BiblioPublication,
     BiblioReading,
     BiblioSeries,
+    BiblioSpan,
+    BiblioSpanResult,
     BiblioTitleInfo,
     container_values,
 )
@@ -155,34 +162,26 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
         self,
         reply: Any,
         evidence: EvidenceFactory,
-        page_key: str,
-    ) -> Optional[BiblioPageResult]:
-        """The page result for a reply in this engine's schema; None if nothing was read.
+        page_keys: Sequence[str],
+    ) -> Optional[BiblioSpanResult]:
+        """The span result for a reply in this engine's schema; None if nothing was read.
 
         Every value goes through `evidence` with its JSON path in the reply,
         which locates it in the ALTO.
         """
 
-    def process(
-        self,
-        images: List[str],
-        alto_files: List[str],
-    ) -> BiblioCoreResult:
-        pages: dict[str, BiblioPageResult] = {}
-        if not images:
-            return BiblioCoreResult(pages=pages)
-        alto_by_key = {Path(alto_file).stem: alto_file for alto_file in alto_files}
+    def process(self, spans: Sequence[BiblioSpan]) -> BiblioCoreResult:
+        keys = [page.page_key for span in spans for page in span]
+        if len(set(keys)) != len(keys):
+            raise ValueError("Biblio core got a page key in more than one place")
+        spans = list(spans)
+        if not any(spans):
+            return BiblioCoreResult(spans=tuple(None for _ in spans))
         with self._model() as client:
-            for image in images:
-                page_key = Path(image).stem
-                if page_key in pages:
-                    raise ValueError(f"Biblio core got duplicate page key: {page_key}")
-                page_result = self.read_page(client, page_key, image, alto_by_key.get(page_key))
-                if page_result is not None:
-                    pages[page_key] = page_result
-        logger.info("Biblio core read bibliographic information on %d of %d page(s)",
-                    len(pages), len(images))
-        return BiblioCoreResult(pages=pages)
+            results = tuple(self.read_span(client, span) if span else None for span in spans)
+        logger.info("Biblio core read bibliographic information on %d of %d span(s)",
+                    sum(result is not None for result in results), len(spans))
+        return BiblioCoreResult(spans=results)
 
     @contextlib.contextmanager
     def _model(self) -> Iterator[VLMClient]:
@@ -193,40 +192,47 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
         with serve(self.local) as api_url:
             yield VLMClient(dataclasses.replace(self.vlm_config, api_url=api_url), self._client)
 
-    def read_page(
-        self,
-        client: VLMClient,
-        page_key: str,
-        image: str,
-        alto_file: Optional[str],
-    ) -> Optional[BiblioPageResult]:
-        """One page's readings; None when the model gave none or no valid reply."""
+    def read_span(self, client: VLMClient, span: Sequence[BiblioPage]) -> Optional[BiblioSpanResult]:
+        """One span's readings; None when the model gave none or no valid reply."""
         from text_geometry_aligner import ALTOReader
 
-        alto_page = ALTOReader().read(alto_file) if alto_file is not None else None
-        if alto_page is None:
-            logger.warning("Page %s has no ALTO: its values will have no box", page_key)
+        page_keys = [page.page_key for page in span]
+        request_id = page_keys[0] if len(span) == 1 else f"{page_keys[0]}+{len(span) - 1}"
+        alto_pages = []
+        for page in span:
+            alto_page = ALTOReader().read(page.alto) if page.alto is not None else None
+            if alto_page is None:
+                logger.warning("Page %s has no ALTO: its values will have no box", page.page_key)
+            alto_pages.append(alto_page)
         prompts = render_prompts(self.prompts, {
-            "ocr": alto_text(alto_page.words) if alto_page is not None else "",
+            "ocr": span_text([None if a is None else alto_text(a.words) for a in alto_pages]),
+            "page_count": len(span),
             "schema": json.dumps(self.schema, ensure_ascii=False, indent=2),
         })
         try:
             reply = client.request_json(
                 prompts,
-                [VLMImage.from_file(image, self.vlm_config.image_max_side)],
+                [VLMImage.from_file(page.image, self.vlm_config.image_max_side) for page in span],
                 self.schema,
-                request_id=page_key,
+                request_id=request_id,
             )
         except VLMResponseError as error:
-            logger.error("Biblio core skips page %s: %s", page_key, error)
+            logger.error("Biblio core skips span %s: %s", request_id, error)
             return None
 
-        regions = self._locate(alto_page, reply) if alto_page is not None else {}
+        # Per JSON path, the first page of the span whose ALTO holds the value.
+        located: dict[tuple, tuple[str, Any]] = {}
+        for page, alto_page in zip(span, alto_pages):
+            if alto_page is None:
+                continue
+            for path, region in self._locate(alto_page, reply).items():
+                if region.alto_geometry is not None and path not in located:
+                    located[path] = (page.page_key, region)
 
         def evidence(path: tuple, text: Optional[str]) -> Optional[DetectionEvidence]:
             if text is None or not text.strip():
                 return None
-            region = regions.get(path)
+            page_key, region = located.get(path, (page_keys[0], None))
             geometry = None if region is None else region.alto_geometry
             return DetectionEvidence(
                 text=text.strip(),
@@ -237,10 +243,9 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
                 alto=AltoRefs() if region is None else AltoRefs.from_words(region.words),
             )
 
-        page_result = self.page_from_reply(reply, evidence, page_key)
-        found = sum(1 for region in regions.values() if region.alto_geometry is not None)
-        logger.info("Page %s: located %d of %d value(s) in the ALTO", page_key, found, len(regions))
-        return page_result
+        result = self.page_from_reply(reply, evidence, page_keys)
+        logger.info("Span %s: located %d value(s) in the ALTO", request_id, len(located))
+        return result
 
     def _path(self, key: str, default: Optional[Path]) -> str:
         path = self.config.get(key) or default
@@ -274,12 +279,13 @@ class BiblioCoreEngineVLM(BiblioCoreEngineVLMBase):
     # An agent's role is a label, not text on the page.
     LABEL_KEYS = frozenset({"role"})
 
-    def page_from_reply(self, reply, evidence, page_key):
-        return page_from_reply(reply, evidence, page_key)
+    def page_from_reply(self, reply, evidence, page_keys):
+        return page_from_reply(reply, evidence, page_keys)
 
 
-def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory, page_key: str) -> Optional[BiblioPageResult]:
-    """Build a page result from a reply in vlm/schema.json.
+def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
+                    page_keys: Sequence[str]) -> Optional[BiblioSpanResult]:
+    """Build a span result from a reply in vlm/schema.json.
 
     Containers left without any value are dropped.
     """
@@ -339,7 +345,7 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory, page_ke
         try:
             role = AgentRole(item.get("role"))
         except ValueError:
-            logger.warning("Page %s: skipping a name with unknown role %r", page_key, item.get("role"))
+            logger.warning("Span %s: skipping a name with unknown role %r", page_keys[0], item.get("role"))
             continue
         if name is None:
             continue
@@ -361,8 +367,8 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory, page_ke
     periodical_issue = _periodical(reply, "periodicalIssue", one)
     if reading.is_empty() and periodical_volume is None and periodical_issue is None:
         return None
-    return BiblioPageResult(
-        page_key=page_key,
+    return BiblioSpanResult(
+        page_keys=tuple(page_keys),
         reading=reading,
         periodical_volume=periodical_volume,
         periodical_issue=periodical_issue,
@@ -401,6 +407,14 @@ def _alignable(reply: Any, label_keys: frozenset[str] = frozenset()) -> Any:
     if isinstance(reply, str) and not reply.strip():
         return None
     return reply
+
+
+def span_text(page_texts: Sequence[Optional[str]]) -> str:
+    """The OCR of a span: one page's text as it is, several pages each under its own heading."""
+    if len(page_texts) == 1:
+        return page_texts[0] or ""
+    return "\n\n".join(f"--- Page {index} of {len(page_texts)} ---\n{text or ''}"
+                        for index, text in enumerate(page_texts, start=1))
 
 
 def alto_text(words) -> str:

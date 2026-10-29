@@ -20,14 +20,17 @@
 - [Available bind implementation](#available-bind-implementation)
   - [Base](#engine-base-biblio_bind_engine_base)
   - [Binding flow](#binding-flow)
+  - [What a scan holds](#what-a-scan-holds)
   - [Documents](#documents)
-  - [Title-page selection and core invocation](#title-page-selection-and-core-invocation)
+  - [Title-page spans and core invocation](#title-page-spans-and-core-invocation)
   - [Candidate element construction](#candidate-element-construction)
   - [Proarc single-volume resolution](#proarc-single-volume-resolution)
   - [Periodical volume consolidation](#periodical-volume-consolidation)
   - [Title creation](#title-creation)
   - [Anchor pages](#anchor-pages)
   - [Groups](#groups)
+  - [Batch kind](#batch-kind)
+  - [Parts and issues inside one document](#parts-and-issues-inside-one-document)
   - [Hierarchy binding](#hierarchy-binding)
   - [Detection geometry retention](#detection-geometry-retention)
 - [Known limitations](#known-limitations)
@@ -41,25 +44,27 @@ title pages and builds the container part of the MetaKat document hierarchy:
 bibliographic fields and groups, plus the `parent_id` relations that attach
 every page to a container.
 
-Where one bottom-level document ends and the next begins is not decided here:
-it is the [page-type stage](../page_type/README.md)'s decision, carried by
+Where one bottom-level document ends and the next begins is the
+[page-type stage](../page_type/README.md)'s decision, carried by
 `MetakatPage.startsDocument`. This package makes each of those documents one
-leaf unit - an issue, a part of a multipart monograph or a monograph - and
-decides what each leaf is and how the leaves bind into periodical volumes and a
-title.
+leaf unit - an issue, a part of a multipart monograph or a monograph - decides
+what kind of scan it is and how the leaves bind into periodical volumes and a
+title. The one boundary it adds is where a document clearly holds two parts or
+two issues, each with its own title page ([splits](#parts-and-issues-inside-one-document)).
 
 Bibliographic processing has two boundaries:
 
 1. The **[core engine](#biblio-core-engine-contract)** reads what is printed
-   on a set of pages. It returns, per page, the bibliographic values it could
-   read there - one reading per field where the field holds one - already
-   grouped into MODS statements: a title, an imprint, a series, a name.
+   on spans of title pages. It returns, per span, the bibliographic values it
+   could read there as one record - one reading per field where the field
+   holds one - already grouped into MODS statements: a title, an imprint, a
+   series, a name.
 2. The **[bind engine](#available-bind-implementation)** decides what those
-   readings describe: it selects the title pages of every document, turns
-   each page's readings into candidate volumes and issues, merges the
-   readings of one document into its leaf, decides the leaf's kind, binds the
-   leaves into periodical volumes and a title, reconciles a lone volume with an
-   optional ProArc catalog record, and creates the detection UUIDs.
+   readings describe: it cuts the title pages of every document into spans,
+   decides the kind of the scan, splits a document holding two parts or
+   issues, lets the strongest span of each document name its leaf, binds the
+   leaves into periodical volumes and a title, reconciles a lone volume with
+   an optional ProArc catalog record, and creates the detection UUIDs.
 
 The core owns detection, OCR alignment, label interpretation, the choice
 between several detections of one field on a page, and grouping. The binder
@@ -69,7 +74,7 @@ split as in the [`page_number`](../page_number/README.md) and
 
 ```mermaid
 flowchart LR
-    P[Title-page images + ALTO files]
+    P[Spans of title-page images + ALTO files]
     C[Biblio core engine]
     R[BiblioCoreResult]
     B[Biblio bind engine]
@@ -83,33 +88,43 @@ flowchart LR
 Every biblio core engine subclasses `BiblioCoreEngine` and exposes:
 
 ```python
-process(
-    images: List[str],
-    alto_files: List[str],
-) -> BiblioCoreResult
+process(spans: Sequence[Sequence[BiblioPage]]) -> BiblioCoreResult
+
+
+@dataclass(frozen=True)
+class BiblioPage:
+    image: str                 # the page image; its filename stem is the page key
+    alto: str | None = None    # its ALTO, when it has one
 ```
 
-The two sequences represent the same pages in the same order. Only the pages
-the binder selected as title pages are passed in, not the complete document.
-An image filename stem is the page key used in the result.
-
-| Argument | Contract |
-|---|---|
-| `images` | Ordered image paths. Each filename stem identifies the page in core output. |
-| `alto_files` | Ordered ALTO paths corresponding position by position to `images`. |
+A **span** is a run of consecutive title pages of one bottom-level document,
+in page order - a half-title and a title page, or a lone title page. Only the
+pages the binder selected are passed in, never the whole document. A scan with
+the page types `B N T T N N N N T B T N N N N B T N N N N B N T T N N N B`
+(B a document start) gives the spans `TT`, `T`, `T`, `T` and `TT`. Each span
+is read as **one record**: what its pages print together describes one
+document. A page key occurs in at most one span; the core rejects a repeated
+one.
 
 The method returns:
 
 ```python
 BiblioCoreResult(
-    pages: Mapping[str, BiblioPageResult],
+    spans: tuple[BiblioSpanResult | None, ...],
 )
 ```
 
-`pages` is sparse: a page on which nothing was read is absent. Page keys must
-be unique and must identify one of the input pages; the binder rejects any
-other key. The result carries no MetaKat UUIDs and no hierarchy - creating
-those belongs to the [bind engine](#available-bind-implementation).
+with one entry per input span, in input order, `None` for a span on which
+nothing was read. Every value keeps the page it was read on in its
+evidence's `page_key`, which must identify one of the span's pages; the binder
+rejects any other key. The result carries no MetaKat UUIDs and no hierarchy -
+creating those belongs to the [bind engine](#available-bind-implementation).
+
+How the pages of a span are read together is the core's: the
+[YOLO core](#engine-yolo--alto-biblio_core_engine_yolo) reads each page on its
+own and merges them (`merge_span`, below), the
+[VLM core](#engine-vision-language-model-biblio_core_engine_vlm) gives the model
+all images and OCR of the span in one request.
 
 The classes are defined in `metakat/biblio/engines/core/models.py` and built
 on the common `DetectionEvidence` (`text`, `confidence`, `bbox`, `page_key`,
@@ -121,8 +136,8 @@ the core knows the page a value was read on but not where on it.
 
 ```python
 @dataclass(frozen=True)
-class BiblioPageResult:
-    page_key: str
+class BiblioSpanResult:
+    page_keys: tuple[str, ...]          # the span's pages
     reading: BiblioReading = BiblioReading()
     periodical_volume: BiblioReading | None = None
     periodical_issue: BiblioReading | None = None
@@ -137,7 +152,7 @@ class BiblioReading:
     agents: tuple[BiblioAgent, ...] = ()
 ```
 
-A page's readings are split by what the core can tell about the record they
+A span's readings are split by what the core can tell about the record they
 describe, never by a hierarchy decision:
 
 | Reading | Holds |
@@ -186,6 +201,15 @@ A core therefore:
 The binder turns each container holding at least two values into one
 `MetakatGroup`; a value alone in its container stays ungrouped.
 
+**Merging the pages of a span** (`merge_readings`, `merge_span` in
+`models.py`, used by the YOLO core). A statement every page prints at most once
+- one title, one imprint, one manufacture statement - is one statement of the
+record: those containers are united, a single-valued field keeping its most
+confident reading (the earlier page's on a tie) and a list field every reading
+in page order. When a page prints several statements of one kind, they are
+kept as read; series and names are always kept as read, since a record can
+have several. A span with nothing read on any page has no result.
+
 ### Implementing another core engine
 
 Every core engine receives its configuration mapping directly. To add one:
@@ -196,11 +220,13 @@ Every core engine receives its configuration mapping directly. To add one:
    [core contract](#biblio-core-engine-contract); the base class does not
    prescribe detection, label vocabularies, or how several detections of one
    field are resolved;
-3. return only the result classes above, with valid input page keys, grouped
-   as [Grouping](#grouping) describes;
+3. return one result per span, in span order, built from the result classes
+   above, with every value on one of its span's pages, grouped as
+   [Grouping](#grouping) describes;
 4. register the config `name` in `biblio_core_engines` in core
    `definitions.py`, together with its import requirements;
-5. test engine loading, reading, grouping, and page key validation.
+5. test engine loading, reading, grouping, spans of several pages, and page
+   key validation.
 
 [`BiblioBindEngineBase`](#engine-base-biblio_bind_engine_base) can bind any
 implementation satisfying this contract.
@@ -251,7 +277,7 @@ The bind configuration takes no settings of its own beyond `name`.
 directions.
 
 - It runs **after** `page_type`, because
-  [title-page selection](#title-page-selection-and-core-invocation) reads
+  [title-page spans](#title-page-spans-and-core-invocation) read
   `MetakatPage.pageType`. Without page-type processing no page is classified as
   a title page, the core is invoked with empty inputs, and no bibliographic
   element is created.
@@ -261,11 +287,11 @@ directions.
 The bind engine owns the complete handoff:
 
 1. deep-copy the supplied `MetakatIO`;
-2. select title pages and resolve their image and ALTO paths against
-   `batch_dir`;
-3. invoke the core once with the ordered inputs;
-4. map returned page keys back to `MetakatPage` objects through the image-stem
-   mapping, rejecting a key that is not one of the input pages;
+2. cut the title pages of every document into [spans](#title-page-spans-and-core-invocation)
+   and resolve their image and ALTO paths against `batch_dir`;
+3. invoke the core once with all spans;
+4. map the page key of every value back to its `MetakatPage` through the
+   image-stem mapping, rejecting a key that is not one of the input pages;
 5. construct, reconcile, and bind the bibliographic elements.
 
 `ProarcIO` is passed through from `process_batch()` and is consulted only by
@@ -283,8 +309,8 @@ The registered core implementations are:
 ### Engine: YOLO + ALTO (`biblio_core_engine_yolo`)
 
 This engine detects bibliographic regions with YOLO, aligns their geometry
-with ALTO words, and reads each page's aligned regions into a
-`BiblioPageResult` by their labels.
+with ALTO words, reads each page's aligned regions by their labels, and merges
+the pages of each span into its `BiblioSpanResult`.
 
 #### Configuration
 
@@ -322,7 +348,9 @@ never sees a model label.
 
 #### Geometry and text loading
 
-For every input page, the shared `EngineYOLOALTO`:
+The detector runs once over the pages of all spans. A page without ALTO cannot
+be aligned, so it is not read (logged as a warning). For every page read, the
+shared `EngineYOLOALTO`:
 
 1. runs YOLO on the image;
 2. reads the corresponding ALTO document;
@@ -350,15 +378,17 @@ installation extra. The requirement is checked before any page is read.
 
 #### Reading a page
 
-`read_page` turns one `AlignmentPage` into a `BiblioPageResult`. A region is
+`read_page` turns one `AlignmentPage` into a one-page `BiblioSpanResult`. A region is
 skipped when it is unmatched, when `input_geometry`,
 `input_geometry_confidence`, or `alto_text` is missing, or when its
 `label_for_export` is not a configured label; the last two are logged as
 warnings. Every other region becomes one `DetectionEvidence`: `alto_text`,
 `input_geometry_confidence`, the `input_geometry.bounds` as a `BoundingBox`,
 the page key, and in `alto` the aligned words' ALTO block, line and word IDs
-where the ALTO provides them. A page on which nothing is read is left out of the result,
-and a page key returned twice by the aligner is an error.
+where the ALTO provides them. A page key returned twice by the aligner is an
+error. The pages of a span are then merged into the span's one result
+(`merge_span`, see [Grouping](#grouping)); a span on which nothing is read on
+any page has no result.
 
 Each `BiblioType` has one place in the result:
 
@@ -443,7 +473,7 @@ A local model, with its files and prompt in the engine directory:
   "local": {
     "model_dir": "biblio/vlm/model",
     "served_model_name": "qwen-biblio",
-    "vllm_args": ["--max-model-len", "16384", "--limit-mm-per-prompt", "{\"image\": 1, \"video\": 0}"]
+    "vllm_args": ["--max-model-len", "16384", "--limit-mm-per-prompt", "{\"image\": 4, \"video\": 0}"]
   },
   "system_prompt_path": "biblio/vlm/prompt_system.txt",
   "vlm": {"response_format": "schema", "max_attempts": 3}
@@ -492,9 +522,9 @@ before processing: its settings would start a process on the worker.
 
 What differs between VLM engines is the JSON the model is asked for, so
 everything else lives in `BiblioCoreEngineVLMBase`: the API or local
-endpoint, prompts, page loop, ALTO location and confidence. A subclass
-implements `page_from_reply(reply, evidence, page_key)`, the mapping of a
-reply in its schema onto a `BiblioPageResult`, passing every value through
+endpoint, prompts, span loop, ALTO location and confidence. A subclass
+implements `page_from_reply(reply, evidence, page_keys)`, the mapping of a
+reply in its schema onto a `BiblioSpanResult`, passing every value through
 `evidence(json_path, text)`, which locates it in the ALTO.
 
 `BiblioCoreEngineVLM` is the one implementation so far, for API and local
@@ -507,28 +537,35 @@ takes it from `schema_path`, implements its mapping, lists the keys holding
 labels rather than printed text in `LABEL_KEYS`, and is registered under its
 own name in core `definitions.py`.
 
-#### Reading a page
+#### Reading a span
 
-For each page the engine:
+For each span the engine sends one request:
 
-1. reads the page's ALTO and writes its text into the system prompt
-   (`{{ ocr }}`): a line per `TextLine`, a blank line between `TextBlock`s;
-   the prompt also receives the schema as `{{ schema }}`, so the two cannot
-   drift apart;
-2. sends the system prompt and the user prompt with the page image attached,
-   and gets the reply as JSON validated against the output schema;
-3. locates every text value of the reply among the page's ALTO words with
-   text-geometry-aligner's text alignment: exact matches, then fuzzy ones
-   within the aligner's default error limits, with each ALTO word given to at
-   most one value (CP-SAT selection);
-4. builds the `BiblioPageResult` from the reply.
+1. reads the ALTO of every page of the span and writes the text into the
+   system prompt (`{{ ocr }}`): a line per `TextLine`, a blank line between
+   `TextBlock`s; a span of several pages gives each page under a
+   `--- Page k of n ---` line. The prompt also receives `{{ page_count }}` and
+   the schema as `{{ schema }}`, so the two cannot drift apart. The engine's
+   own prompt tells the model, only when there are several pages, that they
+   are consecutive title pages of one document to be read as one record; a
+   one-page span gets exactly the single-page prompt;
+2. sends the system prompt and the user prompt with the page images attached
+   in page order, and gets the reply as JSON validated against the output
+   schema; a local model needs vLLM's `--limit-mm-per-prompt` to allow as many
+   images as the longest span;
+3. locates every text value of the reply among the ALTO words of the span's
+   pages with text-geometry-aligner's text alignment: exact matches, then
+   fuzzy ones within the aligner's default error limits, with each ALTO word
+   given to at most one value (CP-SAT selection); a value found on several
+   pages is taken from the first, in page order;
+4. builds the `BiblioSpanResult` from the reply.
 
-A located value gets the box of its words in ALTO coordinates - the space the
-YOLO engine's boxes are in too - and its words' block, line and word IDs. A
-value that cannot be located, because the model read the image differently
-from the OCR or the page has no ALTO, keeps only its page: `bbox` is `None`
-and `alto` is empty. Text printed twice on a page may occasionally be located
-on the wrong occurrence.
+A located value gets its page, the box of its words in ALTO coordinates - the
+space the YOLO engine's boxes are in too - and its words' block, line and word
+IDs. A value that cannot be located, because the model read the image
+differently from the OCR or no page has ALTO, keeps only the span's first page:
+`bbox` is `None` and `alto` is empty. Text printed twice may occasionally be
+located on the wrong occurrence.
 
 The reply is grouped the way the result is, so it maps onto the containers
 directly; each JSON key is named after the MetaKat field it fills:
@@ -547,12 +584,12 @@ Unlike the detector, the model can tell statements apart, so the prompt asks
 for one object per statement printed on the page - two imprints, a title in
 two languages - and for everything it cannot attribute in one object, as
 [Grouping](#grouping) requires. Empty and null values are not read, containers
-left empty are dropped, and a page with nothing read is left out.
+left empty are dropped, and a span with nothing read has no result.
 
-A page whose reply is still invalid after `max_attempts` is logged as an error
-and left out; the rest of the batch continues. An error from the endpoint
+A span whose reply is still invalid after `max_attempts` is logged as an error
+and has no result; the rest of the batch continues. An error from the endpoint
 itself - a wrong key, an unknown model, an option the model does not support -
-fails the job, since every other page would fail the same way.
+fails the job, since every other span would fail the same way.
 
 ## Available bind implementation
 
@@ -585,75 +622,84 @@ is fixed in the implementation.
 flowchart TD
     A[MetakatIO pages sorted by batch_index]
     S[bottom_documents: the documents of startsDocument]
-    B[filter_title_pages: the pages classified titlePage, per document]
-    C[Biblio core engine over the selected title pages]
-    D[get_volume_issue_from_result: per title page one candidate MetakatVolume and optionally one MetakatIssue]
+    B[title_page_spans: runs of consecutive title pages, per document]
+    C[Biblio core engine over the spans]
+    D[read_spans: per span one candidate MetakatVolume, optionally one MetakatIssue, and a score]
     E{One document and one ProArc volume?}
     F[resolve_single_proarc_volume: group, match, merge to exactly one MetakatVolume holding every page]
-    G[bind: one leaf per document, its kind, periodical volumes, title]
+    K1[batch_kind: monographs, one multipart monograph or one periodical]
+    P[split_documents: a start on the title page of a second part or issue]
+    G[bind: one leaf per document named by its strongest span; volumes and title]
     I[Finalize groups; page indices; representative pages]
     J[Drop detections not referenced by a kept element]
     K[MetakatIO with title, volume, and issue elements plus geometry maps]
 
     A --> S --> B --> C --> D --> E
     E -- yes --> F --> I
-    E -- no --> G --> I
+    E -- no --> K1 --> P --> G --> I
     I --> J --> K
 ```
 
 The two branches are mutually exclusive by design. When the scan is one
 document and a single catalogued ProArc volume object is present, the record
 controls volume identity and the absence of title-level structure, so the
-periodical volumes and `get_title` are skipped outright rather than run as a
-no-op. Every other input — several documents, periodicals, multipart works,
+batch kind, the splits and `get_title` are skipped outright rather than run as
+a no-op. Every other input — several documents, periodicals, multipart works,
 plain monographs without a ProArc record, and any ProArc record with a
 different object count or model — takes the vision-only branch.
+
+### What a scan holds
+
+The binder assumes what a real batch can hold, as agreed for ProArc batches:
+
+| A batch holds | Leaves | Above them |
+|---|---|---|
+| one monograph | one `monograph` volume | nothing |
+| several unrelated monographs | one `monograph` volume each | nothing - no title gathers them |
+| one multipart monograph | its parts, `multipart` volumes | one `MetakatTitle` (`multipart`) |
+| one periodical | its issues | its volumes in scan order (volume, its issues, next volume, its issues), under one `MetakatTitle` (`periodical`) |
+
+Never in one batch: two multipart monographs, two periodicals, or any mix -
+monographs with a multipart monograph, monographs with issues. The kind of the
+scan is therefore one decision for every document ([batch kind](#batch-kind)):
+once a batch reads as issues, every bottom-level document is an issue; once it
+reads as parts, every document is a part of the one multipart monograph.
 
 ### Documents
 
 `bottom_documents` (`metakat/common/aux/document_groups.py`) cuts the pages,
 in `batch_index` order, into documents: one starts at the first page and at
-every later page whose `startsDocument` is true, annotated or predicted. The
-binder only reads that decision. It never adds, moves or removes a boundary,
-and no title page, cover, reading or catalog record changes which pages form a
-document. Without a `startsDocument` on every page after the first - the
-page-type stage did not run, or left some out - the scan is one document; a
-partial set is logged as a warning. The page-number stage reads the documents
-by the same rule.
+every later page whose `startsDocument` is true, annotated or predicted.
+Without a `startsDocument` on every page after the first - the page-type stage
+did not run, or left some out - the scan is one document; a partial set is
+logged as a warning. The page-number stage reads the documents by the same
+rule. The binder never moves or removes a boundary; the only one it adds is a
+[second part or issue](#parts-and-issues-inside-one-document) inside a document.
 
-### Title-page selection and core invocation
+### Title-page spans and core invocation
 
-`filter_title_pages(pages, min_distance)` receives the `MetakatPage` elements
-of one document, sorted by `batch_index`, and returns the pages to process; the
-title pages of every document are then read by the core in one call:
+`title_page_spans` cuts the title pages of every document into **spans**: runs
+of consecutive pages classified `titlePage` (by `pageType`), in page order. A
+page without an image mapping cannot be read and ends a run. A document holds
+any number of spans - none, a half-title and title page (`TT`), or several
+far apart. All spans of the scan go to the core in one call, each with its
+pages' image and ALTO paths resolved against `batch_dir` from
+`page_to_image_mapping` and `page_to_alto_mapping` (`alto` is `None` for a
+page without one), and come back as one result per span.
 
-1. candidates are the pages whose `pageType` is set and whose
-   `pageType[0]` is `PageType.TITLE_PAGE`;
-2. consecutive candidates closer together than `min_distance` form one group;
-3. each group contributes only its highest-`pageType[1]` page.
-
-`process()` calls it with `min_distance=1`. Two distinct pages always differ by
-at least one `batch_index`, so no group ever grows beyond a single page and
-every classified title page is retained. The grouping only becomes active at
-`min_distance` of `2` or more, which no caller currently uses.
-
-Image and ALTO paths are then resolved against `batch_dir` from
-`page_to_image_mapping` and `page_to_alto_mapping`, and each list is sorted with
-`natsorted`. The two lists are filtered and sorted independently, so they pair
-position by position only while every selected title page has both mappings.
-
-The core's page results are taken in `natsorted` `page_key` order and mapped
-back to `MetakatPage` objects through a stem-keyed index built from **all** of
-the batch's `page_to_image_mapping` entries. Image filename stems must
-therefore be unique across the batch, and a page key that does not appear in
-that index raises `ValueError`.
+Every value is mapped back to the `MetakatPage` it was read on through a
+stem-keyed index of the batch's `page_to_image_mapping`. Image filename stems
+must therefore be unique across the batch, and a page key that does not appear
+in that index raises `ValueError`.
 
 ### Candidate element construction
 
-`get_volume_issue_from_page` turns one page's `BiblioPageResult` into one
-`MetakatVolume` and one `MetakatIssue`. `get_volume_issue_from_result` then
-records the source page as each candidate's anchor - see
-[Anchor pages](#anchor-pages).
+`get_volume_issue_from_page` turns one span's `BiblioSpanResult` into one
+`MetakatVolume` and one `MetakatIssue`. `read_spans` then records as each
+candidate's anchor the page its title was read from - see
+[Anchor pages](#anchor-pages) - and the span's **score**: the page-type
+confidence of its most confident title page times the confidence of its title.
+The score says how far the span can be trusted to name a document.
 
 Every piece of evidence becomes one `Value`, created once and shared by every
 record it reaches:
@@ -682,9 +728,9 @@ readings both fill, such as a part number read both as `PartNumber` and as
 `PeriodicalVolumePartNumber`, keeps the more confident reading; the first on
 a tie.
 
-The `hierarchy` of the candidate volume follows from what its page says:
+The `hierarchy` of the candidate volume follows from what its span says:
 
-| The page's result | `MetakatVolume.hierarchy` |
+| The span's result | `MetakatVolume.hierarchy` |
 |---|---|
 | has a `periodical_volume` or `periodical_issue` reading | `periodical` |
 | otherwise, a `title_info` of `reading` has a `part_number` or `part_name` | `multipart` |
@@ -697,8 +743,8 @@ Both elements are candidates; emission is conditional:
 | `MetakatVolume` | `title` is set. |
 | `MetakatIssue` | the volume was emitted, `title` is set, and at least one of `partNumber` or `dateIssued` is set. |
 
-A title page without a title therefore contributes nothing, and all of its
-evidence becomes unreferenced. `MetakatIssue.parent_id` is deliberately left
+A span without a title therefore names nothing, and all of its evidence
+becomes unreferenced. `MetakatIssue.parent_id` is deliberately left
 unset at creation: an issue's volume is decided in
 [hierarchy binding](#hierarchy-binding), once every page has been read.
 
@@ -906,19 +952,14 @@ first page; otherwise none.
 
 ### Periodical volume consolidation
 
-On the vision-only branch, `_periodical_volume_bags` collapses the
-`periodical` volume candidates of the issue documents that repeat across
-pages into one bag per periodical volume. It considers only volumes whose
-`hierarchy` is `periodical`.
-
-Candidates are offered to a list of bags in two passes:
-
-1. volumes carrying **both** `partNumber` and `dateIssued`;
-2. volumes carrying **exactly one** of the two.
-
-Each candidate is offered to the existing bags in order and joins the first that
-accepts it; otherwise it seeds a new bag. A `periodical` volume carrying neither
-field is never offered and is dropped from the output.
+In a periodical scan the volumes are contiguous runs of issues: volume, its
+issues, next volume, its issues. `_periodical_volumes` walks the issues in scan
+order. The volume reading of an issue's [authoritative span](#hierarchy-binding)
+- a `periodical` volume candidate with a `partNumber` or a `dateIssued` - is
+offered to the current volume's bag; when the bag rejects it, it starts the
+next volume. An issue without such a reading stays in the current volume, and
+the issues before the first named volume belong to it. Without any volume
+number or year, all issues share one unnamed `periodical` volume.
 
 `PeriodicalMetakatVolumeBag` holds the `root_volume` whose fields represent the
 bag, the `root_page_id` anchor, and the volumes it absorbed. `add_volume` first
@@ -947,8 +988,7 @@ anchor pages. The anchor therefore reflects the bag's full page range rather
 than whichever candidate currently supplies the fields.
 
 Each bag becomes one deep-copied root volume, whose id is re-anchored to
-`root_page_id`; [hierarchy binding](#hierarchy-binding) attaches the issues to
-these volumes.
+`root_page_id`, and the parent of its issues.
 
 ### Title creation
 
@@ -971,21 +1011,22 @@ volume's detection UUIDs rather than creating new ones; of the volume's
 groups, finalizing keeps what holds the title's own values - its `titleInfo`.
 `MetakatTitle.hierarchy`
 rejects `monograph` at the schema level, which is why only the two other
-hierarchies are eligible. The candidates are the periodical volumes and the
-multipart leaves. When no such volume exists, no title element is created. A
-created title is prepended to the element list, ahead of the volumes and
-issues, and becomes the parent of the volumes of its own hierarchy only: a
-monograph, or a volume of the other kind, stays outside it.
+hierarchies are eligible. The candidates are the periodical volumes of a
+periodical scan and the parts of a multipart one; a monograph scan has no
+title. When no candidate has a title, the title is unnamed
+(`MetakatTitle(hierarchy=...)` without fields), since the scan's kind says one
+exists. The title is prepended to the element list, ahead of the volumes and
+issues, and becomes the parent of every periodical volume or part.
 
 ### Anchor pages
 
-Every candidate volume and issue has an anchor page: the page its detections
-were read from. The anchor places each reading in its document, orders
+Every candidate volume and issue has an anchor page: the page of its span its
+title was read from. The anchor places each reading in its document, orders
 candidates, groups neighbouring ones for ProArc, and marks representative
 pages; it never decides a boundary. It is
 binder-internal - the output schema has no anchor field - and lives in an
 `Anchors` dict mapping element id to page id, built by
-`get_volume_issue_from_result` and passed explicitly to every step that
+`read_spans` and passed explicitly to every step that
 needs it. A merged ProArc volume and a consolidated periodical volume each get
 their own entry.
 
@@ -993,8 +1034,8 @@ The anchor is also the page that represents a unit: the page its title was
 read from. Right after pages are attached, `process()` sets
 `MetakatPage.representative` on the anchor page of each issue and of each
 volume without issues - the units that hold pages - and clears it on their
-other pages. A leaf merged from several readings keeps the id, and so the
-anchor, of the reading with the most confident title. A volume with issues
+other pages. A leaf is its authoritative span's candidate, so its title page
+represents it. A volume with issues
 holds no pages and marks none; an unnamed unit has no anchor and marks none
 either.
 
@@ -1004,61 +1045,87 @@ The groups come from the core: each container it returned becomes a group on
 the records its values reach. The binder adds no pairing of its own; it only
 carries the groups through its decisions about records.
 
-- **Combining readings of one record** - two readings of one page, or the
-  candidates [merged into one ProArc volume](#merging): groups of
+- **Combining readings of one record** - two readings of one span, the pages
+  of one span (merged by the core), or the candidates
+  [merged into one ProArc volume](#merging): groups of
   `titleInfo`, `originInfoPublication` and `originInfoManufacture` are united
   when every reading has at most one of that type, because a record has one
   title and one imprint per event. A reading that split such a statement into
   several groups did so on purpose, so then they stay as read. `series` and
   `agent` groups always stay as read: a record can have several series and
   several names.
-- **Merging the readings of one document** - the leaf takes the groups of
-  all its readings, united the same way.
-- **Choosing between records** - a periodical volume bag keeps its root
-  volume, groups included; a title takes its volume's groups.
+- **Choosing between records** - a leaf keeps its authoritative span's
+  groups; a periodical volume bag keeps its root volume, groups included; a
+  title takes its volume's groups.
 - **Finalizing** - before the elements are written, `_finalize_groups` drops
   from each group the values its record no longer holds - the less confident
   of two readings, a field a merge does not keep - and drops groups left with
   fewer than two members.
 
+### Batch kind
+
+`batch_kind` decides what [every document of the scan](#what-a-scan-holds) is:
+
+1. A ProArc record of a `periodical` package: a periodical.
+2. Otherwise the documents named by a span vote. At least `_KIND_MINIMUM_SHARE`
+   (`0.5`) of them reading as a periodical - an issue candidate or a
+   `periodical` volume candidate in one of their spans - make a periodical,
+   unless ProArc says `monograph`.
+3. Otherwise at least that share reading a part number or part name (a
+   `multipart` candidate) make one multipart monograph.
+4. Otherwise, and when no document is named, monographs.
+
+A share rather than a single reading keeps one stray part number from turning
+a batch of unrelated monographs into a multipart work, while a multipart batch
+needs only every other part to show its number.
+
+### Parts and issues inside one document
+
+The page-type stage finds the boundary between two parts of one multipart work
+much less often than other boundaries: consecutive parts look like one book.
+`split_documents` adds the missed start where a document clearly holds two
+units. In a **multipart** or **periodical** scan, a later span starts a new
+document when, against the previous strong span of the same document:
+
+- both score at least `_SPLIT_MINIMUM_SCORE` (`0.5`) - a weak or unread title
+  page never splits;
+- at least `_SPLIT_MINIMUM_GAP` (`10`) pages lie between them - a half-title
+  and a title page do not;
+- at least one of them reads a part number or name (an issue number or date,
+  or a `periodical` volume, in a periodical);
+- they are not the same unit twice: the same part number or name, or the same
+  issue number;
+- the start page's `startsDocument` is not annotated.
+
+The new document starts on the later span's first title page. Its
+`startsDocument` is set to true with the span's score as confidence, so the
+output tells where the binder added a start. A monograph scan is never split:
+two titles far apart in one book are a half-title and a title page, or a book
+quoting another.
+
 ### Hierarchy binding
 
-`bind(documents, candidates, anchors)` turns each document into exactly one
-leaf unit, attaches every page of the document to it, and builds the hierarchy
-above the leaves.
+`bind(documents, spans, kind, anchors)` turns each document into exactly one
+leaf unit of the scan's kind, attaches every page of the document to it, and
+builds the hierarchy above the leaves.
 
-**The kind of a document** follows from the readings of its title pages:
+**The authoritative span.** Of the spans of a document that name something,
+the one with the highest score names the leaf: its candidate volume (a
+monograph or a part, with the scan's `hierarchy`) or, in a periodical, its
+candidate issue. The other spans of the document are ignored - a weak title
+page with little read, a half-title far from the title page - and their
+detections are dropped. In `B N T T N N N N N T T T N N N N N N T N N B` with
+the spans scoring `0.9`, `0.7` and `0.4`, the first `TT` names the document. A
+document no span names gets an unnamed leaf of the scan's kind; it keeps its
+pages rather than being merged into a neighbour.
 
-| The document's readings | Leaf |
+**Above the leaves**, by the scan's kind:
+
+| Kind | Hierarchy |
 |---|---|
-| any issue candidate or `periodical` volume candidate | `MetakatIssue` |
-| otherwise, any `multipart` volume candidate | `MetakatVolume`, `multipart` |
-| otherwise, any volume candidate | `MetakatVolume`, `monograph` |
-| none | the kind of the nearest earlier document that has one, else of the nearest later one; `monograph` when no document has one |
-
-A document without readings is typically an issue whose first page was not a
-title page, or a book whose title page was not found; it keeps its pages and
-gets an unnamed leaf of the inherited kind rather than being merged into a
-neighbour.
-
-**The leaf record.** The candidates of the leaf's kind read in the document -
-issue candidates for an issue, volume candidates for a volume - are merged
-into one record (`_merge_unit_readings`): the record keeps the id of the
-reading with the most confident title, a single-valued field keeps its most
-confident reading, a list field keeps every reading, and groups are united as
-described under [Groups](#groups). Without such candidates the leaf is unnamed.
-
-**Periodical volumes** (`_bind_issues`). The `periodical` volume candidates of
-the issue documents are consolidated into bags (see
-[Periodical volume consolidation](#periodical-volume-consolidation)). An issue
-belongs to the volume its own title pages name, the bag one of its volume
-candidates joined; an issue whose pages name none, to the volume of the
-nearest earlier issue, else of the nearest later one. When no bag exists, all
-issues share one unnamed `periodical` volume.
-
-**The title** comes from `get_title` over the periodical volumes and the
-multipart leaves, and heads the volumes of its own hierarchy
-(see [Title creation](#title-creation)). A monograph leaf has no parent.
+| monographs | none: every leaf is a `monograph` volume without a parent |
+| multipart | one title (see [Title creation](#title-creation)), parent of every part |
+| periodical | the [volumes](#periodical-volume-consolidation), each the parent of its run of issues, under one title |
 
 Pages are then numbered 1..n within each leaf by `assign_page_indices()`, and
 representative pages are marked (see [Anchor pages](#anchor-pages)).
@@ -1103,12 +1170,10 @@ contracts, and are documented so a change can be scoped against them.
 
 | Area | Limitation |
 |---|---|
-| One title | A scan has at most one title. Two periodicals, or two multipart works, in one scan are put under the title of the most confidently read one. |
+| Batch types | A scan is assumed to hold monographs, one multipart monograph or one periodical. A mixed scan - such as the `boundaries_*_mixed` test batches - is bound as all one kind, and two multipart works or periodicals share one title. |
+| Split position | A second part or issue starts on its title page; the front cover, end papers or half-title before it stay with the previous document. |
 | ProArc integration | Only a record with exactly one `volume`-model object is used. Multi-object records, `title` and `unit` objects, and any issue-level guidance are ignored, and such a batch silently takes the vision-only branch. |
 | Periodical path | No production label configuration in this repository maps a detector label to `PeriodicalVolumePartNumber` or `PeriodicalVolumeDateIssued`, so the `periodical` hierarchy and the consolidation it drives are reachable but not exercised by a real run. |
-| Title-page grouping | `filter_title_pages` is called with `min_distance=1`, at which its grouping can never merge two distinct pages. |
-| Document kind | A document's kind comes from its own readings only; one misread periodical number makes a monograph an issue. |
-| Input pairing | Image and ALTO path lists are filtered and sorted independently; a selected title page that has only one of the two mappings shifts the pairing for the rest of the batch. |
 
 ## Observability and revision
 

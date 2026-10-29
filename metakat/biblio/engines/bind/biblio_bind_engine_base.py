@@ -11,22 +11,21 @@ from pathlib import Path
 from typing import Callable, Dict, List, Tuple, Optional, Union
 from uuid import UUID, uuid4
 
-from natsort import natsorted
-
 from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
 from metakat.biblio.engines.core.models import (
     BiblioAgent,
     BiblioContainer,
     BiblioCoreResult,
-    BiblioPageResult,
+    BiblioPage,
     BiblioReading,
+    BiblioSpanResult,
     container_values,
 )
 from metakat.common.aux.document_groups import assign_page_indices, bottom_documents, lowest_document_groups
 
 from metakat.schemas.base_objects import MetakatIO, ProarcIO, ObjectItem, ObjectModel, DocumentType, MetakatPage, \
     PageType, MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle, HierarchyType, Value, \
-    GroupType, MetakatGroup, MetakatAltoRefs
+    GroupType, MetakatGroup, MetakatAltoRefs, PackageType, is_annotated
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +91,15 @@ _PROARC_TEXT_SIMILARITY_THRESHOLD = 0.7
 # the scoring threshold: agreeing well enough to help identify the book is a
 # weaker claim than being the reading that should be written.
 _PROARC_PREFERRED_VALUE_SIMILARITY = 0.8
+# How far a title-page span's reading can be trusted to name a document: its
+# score is the page-type confidence of its most confident title page times the
+# confidence of the title read on it. Two spans of one document scoring at least
+# _SPLIT_MINIMUM_SCORE and at least _SPLIT_MINIMUM_GAP pages apart can split it
+# into two parts or issues (split_documents).
+_SPLIT_MINIMUM_SCORE = 0.5
+_SPLIT_MINIMUM_GAP = 10
+# The share of the named documents that decides the kind of the scan (batch_kind).
+_KIND_MINIMUM_SHARE = 0.5
 
 
 def _normalize_text(text: str) -> str:
@@ -253,6 +261,51 @@ def _union_groups(sources: List[List[MetakatGroup]]) -> List[MetakatGroup]:
     return result
 
 
+@dataclasses.dataclass
+class TitleSpan:
+    """A run of consecutive title pages of one document, and what the core read on it."""
+
+    document: int
+    pages: List[MetakatPage]
+    volume: Optional[MetakatVolume] = None
+    issue: Optional[MetakatIssue] = None
+    score: float = 0.
+
+    @property
+    def start(self) -> int:
+        return self.pages[0].batch_index
+
+    @property
+    def end(self) -> int:
+        return self.pages[-1].batch_index
+
+    @property
+    def names(self) -> bool:
+        # A title was read, so the span can name a document.
+        return self.volume is not None
+
+    @property
+    def part(self) -> bool:
+        return self.volume is not None and self.volume.hierarchy == HierarchyType.MULTIPART
+
+    @property
+    def periodical(self) -> bool:
+        return self.volume is not None and (
+            self.volume.hierarchy == HierarchyType.PERIODICAL or self.issue is not None)
+
+
+def _same_unit(first: TitleSpan, second: TitleSpan) -> bool:
+    # Two spans reading the same part number or name, or the same issue
+    # number, describe one unit twice - a half-title far from its title page.
+    for field_name in ("partNumber", "partName"):
+        if _kept(getattr(first.volume, field_name)) is not None and \
+                _texts_match(getattr(first.volume, field_name), getattr(second.volume, field_name)):
+            return True
+    if first.issue is not None and second.issue is not None and first.issue.partNumber is not None:
+        return _texts_match(first.issue.partNumber, second.issue.partNumber)
+    return False
+
+
 def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceContainers]) -> None:
     """Fill a record from the readings of one page that reach it.
 
@@ -292,54 +345,56 @@ class BiblioBindEngineBase(BiblioBindEngine):
         metakat_io = copy.deepcopy(metakat_io)
         pages = [el for el in metakat_io.elements if el.type == DocumentType.PAGE.value]
         pages = sorted(pages, key=lambda x: x.batch_index)
-        # The bottom-level documents are the page-type stage's decision; this
-        # binder never moves, adds or removes a boundary. Each document becomes
-        # exactly one leaf unit, and its title pages are what is read.
+        image_mapping = metakat_io.page_to_image_mapping or {}
+        alto_mapping = metakat_io.page_to_alto_mapping or {}
+        # The bottom-level documents are the page-type stage's decision. This
+        # binder only adds a start where a document holds two parts or issues
+        # (split_documents); it never moves or removes one.
         documents = bottom_documents(pages, log=logger)
-        logger.info(f"Getting title pages from {len(pages)} pages in {len(documents)} document(s)")
-        title_pages = [page for document in documents for page in self.filter_title_pages(document, 1)]
-        logger.info(f"Found {len(title_pages)} title pages")
+        spans = self.title_page_spans(documents, image_mapping)
+        logger.info(f"Found {len(spans)} title-page span(s) of {sum(len(s.pages) for s in spans)} page(s) "
+                    f"in {len(documents)} document(s) of {len(pages)} page(s)")
 
-        images = [os.path.join(batch_dir, metakat_io.page_to_image_mapping[page.id]) for page in title_pages if
-                  page.id in (metakat_io.page_to_image_mapping or {})]
-        alto_files = [os.path.join(batch_dir, metakat_io.page_to_alto_mapping[page.id]) for page in title_pages if
-                      page.id in (metakat_io.page_to_alto_mapping or {})]
-        images = natsorted(images)
-        alto_files = natsorted(alto_files)
+        core_input = [
+            [BiblioPage(image=os.path.join(batch_dir, image_mapping[page.id]),
+                        alto=os.path.join(batch_dir, alto_mapping[page.id]) if page.id in alto_mapping else None)
+             for page in span.pages]
+            for span in spans
+        ]
+        core_result = self.core_engine.process(core_input) if core_input else BiblioCoreResult()
+        if len(core_result.spans) != len(spans):
+            raise ValueError(f"Biblio core returned {len(core_result.spans)} result(s) for {len(spans)} span(s)")
+        logger.info(f"Biblio core engine read bibliographic information on "
+                    f"{sum(result is not None for result in core_result.spans)} span(s)")
 
-        logger.info(f"Processing {len(images)} images with biblio core engine")
-        core_result = self.core_engine.process(images, alto_files) if images else BiblioCoreResult(pages={})
-        logger.info(f"Biblio core engine read bibliographic information on {len(core_result.pages)} page(s)")
-
-        metakat_page_id_to_metakat_page = {page.id: page for page in metakat_io.elements if
-                                           page.type == DocumentType.PAGE.value}
         page_key_to_metakat_page = {
-            Path(image_filename).stem: metakat_page_id_to_metakat_page[page_id]
-            for page_id, image_filename in (metakat_io.page_to_image_mapping or {}).items()
+            Path(image_filename).stem: page
+            for page in pages
+            if (image_filename := image_mapping.get(page.id)) is not None
         }
-
-        logger.info(f"Creating MetaKatVolume and MetaKatIssue elements from detections")
-        metakat_elements, detection_id_to_detection_bbox, detection_id_to_page_id, detection_id_to_alto, anchors = \
-            self.get_volume_issue_from_result(core_result, page_key_to_metakat_page)
-        logger.info(f"Created {len(metakat_elements)} MetaKatVolume and MetaKatIssue elements from detections")
+        detection_id_to_detection_bbox, detection_id_to_page_id, detection_id_to_alto, anchors = \
+            self.read_spans(spans, core_result, page_key_to_metakat_page)
+        logger.info(f"{sum(span.names for span in spans)} span(s) name a document")
 
         proarc_volume = self._single_proarc_volume(proarc_io)
         if proarc_volume is not None and len(documents) == 1:
             # Proarc says the scan is exactly one catalogued volume object and
             # no title object, and the page types found one document - there
-            # is no hierarchy left to resolve, so the periodical volumes and
-            # get_title are skipped outright rather than run as a no-op.
+            # is no hierarchy left to resolve, so the batch kind, the splits
+            # and get_title are skipped outright rather than run as a no-op.
             # With several documents the record cannot describe them all, and
             # the vision-only route below runs instead.
             logger.info("Proarc reports a single volume-model object; resolving to exactly one MetakatVolume")
             metakat_elements = self.resolve_single_proarc_volume(
-                metakat_elements, proarc_volume, title_pages, pages, anchors)
+                [span.volume for span in spans if span.volume is not None], proarc_volume,
+                [page for span in spans for page in span.pages], pages, anchors)
             for page in pages:
                 page.parent_id = metakat_elements[0].id
         else:
-            logger.info("Building one leaf unit per document and the hierarchy above them")
-            metakat_elements = self.bind(documents, metakat_elements, anchors)
-
+            kind = self.batch_kind(documents, spans, proarc_io)
+            documents = self.split_documents(documents, spans, kind)
+            logger.info(f"Binding {len(documents)} {kind.value} document(s) and the hierarchy above them")
+            metakat_elements = self.bind(documents, spans, kind, anchors)
         for element in metakat_elements:
             self._finalize_groups(element)
 
@@ -424,148 +479,226 @@ class BiblioBindEngineBase(BiblioBindEngine):
                             referenced.add(item.id)
         return referenced
 
+    @staticmethod
+    def title_page_spans(documents: List[List[MetakatPage]], image_mapping: dict) -> List[TitleSpan]:
+        """The runs of consecutive title pages of every document, in page order.
+
+        A page is a title page when the page-type stage classified it
+        `titlePage`; one without an image cannot be read and ends a run."""
+        spans: List[TitleSpan] = []
+        for index, document in enumerate(documents):
+            run: List[MetakatPage] = []
+            for page in document:
+                if page.pageType is not None and page.pageType.text == PageType.TITLE_PAGE and page.id in image_mapping:
+                    if run and page.batch_index != run[-1].batch_index + 1:
+                        spans.append(TitleSpan(index, run))
+                        run = []
+                    run.append(page)
+                elif run:
+                    spans.append(TitleSpan(index, run))
+                    run = []
+            if run:
+                spans.append(TitleSpan(index, run))
+        return spans
+
+    def read_spans(
+        self,
+        spans: List[TitleSpan],
+        core_result: BiblioCoreResult,
+        page_key_to_metakat_page: dict,
+    ) -> Tuple[dict, dict, dict, Anchors]:
+        """Each span's candidate volume and issue, its score, and the geometry of every value read.
+
+        A candidate is anchored on the page its title was read from, so that
+        page represents it; without a title it is not emitted (see
+        get_volume_issue_from_page) and the span names nothing."""
+        detection_id_to_detection_bbox, detection_id_to_page_id, detection_id_to_alto = {}, {}, {}
+        anchors: Anchors = {}
+        for span, result in zip(spans, core_result.spans):
+            if result is None:
+                continue
+            page_keys: Dict[UUID, str] = {}
+            elements, bboxes, alto = self.get_volume_issue_from_page(result, span.pages[0], page_keys)
+            for detection_id, page_key in page_keys.items():
+                page = page_key_to_metakat_page.get(page_key)
+                if page is None:
+                    raise ValueError(f"Biblio core returned page key {page_key!r}, "
+                                     "which is not one of the pages it was given")
+                detection_id_to_page_id[detection_id] = page.id
+            detection_id_to_detection_bbox.update(bboxes)
+            detection_id_to_alto.update(alto)
+            span.volume = next((e for e in elements if isinstance(e, MetakatVolume)), None)
+            span.issue = next((e for e in elements if isinstance(e, MetakatIssue)), None)
+            if span.volume is None:
+                continue
+            title = _kept(span.volume.title)
+            anchor = detection_id_to_page_id[title.id]
+            for element in elements:
+                anchors[element.id] = anchor
+            span.score = max(page.pageType.confidence for page in span.pages) * title.confidence
+        return detection_id_to_detection_bbox, detection_id_to_page_id, detection_id_to_alto, anchors
+
+    @staticmethod
+    def batch_kind(documents: List[List[MetakatPage]], spans: List[TitleSpan],
+                   proarc_io: Optional[ProarcIO]) -> HierarchyType:
+        """What every document of the scan is: an issue of one periodical, a part of one
+        multipart monograph, or a monograph.
+
+        A scan is one of these, never a mix: several unrelated monographs, one
+        multipart monograph, or the volumes and issues of one periodical. A
+        ProArc record of a periodical package decides it; otherwise the
+        documents named by their title pages vote: periodical when at least
+        _KIND_MINIMUM_SHARE of them read as a periodical (unless ProArc says
+        monograph), else multipart when at least that share read a part
+        number or name, else monographs."""
+        if proarc_io is not None and proarc_io.type == PackageType.periodical:
+            return HierarchyType.PERIODICAL
+        named = [[s for s in spans if s.document == index and s.names] for index in range(len(documents))]
+        named = [document for document in named if document]
+        if not named:
+            return HierarchyType.MONOGRAPH
+
+        def share(test) -> float:
+            return sum(any(test(span) for span in document) for document in named) / len(named)
+
+        if (proarc_io is None or proarc_io.type != PackageType.monograph) \
+                and share(lambda span: span.periodical) >= _KIND_MINIMUM_SHARE:
+            return HierarchyType.PERIODICAL
+        if share(lambda span: span.part) >= _KIND_MINIMUM_SHARE:
+            return HierarchyType.MULTIPART
+        return HierarchyType.MONOGRAPH
+
+    @staticmethod
+    def split_documents(documents: List[List[MetakatPage]], spans: List[TitleSpan],
+                        kind: HierarchyType) -> List[List[MetakatPage]]:
+        """The documents with a start added where one holds two parts or two issues.
+
+        In a multipart or periodical scan, a document whose title-page spans
+        name two units is two documents: two spans scoring at least
+        _SPLIT_MINIMUM_SCORE, at least _SPLIT_MINIMUM_GAP pages apart, at least
+        one of them reading a part number or name (an issue number or date in
+        a periodical), and not the same part twice. The new document starts on
+        the later span's first title page, whose startsDocument is set with
+        the span's score; an annotated start is never overridden. A monograph
+        scan is never split. The spans are renumbered to the new documents."""
+        if kind == HierarchyType.MONOGRAPH:
+            return documents
+        signal = (lambda span: span.part) if kind == HierarchyType.MULTIPART else (lambda span: span.periodical)
+        starts = set()
+        for index in range(len(documents)):
+            strong = [s for s in spans if s.document == index and s.score >= _SPLIT_MINIMUM_SCORE]
+            for previous, span in zip(strong, strong[1:]):
+                if (span.start - previous.end - 1 >= _SPLIT_MINIMUM_GAP
+                        and (signal(span) or signal(previous))
+                        and not _same_unit(previous, span)
+                        and not is_annotated(span.pages[0].startsDocument)):
+                    starts.add(span.pages[0].id)
+                    span.pages[0].startsDocument = (True, span.score)
+                    logger.info("Title page %s starts another %s inside a document (span score %.2f)",
+                                span.pages[0].id, "part" if kind == HierarchyType.MULTIPART else "issue",
+                                span.score)
+        if not starts:
+            return documents
+        result: List[List[MetakatPage]] = []
+        for document in documents:
+            result.append([])
+            for page in document:
+                if page.id in starts:
+                    result.append([])
+                result[-1].append(page)
+        document_of_page = {page.id: index for index, document in enumerate(result) for page in document}
+        for span in spans:
+            span.document = document_of_page[span.pages[0].id]
+        return result
+
     def bind(
         self,
         documents: List[List[MetakatPage]],
-        candidates: List[MetakatElement],
+        spans: List[TitleSpan],
+        kind: HierarchyType,
         anchors: Anchors,
     ) -> List[MetakatElement]:
-        """One leaf unit per document, and the hierarchy above the leaves.
+        """One leaf unit per document, all of the scan's kind, and the hierarchy above them.
 
-        The documents are the page-type stage's, and every page of a document
-        goes to its leaf, whatever was or was not read on it. What is decided
-        here is only what each leaf is - a periodical issue, a part of a
-        multipart monograph or a monograph - which readings describe it, and
-        how the leaves bind into periodical volumes and a title.
+        Every page of a document goes to its leaf. The leaf is named by the
+        document's authoritative span, the one with the highest score; the
+        other spans of the document are ignored. A document no span names
+        gets an unnamed leaf.
 
-        Returns the bibliographic elements: the title first, then the
-        periodical volumes, then the leaves in document order.
+        - monographs: the leaves are monograph volumes, without a title;
+        - multipart: the leaves are the parts, all under one title;
+        - periodical: the leaves are issues, in periodical volumes that are
+          contiguous runs of issues (PeriodicalMetakatVolumeBag), all under one
+          title.
+
+        Returns the bibliographic elements: the title, the periodical volumes,
+        then the leaves in document order.
         """
-        document_of_page = {page.id: index for index, document in enumerate(documents) for page in document}
-        readings: List[List[Union[MetakatVolume, MetakatIssue]]] = [[] for _ in documents]
-        for candidate in candidates:
-            readings[document_of_page[anchors[candidate.id]]].append(candidate)
-        genres = self._inherit_genres([self._document_genre(document_readings) for document_readings in readings])
-
         leaves: List[Union[MetakatVolume, MetakatIssue]] = []
-        for document, document_readings, genre in zip(documents, readings, genres):
-            if genre == HierarchyType.PERIODICAL:
-                issues = [r for r in document_readings if isinstance(r, MetakatIssue)]
-                leaf = self._merge_unit_readings(issues) if issues else MetakatIssue(id=uuid4())
+        winners: List[Optional[TitleSpan]] = []
+        for index, document in enumerate(documents):
+            named = [span for span in spans if span.document == index and span.names]
+            winner = max(named, key=lambda span: span.score, default=None)
+            if kind == HierarchyType.PERIODICAL:
+                leaf = winner.issue if winner is not None and winner.issue is not None else MetakatIssue(id=uuid4())
             else:
-                volumes = [r for r in document_readings if isinstance(r, MetakatVolume)]
-                leaf = self._merge_unit_readings(volumes) if volumes else MetakatVolume(id=uuid4())
-                leaf.hierarchy = genre
+                leaf = winner.volume if winner is not None else MetakatVolume(id=uuid4())
+                leaf.hierarchy = kind
             for page in document:
                 page.parent_id = leaf.id
             leaves.append(leaf)
+            winners.append(winner)
+        if kind == HierarchyType.MONOGRAPH:
+            return list(leaves)
+        volumes = self._periodical_volumes(documents, winners, leaves, anchors) \
+            if kind == HierarchyType.PERIODICAL else []
+        heads = volumes or leaves
+        title = self.get_title(heads) or MetakatTitle(id=uuid4(), hierarchy=kind)
+        for head in heads:
+            head.parent_id = title.id
+        return [title, *volumes, *leaves]
 
-        periodical_volumes = self._bind_issues(documents, readings, genres, leaves, anchors)
-        multipart_volumes = [leaf for leaf, genre in zip(leaves, genres) if genre == HierarchyType.MULTIPART]
-        elements: List[MetakatElement] = [*periodical_volumes, *leaves]
-        title = self.get_title(periodical_volumes + multipart_volumes)
-        if title is not None:
-            # One title per scan: it heads the volumes of its own kind, never
-            # a monograph or a volume of the other kind.
-            for volume in periodical_volumes + multipart_volumes:
-                if volume.hierarchy == title.hierarchy:
-                    volume.parent_id = title.id
-            elements.insert(0, title)
-        return elements
-
-    def _bind_issues(
-        self,
+    @staticmethod
+    def _periodical_volumes(
         documents: List[List[MetakatPage]],
-        readings: List[List[Union[MetakatVolume, MetakatIssue]]],
-        genres: List[HierarchyType],
-        leaves: List[Union[MetakatVolume, MetakatIssue]],
+        winners: List[Optional[TitleSpan]],
+        issues: List[MetakatIssue],
         anchors: Anchors,
     ) -> List[MetakatVolume]:
-        """The periodical volumes, with every issue leaf attached to one.
+        """The periodical volumes, with every issue attached to one.
 
-        The periodical volume readings are consolidated into one volume per
-        volume number or year (PeriodicalMetakatVolumeBag). An issue belongs to
-        the volume its own title pages name; an issue whose pages name none,
-        to the volume of the nearest earlier issue, else of the nearest later
-        one. Issues without any readable volume share one unnamed volume.
-        """
-        issue_documents = [index for index, genre in enumerate(genres) if genre == HierarchyType.PERIODICAL]
-        if not issue_documents:
-            return []
+        A periodical scan runs volume, its issues, next volume, its issues: a
+        volume is a contiguous run of issues. An issue whose title page reads
+        a volume number or year joins the current volume when it matches it
+        (PeriodicalMetakatVolumeBag), else starts the next one; an issue
+        without one stays in the current volume, and issues before the first
+        named volume belong to it. Without any volume number or year all
+        issues share one unnamed volume."""
         page_id_to_batch_index = {page.id: page.batch_index for document in documents for page in document}
-        periodical_readings = [r for index in issue_documents for r in readings[index]
-                               if isinstance(r, MetakatVolume)]
-        volumes, volume_of_reading = [], {}
-        for bag in self._periodical_volume_bags(periodical_readings, page_id_to_batch_index, anchors):
+        bags: List[PeriodicalMetakatVolumeBag] = []
+        owners: List[Optional[int]] = []
+        for winner in winners:
+            reading = winner.volume if winner is not None else None
+            if (reading is not None and reading.hierarchy == HierarchyType.PERIODICAL
+                    and (reading.partNumber is not None or reading.dateIssued is not None)):
+                if not bags or not bags[-1].add_volume(reading, page_id_to_batch_index):
+                    bags.append(PeriodicalMetakatVolumeBag(reading, anchors))
+            owners.append(len(bags) - 1 if bags else None)
+        if not bags:
+            volume = MetakatVolume(id=uuid4(), hierarchy=HierarchyType.PERIODICAL)
+            for issue in issues:
+                issue.parent_id = volume.id
+            return [volume]
+        volumes = []
+        for bag in bags:
             # The copy keeps the root's id, so this re-anchors that id on the
             # bag's earliest page.
             volume = copy.deepcopy(bag.root_volume)
             anchors[volume.id] = bag.root_page_id
             volumes.append(volume)
-            for member in (bag.root_volume, *bag.volumes):
-                volume_of_reading[member.id] = volume
-        if not volumes:
-            volumes = [MetakatVolume(id=uuid4(), hierarchy=HierarchyType.PERIODICAL)]
-        named = [next((volume_of_reading[r.id] for r in readings[index] if r.id in volume_of_reading), None)
-                 for index in issue_documents]
-        for position, index in enumerate(issue_documents):
-            volume = (named[position]
-                      or next((v for v in reversed(named[:position]) if v is not None), None)
-                      or next((v for v in named[position + 1:] if v is not None), volumes[0]))
-            leaves[index].parent_id = volume.id
+        for issue, owner in zip(issues, owners):
+            issue.parent_id = volumes[0 if owner is None else owner].id
         return volumes
-
-    @staticmethod
-    def _document_genre(readings: List[Union[MetakatVolume, MetakatIssue]]) -> Optional[HierarchyType]:
-        # What a document is, from what its title pages say: a periodical
-        # issue once any of them reads as a periodical, a part of a multipart
-        # monograph once any has a part number or name, a monograph otherwise.
-        # None when nothing was read in it.
-        if any(isinstance(r, MetakatIssue) or r.hierarchy == HierarchyType.PERIODICAL for r in readings):
-            return HierarchyType.PERIODICAL
-        if any(r.hierarchy == HierarchyType.MULTIPART for r in readings):
-            return HierarchyType.MULTIPART
-        return HierarchyType.MONOGRAPH if readings else None
-
-    @staticmethod
-    def _inherit_genres(genres: List[Optional[HierarchyType]]) -> List[HierarchyType]:
-        # A document nothing was read in - an issue without a title page, a
-        # book whose title page was not found - is of the kind of the nearest
-        # earlier document that has one, else of the nearest later one. A
-        # scan where nothing was read is monographs.
-        result = []
-        for index, genre in enumerate(genres):
-            if genre is None:
-                genre = (next((g for g in reversed(genres[:index]) if g is not None), None)
-                         or next((g for g in genres[index + 1:] if g is not None), HierarchyType.MONOGRAPH))
-            result.append(genre)
-        return result
-
-    @staticmethod
-    def _merge_unit_readings(records):
-        """Several title/half-title readings of one document, as one record.
-
-        The record keeps the id of the reading with the most confident title,
-        so that reading's page represents it. A single-valued field keeps its
-        most confident reading, a list keeps every reading."""
-        best = max(records, key=lambda r: max((v.confidence for v in r.title or []), default=0.))
-        merged = copy.deepcopy(best)
-        single = set(_PROARC_VOLUME_SINGLE_FIELDS) | {'partNumber', 'partName', 'manufactureDate',
-                                                    'copyrightDate', 'extent'}
-        for name in type(merged).model_fields:
-            lists = [getattr(r, name) for r in records]
-            values = [v for values in lists if isinstance(values, list)
-                      for v in values if isinstance(v, Value)]
-            if not values:
-                continue
-            if name in single:
-                values = [max(values, key=lambda v: v.confidence)]
-            else:
-                values = list({v.id: v for v in values}.values())
-            setattr(merged, name, values)
-        merged.groups = _union_groups([r.groups or [] for r in records]) or None
-        BiblioBindEngineBase._finalize_groups(merged)
-        return merged
 
     @staticmethod
     def _mark_representative_pages(groups, anchors: Anchors) -> None:
@@ -872,54 +1005,6 @@ class BiblioBindEngineBase(BiblioBindEngine):
         merged.groups = _union_groups([volume.groups or [] for volume in volumes]) or None
         return merged
 
-    @staticmethod
-    def _periodical_volume_bags(
-        periodical_volumes: List[MetakatVolume],
-        page_id_to_batch_index: dict,
-        anchors: Anchors,
-    ) -> List[PeriodicalMetakatVolumeBag]:
-        # One bag per periodical volume: readings agreeing on the volume number
-        # or the year. Readings with both seed the bags, readings with one of
-        # them join or start one, readings with neither join none.
-        bags: List[PeriodicalMetakatVolumeBag] = []
-        complete = [v for v in periodical_volumes if v.partNumber is not None and v.dateIssued is not None]
-        partial = [v for v in periodical_volumes if (v.partNumber is None) != (v.dateIssued is None)]
-        for periodical_volume in complete + partial:
-            if not any(bag.add_volume(periodical_volume, page_id_to_batch_index) for bag in bags):
-                bags.append(PeriodicalMetakatVolumeBag(periodical_volume, anchors))
-        return bags
-
-    def get_volume_issue_from_result(
-        self,
-        core_result: BiblioCoreResult,
-        page_key_to_metakat_page: dict,
-    ) -> Tuple[List[MetakatElement], dict, dict, dict, Anchors]:
-        elements = []
-        detection_id_to_detection_bbox = {}
-        detection_id_to_page_id = {}
-        detection_id_to_alto = {}
-        anchors: Anchors = {}
-        for page_result in natsorted(core_result.pages.values(), key=lambda page: page.page_key):
-            metakat_page = page_key_to_metakat_page.get(page_result.page_key)
-            if metakat_page is None:
-                raise ValueError(
-                    f"Biblio core returned page key {page_result.page_key!r}, "
-                    "which is not one of the pages it was given"
-                )
-            page_elements, page_detection_bboxes, page_detection_alto = self.get_volume_issue_from_page(
-                page_result,
-                metakat_page,
-            )
-            elements.extend(page_elements)
-            for element in page_elements:
-                anchors[element.id] = metakat_page.id
-            detection_id_to_detection_bbox.update(page_detection_bboxes)
-            detection_id_to_alto.update(page_detection_alto)
-            # Every value read on the page, with or without a box.
-            for detection_id in self._referenced_detection_ids(page_elements):
-                detection_id_to_page_id[detection_id] = metakat_page.id
-        return elements, detection_id_to_detection_bbox, detection_id_to_page_id, detection_id_to_alto, anchors
-
     # One page's readings become one candidate volume and one candidate issue.
     # The core decided what was read and how it groups; this decides only
     # which record each value describes:
@@ -936,9 +1021,12 @@ class BiblioBindEngineBase(BiblioBindEngine):
     # and a single-valued field read in both keeps the more confident reading.
     def get_volume_issue_from_page(
         self,
-        page_result: BiblioPageResult,
+        page_result: BiblioSpanResult,
         metakat_page: MetakatPage,
+        detection_page_keys: Optional[Dict[UUID, str]] = None,
     ) -> Tuple[List[MetakatElement], dict, dict]:
+        # detection_page_keys, when given, receives the page key each value
+        # was read on.
         detection_id_to_detection_bbox = {}
         detection_id_to_alto = {}
 
@@ -947,6 +1035,8 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 values = []
                 for field_name, evidence in container_values(container):
                     value = Value(text=evidence.text, confidence=evidence.confidence, id=uuid4())
+                    if detection_page_keys is not None:
+                        detection_page_keys[value.id] = evidence.page_key
                     bbox = evidence.bbox
                     if bbox is not None:
                         detection_id_to_detection_bbox[value.id] = (bbox.x, bbox.y, bbox.width, bbox.height)
@@ -988,7 +1078,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
         return elements, detection_id_to_detection_bbox, detection_id_to_alto
 
     @staticmethod
-    def _hierarchy(page_result: BiblioPageResult) -> HierarchyType:
+    def _hierarchy(page_result: BiblioSpanResult) -> HierarchyType:
         # A printed volume number or date marks a periodical; a part number
         # or name alone, one part of a multipart monograph.
         if page_result.periodical_volume is not None or page_result.periodical_issue is not None:
@@ -997,38 +1087,6 @@ class BiblioBindEngineBase(BiblioBindEngine):
                for title_info in page_result.reading.title_infos):
             return HierarchyType.MULTIPART
         return HierarchyType.MONOGRAPH
-
-    def filter_title_pages(self, pages: List[MetakatPage], min_distance: int) -> List[MetakatPage]:
-        # Sort pages by batch_index (already done in your code)
-        pages = sorted(pages, key=lambda x: x.batch_index)
-
-        # Select only pages that are predicted as title pages with confidence
-        candidates = [
-            page for page in pages
-            if page.pageType and page.pageType.text == PageType.TITLE_PAGE
-        ]
-
-        retained = []
-        i = 0
-        while i < len(candidates):
-            current = candidates[i]
-            group = [current]
-
-            # Compare with following candidates to check if they are within N pages
-            j = i + 1
-            while j < len(candidates) and (candidates[j].batch_index - current.batch_index) < min_distance:
-                group.append(candidates[j])
-                j += 1
-
-            # Keep only the one with the highest confidence from the group
-            best = max(group, key=lambda p: p.pageType.confidence)
-            retained.append(best)
-
-            # Skip all the grouped elements
-            i = j
-
-        return retained
-
 
 class PeriodicalMetakatVolumeBag:
     def __init__(self, volume: MetakatVolume, anchors: Anchors):

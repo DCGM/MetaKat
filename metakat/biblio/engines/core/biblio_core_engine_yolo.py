@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Mapping
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from text_geometry_aligner import AlignmentPage
 
@@ -10,12 +10,14 @@ from metakat.biblio.engines.core.models import (
     BiblioAgent,
     BiblioCoreResult,
     BiblioManufacture,
-    BiblioPageResult,
     BiblioPublication,
     BiblioReading,
     BiblioSeries,
+    BiblioSpan,
+    BiblioSpanResult,
     BiblioTitleInfo,
     container_values,
+    merge_span,
 )
 from metakat.common.engines.engine_yolo_alto import EngineYOLOALTO
 from metakat.common.models import AltoRefs, BoundingBox, DetectionEvidence
@@ -24,7 +26,7 @@ from metakat.schemas.base_objects import BiblioType
 logger = logging.getLogger(__name__)
 
 # Where each label's detections go: which reading of the page (see
-# BiblioPageResult), which slot in it, and whether the slot keeps only the
+# BiblioSpanResult), which slot in it, and whether the slot keeps only the
 # most confident detection on the page or every one, in region order.
 _BEST, _ALL = "best", "all"
 _READING, _VOLUME, _ISSUE = "reading", "periodical_volume", "periodical_issue"
@@ -100,16 +102,24 @@ class BiblioCoreEngineYOLO(BiblioCoreEngine):
             minimum_overlap_coverage=minimum_overlap_coverage,
         )
 
-    def process(
-        self,
-        images: List[str],
-        alto_files: List[str],
-    ) -> BiblioCoreResult:
+    def process(self, spans: Sequence[BiblioSpan]) -> BiblioCoreResult:
+        # The detector runs once over the pages of every span; each page is
+        # read on its own, and the pages of a span are then merged into its
+        # one record (merge_span). The detections are aligned to the ALTO, so
+        # a page without one cannot be read.
+        keys = [page.page_key for span in spans for page in span]
+        if len(set(keys)) != len(keys):
+            raise ValueError("Biblio core got a page key in more than one place")
+        readable = [page for span in spans for page in span if page.alto is not None]
+        for span in spans:
+            for page in span:
+                if page.alto is None:
+                    logger.warning("Page %s has no ALTO; the YOLO biblio core cannot read it", page.page_key)
         alignment_pages = self.engine_yolo_alto.process(
-            images=images,
-            alto_files=alto_files
-        ).pages
-        pages = {}
+            images=[page.image for page in readable],
+            alto_files=[page.alto for page in readable],
+        ).pages if readable else []
+        pages: Dict[str, BiblioSpanResult] = {}
         for alignment_page in alignment_pages:
             if alignment_page.page_key in pages:
                 raise ValueError(
@@ -118,18 +128,23 @@ class BiblioCoreEngineYOLO(BiblioCoreEngine):
             page_result = read_page(alignment_page, self.biblio_type_by_label)
             if page_result is not None:
                 pages[alignment_page.page_key] = page_result
-        logger.info(
-            "Biblio core read bibliographic information on %d of %d page(s)",
-            len(pages), len(alignment_pages),
+        results = tuple(
+            merge_span([page.page_key for page in span],
+                       [pages[page.page_key] for page in span if page.page_key in pages])
+            for span in spans
         )
-        return BiblioCoreResult(pages=pages)
+        logger.info(
+            "Biblio core read bibliographic information on %d of %d page(s), %d of %d span(s)",
+            len(pages), len(keys), sum(result is not None for result in results), len(spans),
+        )
+        return BiblioCoreResult(spans=results)
 
 
 def read_page(
     alignment_page: AlignmentPage,
     biblio_type_by_label: Mapping[str, BiblioType],
-) -> Optional[BiblioPageResult]:
-    """Group one aligned page's detections into its readings; None if it has none."""
+) -> Optional[BiblioSpanResult]:
+    """Group one aligned page's detections into its readings, as a span of that page; None if it has none."""
     slots: Dict[str, Dict[str, Any]] = {_READING: {}, _VOLUME: {}, _ISSUE: {}}
     agents: List[BiblioAgent] = []
     for region in alignment_page.regions:
@@ -162,8 +177,8 @@ def read_page(
     periodical_issue = _reading(slots[_ISSUE], [])
     if reading.is_empty() and periodical_volume.is_empty() and periodical_issue.is_empty():
         return None
-    return BiblioPageResult(
-        page_key=alignment_page.page_key,
+    return BiblioSpanResult(
+        page_keys=(alignment_page.page_key,),
         reading=reading,
         periodical_volume=None if periodical_volume.is_empty() else periodical_volume,
         periodical_issue=None if periodical_issue.is_empty() else periodical_issue,

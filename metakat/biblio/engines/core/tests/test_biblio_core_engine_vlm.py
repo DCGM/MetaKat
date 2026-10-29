@@ -12,7 +12,8 @@ from metakat.biblio.engines.core.biblio_core_engine_vlm import (
 from metakat.biblio.engines.core.definitions import check_biblio_core_engine
 from metakat.biblio.engines.core.models import (
     AgentRole,
-    BiblioPageResult,
+    BiblioPage,
+    BiblioSpanResult,
     BiblioReading,
     BiblioTitleInfo,
     container_values,
@@ -101,6 +102,11 @@ def page(tmp_path):
     return str(tmp_path / "0001_page.jpg"), str(tmp_path / "0001_page.xml")
 
 
+def _span(*pages):
+    """The core's input: one span of the given (image, alto) pages."""
+    return [[BiblioPage(image, alto) for image, alto in pages]]
+
+
 def _values(page_result):
     return {
         (type(container).__name__, field): evidence
@@ -113,9 +119,9 @@ def test_a_page_is_read_grouped_and_located_in_the_alto(page):
     endpoint = _Endpoint(_REPLY)
     engine = BiblioCoreEngineVLM(_config(), client=endpoint.client())
 
-    result = engine.process([page[0]], [page[1]])
+    result = engine.process(_span(page))
 
-    page_result = result.pages["0001_page"]
+    page_result = result.spans[0]
     values = _values(page_result)
     title = values[("BiblioTitleInfo", "title")]
     assert (title.text, title.confidence, title.page_key) == ("KYTICE", 0.95, "0001_page")
@@ -135,7 +141,7 @@ def test_a_page_is_read_grouped_and_located_in_the_alto(page):
 def test_a_value_not_found_in_the_alto_keeps_only_its_page(page):
     engine = BiblioCoreEngineVLM(_config(), client=_Endpoint(_REPLY).client())
 
-    illustrator = _values(engine.process([page[0]], [page[1]]).pages["0001_page"])[("BiblioAgent", "illustrator")]
+    illustrator = _values(engine.process(_span(page)).spans[0])[("BiblioAgent", "illustrator")]
 
     assert (illustrator.text, illustrator.bbox, illustrator.alto) == ("Mikoláš Aleš", None, AltoRefs())
 
@@ -144,7 +150,7 @@ def test_the_prompt_holds_the_alto_text_and_the_schema_and_the_image_is_attached
     endpoint = _Endpoint(_REPLY)
     engine = BiblioCoreEngineVLM(_config(), client=endpoint.client())
 
-    engine.process([page[0]], [page[1]])
+    engine.process(_span(page))
 
     [system, user] = endpoint.requests[0]["messages"]
     assert "K. J. ERBEN\n\nKYTICE\nz pověstí národních\n\nV Praze 1853" in system["content"][0]["text"]
@@ -159,7 +165,7 @@ def test_periodical_levels_are_read_apart_from_the_record(page):
              "periodicalIssue": {"partNumber": None, "dateIssued": None}}
     engine = BiblioCoreEngineVLM(_config(), client=_Endpoint(reply).client())
 
-    page_result = engine.process([page[0]], [page[1]]).pages["0001_page"]
+    page_result = engine.process(_span(page)).spans[0]
 
     [title_info] = page_result.periodical_volume.title_infos
     assert title_info.part_number.text == "XII" and title_info.part_number.bbox is None
@@ -170,13 +176,13 @@ def test_periodical_levels_are_read_apart_from_the_record(page):
 def test_a_page_without_a_valid_reply_is_skipped(page):
     engine = BiblioCoreEngineVLM(_config(), client=_Endpoint("nope", '{"titleInfo": 1}').client())
 
-    assert engine.process([page[0]], [page[1]]).pages == {}
+    assert engine.process(_span(page)).spans == (None,)
 
 
 def test_a_page_without_alto_is_read_without_boxes(page):
     engine = BiblioCoreEngineVLM(_config(), client=_Endpoint(_REPLY).client())
 
-    page_result = engine.process([page[0]], []).pages["0001_page"]
+    page_result = engine.process([[BiblioPage(page[0])]]).spans[0]
 
     assert all(evidence.bbox is None for evidence in _values(page_result).values())
 
@@ -185,13 +191,13 @@ def test_a_reply_with_nothing_read_gives_no_page(page):
     empty = {key: ([] if isinstance(value, list) else None) for key, value in _REPLY.items()}
     engine = BiblioCoreEngineVLM(_config(), client=_Endpoint(empty).client())
 
-    assert engine.process([page[0]], [page[1]]).pages == {}
+    assert engine.process(_span(page)).spans == (None,)
 
 
 def test_the_confidence_is_configurable(page):
     engine = BiblioCoreEngineVLM(_config(confidence=0.7), client=_Endpoint(_REPLY).client())
 
-    page_result = engine.process([page[0]], [page[1]]).pages["0001_page"]
+    page_result = engine.process(_span(page)).spans[0]
 
     assert {evidence.confidence for evidence in _values(page_result).values()} == {0.7}
 
@@ -223,7 +229,7 @@ def test_a_local_model_is_served_only_while_the_pages_are_read(page, fake_vllm, 
     # Nothing runs before process().
     assert not fake_vllm.exists()
 
-    page_result = engine.process([page[0]], [page[1]]).pages["0001_page"]
+    page_result = engine.process(_span(page)).spans[0]
 
     assert _values(page_result)[("BiblioTitleInfo", "title")].bbox == BoundingBox(350, 400, 300, 80)
     args = json.loads(fake_vllm.read_text())
@@ -249,9 +255,9 @@ def test_the_default_engine_maps_only_its_own_schema(tmp_path):
 class _ShortTitleEngine(BiblioCoreEngineVLMBase):
     """A model trained to return just {"name": ...}: a schema of its own."""
 
-    def page_from_reply(self, reply, evidence, page_key):
+    def page_from_reply(self, reply, evidence, page_keys):
         title = evidence(("name",), reply.get("name"))
-        return BiblioPageResult(page_key=page_key,
+        return BiblioSpanResult(page_keys=tuple(page_keys),
                                 reading=BiblioReading(title_infos=(BiblioTitleInfo(title=title),)))
 
 
@@ -267,7 +273,7 @@ def test_an_engine_with_its_own_schema_maps_its_replies(page, tmp_path):
                                        user_prompt_path=str(tmp_path / "user.txt")),
                                client=endpoint.client())
 
-    [title_info] = engine.process([page[0]], [page[1]]).pages["0001_page"].reading.title_infos
+    [title_info] = engine.process(_span(page)).spans[0].reading.title_infos
 
     assert title_info.title.alto.words == ("S4",)
     assert endpoint.requests[0]["response_format"]["json_schema"]["schema"] == schema
@@ -288,3 +294,72 @@ def test_alto_text_keeps_lines_and_separates_blocks():
     words = [word("a", 0, 0), word("b", 0, 0), word("c", 1, 0), word("d", 2, 1)]
 
     assert alto_text(words) == "a b\nc\n\nd"
+
+
+_PART_ALTO = """\
+<alto xmlns="http://www.loc.gov/standards/alto/ns-v4#">
+  <Layout>
+    <Page ID="P1" WIDTH="1000" HEIGHT="1500">
+      <PrintSpace>
+        <TextBlock ID="TB1">
+          <TextLine ID="TL1">
+            <String ID="S1" CONTENT="DÍL" HPOS="400" VPOS="700" WIDTH="80" HEIGHT="30"/>
+            <String ID="S2" CONTENT="DRUHÝ" HPOS="490" VPOS="700" WIDTH="120" HEIGHT="30"/>
+          </TextLine>
+        </TextBlock>
+      </PrintSpace>
+    </Page>
+  </Layout>
+</alto>
+"""
+
+
+@pytest.fixture
+def second_page(tmp_path):
+    Image.new("RGB", (1000, 1500), "white").save(tmp_path / "0002_page.jpg")
+    (tmp_path / "0002_page.xml").write_text(_PART_ALTO, encoding="utf-8")
+    return str(tmp_path / "0002_page.jpg"), str(tmp_path / "0002_page.xml")
+
+
+def test_a_span_is_read_in_one_request_and_each_value_keeps_the_page_it_is_on(page, second_page):
+    reply = {**_REPLY, "titleInfo": [{"title": "KYTICE", "subTitle": None, "partNumber": "DÍL DRUHÝ",
+                                      "partName": None}]}
+    endpoint = _Endpoint(reply)
+    engine = BiblioCoreEngineVLM(_config(), client=endpoint.client())
+
+    [result] = engine.process(_span(page, second_page)).spans
+
+    assert result.page_keys == ("0001_page", "0002_page")
+    [system, user] = endpoint.requests[0]["messages"]
+    text = system["content"][0]["text"]
+    assert "The 2 attached scans are consecutive title pages" in text
+    assert "--- Page 1 of 2 ---\nK. J. ERBEN" in text and "--- Page 2 of 2 ---\nDÍL DRUHÝ" in text
+    assert [part["type"] for part in user["content"]].count("image_url") == 2
+    values = _values(result)
+    assert values[("BiblioTitleInfo", "title")].page_key == "0001_page"
+    part = values[("BiblioTitleInfo", "partNumber")]
+    assert (part.page_key, part.alto.words) == ("0002_page", ("S1", "S2"))
+    # Not found on any page: the span's first page, without a box.
+    assert values[("BiblioAgent", "illustrator")].page_key == "0001_page"
+
+
+def test_a_single_page_prompt_says_nothing_about_several_pages(page):
+    endpoint = _Endpoint(_REPLY)
+    BiblioCoreEngineVLM(_config(), client=endpoint.client()).process(_span(page))
+
+    text = endpoint.requests[0]["messages"][0]["content"][0]["text"]
+    assert "attached scans" not in text and "--- Page" not in text
+
+
+def test_every_span_gets_its_own_result_in_order(page, second_page):
+    empty = {key: ([] if isinstance(value, list) else None) for key, value in _REPLY.items()}
+    engine = BiblioCoreEngineVLM(_config(), client=_Endpoint(empty, _REPLY).client())
+
+    first, second = engine.process(_span(page) + _span(second_page)).spans
+
+    assert first is None and second.page_keys == ("0002_page",)
+
+
+def test_a_page_in_two_spans_is_rejected(page):
+    with pytest.raises(ValueError, match="more than one place"):
+        BiblioCoreEngineVLM(_config(), client=object()).process(_span(page) + _span(page))

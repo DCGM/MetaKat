@@ -9,15 +9,22 @@ from text_geometry_aligner import (
     InputFormat,
 )
 
-from metakat.biblio.engines.core.biblio_core_engine_yolo import parse_biblio_labels, read_page
+from metakat.biblio.engines.core.biblio_core_engine_yolo import (
+    BiblioCoreEngineYOLO,
+    parse_biblio_labels,
+    read_page,
+)
 from metakat.biblio.engines.core.models import (
     AgentRole,
     BiblioAgent,
     BiblioManufacture,
+    BiblioPage,
     BiblioPublication,
+    BiblioReading,
     BiblioSeries,
     BiblioTitleInfo,
     container_values,
+    merge_readings,
 )
 from metakat.common.models import AltoRefs, BoundingBox
 from metakat.io_exporters.mods_exporter import _BIBLIOGRAPHIC_SECTIONS
@@ -261,3 +268,76 @@ def test_evidence_carries_the_alto_ids_of_its_words():
 
     assert result.reading.title_infos[0].title.alto == AltoRefs(blocks=("TB1",), lines=("TL1",), words=("S1",))
     assert result.reading.agents[0].name.alto == AltoRefs(blocks=("TB2",))
+
+
+# --- spans ------------------------------------------------------------------
+
+
+def _evidence(text, confidence, page_key="a"):
+    from metakat.common.models import DetectionEvidence
+    return DetectionEvidence(text=text, confidence=confidence, bbox=None, page_key=page_key)
+
+
+def test_the_pages_of_a_span_are_one_statement_per_kind():
+    half = BiblioReading(title_infos=(BiblioTitleInfo(title=_evidence("Kytice", 0.6, "a")),))
+    full = BiblioReading(
+        title_infos=(BiblioTitleInfo(title=_evidence("KYTICE", 0.9, "b"), part_number=_evidence("Díl 2", 0.8, "b")),),
+        publications=(BiblioPublication(places=(_evidence("Praha", 0.8, "b"),)),),
+        agents=(BiblioAgent(role=AgentRole.AUTHOR, name=_evidence("Erben", 0.8, "b")),),
+    )
+    publisher = BiblioReading(publications=(BiblioPublication(places=(_evidence("Brno", 0.7, "a"),)),),
+                              agents=(BiblioAgent(role=AgentRole.AUTHOR, name=_evidence("Erben", 0.7, "a")),))
+
+    merged = merge_readings([half, full, publisher])
+
+    [title_info] = merged.title_infos
+    assert (title_info.title.text, title_info.title.page_key) == ("KYTICE", "b")
+    assert title_info.part_number.text == "Díl 2"
+    [publication] = merged.publications
+    assert _texts(publication.places) == ["Praha", "Brno"]
+    # Names are entities of their own: both readings are kept.
+    assert len(merged.agents) == 2
+
+
+def test_a_page_that_prints_two_statements_of_a_kind_keeps_them_apart():
+    two = BiblioReading(title_infos=(BiblioTitleInfo(title=_evidence("Kytice", 0.9)),
+                                     BiblioTitleInfo(title=_evidence("Bouquet", 0.9))))
+    one = BiblioReading(title_infos=(BiblioTitleInfo(title=_evidence("Kytice", 0.8)),))
+
+    assert len(merge_readings([two, one]).title_infos) == 3
+
+
+class _Aligned:
+    """The YOLO + ALTO engine, giving prepared aligned pages."""
+
+    def __init__(self, *pages):
+        self.pages, self.calls = list(pages), []
+
+    def process(self, images, alto_files):
+        from types import SimpleNamespace
+        self.calls.append((list(images), list(alto_files)))
+        return SimpleNamespace(pages=self.pages)
+
+
+def _yolo(aligned):
+    engine = object.__new__(BiblioCoreEngineYOLO)
+    engine.biblio_type_by_label = BY_LABEL
+    engine.engine_yolo_alto = aligned
+    return engine
+
+
+def test_the_yolo_core_reads_every_page_once_and_merges_each_span():
+    aligned = _Aligned(_page(("titulek", "Kytice", 0.6), page_key="p1"),
+                       _page(("titulek", "KYTICE", 0.9), ("dil", "Díl 2", 0.8), page_key="p2"),
+                       _page(page_key="p5"))
+    spans = [[BiblioPage("/b/p1.jpg", "/b/p1.xml"), BiblioPage("/b/p2.jpg", "/b/p2.xml")],
+             [BiblioPage("/b/p5.jpg", "/b/p5.xml"), BiblioPage("/b/p6.jpg")]]
+
+    first, second = _yolo(aligned).process(spans).spans
+
+    # One detector pass; a page without ALTO cannot be aligned, so is not read.
+    assert aligned.calls == [(["/b/p1.jpg", "/b/p2.jpg", "/b/p5.jpg"], ["/b/p1.xml", "/b/p2.xml", "/b/p5.xml"])]
+    assert first.page_keys == ("p1", "p2")
+    [title_info] = first.reading.title_infos
+    assert (title_info.title.text, title_info.title.page_key, title_info.part_number.text) == ("KYTICE", "p2", "Díl 2")
+    assert second is None

@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -12,14 +13,15 @@ from metakat.biblio.engines.core.models import (
     BiblioAgent,
     BiblioCoreResult,
     BiblioManufacture,
-    BiblioPageResult,
     BiblioPublication,
+    BiblioSpanResult,
     BiblioReading,
     BiblioTitleInfo,
+    merge_span,
 )
-from metakat.common.aux.document_groups import assign_page_indices, bottom_documents, lowest_document_groups
 from metakat.common.models import AltoRefs, BoundingBox as CoreBoundingBox, DetectionEvidence
 from metakat.schemas.base_objects import (
+    BooleanValue,
     DocumentType,
     GroupType,
     HierarchyType,
@@ -67,8 +69,8 @@ def _ev(text, confidence, y=10):
 
 
 def _page_result(reading=None, periodical_volume=None, periodical_issue=None):
-    return BiblioPageResult(
-        page_key="page-1",
+    return BiblioSpanResult(
+        page_keys=("page-1",),
         reading=reading or BiblioReading(),
         periodical_volume=periodical_volume,
         periodical_issue=periodical_issue,
@@ -249,13 +251,6 @@ def test_a_field_read_twice_on_one_page_keeps_the_more_confident_reading(metakat
     assert title_info.members == [volume.title[0].id, volume.partNumber[0].id]
     # The losing reading's geometry is returned; process() drops it.
     assert len(detection_to_bbox) == 3
-
-
-def test_an_unknown_page_key_is_rejected(metakat_page):
-    binder = _binder()
-    core_result = BiblioCoreResult(pages={"elsewhere": BiblioPageResult(page_key="elsewhere")})
-    with pytest.raises(ValueError, match="not one of the pages"):
-        binder.get_volume_issue_from_result(core_result, {"page-1": metakat_page})
 
 
 def test_finalized_groups_hold_only_the_records_own_values():
@@ -1024,7 +1019,8 @@ def test_periodical_bag_root_swap_does_not_null_out_root_volume():
         partNumber=[_v("1", 0.9)],
     ))
 
-    [bag] = BiblioBindEngineBase._periodical_volume_bags([weaker, stronger], page_id_to_batch_index, anchors)
+    bag = PeriodicalMetakatVolumeBag(weaker, anchors)
+    bag.add_volume(stronger, page_id_to_batch_index)
 
     assert bag.root_volume is not None
     assert bag.root_volume.partNumber == stronger.partNumber
@@ -1108,95 +1104,107 @@ def test_the_alto_ids_of_evidence_are_returned_next_to_its_box(metakat_page):
     assert set(detection_to_alto) == {volume.title[0].id}
 
 
-def test_a_value_without_a_box_keeps_its_page(metakat_page):
-    binder = _binder()
-    located = _ev("Kytice", 0.95)
-    unlocated = DetectionEvidence(text="z pověstí národních", confidence=0.95, bbox=None, page_key="page-1")
-    core_result = BiblioCoreResult(pages={"page-1": _page_result(
-        BiblioReading(title_infos=(BiblioTitleInfo(title=located, sub_title=unlocated),)),
-    )})
-
-    [volume, *_], detection_to_bbox, detection_to_page, _, _ = binder.get_volume_issue_from_result(
-        core_result, {"page-1": metakat_page},
-    )
-
-    title, sub_title = volume.title[0], volume.subTitle[0]
-    # Only the located value has a box; both know the page they were read on.
-    assert set(detection_to_bbox) == {title.id}
-    assert detection_to_page[title.id] == detection_to_page[sub_title.id] == metakat_page.id
-
-
-def _scan(starts, types=None, count=8):
-    """Pages 0..count-1 with the page-type stage's document starts."""
+def _scan(starts=(), titles=None, count=8):
+    """Pages 0..count-1 with the page-type stage's document starts; `titles` {index: confidence} are title pages."""
     batch = uuid4()
+    titles = titles or {}
     return [MetakatPage(id=uuid4(), batch_id=batch, batch_index=i,
-                        pageType=((types or {}).get(i, PageType.NORMAL_PAGE), .99),
+                        pageType=(PageType.TITLE_PAGE, titles[i]) if i in titles else (PageType.NORMAL_PAGE, .99),
                         startsDocument=None if i == 0 else (i in starts, .9))
             for i in range(count)]
 
 
-def _bound(pages, candidates, anchors):
-    """bind() and what process() does after it: page indices and representative pages."""
+def _read(index, title, confidence=.9, part=None, part_name=None, volume=None, year=None, issue=None):
+    """What the core reads on page `index`, as a one-page span result."""
+    key = f'p{index}'
+
+    def ev(text):
+        return DetectionEvidence(text=text, confidence=confidence, bbox=CoreBoundingBox(10, 10, 100, 20),
+                                 page_key=key)
+
+    periodical_volume = None
+    if volume or year:
+        periodical_volume = BiblioReading(
+            title_infos=(BiblioTitleInfo(part_number=ev(volume)),) if volume else (),
+            publications=(BiblioPublication(date_issued=ev(year)),) if year else ())
+    return BiblioSpanResult(
+        page_keys=(key,),
+        reading=BiblioReading(title_infos=(BiblioTitleInfo(
+            title=ev(title) if title else None, part_number=ev(part) if part else None,
+            part_name=ev(part_name) if part_name else None),)),
+        periodical_volume=periodical_volume,
+        periodical_issue=BiblioReading(title_infos=(BiblioTitleInfo(part_number=ev(issue)),)) if issue else None,
+    )
+
+
+class _Core:
+    """A core reading prepared pages: each span gets the merge of its pages' readings."""
+
+    def __init__(self, readings):
+        self.readings, self.spans = readings, []
+
+    def process(self, spans):
+        self.spans.append([[page.page_key for page in span] for span in spans])
+        return BiblioCoreResult(spans=tuple(
+            merge_span([page.page_key for page in span],
+                       [self.readings[page.page_key] for page in span if page.page_key in self.readings])
+            for span in spans))
+
+
+def _process(pages, *readings, proarc_io=None):
     binder = _binder()
-    elements = binder.bind(bottom_documents(pages), candidates, anchors)
-    io = MetakatIO(batch_id=pages[0].batch_id, elements=[*elements, *pages])
-    groups = lowest_document_groups(io)
-    assign_page_indices(io, groups=groups)
-    binder._mark_representative_pages(groups, anchors)
-    return io
+    binder.core_engine = _Core({result.page_keys[0]: result for result in readings})
+    io = MetakatIO(batch_id=pages[0].batch_id, elements=pages,
+                   page_to_image_mapping={page.id: f'p{page.batch_index}.jpg' for page in pages},
+                   page_to_alto_mapping={page.id: f'p{page.batch_index}.xml' for page in pages})
+    return binder.process('/b', io, proarc_io), binder.core_engine
 
 
 def _of(io, kind):
     return [e for e in io.elements if isinstance(e, kind)]
 
 
-def _periodical(anchors, page, number, issue=True):
-    """The volume reading, and the issue reading, of a periodical title page."""
-    volume = _anchor(anchors, page.id, MetakatVolume(
-        id=uuid4(), hierarchy=HierarchyType.PERIODICAL, title=[_v('Zlatá Praha', .9)],
-        partNumber=[_v(number, .9)] if number else None))
-    if not issue:
-        return [volume]
-    return [volume, _anchor(anchors, page.id, MetakatIssue(id=uuid4(), title=[_v('Zlatá Praha', .9)],
-                                                           partNumber=[_v(f'č. {page.batch_index}', .8)]))]
+def _parents(io):
+    return [e.parent_id for e in sorted(_of(io, MetakatPage), key=lambda p: p.batch_index)]
 
 
 def test_the_documents_decide_the_leaves_whatever_the_titles_and_covers_say():
-    pages = _scan({3}, {4: PageType.FRONT_COVER})
-    anchors = {}
-    first = _anchor(anchors, pages[1].id, MetakatVolume(id=uuid4(), title=[_v('First', .9)]))
-    second = _anchor(anchors, pages[6].id, MetakatVolume(id=uuid4(), title=[_v('Second', .9)]))
-    io = _bound(pages, [first, second], anchors)
+    pages = _scan({3}, {1: .99, 6: .99})
+    pages[4].pageType = (PageType.FRONT_COVER, .99)
+    io, _ = _process(pages, _read(1, 'First'), _read(6, 'Second'))
     volumes = _of(io, MetakatVolume)
     assert [v.title[0].text for v in volumes] == ['First', 'Second']
-    assert [p.parent_id for p in pages] == [volumes[0].id] * 3 + [volumes[1].id] * 5
-    assert [p.pageIndex for p in pages] == [1, 2, 3, 1, 2, 3, 4, 5]
-    assert [p.batch_index for p in pages if p.representative] == [1, 6]
+    assert all(v.hierarchy == HierarchyType.MONOGRAPH and v.parent_id is None for v in volumes)
+    assert _parents(io) == [volumes[0].id] * 3 + [volumes[1].id] * 5
+    assert [p.pageIndex for p in _of(io, MetakatPage)] == [1, 2, 3, 1, 2, 3, 4, 5]
+    assert [p.batch_index for p in _of(io, MetakatPage) if p.representative] == [1, 6]
+    assert not _of(io, MetakatTitle)
 
 
-def test_the_title_readings_of_one_document_merge_into_one_record():
-    pages = _scan(set())
-    anchors = {}
-    half = _anchor(anchors, pages[1].id, MetakatVolume(id=uuid4(), title=[_v('Half title', .7)]))
-    full = _anchor(anchors, pages[3].id, MetakatVolume(id=uuid4(), title=[_v('Full title', .95)],
-                                                     subTitle=[_v('Subtitle', .9)]))
-    io = _bound(pages, [half, full], anchors)
+def test_consecutive_title_pages_are_one_span_read_as_one_record():
+    pages = _scan((), {1: .99, 2: .99, 5: .99})
+    io, core = _process(pages, _read(1, 'Kytice', .6), _read(2, 'KYTICE', .9))
+    assert core.spans == [[['p1', 'p2'], ['p5']]]
+    [volume] = _of(io, MetakatVolume)
+    assert volume.title[0].text == 'KYTICE'
+    assert [p.batch_index for p in _of(io, MetakatPage) if p.representative] == [2]
+
+
+def test_the_strongest_span_names_the_document_and_the_others_are_ignored():
+    pages = _scan((), {1: .6, 5: .99}, count=30)
+    io, _ = _process(pages, _read(1, 'Half title', .9), _read(5, 'Full title', .9))
     [volume] = _of(io, MetakatVolume)
     assert volume.title[0].text == 'Full title'
-    assert volume.subTitle[0].text == 'Subtitle'
-    assert volume.hierarchy == HierarchyType.MONOGRAPH
-    assert {p.parent_id for p in pages} == {volume.id}
-    assert [p.batch_index for p in pages if p.representative] == [3]
+    # The ignored span's values are not written anywhere.
+    assert set(io.detection_to_page_mapping) == {volume.title[0].id}
 
 
 def test_documents_without_readings_get_unnamed_units():
-    pages = _scan({4})
-    io = _bound(pages, [], {})
+    io, core = _process(_scan({4}))
     volumes = _of(io, MetakatVolume)
-    assert len(volumes) == 2
-    assert all(v.title is None and v.hierarchy == HierarchyType.MONOGRAPH for v in volumes)
-    assert [p.parent_id for p in pages] == [volumes[0].id] * 4 + [volumes[1].id] * 4
-    assert not any(p.representative for p in pages)
+    assert len(volumes) == 2 and all(v.title is None for v in volumes)
+    assert not any(p.representative for p in _of(io, MetakatPage))
+    assert core.spans == []
 
 
 @pytest.mark.parametrize('missing', [[5], range(1, 8)])
@@ -1204,135 +1212,132 @@ def test_a_scan_without_every_document_start_is_one_document(missing):
     pages = _scan({4})
     for index in missing:
         pages[index].startsDocument = None
-    io = _bound(pages, [], {})
-    [volume] = _of(io, MetakatVolume)
-    assert {p.parent_id for p in pages} == {volume.id}
+    io, _ = _process(pages)
+    assert len(_of(io, MetakatVolume)) == 1
 
 
-def test_an_issue_without_readings_is_an_issue_of_the_periodical_around_it():
-    pages = _scan({3, 6})
-    anchors = {}
-    io = _bound(pages, _periodical(anchors, pages[1], 'Ročník IV') + _periodical(anchors, pages[7], 'Ročník IV'),
-                anchors)
-    [volume] = _of(io, MetakatVolume)
-    issues = _of(io, MetakatIssue)
-    assert len(issues) == 3
-    assert issues[1].title is None
-    assert {issue.parent_id for issue in issues} == {volume.id}
-    assert [p.parent_id for p in pages] == [issues[0].id] * 3 + [issues[1].id] * 3 + [issues[2].id] * 2
-    assert [p.pageIndex for p in pages] == [1, 2, 3, 1, 2, 3, 1, 2]
-    assert [p.batch_index for p in pages if p.representative] == [1, 7]
+def test_a_part_number_makes_every_document_a_part_of_one_multipart_monograph():
+    pages = _scan({4}, {1: .99, 5: .99})
+    io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1'), _read(5, 'Dějiny'))
+    [title] = _of(io, MetakatTitle)
+    parts = _of(io, MetakatVolume)
+    assert [p.hierarchy for p in parts] == [HierarchyType.MULTIPART] * 2
+    assert {p.parent_id for p in parts} == {title.id}
+    assert title.title[0].text == 'Dějiny' and io.elements[0] is title
 
 
-def test_an_issue_belongs_to_the_volume_its_title_page_names_else_to_the_one_before():
-    pages = _scan({2, 4, 6})
-    anchors = {}
-    readings = (_periodical(anchors, pages[0], 'Ročník I') + _periodical(anchors, pages[4], 'Ročník II'))
-    io = _bound(pages, readings, anchors)
+def test_a_stray_part_number_does_not_make_unrelated_monographs_multipart():
+    pages = _scan({3, 6}, {1: .99, 4: .99, 7: .99})
+    io, _ = _process(pages, _read(1, 'A', part='Díl 1'), _read(4, 'B'), _read(7, 'C'))
+    assert [v.hierarchy for v in _of(io, MetakatVolume)] == [HierarchyType.MONOGRAPH] * 3
+    assert not _of(io, MetakatTitle)
+
+
+def test_two_parts_found_in_one_document_are_split_on_the_second_title_page():
+    pages = _scan((), {1: .99, 16: .99}, count=30)
+    io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1'), _read(16, 'Dějiny', part='Díl 2'))
+    parts = _of(io, MetakatVolume)
+    assert [p.partNumber[0].text for p in parts] == ['Díl 1', 'Díl 2']
+    assert _parents(io) == [parts[0].id] * 16 + [parts[1].id] * 14
+    assert pages[16].startsDocument.val is False  # the input is untouched
+    page_16 = next(p for p in _of(io, MetakatPage) if p.batch_index == 16)
+    assert page_16.startsDocument.val is True and page_16.startsDocument.confidence == pytest.approx(.99 * .9)
+    [title] = _of(io, MetakatTitle)
+    assert {p.parent_id for p in parts} == {title.id}
+
+
+@pytest.mark.parametrize('second, titles', [
+    (dict(part='Díl 1'), {1: .99, 16: .99}),        # the same part twice
+    (dict(part='Díl 2'), {1: .99, 8: .99}),         # too close
+    (dict(part='Díl 2'), {1: .99, 16: .3}),         # too weak a title page
+])
+def test_a_document_is_not_split_without_two_clearly_separate_parts(second, titles):
+    later = max(titles)
+    pages = _scan((), titles, count=30)
+    io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1'), _read(later, 'Dějiny', **second))
+    assert len(_of(io, MetakatVolume)) == 1
+
+
+def test_an_annotated_start_is_not_overridden():
+    pages = _scan((), {1: .99, 16: .99}, count=30)
+    pages[16].startsDocument = BooleanValue(val=False, confidence=1., annotated=True)
+    io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1'), _read(16, 'Dějiny', part='Díl 2'))
+    assert len(_of(io, MetakatVolume)) == 1
+
+
+def test_a_monograph_scan_is_never_split():
+    pages = _scan((), {1: .99, 16: .99}, count=30)
+    io, _ = _process(pages, _read(1, 'Kytice'), _read(16, 'Babička'))
+    assert len(_of(io, MetakatVolume)) == 1
+
+
+def test_issues_run_in_volumes_in_scan_order():
+    pages = _scan({2, 4, 6}, {0: .99, 2: .99, 4: .99, 6: .99})
+    io, _ = _process(pages,
+                     _read(0, 'Zlatá Praha', volume='Ročník I', issue='1'),
+                     _read(2, 'Zlatá Praha', issue='2'),
+                     _read(4, 'Zlatá Praha', volume='Ročník II', issue='1'),
+                     _read(6, 'Zlatá Praha', volume='Ročník II', issue='2'))
     volumes = _of(io, MetakatVolume)
     assert [v.partNumber[0].text for v in volumes] == ['Ročník I', 'Ročník II']
     issues = _of(io, MetakatIssue)
-    assert [i.parent_id for i in issues] == [volumes[0].id, volumes[0].id, volumes[1].id, volumes[1].id]
-    title = _of(io, MetakatTitle)[0]
-    assert {v.parent_id for v in volumes} == {title.id}
+    assert [i.parent_id for i in issues] == [volumes[0].id] * 2 + [volumes[1].id] * 2
+    [title] = _of(io, MetakatTitle)
+    assert title.hierarchy == HierarchyType.PERIODICAL and {v.parent_id for v in volumes} == {title.id}
+    assert _parents(io) == [i.id for i in issues for _ in range(2)]
 
 
-def test_an_issue_before_any_named_volume_belongs_to_the_next_one():
-    pages = _scan({4})
-    anchors = {}
-    io = _bound(pages, _periodical(anchors, pages[5], 'Ročník II'), anchors)
-    [volume] = _of(io, MetakatVolume)
-    assert [i.parent_id for i in _of(io, MetakatIssue)] == [volume.id] * 2
-
-
-def test_issues_without_a_volume_number_or_year_share_one_unnamed_volume():
-    pages = _scan({4})
-    anchors = {}
-    readings = _periodical(anchors, pages[1], None) + _periodical(anchors, pages[5], None)
-    io = _bound(pages, readings, anchors)
+def test_issues_without_a_volume_number_share_one_unnamed_volume_and_unread_issues_are_unnamed():
+    pages = _scan({4}, {0: .99})
+    io, _ = _process(pages, _read(0, 'Zlatá Praha', issue='1'))
     [volume] = _of(io, MetakatVolume)
     assert volume.title is None and volume.hierarchy == HierarchyType.PERIODICAL
-    assert [i.parent_id for i in _of(io, MetakatIssue)] == [volume.id] * 2
+    first, second = _of(io, MetakatIssue)
+    assert second.title is None and {first.parent_id, second.parent_id} == {volume.id}
 
 
-def test_a_monograph_next_to_a_periodical_stays_outside_its_title():
-    pages = _scan({4})
-    anchors = {}
-    book = _anchor(anchors, pages[5].id, MetakatVolume(id=uuid4(), title=[_v('Kytice', .9)]))
-    io = _bound(pages, _periodical(anchors, pages[1], 'Ročník I') + [book], anchors)
-    [title] = _of(io, MetakatTitle)
-    periodical, monograph = _of(io, MetakatVolume)
-    assert title.hierarchy == HierarchyType.PERIODICAL
-    assert periodical.parent_id == title.id
-    assert monograph.hierarchy == HierarchyType.MONOGRAPH and monograph.parent_id is None
-    assert {p.parent_id for p in pages[4:]} == {monograph.id}
+def test_two_issues_in_one_document_are_split():
+    pages = _scan((), {0: .99, 12: .99}, count=24)
+    io, _ = _process(pages, _read(0, 'Zlatá Praha', issue='1'), _read(12, 'Zlatá Praha', issue='2'))
+    assert len(_of(io, MetakatIssue)) == 2
 
 
-def test_the_parts_of_a_multipart_monograph_go_under_one_title():
-    pages = _scan({4})
-    anchors = {}
-    parts = [_anchor(anchors, pages[i].id, MetakatVolume(
-        id=uuid4(), hierarchy=HierarchyType.MULTIPART, title=[_v('Dějiny', .9)], partNumber=[_v(n, .9)]))
-        for i, n in ((1, 'Díl 1'), (5, 'Díl 2'))]
-    io = _bound(pages, parts, anchors)
-    [title] = _of(io, MetakatTitle)
-    volumes = _of(io, MetakatVolume)
-    assert [v.partNumber[0].text for v in volumes] == ['Díl 1', 'Díl 2']
-    assert {v.parent_id for v in volumes} == {title.id}
-    assert io.elements[0] is title
-
-
-def _process(pages, page_results, proarc_io=None):
-    from types import SimpleNamespace
-    seen = []
-
-    def process(images, alto):
-        seen.extend(images)
-        return BiblioCoreResult(pages={key: page_results[key] for key in page_results})
-
-    binder = _binder()
-    binder.core_engine = SimpleNamespace(process=process)
-    io = MetakatIO(batch_id=pages[0].batch_id, elements=pages,
-                   page_to_image_mapping={page.id: f'p{page.batch_index}.jpg' for page in pages})
-    return binder.process('/synthetic', io, proarc_io), seen
-
-
-def test_process_reads_the_title_pages_and_merges_readings_inside_documents():
-    pages = _scan({4}, {1: PageType.TITLE_PAGE, 2: PageType.TITLE_PAGE})
-    output, seen = _process(pages, {
-        'p1': BiblioPageResult(page_key='p1', reading=BiblioReading(
-            title_infos=(BiblioTitleInfo(title=_ev('Half title', .6)),))),
-        'p2': BiblioPageResult(page_key='p2', reading=BiblioReading(
-            title_infos=(BiblioTitleInfo(title=_ev('Full title', .95)),))),
-    })
-    assert seen == ['/synthetic/p1.jpg', '/synthetic/p2.jpg']
-    volumes = [e for e in output.elements if isinstance(e, MetakatVolume)]
-    assert len(volumes) == 2
-    assert volumes[0].title[0].text == 'Full title'
-    assert volumes[1].title is None
-    assert set(output.detection_to_bbox) == {volumes[0].title[0].id}
-    assert set(output.detection_to_page_mapping) == {volumes[0].title[0].id}
-    assert not any(p.parent_id for p in pages)  # caller's object is untouched
-
-
-def test_process_without_title_pages_keeps_the_documents_and_reads_nothing():
-    from unittest.mock import Mock
-    binder = _binder()
-    binder.core_engine = Mock()
-    pages = _scan({4})
-    output = binder.process('/synthetic', MetakatIO(batch_id=pages[0].batch_id, elements=pages))
-    binder.core_engine.process.assert_not_called()
-    assert len([e for e in output.elements if isinstance(e, MetakatVolume)]) == 2
+def test_a_proarc_periodical_package_makes_every_document_an_issue():
+    pages = _scan({4}, {1: .99})
+    io, _ = _process(pages, _read(1, 'Zlatá Praha'), proarc_io=ProarcIO(type=PackageType.periodical, objects=[]))
+    assert len(_of(io, MetakatIssue)) == 2
 
 
 @pytest.mark.parametrize('starts, volumes', [(set(), 1), ({4}, 2)])
 def test_a_single_proarc_volume_is_the_scan_only_when_the_scan_is_one_document(starts, volumes):
-    pages = _scan(starts, {1: PageType.TITLE_PAGE})
     record = _proarc_volume(title=['Kytice'])
-    output, _ = _process(pages, {'p1': BiblioPageResult(page_key='p1', reading=BiblioReading(
-        title_infos=(BiblioTitleInfo(title=_ev('Kytice', .9)),)))},
-        ProarcIO(type=PackageType.monograph, objects=[record]))
-    found = [e for e in output.elements if isinstance(e, MetakatVolume)]
+    io, _ = _process(_scan(starts, {1: .99}), _read(1, 'Kytice'),
+                     proarc_io=ProarcIO(type=PackageType.monograph, objects=[record]))
+    found = _of(io, MetakatVolume)
     assert len(found) == volumes
-    assert {p.parent_id for p in output.elements if isinstance(p, MetakatPage)} == {v.id for v in found}
+    assert set(_parents(io)) == {v.id for v in found}
     assert (found[0].id == record.id) == (volumes == 1)
+
+
+def test_an_unknown_page_key_is_rejected():
+    pages = _scan((), {1: .99})
+    binder = _binder()
+    binder.core_engine = SimpleNamespace(process=lambda spans: BiblioCoreResult(
+        spans=(BiblioSpanResult(page_keys=('elsewhere',), reading=BiblioReading(title_infos=(
+            BiblioTitleInfo(title=DetectionEvidence(text='x', confidence=.9, bbox=None, page_key='elsewhere')),))),)))
+    io = MetakatIO(batch_id=pages[0].batch_id, elements=pages,
+                   page_to_image_mapping={page.id: f'p{page.batch_index}.jpg' for page in pages})
+    with pytest.raises(ValueError, match='not one of the pages'):
+        binder.process('/b', io)
+
+
+def test_a_value_keeps_the_page_it_was_read_on_with_or_without_a_box():
+    pages = _scan((), {1: .99, 2: .99})
+    located = _read(1, 'Kytice')
+    unlocated = BiblioSpanResult(page_keys=('p2',), reading=BiblioReading(title_infos=(BiblioTitleInfo(
+        sub_title=DetectionEvidence(text='z pověstí', confidence=.95, bbox=None, page_key='p2')),)))
+    io, _ = _process(pages, located, unlocated)
+    [volume] = _of(io, MetakatVolume)
+    title, sub_title = volume.title[0], volume.subTitle[0]
+    assert set(io.detection_to_bbox) == {title.id}
+    assert io.detection_to_page_mapping == {title.id: pages[1].id, sub_title.id: pages[2].id}
