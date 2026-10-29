@@ -245,8 +245,6 @@ def test_the_image_preprocessing_config_is_read_and_its_max_pixels_cannot_be_nul
     with pytest.raises(ValueError, match="unknown keys"):
         VLMConfig.from_config({"api_url": "u", "model": "m", "api_key": "k",
                                "image_preprocessing": {"max_side": 5000}})
-    with pytest.raises(ValueError, match="image_max_side was replaced"):
-        VLMConfig.from_config({"api_url": "u", "model": "m", "api_key": "k", "image_max_side": 5000})
 
 
 def test_schema_and_reply_round_trip_as_json():

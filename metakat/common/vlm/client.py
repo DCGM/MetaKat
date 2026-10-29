@@ -102,9 +102,6 @@ class VLMConfig:
     def from_config(cls, config: Mapping[str, Any], location: str = "VLM config") -> "VLMConfig":
         if not isinstance(config, Mapping):
             raise ValueError(f"{location} must be an object")
-        if "image_max_side" in config:
-            raise ValueError(f"{location}: image_max_side was replaced by image_preprocessing "
-                             "(max_pixels, max_w, max_h, text_height, min_pixels)")
         known = {f.name for f in fields(cls)}
         unknown = sorted(set(config) - known)
         if unknown:
