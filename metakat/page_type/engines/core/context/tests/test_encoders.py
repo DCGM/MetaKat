@@ -7,6 +7,7 @@ from PIL import Image
 import torch
 
 from metakat.page_type.engines.core.context.dino import DinoEncoder
+from metakat.page_type.engines.core.context import mmbert as mmbert_module
 from metakat.page_type.engines.core.context.mmbert import MmbertEncoder
 
 
@@ -96,3 +97,11 @@ def test_dino_load_image_resizes_any_aspect_ratio(tmp_path, size, mode):
     Image.new(mode, size, color=0).save(path)
     array = DinoEncoder.load_image(str(path))
     assert array.shape == (224, 224, 3) and array.dtype == np.uint8
+
+
+def test_mmbert_uses_flash_attention_only_on_cuda_with_flash_attn_installed(monkeypatch):
+    monkeypatch.setattr(mmbert_module, 'find_spec', lambda name: object())
+    assert mmbert_module.default_attention('cuda') == 'flash_attention_2'
+    assert mmbert_module.default_attention('cpu') == 'sdpa'
+    monkeypatch.setattr(mmbert_module, 'find_spec', lambda name: None)
+    assert mmbert_module.default_attention('cuda') == 'sdpa'

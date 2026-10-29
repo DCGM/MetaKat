@@ -1,4 +1,5 @@
 """mmBERT masked-mean page text vectors, matching the stored training vectors."""
+from importlib.util import find_spec
 from itertools import islice
 
 import numpy as np
@@ -18,9 +19,14 @@ def patch_padding_nan(model):
     model._update_attention_mask = update
 
 
+def default_attention(device):
+    """flash_attention_2 (unpadded varlen attention, the faster path) on CUDA when flash-attn is installed."""
+    return 'flash_attention_2' if torch.device(device).type == 'cuda' and find_spec('flash_attn') else 'sdpa'
+
+
 class MmbertEncoder:
     def __init__(self, model_dir, device='cpu', batch_size=8, max_tokens_per_batch=16384,
-                 max_length=8192, max_chars=4000):
+                 max_length=8192, max_chars=4000, attn_implementation=None):
         if min(batch_size, max_tokens_per_batch, max_length, max_chars) < 1 or max_length < 2:
             raise ValueError('Invalid text encoding limits')
         if max_tokens_per_batch < max_length:
@@ -28,8 +34,9 @@ class MmbertEncoder:
         self.device, self.batch_size = torch.device(device), batch_size
         self.max_tokens_per_batch, self.max_length, self.max_chars = max_tokens_per_batch, max_length, max_chars
         self.tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
+        self.attn_implementation = attn_implementation or default_attention(device)
         self.model = AutoModel.from_pretrained(model_dir, local_files_only=True,
-                                               attn_implementation='sdpa')
+                                               attn_implementation=self.attn_implementation)
         patch_padding_nan(self.model)
         self.model.to(self.device).eval()
         self.dim = self.model.config.hidden_size

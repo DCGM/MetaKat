@@ -87,6 +87,13 @@ vlm = [
     "Jinja2==3.1.6",
 ]
 
+# Optional, outside [inference]: it compiles against the installed torch and CUDA toolkit. With flash-attn the
+# mmBERT page-text encoder runs unpadded attention (about 1.6x faster on CUDA), without it the padded sdpa
+# path, which gives the same vectors to float16 rounding and a cosine of 0.9999 or better.
+flash = [
+    "flash-attn==2.8.3.post1",
+]
+
 dev = [
     "pytest>=8.3",
     "pytest-cov>=5.0",
