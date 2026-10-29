@@ -225,3 +225,94 @@ def test_annotated_number_and_provenance_survive_all_core_result_kinds(metakat_p
         )
         assert metakat_page.pageNumber is annotation
         assert io == original
+
+
+def _final_binder(core_result):
+    from unittest.mock import Mock
+    from types import SimpleNamespace
+    binder = object.__new__(PageNumberBindEngineBase)
+    binder.core_engine = SimpleNamespace(process=Mock(return_value=core_result))
+    return binder
+
+
+def _scan(count, starts, numbers):
+    """Pages p0.. with predicted starts and the numbers a preliminary pass left on them."""
+    from uuid import uuid4
+    from metakat.schemas.base_objects import BooleanValue, MetakatPage, Value
+    batch_id = uuid4()
+    pages = [
+        MetakatPage(
+            id=uuid4(), batch_id=batch_id, batch_index=i,
+            startsDocument=BooleanValue(val=i in starts, confidence=0.9, id=uuid4()),
+            pageNumber=None if numbers[i] is None else Value(text=numbers[i], confidence=0.5, id=uuid4()),
+        )
+        for i in range(count)
+    ]
+    io = MetakatIO(
+        batch_id=batch_id, elements=pages,
+        page_to_image_mapping={p.id: f'images/p{i}.jpg' for i, p in enumerate(pages)},
+        page_to_alto_mapping={p.id: f'alto/p{i}.xml' for i, p in enumerate(pages)},
+        detection_to_bbox={p.pageNumber.id: (1, 2, 3, 4) for p in pages if p.pageNumber},
+        detection_to_page_mapping={p.pageNumber.id: p.id for p in pages if p.pageNumber},
+    )
+    return io, pages
+
+
+def test_final_pass_passes_the_documents_found_by_the_page_type_stage_as_units():
+    io, _ = _scan(5, starts={0, 3}, numbers=[None] * 5)
+    binder = _final_binder(PageNumberCoreResult({f'p{i}': None for i in range(5)}))
+    binder.process_final('/batch', io)
+    kwargs = binder.core_engine.process.call_args.kwargs
+    assert kwargs['final'] is True
+    assert [kwargs['page_contexts'][f'p{i}'].unit_key for i in range(5)] == [
+        'document-0', 'document-0', 'document-0', 'document-1', 'document-1']
+
+
+def test_final_pass_takes_the_first_page_as_a_document_start_without_a_prediction():
+    io, pages = _scan(4, starts={2}, numbers=[None] * 4)
+    pages[0].startsDocument = None
+    binder = _final_binder(PageNumberCoreResult({f'p{i}': None for i in range(4)}))
+    binder.process_final('/batch', io)
+    contexts = binder.core_engine.process.call_args.kwargs['page_contexts']
+    assert [contexts[f'p{i}'].unit_key for i in range(4)] == ['document-0', 'document-0', 'document-1', 'document-1']
+
+
+def test_final_pass_without_document_starts_treats_the_scan_as_one_document():
+    io, pages = _scan(3, starts=set(), numbers=[None] * 3)
+    pages[1].startsDocument = None
+    binder = _final_binder(PageNumberCoreResult({f'p{i}': None for i in range(3)}))
+    binder.process_final('/batch', io)
+    assert binder.core_engine.process.call_args.kwargs['page_contexts'] is None
+
+
+def test_preliminary_pass_is_the_default_without_contexts():
+    io, _ = _scan(2, starts={0}, numbers=[None] * 2)
+    binder = _final_binder(PageNumberCoreResult({'p0': None, 'p1': None}))
+    binder.process('/batch', io)
+    binder.core_engine.process.assert_called_once_with(
+        ['/batch/images/p0.jpg', '/batch/images/p1.jpg'], ['/batch/alto/p0.xml', '/batch/alto/p1.xml'])
+
+
+def test_final_pass_supersedes_the_preliminary_numbers_and_forgets_their_detections():
+    io, pages = _scan(3, starts={0}, numbers=['7', '8', None])
+    old_ids = [pages[0].pageNumber.id, pages[1].pageNumber.id]
+    new = DecoratedPageNumberParser.create(
+        page_key='p0', text='1', confidence=0.4, bbox=MetaKatBoundingBox(5, 6, 7, 8))
+    binder = _final_binder(PageNumberCoreResult({'p0': new, 'p1': None, 'p2': None}))
+    result = binder.process_final('/batch', io)
+    first, second, third = result.elements
+    assert first.pageNumber.text == '1' and first.pageNumber.confidence == 0.4  # lower confidence still wins
+    assert second.pageNumber is None and third.pageNumber is None
+    assert not set(old_ids) & set(result.detection_to_bbox) | set(old_ids) & set(result.detection_to_page_mapping)
+    assert result.detection_to_bbox[first.pageNumber.id] == (5, 6, 7, 8)
+
+
+def test_final_pass_never_replaces_an_annotated_number():
+    from uuid import uuid4
+    from metakat.schemas.base_objects import Value
+    io, pages = _scan(2, starts={0}, numbers=[None, None])
+    pages[0].pageNumber = Value(text='[3]', confidence=1.0, id=uuid4(), annotated=True)
+    new = DecoratedPageNumberParser.create(
+        page_key='p0', text='9', confidence=0.9, bbox=MetaKatBoundingBox(1, 1, 1, 1))
+    binder = _final_binder(PageNumberCoreResult({'p0': new, 'p1': None}))
+    assert binder.process_final('/batch', io).elements[0].pageNumber.text == '[3]'

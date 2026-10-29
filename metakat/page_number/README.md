@@ -280,12 +280,17 @@ It then runs reusable document postprocessing across all ordered input pages.
       "max_gap_pages": 8,
       "minimum_anchor_confidence": 0.6,
       "complete_document": false,
+      "bracketed": true,
       "wholly_unnumbered": false,
       "tail_mode": "unknown"
     }
   }
 }
 ```
+
+`ndk.complete_document` and `ndk.bracketed` are set by the pass the engine runs
+(see [Two passes](#two-passes-around-the-page-type-stage)); the values in the
+configuration apply to direct use of `NdkPaginator` only.
 
 `labels` maps the supported `PageNumberType` value `PageNumber` to the raw
 YOLO model label. When omitted, `PageNumber` defaults to `cislo strany`.
@@ -376,11 +381,11 @@ separate a known parent and child.
 
 A chunk is a **processing hypothesis**, not a confirmed whole document. Roman
 front matter and an Arabic body may belong to the same book. Consequently,
-inferred splits do not enable NDK leading/trailing inference, even when the
-batch was marked `complete_document=True`. Interior NDK rules still apply
-inside each nonambiguous chunk. Explicit complete units without inferred
-internal splits retain their configured edge policy. `NdkPaginator` also
-respects chunk scopes when invoked separately on a chunked result.
+an inferred split is never a document edge: with `complete_document=True` only
+the first chunk of a unit may receive leading labels and only its last chunk
+trailing ones (an ambiguous gap after a chunk is no edge either). Interior NDK
+rules apply inside each nonambiguous chunk. `NdkPaginator` respects chunk scopes
+when invoked separately on a chunked result.
 
 `PageNumberCoreResult.chunks` covers every input page exactly once in order.
 Each `PageNumberChunk` records `page_keys`, its start `reason`, whether its scope
@@ -533,6 +538,31 @@ position model; their scores deliberately remain uncertain. The defaults need
 evaluation on representative scanned documents before treating them as review
 thresholds. Sequence inference cannot distinguish every genuine printing error
 from an OCR error, so inferred corrections remain less certain.
+
+### Two passes around the page-type stage
+
+The pipeline runs the page-number engine twice, `page_number → page_type → page_number`:
+
+| Pass | Bind method | Core call | NDK labels |
+|---|---|---|---|
+| Preliminary, before the page-type stage | `process` | `process(images, altos)` | Plain numbers only: gaps in a running sequence. No bracketed label, no document edges. |
+| Final, after the page-type stage | `process_final` | `process(images, altos, page_contexts=documents, final=True)` | Everything: bracketed letter labels, inserted leaves, and the labels at the document edges. |
+
+The preliminary pass only supports the page-type model, whose pagination input
+accepts plain numbers. The final pass knows the documents the page-type stage
+found (annotated or predicted `startsDocument`; one unit per document, passed as
+`NdkPageContext.unit_key`) and applies `complete_document`: a scan starts and ends
+with a document, so the first page of a document is a real edge (`[1]`..`[4]` before
+a first printed 5, `[1a]` before a printed 1) and the last page of the last chunk
+of a unit is a real trailing edge (subject to `tail_mode`). A numbering restart
+inside a document is not an edge. Without document starts the whole scan is one
+document.
+
+The final pass detects and aligns again, and **supersedes** the preliminary
+numbers: the bind engine replaces every non-annotated number with the final
+result, also when its confidence is lower, removes the number of a page the final
+pass leaves unresolved, and forgets the replaced detections. Annotated numbers are
+never touched.
 
 ### NDK archival pagination
 
@@ -880,6 +910,14 @@ The Base bind engine deep-copies the supplied `MetakatIO`, invokes its
 configured core engine, and returns the modified copy. `ProarcIO` is accepted
 by the bind contract but is not used by this implementation.
 
+#### Preliminary and final pass
+
+`process` is the preliminary pass and `process_final` the final one; see
+[Two passes](#two-passes-around-the-page-type-stage). The final pass derives the
+units from `startsDocument` of every processable page (annotated or predicted);
+if any page has none, the core receives no contexts and treats the scan as one
+document. It binds with replacement (below) instead of the confidence comparison.
+
 #### Page selection and core invocation
 
 The binder sorts all `MetakatPage` elements by `batch_index`. It skips the core
@@ -907,6 +945,7 @@ the page's existing `pageNumber` value:
 | No existing `MetakatPage.pageNumber` | Bind the core result. |
 | Core confidence is greater than the existing confidence | Replace the existing value with the core result. |
 | Core confidence is equal to or lower than the existing confidence | Retain the existing value. |
+| Final pass, no `annotated: true` | Replace the existing value whatever its confidence; remove it when the core returns `None`. |
 
 `annotated` is optional. Only an explicitly present boolean `true` protects a
 value; absent, null and false use the confidence rules above. It marks externally

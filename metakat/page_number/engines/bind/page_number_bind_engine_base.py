@@ -11,6 +11,7 @@ from metakat.page_number.engines.bind.page_number_bind_engine import (
     PageNumberBindEngine,
 )
 from metakat.page_number.engines.core.models import PageNumberCoreResult
+from metakat.page_number.engines.core.ndk_pagination import NdkPageContext
 from metakat.schemas.base_objects import (
     DocumentType,
     MetakatAltoRefs,
@@ -34,6 +35,21 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
         metakat_io: MetakatIO,
         proarc_io: ProarcIO = None,
     ) -> MetakatIO:
+        return self._run(batch_dir, metakat_io, final=False)
+
+    def process_final(
+        self,
+        batch_dir: str,
+        metakat_io: MetakatIO,
+        proarc_io: ProarcIO = None,
+    ) -> MetakatIO:
+        """Number the pages again, now by documents: this result replaces the preliminary one.
+
+        The scan starts and ends with a document, and the page-type stage has found where the documents
+        begin, so the labels at their edges (leading `[1]`, `[1a]`, inserted leaves) can be supplied too."""
+        return self._run(batch_dir, metakat_io, final=True)
+
+    def _run(self, batch_dir: str, metakat_io: MetakatIO, *, final: bool) -> MetakatIO:
         metakat_io = copy.deepcopy(metakat_io)
         pages = sorted(
             (
@@ -76,15 +92,42 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
             "Processing %d images with page number core engine",
             len(images),
         )
-        core_result = self.core_engine.process(images, alto_files)
+        if final:
+            core_result = self.core_engine.process(
+                images,
+                alto_files,
+                page_contexts=self._document_contexts(processable_pages, image_mapping),
+                final=True,
+            )
+        else:
+            core_result = self.core_engine.process(images, alto_files)
         logger.info(
             "Page number core engine returned %d resolved page number(s)",
             sum(evidence is not None for evidence in core_result.page_numbers.values()),
         )
 
         page_by_key = self._page_by_image_key(pages, image_mapping)
-        self.bind_core_result(core_result, page_by_key, metakat_io)
+        self.bind_core_result(core_result, page_by_key, metakat_io, replace_existing=final)
         return metakat_io
+
+    @staticmethod
+    def _document_contexts(
+        pages: List[MetakatPage],
+        image_mapping: dict,
+    ) -> dict[str, NdkPageContext] | None:
+        """One unit per document, from the document starts, annotated or predicted; None without them.
+
+        The first page of a scan always starts a document and has no start prediction of its own."""
+        if any(page.startsDocument is None for page in pages[1:]):
+            return None
+        unit = -1
+        contexts = {}
+        for i, page in enumerate(pages):
+            unit += i == 0 or bool(page.startsDocument.val)
+            contexts[Path(image_mapping[page.id]).stem] = NdkPageContext(
+                unit_key=f"document-{unit}"
+            )
+        return contexts
 
     @staticmethod
     def _page_by_image_key(
@@ -105,11 +148,27 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
         return result
 
     @staticmethod
+    def _forget(page: MetakatPage, metakat_io: MetakatIO) -> None:
+        if page.pageNumber is None:
+            return
+        for mapping in (
+            metakat_io.detection_to_bbox,
+            metakat_io.detection_to_page_mapping,
+            metakat_io.detection_to_alto,
+        ):
+            if mapping is not None:
+                mapping.pop(page.pageNumber.id, None)
+        page.pageNumber = None
+
+    @staticmethod
     def bind_core_result(
         core_result: PageNumberCoreResult,
         page_by_key: dict[str, MetakatPage],
         metakat_io: MetakatIO,
+        replace_existing: bool = False,
     ) -> None:
+        """replace_existing: the result is authoritative, so it also replaces a number of an earlier pass
+        and removes it when the core found none. Annotated numbers are never touched."""
         if metakat_io.detection_to_bbox is None:
             metakat_io.detection_to_bbox = {}
         if metakat_io.detection_to_page_mapping is None:
@@ -124,6 +183,8 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
             if is_annotated(metakat_page.pageNumber):
                 logger.debug("Keeping annotated page number on page %s", page_key)
                 continue
+            if replace_existing:
+                PageNumberBindEngineBase._forget(metakat_page, metakat_io)
             if evidence is None:
                 continue
             if (

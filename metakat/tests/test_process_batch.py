@@ -41,7 +41,7 @@ def test_process_batch_calls_exporter_only_when_requested():
     create.assert_called_once_with("batch", metakat_io, "output.pdf")
 
 
-def test_process_batch_runs_page_number_first():
+def test_process_batch_runs_page_number_before_and_after_page_type():
     order = []
 
     def loader(name):
@@ -49,7 +49,10 @@ def test_process_batch_runs_page_number_first():
             return types.SimpleNamespace(
                 process=lambda **kwargs: (
                     order.append(name) or kwargs["metakat_io"]
-                )
+                ),
+                process_final=lambda **kwargs: (
+                    order.append(f"{name} final") or kwargs["metakat_io"]
+                ),
             )
         return load
 
@@ -103,7 +106,7 @@ def test_process_batch_runs_page_number_first():
             },
         )
 
-    assert order == ["page_number", "page_type", "biblio", "chapter"]
+    assert order == ["page_number", "page_type", "page_number final", "biblio", "chapter"]
 
 
 _GOOD_MODS = (

@@ -78,13 +78,15 @@ class NdkPaginationConfig:
     # Must be explicitly asserted: absence of OCR is not proof of a complete,
     # wholly unnumbered volume. The default fills bounded gaps only.
     complete_document: bool = False
+    # False limits the output to plain numbers: no bracketed label of any kind is supplied.
+    bracketed: bool = True
     wholly_unnumbered: bool = False
     tail_mode: Literal["unknown", "continue", "insert"] = "unknown"
 
     def __post_init__(self):
         import math
 
-        for name in ("enabled", "complete_document", "wholly_unnumbered"):
+        for name in ("enabled", "complete_document", "bracketed", "wholly_unnumbered"):
             if not isinstance(getattr(self, name), bool):
                 raise ValueError(f"ndk.{name} must be boolean")
         if self.profile not in ("shared", "monograph", "periodical"):
@@ -143,7 +145,11 @@ class NdkPaginator:
         self,
         pages: tuple[PageNumberPostprocessInput, ...],
         result: PageNumberCoreResult,
+        *,
+        leading: bool = True,
+        trailing: bool = True,
     ) -> PageNumberCoreResult:
+        """leading/trailing: whether the first/last page of each unit is a real document edge."""
         if not self.config.enabled:
             return result
         keys = {page.page_key for page in pages}
@@ -169,7 +175,7 @@ class NdkPaginator:
                 if p.page_key in decisions
             }
             self._segments(unit, unit_numbers, unit_decisions)
-            self._unit(ordinary, unit_numbers, unit_decisions)
+            self._unit(ordinary, unit_numbers, unit_decisions, leading, trailing)
             self._segments(unit, unit_numbers, unit_decisions)
             numbers.update(unit_numbers)
             decisions.update(unit_decisions)
@@ -190,16 +196,15 @@ class NdkPaginator:
         for chunk in result.chunks:
             if chunk.ambiguous:
                 continue
-            config = self.config
-            if chunk.inferred:
-                if config.wholly_unnumbered:
-                    raise ValueError(
-                        "Wholly unnumbered assertion conflicts with observed page numbers"
-                    )
-                # A restart may mark a new book or a section of one book. It
-                # never establishes complete document edges on its own.
-                config = replace(config, complete_document=False)
-            paginated = NdkPaginator(config).process(
+            if chunk.inferred and self.config.wholly_unnumbered:
+                raise ValueError(
+                    "Wholly unnumbered assertion conflicts with observed page numbers"
+                )
+            # A numbering restart may mark a new book or a section of one book; it
+            # is never a document edge. Only the first chunk of a unit starts at the
+            # unit's edge and only its last chunk ends there (an ambiguous gap is no edge).
+            following = result.chunks[result.chunks.index(chunk) + 1 :][:1]
+            paginated = self.process(
                 tuple(by_key[key] for key in chunk.page_keys),
                 PageNumberCoreResult(
                     {key: numbers[key] for key in chunk.page_keys},
@@ -209,6 +214,8 @@ class NdkPaginator:
                         if key in decisions
                     },
                 ),
+                leading=chunk.reason in ("explicit_unit", "input_start"),
+                trailing=not following or following[0].unit_key != chunk.unit_key,
             )
             numbers.update(paginated.page_numbers)
             decisions.update(paginated.decisions)
@@ -246,7 +253,7 @@ class NdkPaginator:
             and 0 < (b.value - a.value) * direction <= abs(neighbor - index)
         )
 
-    def _unit(self, pages, numbers, decisions):
+    def _unit(self, pages, numbers, decisions, leading=True, trailing=True):
         if not pages:
             return
         snapshot = dict(numbers)  # supplied labels never become inference anchors
@@ -343,11 +350,11 @@ class NdkPaginator:
                             reason="mixed_gap",
                         )
         if self.config.complete_document:
-            self._edges(pages, observed, snapshot, numbers, decisions)
+            self._edges(pages, observed, snapshot, numbers, decisions, leading, trailing)
 
-    def _edges(self, pages, observed, snapshot, numbers, decisions):
+    def _edges(self, pages, observed, snapshot, numbers, decisions, leading, trailing):
         first, last = observed[0], observed[-1]
-        if 0 < first <= self.config.max_gap_pages and self._supported(
+        if leading and 0 < first <= self.config.max_gap_pages and self._supported(
             pages, first, 1, snapshot
         ):
             anchor = snapshot[pages[first].page_key]
@@ -390,7 +397,8 @@ class NdkPaginator:
                     )
         tail = pages[last + 1 :]
         if (
-            not tail
+            not trailing
+            or not tail
             or len(tail) > self.config.max_gap_pages
             or not self._supported(pages, last, -1, snapshot)
         ):
@@ -490,8 +498,8 @@ class NdkPaginator:
             index += 1
         return suffix(index)
 
-    @staticmethod
     def _supply(
+        self,
         page,
         numbers,
         decisions,
@@ -504,7 +512,7 @@ class NdkPaginator:
         confidence,
         reason,
     ):
-        if numbers[page.page_key] is not None:
+        if numbers[page.page_key] is not None or (bracketed and not self.config.bracketed):
             return
         evidence = PhysicalPageNumberEvidence(
             page_key=page.page_key,

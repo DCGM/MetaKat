@@ -45,15 +45,18 @@ from metakat.tools.create_interactive_pdf import create_interactive_pdf
 logger = logging.getLogger(__name__)
 
 def _stages():
-    """The pipeline's stages in the order they run, with their bind engine loaders.
+    """The pipeline's stages in the order they run: category, bind engine loader, bind engine method.
 
-    A stage absent from the configuration is skipped.
+    The page-number engine runs twice. The first pass supports the page-type stage with the plain numbers
+    it can establish; the final pass numbers the pages again by the documents the page-type stage found and
+    supersedes the first. A stage absent from the configuration is skipped.
     """
     return (
-        ("page_number", load_page_number_bind_engine),
-        ("page_type", load_page_type_bind_engine),
-        ("biblio", load_biblio_bind_engine),
-        ("chapter", load_chapter_bind_engine),
+        ("page_number", load_page_number_bind_engine, "process"),
+        ("page_type", load_page_type_bind_engine, "process"),
+        ("page_number", load_page_number_bind_engine, "process_final"),
+        ("biblio", load_biblio_bind_engine, "process"),
+        ("chapter", load_chapter_bind_engine, "process"),
     )
 
 
@@ -231,7 +234,7 @@ def process_batch(
     if engine_name is not None:
         metakat_io.engine = MetakatEngine(name=engine_name, version=engine_version)
 
-    for category, load_bind_engine in _stages():
+    for category, load_bind_engine, method in _stages():
         stage = _engine_pair(pipeline_config, category)
         if stage is None:
             continue
@@ -240,7 +243,7 @@ def process_batch(
         # - including for a separate process such as a local vLLM server.
         bind_engine_obj = load_bind_engine(stage["bind"], stage["core"])
         try:
-            metakat_io = bind_engine_obj.process(
+            metakat_io = getattr(bind_engine_obj, method)(
                 batch_dir=batch_dir,
                 metakat_io=metakat_io,
                 proarc_io=proarc_io,

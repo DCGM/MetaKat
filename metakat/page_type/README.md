@@ -442,8 +442,10 @@ features and availability flags. Pagination and boundary inputs remain available
 #### Pagination signal
 
 The binder passes `MetakatPage.pageNumber.text` unchanged as
-`PageTypeInput.page_number`. Run the page-number stage first to supply it.
-Page-type inference does not fill, alter, or infer page numbers.
+`PageTypeInput.page_number`. Run the page-number stage first to supply it: its
+preliminary pass supplies the observed numbers and the plain gap-filled ones.
+Page-type inference does not fill, alter, or infer page numbers; the page-number
+engine runs again after this stage (`process_final`) with the documents found here.
 
 Filtering follows `db_candidate_single_v1`:
 

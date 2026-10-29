@@ -350,3 +350,48 @@ def test_archival_pagination_is_idempotent(unnumbered):
     original = PageNumberCoreResult({p.page_key: p.selected for p in pages})
     once = paginator.process(pages, original)
     assert paginator.process(pages, once) == once
+
+
+def test_without_brackets_only_plain_numbers_are_supplied():
+    config = NdkPaginationConfig(bracketed=False, complete_document=True, tail_mode="insert")
+    assert labels(paginate([None, None, 3, 4, None, 6, 7, None, None, 10, 11, None], config=config)) == [
+        None, None, "3", "4", "5", "6", "7", "8", "9", "10", "11", None]
+    assert labels(paginate([25, 26, None, None, 27, 28], config=config))[2:4] == [None, None]
+    assert labels(paginate([15, 16, None, None, None, 18, 19], config=config))[2:5] == [None, None, None]
+
+
+def test_bracketed_must_be_boolean():
+    with pytest.raises(ValueError, match="bracketed"):
+        NdkPaginationConfig(bracketed=1)
+
+
+def numbered_units(values, units):
+    pages = [
+        replace(p, pagination=NdkPageContext(unit_key=units[i])) for i, p in enumerate(inputs(values))
+    ]
+    from itertools import groupby
+    from metakat.page_number.engines.core.segmentation import PageNumberChunker
+
+    chunks = tuple(
+        chunk
+        for _, group in groupby(pages, key=lambda p: p.pagination.unit_key)
+        for chunk in PageNumberChunker().split(tuple(group), reason="explicit_unit")
+    )
+    result = PageNumberCoreResult({p.page_key: p.selected for p in pages}, {}, chunks)
+    config = NdkPaginationConfig(complete_document=True, tail_mode="insert")
+    return NdkPaginator(config).process(tuple(pages), result)
+
+
+def test_each_unit_has_its_own_leading_and_trailing_edge():
+    result = numbered_units(
+        [None, None, 3, 4, 5, None, None, 1, 2, 3, None], ["a"] * 5 + ["b"] * 6
+    )
+    assert labels(result) == ["[1]", "[2]", "3", "4", "5", "[1a]", "[1b]", "1", "2", "3", "[3a]"]
+
+
+def test_a_numbering_restart_inside_a_unit_is_not_a_unit_edge():
+    values = [None, 11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, None]
+    labels_ = labels(numbered_units(values, ["a"] * len(values)))
+    assert labels_[0] == "[10]" and labels_[-1] == "[6a]"
+    # nothing is supplied at the restart itself: both runs keep their own numbers
+    assert labels_[6:8] == ["16", "1"]

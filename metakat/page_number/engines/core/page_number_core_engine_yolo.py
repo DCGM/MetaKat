@@ -1,4 +1,5 @@
 import logging
+from dataclasses import replace
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, List
@@ -46,9 +47,23 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
         super().__init__(config=config)
         self.labels = self._load_labels()
         self.page_number_parser = DecoratedPageNumberParser
-        self.postprocessor = PageNumberPostprocessor(
-            PageNumberPostprocessConfig.from_config(self.config)
-        )
+        configured = PageNumberPostprocessConfig.from_config(self.config)
+        # The scan starts and ends with a document, so the final pass asserts complete documents
+        # (their borders come from the page-type stage); the preliminary pass fills plain numbers only.
+        self.postprocessors = {
+            final: PageNumberPostprocessor(
+                replace(
+                    configured,
+                    ndk=replace(
+                        configured.ndk,
+                        bracketed=final,
+                        complete_document=final,
+                        wholly_unnumbered=final and configured.ndk.wholly_unnumbered,
+                    ),
+                )
+            )
+            for final in (False, True)
+        }
         self.page_number_resolver = PhysicalPageNumberResolver.from_config(self.config)
         self.engine_yolo_alto = EngineYOLOALTO(
             config=self.config,
@@ -64,6 +79,7 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
         alto_files: List[str],
         *,
         page_contexts: Mapping[str, NdkPageContext] | None = None,
+        final: bool = False,
     ) -> PageNumberCoreResult:
         if len(images) != len(alto_files):
             raise ValueError(
@@ -149,7 +165,7 @@ class PageNumberCoreEngineYOLO(PageNumberCoreEngine):
                 )
             )
 
-        result = self.postprocessor.process(
+        result = self.postprocessors[final].process(
             inputs, recover=AltoPageNumberRecovery(dict(zip(keys, alto_files)))
         )
 

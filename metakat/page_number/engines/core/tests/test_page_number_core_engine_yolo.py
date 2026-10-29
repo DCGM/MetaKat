@@ -4,6 +4,7 @@ from unittest import mock
 import pytest
 
 from metakat.common.models import BoundingBox
+from metakat.page_number.engines.core.ndk_pagination import NdkPageContext
 from metakat.page_number.engines.core.page_number_core_engine_yolo import (
     PageNumberCoreEngineYOLO,
 )
@@ -223,3 +224,29 @@ def test_engine_segments_combined_books_before_learning_positions(
     assert [chunk.page_keys[0] for chunk in result.chunks] == ["p0", "p8"]
     assert [e.value for e in result.page_numbers.values()] == values
     assert all(e.confidence >= 0.98 for e in result.page_numbers.values())
+
+
+def test_only_the_final_pass_supplies_bracketed_labels_at_document_edges(tmp_path, alignment_page):
+    from metakat.page_number.engines.core.tests.test_alto_recovery import write_alto
+
+    aligned, images, altos = [], [], []
+    for i in range(17):
+        key = f"p{i}"
+        images.append(str(tmp_path / f"{key}.jpg"))
+        # pages 0-1 and 9 carry no number; the second document restarts at 1
+        number = i + 1 if 2 <= i < 9 else i - 9 if i > 9 else None
+        altos.append(str(write_alto(tmp_path / f"{key}.xml", [([str(number)], 950)] if number else [])))
+        p = alignment_page([(str(number), 0.9, 950)] if number else [], alto_width=1000, x=480, width=20)
+        p.page_key = key
+        aligned.append(p)
+    with mock.patch(ALIGNER) as aligner:
+        aligner.return_value.process.return_value = types.SimpleNamespace(pages=aligned)
+        engine = PageNumberCoreEngineYOLO({"name": "page_number_core_engine_yolo"})
+    documents = {f"p{i}": NdkPageContext(unit_key="a" if i < 9 else "b") for i in range(17)}
+
+    preliminary = engine.process(images, altos)
+    assert [preliminary.page_numbers[f"p{i}"] for i in (0, 1, 9)] == [None, None, None]
+    final = engine.process(images, altos, page_contexts=documents, final=True)
+    assert [final.page_numbers[f"p{i}"].output_text() for i in (0, 1)] == ["[1]", "[2]"]
+    assert final.page_numbers["p9"].output_text() == "[1a]"
+    assert all(final.page_numbers[f"p{i}"].supplied for i in (0, 1, 9))

@@ -31,4 +31,15 @@ class PageNumberBindEngine(ABC):
         metakat_io: MetakatIO,
         proarc_io: ProarcIO = None,
     ) -> MetakatIO:
-        pass
+        """The preliminary pass, before the page-type stage: plain numbers only."""
+
+    def process_final(
+        self,
+        batch_dir: str,
+        metakat_io: MetakatIO,
+        proarc_io: ProarcIO = None,
+    ) -> MetakatIO:
+        """The final pass, after the page-type stage, which supersedes the preliminary numbers.
+
+        An engine without a final pass leaves the preliminary result as it is."""
+        return metakat_io
