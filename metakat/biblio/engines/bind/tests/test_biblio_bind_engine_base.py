@@ -17,6 +17,7 @@ from metakat.biblio.engines.core.models import (
     BiblioReading,
     BiblioTitleInfo,
 )
+from metakat.common.aux.document_groups import assign_page_indices, bottom_documents, lowest_document_groups
 from metakat.common.models import AltoRefs, BoundingBox as CoreBoundingBox, DetectionEvidence
 from metakat.schemas.base_objects import (
     DocumentType,
@@ -26,6 +27,7 @@ from metakat.schemas.base_objects import (
     MetakatIssue,
     MetakatGroup,
     MetakatPage,
+    MetakatTitle,
     MetakatVolume,
     ObjectItem,
     ObjectModel,
@@ -932,39 +934,6 @@ def test_resolve_single_proarc_volume_detection_count_breaks_ties_between_titled
     assert volume.placeTerm is not None
 
 
-def test_bind_attaches_periodical_issues_to_the_volume_they_belong_to():
-    # Regression test: MetakatIssue used to get parent_id set at creation
-    # time in get_volume_issue_from_page, so bind()'s infant_issues branch
-    # (issues -> volumes binding) could never run - infant_issues was always
-    # empty. Issues are now left unparented and must be positioned by bind()
-    # itself, the same way pages are positioned against volumes.
-    anchors = {}
-    binder = _binder()
-    batch_id = uuid4()
-    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(6)]
-    volume_1 = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4(), hierarchy=HierarchyType.PERIODICAL))
-    issue_1 = _anchor(anchors, pages[0].id, MetakatIssue(id=uuid4()))
-    volume_2 = _anchor(anchors, pages[3].id, MetakatVolume(id=uuid4(), hierarchy=HierarchyType.PERIODICAL))
-    issue_2 = _anchor(anchors, pages[3].id, MetakatIssue(id=uuid4()))
-
-    metakat_io = MetakatIO(
-        batch_id=batch_id,
-        elements=[volume_1, issue_1, volume_2, issue_2, *pages],
-    )
-
-    binder.bind(metakat_io, anchors)
-
-    assert issue_1.parent_id == volume_1.id
-    assert issue_2.parent_id == volume_2.id
-    assert {p.parent_id for p in pages[:3]} == {issue_1.id}
-    assert {p.parent_id for p in pages[3:]} == {issue_2.id}
-    # Attaching pages is what gives them positions: 1-based, per issue.
-    assert [p.pageIndex for p in pages] == [1, 2, 3, 1, 2, 3]
-    # Each issue is represented by the page its title was read from; the
-    # volumes hold no pages of their own, so they mark none.
-    assert [p.representative for p in pages] == [True, False, False, True, False, False]
-
-
 def test_periodical_bag_matches_same_volume_across_pages_despite_ocr_noise():
     # Regression test: matching used to compare the raw (text, confidence,
     # detection_id) tuples, so two detections of the literal same volume
@@ -1055,125 +1024,10 @@ def test_periodical_bag_root_swap_does_not_null_out_root_volume():
         partNumber=[_v("1", 0.9)],
     ))
 
-    binder = _binder()
-    result = binder.finalize_periodical_volumes([weaker, stronger], page_id_to_batch_index, anchors)
+    [bag] = BiblioBindEngineBase._periodical_volume_bags([weaker, stronger], page_id_to_batch_index, anchors)
 
-    volumes = [el for el in result if el.type == DocumentType.VOLUME.value]
-    assert len(volumes) == 1
-    assert volumes[0] is not None
-    assert volumes[0].partNumber == stronger.partNumber
-
-
-def _cover_batch(page_types):
-    """Pages 0..7, with the given {batch_index: PageType} classified."""
-    batch_id = uuid4()
-    return [
-        MetakatPage(
-            id=uuid4(),
-            batch_id=batch_id,
-            batch_index=index,
-            pageType=(page_types[index], 0.9) if index in page_types else None,
-        )
-        for index in range(8)
-    ]
-
-
-def test_front_cover_is_bound_to_the_volume_it_opens():
-    # Regression test: the nudge used to compare page.pageType - a
-    # (type, confidence) tuple - against PageType members, which never holds,
-    # so it never fired at all. A volume is anchored on its title page, but its
-    # scan starts at the front cover, so the cover pages ahead of the next
-    # title page belong to the next volume, not the one that just ended.
-    anchors = {}
-    binder = _binder()
-    pages = _cover_batch({4: PageType.FRONT_COVER})
-    volume_1 = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
-    volume_2 = _anchor(anchors, pages[5].id, MetakatVolume(id=uuid4()))
-
-    binder.bind_infants(
-        pages, infants=pages, parents=[volume_1, volume_2], apply_cover_nudge=True, anchors=anchors
-    )
-
-    assert [p.parent_id for p in pages[:4]] == [volume_1.id] * 4
-    assert [p.parent_id for p in pages[4:]] == [volume_2.id] * 4
-
-
-def test_back_cover_stays_with_the_volume_it_closes():
-    # The opposite of the front cover: a back cover is the last page of the
-    # volume that just ended, so it keeps that parent and only the pages after
-    # it move on.
-    anchors = {}
-    binder = _binder()
-    pages = _cover_batch({4: PageType.BACK_COVER})
-    volume_1 = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
-    volume_2 = _anchor(anchors, pages[6].id, MetakatVolume(id=uuid4()))
-
-    binder.bind_infants(
-        pages, infants=pages, parents=[volume_1, volume_2], apply_cover_nudge=True, anchors=anchors
-    )
-
-    assert [p.parent_id for p in pages[:5]] == [volume_1.id] * 5
-    assert [p.parent_id for p in pages[5:]] == [volume_2.id] * 3
-
-
-def test_back_cover_followed_by_front_cover_does_not_skip_a_volume():
-    # The usual way a boundary is scanned: volume 1's back cover is
-    # immediately followed by volume 2's front cover. The back cover nudges
-    # once; the front cover must not nudge again and skip volume 2 entirely.
-    anchors = {}
-    binder = _binder()
-    pages = _cover_batch({3: PageType.BACK_COVER, 4: PageType.FRONT_COVER})
-    volume_1 = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
-    volume_2 = _anchor(anchors, pages[5].id, MetakatVolume(id=uuid4()))
-    volume_3 = _anchor(anchors, pages[7].id, MetakatVolume(id=uuid4()))
-
-    binder.bind_infants(
-        pages,
-        infants=pages,
-        parents=[volume_1, volume_2, volume_3],
-        apply_cover_nudge=True, anchors=anchors,
-    )
-
-    assert [p.parent_id for p in pages[:4]] == [volume_1.id] * 4
-    assert [p.parent_id for p in pages[4:7]] == [volume_2.id] * 3
-    assert pages[7].parent_id == volume_3.id
-
-
-def test_cover_nudge_is_off_when_the_infants_are_not_pages():
-    # apply_cover_nudge=False is used for the issue -> volume sweep; a cover
-    # page must not move the parent there.
-    anchors = {}
-    binder = _binder()
-    pages = _cover_batch({4: PageType.FRONT_COVER})
-    volume_1 = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
-    volume_2 = _anchor(anchors, pages[5].id, MetakatVolume(id=uuid4()))
-    issue = _anchor(anchors, pages[4].id, MetakatIssue(id=uuid4()))
-
-    binder.bind_infants(
-        pages,
-        infants=[issue],
-        parents=[volume_1, volume_2],
-        apply_cover_nudge=False, anchors=anchors,
-    )
-
-    assert issue.parent_id == volume_1.id
-
-
-def test_cover_on_the_first_volumes_own_anchor_page_does_not_nudge():
-    # A volume anchored on a cover page must keep that page: the guard is the
-    # current parent's anchor being strictly behind the walked page.
-    anchors = {}
-    binder = _binder()
-    pages = _cover_batch({0: PageType.FRONT_COVER})
-    volume_1 = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
-    volume_2 = _anchor(anchors, pages[4].id, MetakatVolume(id=uuid4()))
-
-    binder.bind_infants(
-        pages, infants=pages, parents=[volume_1, volume_2], apply_cover_nudge=True, anchors=anchors
-    )
-
-    assert pages[0].parent_id == volume_1.id
-    assert [p.parent_id for p in pages[4:]] == [volume_2.id] * 4
+    assert bag.root_volume is not None
+    assert bag.root_volume.partNumber == stronger.partNumber
 
 
 def test_series_part_number_is_corroborated_by_the_records_series_number():
@@ -1184,60 +1038,6 @@ def test_series_part_number_is_corroborated_by_the_records_series_number():
     candidate = MetakatVolume(id=uuid4(), seriesPartNumber=[_v("12", 0.9)])
 
     assert BiblioBindEngineBase._count_proarc_matches([candidate], proarc_volume) == 1
-
-
-def test_an_unanchored_volume_is_left_out_of_page_binding(caplog):
-    # A volume that arrived in the input MetakatIO has no anchor, since only
-    # candidates this binder builds get one. Its position is not guessed: it
-    # is skipped with a warning, and pages go to the anchored volume.
-    anchors = {}
-    binder = _binder()
-    batch_id = uuid4()
-    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(4)]
-    anchored = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
-    from_input = MetakatVolume(id=uuid4())
-    metakat_io = MetakatIO(batch_id=batch_id, elements=[anchored, from_input, *pages])
-
-    binder.bind(metakat_io, anchors)
-
-    assert {p.parent_id for p in pages} == {anchored.id}
-    assert from_input.parent_id is None
-    assert str(from_input.id) in caplog.text
-
-
-def test_a_batch_without_any_volume_becomes_one_untitled_monograph():
-    # This binder is the only place pages get a unit. When nothing was
-    # detected to attach them to, the whole batch is one untitled monograph,
-    # so every later stage can rely on every page having a unit.
-    binder = _binder()
-    batch_id = uuid4()
-    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(3)]
-    metakat_io = MetakatIO(batch_id=batch_id, elements=list(pages))
-
-    binder.bind(metakat_io, {})
-
-    volumes = [e for e in metakat_io.elements if e.type == DocumentType.VOLUME.value]
-    assert len(volumes) == 1
-    assert volumes[0].hierarchy == HierarchyType.MONOGRAPH
-    assert volumes[0].title is None
-    assert {p.parent_id for p in pages} == {volumes[0].id}
-    assert [p.pageIndex for p in pages] == [1, 2, 3]
-    # Nothing was read for it, so no page represents it.
-    assert not any(p.representative for p in pages)
-
-
-def test_no_untitled_monograph_is_added_when_every_page_has_a_unit():
-    anchors = {}
-    binder = _binder()
-    batch_id = uuid4()
-    pages = [MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=i) for i in range(3)]
-    volume = _anchor(anchors, pages[0].id, MetakatVolume(id=uuid4()))
-    metakat_io = MetakatIO(batch_id=batch_id, elements=[volume, *pages])
-
-    binder.bind(metakat_io, anchors)
-
-    volumes = [e for e in metakat_io.elements if e.type == DocumentType.VOLUME.value]
-    assert [v.id for v in volumes] == [volume.id]
 
 
 def test_merging_one_volumes_pages_unites_its_statements_but_keeps_its_series_apart(metakat_page):
@@ -1324,3 +1124,215 @@ def test_a_value_without_a_box_keeps_its_page(metakat_page):
     # Only the located value has a box; both know the page they were read on.
     assert set(detection_to_bbox) == {title.id}
     assert detection_to_page[title.id] == detection_to_page[sub_title.id] == metakat_page.id
+
+
+def _scan(starts, types=None, count=8):
+    """Pages 0..count-1 with the page-type stage's document starts."""
+    batch = uuid4()
+    return [MetakatPage(id=uuid4(), batch_id=batch, batch_index=i,
+                        pageType=((types or {}).get(i, PageType.NORMAL_PAGE), .99),
+                        startsDocument=None if i == 0 else (i in starts, .9))
+            for i in range(count)]
+
+
+def _bound(pages, candidates, anchors):
+    """bind() and what process() does after it: page indices and representative pages."""
+    binder = _binder()
+    elements = binder.bind(bottom_documents(pages), candidates, anchors)
+    io = MetakatIO(batch_id=pages[0].batch_id, elements=[*elements, *pages])
+    groups = lowest_document_groups(io)
+    assign_page_indices(io, groups=groups)
+    binder._mark_representative_pages(groups, anchors)
+    return io
+
+
+def _of(io, kind):
+    return [e for e in io.elements if isinstance(e, kind)]
+
+
+def _periodical(anchors, page, number, issue=True):
+    """The volume reading, and the issue reading, of a periodical title page."""
+    volume = _anchor(anchors, page.id, MetakatVolume(
+        id=uuid4(), hierarchy=HierarchyType.PERIODICAL, title=[_v('Zlatá Praha', .9)],
+        partNumber=[_v(number, .9)] if number else None))
+    if not issue:
+        return [volume]
+    return [volume, _anchor(anchors, page.id, MetakatIssue(id=uuid4(), title=[_v('Zlatá Praha', .9)],
+                                                           partNumber=[_v(f'č. {page.batch_index}', .8)]))]
+
+
+def test_the_documents_decide_the_leaves_whatever_the_titles_and_covers_say():
+    pages = _scan({3}, {4: PageType.FRONT_COVER})
+    anchors = {}
+    first = _anchor(anchors, pages[1].id, MetakatVolume(id=uuid4(), title=[_v('First', .9)]))
+    second = _anchor(anchors, pages[6].id, MetakatVolume(id=uuid4(), title=[_v('Second', .9)]))
+    io = _bound(pages, [first, second], anchors)
+    volumes = _of(io, MetakatVolume)
+    assert [v.title[0].text for v in volumes] == ['First', 'Second']
+    assert [p.parent_id for p in pages] == [volumes[0].id] * 3 + [volumes[1].id] * 5
+    assert [p.pageIndex for p in pages] == [1, 2, 3, 1, 2, 3, 4, 5]
+    assert [p.batch_index for p in pages if p.representative] == [1, 6]
+
+
+def test_the_title_readings_of_one_document_merge_into_one_record():
+    pages = _scan(set())
+    anchors = {}
+    half = _anchor(anchors, pages[1].id, MetakatVolume(id=uuid4(), title=[_v('Half title', .7)]))
+    full = _anchor(anchors, pages[3].id, MetakatVolume(id=uuid4(), title=[_v('Full title', .95)],
+                                                     subTitle=[_v('Subtitle', .9)]))
+    io = _bound(pages, [half, full], anchors)
+    [volume] = _of(io, MetakatVolume)
+    assert volume.title[0].text == 'Full title'
+    assert volume.subTitle[0].text == 'Subtitle'
+    assert volume.hierarchy == HierarchyType.MONOGRAPH
+    assert {p.parent_id for p in pages} == {volume.id}
+    assert [p.batch_index for p in pages if p.representative] == [3]
+
+
+def test_documents_without_readings_get_unnamed_units():
+    pages = _scan({4})
+    io = _bound(pages, [], {})
+    volumes = _of(io, MetakatVolume)
+    assert len(volumes) == 2
+    assert all(v.title is None and v.hierarchy == HierarchyType.MONOGRAPH for v in volumes)
+    assert [p.parent_id for p in pages] == [volumes[0].id] * 4 + [volumes[1].id] * 4
+    assert not any(p.representative for p in pages)
+
+
+@pytest.mark.parametrize('missing', [[5], range(1, 8)])
+def test_a_scan_without_every_document_start_is_one_document(missing):
+    pages = _scan({4})
+    for index in missing:
+        pages[index].startsDocument = None
+    io = _bound(pages, [], {})
+    [volume] = _of(io, MetakatVolume)
+    assert {p.parent_id for p in pages} == {volume.id}
+
+
+def test_an_issue_without_readings_is_an_issue_of_the_periodical_around_it():
+    pages = _scan({3, 6})
+    anchors = {}
+    io = _bound(pages, _periodical(anchors, pages[1], 'Ročník IV') + _periodical(anchors, pages[7], 'Ročník IV'),
+                anchors)
+    [volume] = _of(io, MetakatVolume)
+    issues = _of(io, MetakatIssue)
+    assert len(issues) == 3
+    assert issues[1].title is None
+    assert {issue.parent_id for issue in issues} == {volume.id}
+    assert [p.parent_id for p in pages] == [issues[0].id] * 3 + [issues[1].id] * 3 + [issues[2].id] * 2
+    assert [p.pageIndex for p in pages] == [1, 2, 3, 1, 2, 3, 1, 2]
+    assert [p.batch_index for p in pages if p.representative] == [1, 7]
+
+
+def test_an_issue_belongs_to_the_volume_its_title_page_names_else_to_the_one_before():
+    pages = _scan({2, 4, 6})
+    anchors = {}
+    readings = (_periodical(anchors, pages[0], 'Ročník I') + _periodical(anchors, pages[4], 'Ročník II'))
+    io = _bound(pages, readings, anchors)
+    volumes = _of(io, MetakatVolume)
+    assert [v.partNumber[0].text for v in volumes] == ['Ročník I', 'Ročník II']
+    issues = _of(io, MetakatIssue)
+    assert [i.parent_id for i in issues] == [volumes[0].id, volumes[0].id, volumes[1].id, volumes[1].id]
+    title = _of(io, MetakatTitle)[0]
+    assert {v.parent_id for v in volumes} == {title.id}
+
+
+def test_an_issue_before_any_named_volume_belongs_to_the_next_one():
+    pages = _scan({4})
+    anchors = {}
+    io = _bound(pages, _periodical(anchors, pages[5], 'Ročník II'), anchors)
+    [volume] = _of(io, MetakatVolume)
+    assert [i.parent_id for i in _of(io, MetakatIssue)] == [volume.id] * 2
+
+
+def test_issues_without_a_volume_number_or_year_share_one_unnamed_volume():
+    pages = _scan({4})
+    anchors = {}
+    readings = _periodical(anchors, pages[1], None) + _periodical(anchors, pages[5], None)
+    io = _bound(pages, readings, anchors)
+    [volume] = _of(io, MetakatVolume)
+    assert volume.title is None and volume.hierarchy == HierarchyType.PERIODICAL
+    assert [i.parent_id for i in _of(io, MetakatIssue)] == [volume.id] * 2
+
+
+def test_a_monograph_next_to_a_periodical_stays_outside_its_title():
+    pages = _scan({4})
+    anchors = {}
+    book = _anchor(anchors, pages[5].id, MetakatVolume(id=uuid4(), title=[_v('Kytice', .9)]))
+    io = _bound(pages, _periodical(anchors, pages[1], 'Ročník I') + [book], anchors)
+    [title] = _of(io, MetakatTitle)
+    periodical, monograph = _of(io, MetakatVolume)
+    assert title.hierarchy == HierarchyType.PERIODICAL
+    assert periodical.parent_id == title.id
+    assert monograph.hierarchy == HierarchyType.MONOGRAPH and monograph.parent_id is None
+    assert {p.parent_id for p in pages[4:]} == {monograph.id}
+
+
+def test_the_parts_of_a_multipart_monograph_go_under_one_title():
+    pages = _scan({4})
+    anchors = {}
+    parts = [_anchor(anchors, pages[i].id, MetakatVolume(
+        id=uuid4(), hierarchy=HierarchyType.MULTIPART, title=[_v('Dějiny', .9)], partNumber=[_v(n, .9)]))
+        for i, n in ((1, 'Díl 1'), (5, 'Díl 2'))]
+    io = _bound(pages, parts, anchors)
+    [title] = _of(io, MetakatTitle)
+    volumes = _of(io, MetakatVolume)
+    assert [v.partNumber[0].text for v in volumes] == ['Díl 1', 'Díl 2']
+    assert {v.parent_id for v in volumes} == {title.id}
+    assert io.elements[0] is title
+
+
+def _process(pages, page_results, proarc_io=None):
+    from types import SimpleNamespace
+    seen = []
+
+    def process(images, alto):
+        seen.extend(images)
+        return BiblioCoreResult(pages={key: page_results[key] for key in page_results})
+
+    binder = _binder()
+    binder.core_engine = SimpleNamespace(process=process)
+    io = MetakatIO(batch_id=pages[0].batch_id, elements=pages,
+                   page_to_image_mapping={page.id: f'p{page.batch_index}.jpg' for page in pages})
+    return binder.process('/synthetic', io, proarc_io), seen
+
+
+def test_process_reads_the_title_pages_and_merges_readings_inside_documents():
+    pages = _scan({4}, {1: PageType.TITLE_PAGE, 2: PageType.TITLE_PAGE})
+    output, seen = _process(pages, {
+        'p1': BiblioPageResult(page_key='p1', reading=BiblioReading(
+            title_infos=(BiblioTitleInfo(title=_ev('Half title', .6)),))),
+        'p2': BiblioPageResult(page_key='p2', reading=BiblioReading(
+            title_infos=(BiblioTitleInfo(title=_ev('Full title', .95)),))),
+    })
+    assert seen == ['/synthetic/p1.jpg', '/synthetic/p2.jpg']
+    volumes = [e for e in output.elements if isinstance(e, MetakatVolume)]
+    assert len(volumes) == 2
+    assert volumes[0].title[0].text == 'Full title'
+    assert volumes[1].title is None
+    assert set(output.detection_to_bbox) == {volumes[0].title[0].id}
+    assert set(output.detection_to_page_mapping) == {volumes[0].title[0].id}
+    assert not any(p.parent_id for p in pages)  # caller's object is untouched
+
+
+def test_process_without_title_pages_keeps_the_documents_and_reads_nothing():
+    from unittest.mock import Mock
+    binder = _binder()
+    binder.core_engine = Mock()
+    pages = _scan({4})
+    output = binder.process('/synthetic', MetakatIO(batch_id=pages[0].batch_id, elements=pages))
+    binder.core_engine.process.assert_not_called()
+    assert len([e for e in output.elements if isinstance(e, MetakatVolume)]) == 2
+
+
+@pytest.mark.parametrize('starts, volumes', [(set(), 1), ({4}, 2)])
+def test_a_single_proarc_volume_is_the_scan_only_when_the_scan_is_one_document(starts, volumes):
+    pages = _scan(starts, {1: PageType.TITLE_PAGE})
+    record = _proarc_volume(title=['Kytice'])
+    output, _ = _process(pages, {'p1': BiblioPageResult(page_key='p1', reading=BiblioReading(
+        title_infos=(BiblioTitleInfo(title=_ev('Kytice', .9)),)))},
+        ProarcIO(type=PackageType.monograph, objects=[record]))
+    found = [e for e in output.elements if isinstance(e, MetakatVolume)]
+    assert len(found) == volumes
+    assert {p.parent_id for p in output.elements if isinstance(p, MetakatPage)} == {v.id for v in found}
+    assert (found[0].id == record.id) == (volumes == 1)

@@ -56,6 +56,31 @@ def iter_ancestors(
         current_id = getattr(current, "parent_id", None)
 
 
+def bottom_documents(
+    pages: list[MetakatPage],
+    *,
+    log: logging.Logger = logger,
+) -> list[list[MetakatPage]]:
+    """The bottom-level documents of a scan, as the page-type stage decided them.
+
+    A document starts at the first page and at every later page whose
+    `startsDocument` is true. The decision is read, never made: without a
+    `startsDocument` on every page after the first, the scan is one document.
+    """
+    pages = sorted(pages, key=lambda page: page.batch_index)
+    starts = all(page.startsDocument is not None for page in pages[1:])
+    if not starts and any(page.startsDocument is not None for page in pages[1:]):
+        log.warning(
+            "Document starts are missing on some pages; the scan is read as one document",
+        )
+    documents: list[list[MetakatPage]] = []
+    for index, page in enumerate(pages):
+        if index == 0 or (starts and page.startsDocument.val):
+            documents.append([])
+        documents[-1].append(page)
+    return documents
+
+
 def lowest_document_groups(
     metakat_io: MetakatIO,
     *,

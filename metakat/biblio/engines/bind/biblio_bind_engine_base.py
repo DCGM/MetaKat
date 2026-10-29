@@ -22,7 +22,7 @@ from metakat.biblio.engines.core.models import (
     BiblioReading,
     container_values,
 )
-from metakat.common.aux.document_groups import assign_page_indices, lowest_document_groups
+from metakat.common.aux.document_groups import assign_page_indices, bottom_documents, lowest_document_groups
 
 from metakat.schemas.base_objects import MetakatIO, ProarcIO, ObjectItem, ObjectModel, DocumentType, MetakatPage, \
     PageType, MetakatVolume, MetakatIssue, MetakatElement, MetakatTitle, HierarchyType, Value, \
@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 
 # Anchor page of each volume/issue candidate, keyed by element id: the page
 # its detections were read from, later moved to the earliest page of a
-# periodical volume bag. bind_infants switches ownership of the page walk on
-# these, and they order candidates generally. Binder-internal - the output
+# periodical volume bag. They place each reading in its document and order
+# candidates generally; they never decide a boundary. Binder-internal - the output
 # schema carries no anchor; the anchor page of each issue, and of each volume
 # without issues, is marked MetakatPage.representative.
 Anchors = Dict[UUID, UUID]
@@ -292,26 +292,30 @@ class BiblioBindEngineBase(BiblioBindEngine):
         metakat_io = copy.deepcopy(metakat_io)
         pages = [el for el in metakat_io.elements if el.type == DocumentType.PAGE.value]
         pages = sorted(pages, key=lambda x: x.batch_index)
-        logger.info(f"Getting title pages from {len(pages)} pages")
-        title_pages = self.filter_title_pages(pages, 1)
+        # The bottom-level documents are the page-type stage's decision; this
+        # binder never moves, adds or removes a boundary. Each document becomes
+        # exactly one leaf unit, and its title pages are what is read.
+        documents = bottom_documents(pages, log=logger)
+        logger.info(f"Getting title pages from {len(pages)} pages in {len(documents)} document(s)")
+        title_pages = [page for document in documents for page in self.filter_title_pages(document, 1)]
         logger.info(f"Found {len(title_pages)} title pages")
 
         images = [os.path.join(batch_dir, metakat_io.page_to_image_mapping[page.id]) for page in title_pages if
-                  page.id in metakat_io.page_to_image_mapping]
+                  page.id in (metakat_io.page_to_image_mapping or {})]
         alto_files = [os.path.join(batch_dir, metakat_io.page_to_alto_mapping[page.id]) for page in title_pages if
-                      page.id in metakat_io.page_to_alto_mapping]
+                      page.id in (metakat_io.page_to_alto_mapping or {})]
         images = natsorted(images)
         alto_files = natsorted(alto_files)
 
         logger.info(f"Processing {len(images)} images with biblio core engine")
-        core_result = self.core_engine.process(images, alto_files)
+        core_result = self.core_engine.process(images, alto_files) if images else BiblioCoreResult(pages={})
         logger.info(f"Biblio core engine read bibliographic information on {len(core_result.pages)} page(s)")
 
         metakat_page_id_to_metakat_page = {page.id: page for page in metakat_io.elements if
                                            page.type == DocumentType.PAGE.value}
         page_key_to_metakat_page = {
             Path(image_filename).stem: metakat_page_id_to_metakat_page[page_id]
-            for page_id, image_filename in metakat_io.page_to_image_mapping.items()
+            for page_id, image_filename in (metakat_io.page_to_image_mapping or {}).items()
         }
 
         logger.info(f"Creating MetaKatVolume and MetaKatIssue elements from detections")
@@ -320,37 +324,40 @@ class BiblioBindEngineBase(BiblioBindEngine):
         logger.info(f"Created {len(metakat_elements)} MetaKatVolume and MetaKatIssue elements from detections")
 
         proarc_volume = self._single_proarc_volume(proarc_io)
-        if proarc_volume is not None:
-            # Proarc says the whole batch is exactly one catalogued volume
-            # object and no title object - there is nothing left for the
-            # vision-only pipeline to resolve, so finalize_periodical_volumes
-            # (settles PERIODICAL volume duplicates) and get_title (builds a
-            # title from a PERIODICAL/MULTIPART volume) are skipped outright
-            # rather than run as a no-op.
+        if proarc_volume is not None and len(documents) == 1:
+            # Proarc says the scan is exactly one catalogued volume object and
+            # no title object, and the page types found one document - there
+            # is no hierarchy left to resolve, so the periodical volumes and
+            # get_title are skipped outright rather than run as a no-op.
+            # With several documents the record cannot describe them all, and
+            # the vision-only route below runs instead.
             logger.info("Proarc reports a single volume-model object; resolving to exactly one MetakatVolume")
             metakat_elements = self.resolve_single_proarc_volume(
                 metakat_elements, proarc_volume, title_pages, pages, anchors)
+            for page in pages:
+                page.parent_id = metakat_elements[0].id
         else:
-            logger.info(f"Creating MetaKatTitle element, and filtering MetaKatVolume elements")
-            page_id_to_batch_index = {p.id: p.batch_index for p in metakat_io.elements if p.type == DocumentType.PAGE.value}
-            metakat_elements = self.finalize_periodical_volumes(metakat_elements, page_id_to_batch_index, anchors)
-            title_element = self.get_title(metakat_elements)
-            if title_element is not None:
-                metakat_elements = [title_element] + metakat_elements
+            logger.info("Building one leaf unit per document and the hierarchy above them")
+            metakat_elements = self.bind(documents, metakat_elements, anchors)
 
         for element in metakat_elements:
             self._finalize_groups(element)
 
         logger.info(f"Adding {len(metakat_elements)} MetaKat elements to MetaKatIO")
         metakat_io.elements = metakat_elements + metakat_io.elements
+        # Pages now belong to their issues and volumes, which is what gives
+        # them a position within one, and a unit a page that represents it.
+        groups = lowest_document_groups(metakat_io, log=logger)
+        assign_page_indices(metakat_io, groups=groups, log=logger)
+        self._mark_representative_pages(groups, anchors)
 
         # get_volume_issue_from_page records every matched, labeled detection's
-        # geometry unconditionally, but finalize_periodical_volumes/get_title can
+        # geometry unconditionally, but merging the readings of a document can
         # drop the MetakatVolume/MetakatIssue a detection was gathered for (e.g. a
         # title page with no TITLE-labeled detection never becomes a kept element).
         # Only detections still referenced as evidence by a kept element should be
         # exposed, so unused candidate detections don't leak into the MetaKatIO.
-        referenced_detection_ids = self._referenced_detection_ids(metakat_elements)
+        referenced_detection_ids = self._referenced_detection_ids(metakat_io.elements)
         dropped_detection_ids = detection_id_to_page_id.keys() - referenced_detection_ids
         if dropped_detection_ids:
             logger.info(
@@ -387,8 +394,6 @@ class BiblioBindEngineBase(BiblioBindEngine):
                 **(metakat_io.detection_to_alto or {}),
                 **detection_id_to_alto,
             }
-        logger.info(f"Binding MetaKat elements")
-        self.bind(metakat_io, anchors)
         return metakat_io
 
     @staticmethod
@@ -419,192 +424,160 @@ class BiblioBindEngineBase(BiblioBindEngine):
                             referenced.add(item.id)
         return referenced
 
-    def bind(self, metakat_io: MetakatIO, anchors: Anchors):
-        infant_pages = []
-        infant_issues = []
-        infant_volumes = []
-        title = None
-        for element in metakat_io.elements:
-            if element.type == DocumentType.PAGE.value and element.parent_id is None:
-                infant_pages.append(element)
-            elif element.type == DocumentType.ISSUE.value and element.parent_id is None:
-                infant_issues.append(element)
-            elif element.type == DocumentType.VOLUME.value and element.parent_id is None:
-                infant_volumes.append(element)
-            if element.type == DocumentType.TITLE.value:
-                title = element
+    def bind(
+        self,
+        documents: List[List[MetakatPage]],
+        candidates: List[MetakatElement],
+        anchors: Anchors,
+    ) -> List[MetakatElement]:
+        """One leaf unit per document, and the hierarchy above the leaves.
 
-        # We assume only one title in batch
-        if title is not None and infant_volumes:
-            for volume in infant_volumes:
-                volume.parent_id = title.id
+        The documents are the page-type stage's, and every page of a document
+        goes to its leaf, whatever was or was not read on it. What is decided
+        here is only what each leaf is - a periodical issue, a part of a
+        multipart monograph or a monograph - which readings describe it, and
+        how the leaves bind into periodical volumes and a title.
 
-        pages = [p for p in metakat_io.elements if p.type == DocumentType.PAGE.value]
+        Returns the bibliographic elements: the title first, then the
+        periodical volumes, then the leaves in document order.
+        """
+        document_of_page = {page.id: index for index, document in enumerate(documents) for page in document}
+        readings: List[List[Union[MetakatVolume, MetakatIssue]]] = [[] for _ in documents]
+        for candidate in candidates:
+            readings[document_of_page[anchors[candidate.id]]].append(candidate)
+        genres = self._inherit_genres([self._document_genre(document_readings) for document_readings in readings])
 
-        # Only candidates this binder built have an anchor. A volume or issue
-        # that arrived in the input MetakatIO does not, and its position is
-        # not guessed - it is left out of the page walk.
-        infant_issues = self._anchored(infant_issues, anchors)
-        infant_volumes = self._anchored(infant_volumes, anchors)
+        leaves: List[Union[MetakatVolume, MetakatIssue]] = []
+        for document, document_readings, genre in zip(documents, readings, genres):
+            if genre == HierarchyType.PERIODICAL:
+                issues = [r for r in document_readings if isinstance(r, MetakatIssue)]
+                leaf = self._merge_unit_readings(issues) if issues else MetakatIssue(id=uuid4())
+            else:
+                volumes = [r for r in document_readings if isinstance(r, MetakatVolume)]
+                leaf = self._merge_unit_readings(volumes) if volumes else MetakatVolume(id=uuid4())
+                leaf.hierarchy = genre
+            for page in document:
+                page.parent_id = leaf.id
+            leaves.append(leaf)
 
-        if infant_issues:
-            self.bind_infants(pages, infants=infant_pages, parents=infant_issues,
-                              apply_cover_nudge=True, anchors=anchors)
-            self.bind_infants(pages, infants=infant_issues, parents=infant_volumes,
-                              apply_cover_nudge=False, anchors=anchors)
-        elif infant_pages:
-            self.bind_infants(pages, infants=infant_pages, parents=infant_volumes,
-                              apply_cover_nudge=True, anchors=anchors)
+        periodical_volumes = self._bind_issues(documents, readings, genres, leaves, anchors)
+        multipart_volumes = [leaf for leaf, genre in zip(leaves, genres) if genre == HierarchyType.MULTIPART]
+        elements: List[MetakatElement] = [*periodical_volumes, *leaves]
+        title = self.get_title(periodical_volumes + multipart_volumes)
+        if title is not None:
+            # One title per scan: it heads the volumes of its own kind, never
+            # a monograph or a volume of the other kind.
+            for volume in periodical_volumes + multipart_volumes:
+                if volume.hierarchy == title.hierarchy:
+                    volume.parent_id = title.id
+            elements.insert(0, title)
+        return elements
 
-        self._attach_unattached_pages(metakat_io)
+    def _bind_issues(
+        self,
+        documents: List[List[MetakatPage]],
+        readings: List[List[Union[MetakatVolume, MetakatIssue]]],
+        genres: List[HierarchyType],
+        leaves: List[Union[MetakatVolume, MetakatIssue]],
+        anchors: Anchors,
+    ) -> List[MetakatVolume]:
+        """The periodical volumes, with every issue leaf attached to one.
 
-        # Pages now belong to their issues and volumes, which is what gives
-        # them a position within one, and a unit a page that represents it.
-        groups = lowest_document_groups(metakat_io, log=logger)
-        assign_page_indices(metakat_io, groups=groups, log=logger)
-        self._mark_representative_pages(groups, anchors)
+        The periodical volume readings are consolidated into one volume per
+        volume number or year (PeriodicalMetakatVolumeBag). An issue belongs to
+        the volume its own title pages name; an issue whose pages name none,
+        to the volume of the nearest earlier issue, else of the nearest later
+        one. Issues without any readable volume share one unnamed volume.
+        """
+        issue_documents = [index for index, genre in enumerate(genres) if genre == HierarchyType.PERIODICAL]
+        if not issue_documents:
+            return []
+        page_id_to_batch_index = {page.id: page.batch_index for document in documents for page in document}
+        periodical_readings = [r for index in issue_documents for r in readings[index]
+                               if isinstance(r, MetakatVolume)]
+        volumes, volume_of_reading = [], {}
+        for bag in self._periodical_volume_bags(periodical_readings, page_id_to_batch_index, anchors):
+            # The copy keeps the root's id, so this re-anchors that id on the
+            # bag's earliest page.
+            volume = copy.deepcopy(bag.root_volume)
+            anchors[volume.id] = bag.root_page_id
+            volumes.append(volume)
+            for member in (bag.root_volume, *bag.volumes):
+                volume_of_reading[member.id] = volume
+        if not volumes:
+            volumes = [MetakatVolume(id=uuid4(), hierarchy=HierarchyType.PERIODICAL)]
+        named = [next((volume_of_reading[r.id] for r in readings[index] if r.id in volume_of_reading), None)
+                 for index in issue_documents]
+        for position, index in enumerate(issue_documents):
+            volume = (named[position]
+                      or next((v for v in reversed(named[:position]) if v is not None), None)
+                      or next((v for v in named[position + 1:] if v is not None), volumes[0]))
+            leaves[index].parent_id = volume.id
+        return volumes
+
+    @staticmethod
+    def _document_genre(readings: List[Union[MetakatVolume, MetakatIssue]]) -> Optional[HierarchyType]:
+        # What a document is, from what its title pages say: a periodical
+        # issue once any of them reads as a periodical, a part of a multipart
+        # monograph once any has a part number or name, a monograph otherwise.
+        # None when nothing was read in it.
+        if any(isinstance(r, MetakatIssue) or r.hierarchy == HierarchyType.PERIODICAL for r in readings):
+            return HierarchyType.PERIODICAL
+        if any(r.hierarchy == HierarchyType.MULTIPART for r in readings):
+            return HierarchyType.MULTIPART
+        return HierarchyType.MONOGRAPH if readings else None
+
+    @staticmethod
+    def _inherit_genres(genres: List[Optional[HierarchyType]]) -> List[HierarchyType]:
+        # A document nothing was read in - an issue without a title page, a
+        # book whose title page was not found - is of the kind of the nearest
+        # earlier document that has one, else of the nearest later one. A
+        # scan where nothing was read is monographs.
+        result = []
+        for index, genre in enumerate(genres):
+            if genre is None:
+                genre = (next((g for g in reversed(genres[:index]) if g is not None), None)
+                         or next((g for g in genres[index + 1:] if g is not None), HierarchyType.MONOGRAPH))
+            result.append(genre)
+        return result
+
+    @staticmethod
+    def _merge_unit_readings(records):
+        """Several title/half-title readings of one document, as one record.
+
+        The record keeps the id of the reading with the most confident title,
+        so that reading's page represents it. A single-valued field keeps its
+        most confident reading, a list keeps every reading."""
+        best = max(records, key=lambda r: max((v.confidence for v in r.title or []), default=0.))
+        merged = copy.deepcopy(best)
+        single = set(_PROARC_VOLUME_SINGLE_FIELDS) | {'partNumber', 'partName', 'manufactureDate',
+                                                    'copyrightDate', 'extent'}
+        for name in type(merged).model_fields:
+            lists = [getattr(r, name) for r in records]
+            values = [v for values in lists if isinstance(values, list)
+                      for v in values if isinstance(v, Value)]
+            if not values:
+                continue
+            if name in single:
+                values = [max(values, key=lambda v: v.confidence)]
+            else:
+                values = list({v.id: v for v in values}.values())
+            setattr(merged, name, values)
+        merged.groups = _union_groups([r.groups or [] for r in records]) or None
+        BiblioBindEngineBase._finalize_groups(merged)
+        return merged
 
     @staticmethod
     def _mark_representative_pages(groups, anchors: Anchors) -> None:
         # A unit is represented by the page its title was read from, its
         # anchor. Only bottom-level units hold pages, so a volume with issues
-        # marks none, and the untitled monograph, which has no anchor, neither.
+        # marks none, and an unnamed unit, which has no anchor, neither.
         for group in groups:
             anchor = anchors.get(group.container.id)
             if group.synthetic or anchor is None:
                 continue
             for page in group.pages:
                 page.representative = page.id == anchor
-
-    @staticmethod
-    def _attach_unattached_pages(metakat_io: MetakatIO) -> None:
-        # The walk attaches every page once any issue or volume exists, so a
-        # page is left over only when the batch produced none at all. Such a
-        # batch is read as one untitled monograph. This is the only place a
-        # page gets a unit without one being detected; later stages rely on
-        # every page having one.
-        unattached = [
-            element for element in metakat_io.elements
-            if element.type == DocumentType.PAGE.value and element.parent_id is None
-        ]
-        if not unattached:
-            return
-        volume = MetakatVolume(id=uuid4(), hierarchy=HierarchyType.MONOGRAPH)
-        metakat_io.elements.append(volume)
-        for page in unattached:
-            page.parent_id = volume.id
-        logger.warning(
-            "No issue or volume was found for %d page(s); attached them to "
-            "untitled monograph %s",
-            len(unattached),
-            volume.id,
-        )
-
-    @staticmethod
-    def _anchored(
-        elements: List[Union[MetakatVolume, MetakatIssue]],
-        anchors: Anchors,
-    ) -> List[Union[MetakatVolume, MetakatIssue]]:
-        anchored = []
-        for element in elements:
-            if element.id in anchors:
-                anchored.append(element)
-            else:
-                logger.warning(
-                    "%s %s has no anchor page - it was not built by this binder - "
-                    "so it is left out of page binding",
-                    element.type,
-                    element.id,
-                )
-        return anchored
-
-    @staticmethod
-    def _infant_batch_index(
-        infant: Union[MetakatPage, MetakatIssue],
-        page_id_to_batch_index: dict,
-        anchors: Anchors,
-    ) -> int:
-        if infant.type == DocumentType.PAGE.value:
-            return infant.batch_index
-        return page_id_to_batch_index[anchors[infant.id]]
-
-    # Walks the full, ordered page list once, tracking which parent (volume or
-    # issue) currently "owns" the pages being walked, switching to the next
-    # parent exactly when its anchor page is reached. Whenever the walked page
-    # is itself the anchor of one of the infants, that infant is attached to
-    # the current parent. Used both for pages -> issue/volume and for
-    # issue -> volume binding: an infant that is a page resolves its own
-    # position directly (batch_index), any other infant (e.g. an issue)
-    # resolves it via its anchor page. apply_cover_nudge is a page-only
-    # heuristic and must stay off when infants aren't pages.
-    #
-    # A parent is anchored on its title page, but a scan of one volume/issue
-    # runs front cover -> ... -> title page -> ... -> back cover, so the pages
-    # around a boundary lie outside the anchor range of the parent they belong
-    # to. The nudge moves the boundary onto the covers themselves, and the two
-    # cover types are opposites: a front cover opens the next parent, so it has
-    # to switch before the page is attached, while a back cover closes the
-    # current one and switches only after.
-    def bind_infants(self,
-                     pages: List[MetakatPage],
-                     infants: List[Union[MetakatPage, MetakatIssue]],
-                     parents: List[Union[MetakatVolume, MetakatIssue]],
-                     apply_cover_nudge: bool,
-                     anchors: Anchors):
-        if not pages or not parents or not infants:
-            return
-
-        page_id_to_batch_index = {p.id: p.batch_index for p in pages}
-        batch_index_to_infants = {
-            self._infant_batch_index(infant, page_id_to_batch_index, anchors): infant
-            for infant in infants
-        }
-        parents_to_batch_index = {parent.id: page_id_to_batch_index[anchors[parent.id]] for parent in parents}
-
-        sorted_parents = sorted(parents, key=lambda x: parents_to_batch_index[x.id])
-        current_parent_index = 0
-        for page in pages:
-            next_parent_index = current_parent_index + 1
-            if next_parent_index < len(sorted_parents) and parents_to_batch_index[sorted_parents[next_parent_index].id] == page.batch_index:
-                current_parent_index = next_parent_index
-
-            if apply_cover_nudge and self._has_page_type(page, PageType.FRONT_COVER):
-                current_parent_index = self._nudge_over_cover(
-                    page, sorted_parents, parents_to_batch_index, current_parent_index)
-
-            current_infant = batch_index_to_infants.get(page.batch_index, None)
-            if current_infant is not None:
-                current_infant.parent_id = sorted_parents[current_parent_index].id
-
-            if apply_cover_nudge and self._has_page_type(page, PageType.BACK_COVER):
-                current_parent_index = self._nudge_over_cover(
-                    page, sorted_parents, parents_to_batch_index, current_parent_index)
-
-    @staticmethod
-    def _has_page_type(page: MetakatPage, *page_types: PageType) -> bool:
-        # MetakatPage.pageType is a typed value object, so comparing the
-        # attribute itself against PageType members never holds - the type has
-        # to be read from its text field. MetakatBaseModel sets use_enum_values,
-        # which stores the type as PageType's plain string value; PageType
-        # subclasses str, so it still compares equal to its own member.
-        return page.pageType is not None and page.pageType.text in page_types
-
-    @staticmethod
-    def _nudge_over_cover(
-        page: MetakatPage,
-        sorted_parents: List[Union[MetakatVolume, MetakatIssue]],
-        parents_to_batch_index: dict,
-        current_parent_index: int,
-    ) -> int:
-        if current_parent_index >= len(sorted_parents) - 1:
-            return current_parent_index
-        # Only nudge once the current parent's own anchor page is behind us.
-        # After a nudge that anchor lies ahead, which is what stops a back
-        # cover immediately followed by the next front cover - the usual way a
-        # boundary is scanned - from nudging twice and skipping a parent.
-        if parents_to_batch_index[sorted_parents[current_parent_index].id] >= page.batch_index:
-            return current_parent_index
-        return current_parent_index + 1
 
     # Create the MetakatTitle element from the list of MetakatElements
     # Extract the title and subtitle from the MetakatVolume element that has the most confident title detection
@@ -637,8 +610,8 @@ class BiblioBindEngineBase(BiblioBindEngine):
         return proarc_object if proarc_object.model == ObjectModel.volume else None
 
     # A proarc record telling us the whole batch is a single catalogued
-    # volume is ground truth on volume *count*, so instead of letting
-    # finalize_periodical_volumes group detections into however many
+    # volume is ground truth on volume *count*, so instead of letting the
+    # periodical volume bags group detections into however many
     # volumes the vision heuristic guessed at, candidate volumes are first
     # split into groups of neighbouring title pages (a normal book usually
     # has one title-page detection, sometimes a couple of adjacent ones -
@@ -899,59 +872,22 @@ class BiblioBindEngineBase(BiblioBindEngine):
         merged.groups = _union_groups([volume.groups or [] for volume in volumes]) or None
         return merged
 
-    def finalize_periodical_volumes(
-        self,
-        metakat_elements: List[MetakatElement],
+    @staticmethod
+    def _periodical_volume_bags(
+        periodical_volumes: List[MetakatVolume],
         page_id_to_batch_index: dict,
         anchors: Anchors,
-    ) -> List[MetakatElement]:
-        periodical_volume_bags = []
-        periodical_volumes = [el for el in metakat_elements if el.type == DocumentType.VOLUME.value and el.hierarchy == HierarchyType.PERIODICAL]
-
-        # First add volumes that have both partNumber and dateIssued
-        for periodical_volume in periodical_volumes:
-            if periodical_volume.partNumber is not None and periodical_volume.dateIssued is not None:
-                added = False
-                for pb in periodical_volume_bags:
-                    if pb.add_volume(periodical_volume, page_id_to_batch_index):
-                        added = True
-                        break
-                if not added:
-                    periodical_volume_bags.append(PeriodicalMetakatVolumeBag(periodical_volume, anchors))
-
-        # Then add volumes that have either partNumber or dateIssued, but not both
-        for periodical_volume in periodical_volumes:
-            if ((periodical_volume.partNumber is not None and periodical_volume.dateIssued is None) or
-                (periodical_volume.partNumber is None and periodical_volume.dateIssued is not None)):
-                added = False
-                for pb in periodical_volume_bags:
-                    if pb.add_volume(periodical_volume, page_id_to_batch_index):
-                        added = True
-                        break
-                if not added:
-                    periodical_volume_bags.append(PeriodicalMetakatVolumeBag(periodical_volume, anchors))
-
-        volume_id_to_root_volume_id = {}
-        for pb in periodical_volume_bags:
-            root_volume = pb.root_volume
-            for volume in pb.volumes:
-                volume_id_to_root_volume_id[volume.id] = root_volume.id
-
-        volumes = []
-        for pb in periodical_volume_bags:
-            # The copy keeps the root's id, so this re-anchors that id on the
-            # bag's earliest page.
-            new_volume = copy.deepcopy(pb.root_volume)
-            anchors[new_volume.id] = pb.root_page_id
-            volumes.append(new_volume)
-        issues = [el for el in metakat_elements if el.type == DocumentType.ISSUE.value]
-
-        elements = volumes + issues
-        for el in metakat_elements:
-            if not (el.type == DocumentType.VOLUME.value and el.hierarchy == HierarchyType.PERIODICAL) and not el.type == DocumentType.ISSUE.value:
-                elements.append(el)
-
-        return elements
+    ) -> List[PeriodicalMetakatVolumeBag]:
+        # One bag per periodical volume: readings agreeing on the volume number
+        # or the year. Readings with both seed the bags, readings with one of
+        # them join or start one, readings with neither join none.
+        bags: List[PeriodicalMetakatVolumeBag] = []
+        complete = [v for v in periodical_volumes if v.partNumber is not None and v.dateIssued is not None]
+        partial = [v for v in periodical_volumes if (v.partNumber is None) != (v.dateIssued is None)]
+        for periodical_volume in complete + partial:
+            if not any(bag.add_volume(periodical_volume, page_id_to_batch_index) for bag in bags):
+                bags.append(PeriodicalMetakatVolumeBag(periodical_volume, anchors))
+        return bags
 
     def get_volume_issue_from_result(
         self,
@@ -1044,11 +980,9 @@ class BiblioBindEngineBase(BiblioBindEngine):
             elements.append(metakat_volume)
             if metakat_issue.title is not None and (metakat_issue.partNumber is not None or
                                                     metakat_issue.dateIssued is not None):
-                # parent_id is intentionally left unset: bind() only treats an
-                # issue as an infant to bind while its parent_id is None, and
-                # position (not this page's volume candidate, which may not
-                # survive finalize_periodical_volumes' dedup) is what should
-                # decide its final parent volume.
+                # parent_id is intentionally left unset: the issue's volume is
+                # the periodical volume bag this page's volume reading joins,
+                # which bind() decides once every page has been read.
                 elements.append(metakat_issue)
 
         return elements, detection_id_to_detection_bbox, detection_id_to_alto
@@ -1057,7 +991,7 @@ class BiblioBindEngineBase(BiblioBindEngine):
     def _hierarchy(page_result: BiblioPageResult) -> HierarchyType:
         # A printed volume number or date marks a periodical; a part number
         # or name alone, one part of a multipart monograph.
-        if page_result.periodical_volume is not None:
+        if page_result.periodical_volume is not None or page_result.periodical_issue is not None:
             return HierarchyType.PERIODICAL
         if any(title_info.part_number is not None or title_info.part_name is not None
                for title_info in page_result.reading.title_infos):
@@ -1116,9 +1050,9 @@ class PeriodicalMetakatVolumeBag:
 
         merged = self._merge_matching_volume(volume, page_id_to_batch_index)
         # The anchor is the earliest page of every volume the bag ever
-        # accepts, whether or not that volume goes on to win root - it's
-        # what bind_infants sorts volumes/issues by, so it must reflect the
-        # bag's full page range, not just whichever volume's fields are used.
+        # accepts, whether or not that volume goes on to win root, so it
+        # reflects the bag's full page range, not just whichever volume's
+        # fields are used.
         volume_page_id = self.anchors[volume.id]
         if merged and page_id_to_batch_index[volume_page_id] < page_id_to_batch_index[self.root_page_id]:
             self.root_page_id = volume_page_id

@@ -20,6 +20,7 @@
 - [Available bind implementation](#available-bind-implementation)
   - [Base](#engine-base-biblio_bind_engine_base)
   - [Binding flow](#binding-flow)
+  - [Documents](#documents)
   - [Title-page selection and core invocation](#title-page-selection-and-core-invocation)
   - [Candidate element construction](#candidate-element-construction)
   - [Proarc single-volume resolution](#proarc-single-volume-resolution)
@@ -40,6 +41,13 @@ title pages and builds the container part of the MetaKat document hierarchy:
 bibliographic fields and groups, plus the `parent_id` relations that attach
 every page to a container.
 
+Where one bottom-level document ends and the next begins is not decided here:
+it is the [page-type stage](../page_type/README.md)'s decision, carried by
+`MetakatPage.startsDocument`. This package makes each of those documents one
+leaf unit - an issue, a part of a multipart monograph or a monograph - and
+decides what each leaf is and how the leaves bind into periodical volumes and a
+title.
+
 Bibliographic processing has two boundaries:
 
 1. The **[core engine](#biblio-core-engine-contract)** reads what is printed
@@ -47,10 +55,11 @@ Bibliographic processing has two boundaries:
    read there - one reading per field where the field holds one - already
    grouped into MODS statements: a title, an imprint, a series, a name.
 2. The **[bind engine](#available-bind-implementation)** decides what those
-   readings describe: it selects the title pages, turns each page's readings
-   into candidate volumes and issues, reconciles them across pages and
-   against an optional ProArc catalog record, creates the title element,
-   parents every page, issue, and volume, and creates the detection UUIDs.
+   readings describe: it selects the title pages of every document, turns
+   each page's readings into candidate volumes and issues, merges the
+   readings of one document into its leaf, decides the leaf's kind, binds the
+   leaves into periodical volumes and a title, reconciles a lone volume with an
+   optional ProArc catalog record, and creates the detection UUIDs.
 
 The core owns detection, OCR alignment, label interpretation, the choice
 between several detections of one field on a page, and grouping. The binder
@@ -575,35 +584,48 @@ is fixed in the implementation.
 ```mermaid
 flowchart TD
     A[MetakatIO pages sorted by batch_index]
-    B[filter_title_pages: pages classified titlePage]
+    S[bottom_documents: the documents of startsDocument]
+    B[filter_title_pages: the pages classified titlePage, per document]
     C[Biblio core engine over the selected title pages]
     D[get_volume_issue_from_result: per title page one candidate MetakatVolume and optionally one MetakatIssue]
-    E{ProArc has exactly one object with model volume?}
-    F[resolve_single_proarc_volume: group, match, merge to exactly one MetakatVolume]
-    G[finalize_periodical_volumes: dedup periodical volume candidates]
-    H[get_title: MetakatTitle from the best periodical or multipart volume]
-    I[Finalize groups; drop detections not referenced by a kept element]
-    J[bind: attach volumes to the title, then parent infants positionally]
+    E{One document and one ProArc volume?}
+    F[resolve_single_proarc_volume: group, match, merge to exactly one MetakatVolume holding every page]
+    G[bind: one leaf per document, its kind, periodical volumes, title]
+    I[Finalize groups; page indices; representative pages]
+    J[Drop detections not referenced by a kept element]
     K[MetakatIO with title, volume, and issue elements plus geometry maps]
 
-    A --> B --> C --> D --> E
+    A --> S --> B --> C --> D --> E
     E -- yes --> F --> I
-    E -- no --> G --> H --> I
+    E -- no --> G --> I
     I --> J --> K
 ```
 
-The two branches are mutually exclusive by design. When ProArc reports a single
-catalogued volume object, it is treated as ground truth on volume *count* and
-on the absence of title-level structure, so `finalize_periodical_volumes` and
-`get_title` are skipped outright rather than run as a no-op. Every other input —
-periodicals, multipart works, plain monographs without a ProArc record, and any
-ProArc record with a different object count or model — takes the vision-only
-branch.
+The two branches are mutually exclusive by design. When the scan is one
+document and a single catalogued ProArc volume object is present, the record
+controls volume identity and the absence of title-level structure, so the
+periodical volumes and `get_title` are skipped outright rather than run as a
+no-op. Every other input — several documents, periodicals, multipart works,
+plain monographs without a ProArc record, and any ProArc record with a
+different object count or model — takes the vision-only branch.
+
+### Documents
+
+`bottom_documents` (`metakat/common/aux/document_groups.py`) cuts the pages,
+in `batch_index` order, into documents: one starts at the first page and at
+every later page whose `startsDocument` is true, annotated or predicted. The
+binder only reads that decision. It never adds, moves or removes a boundary,
+and no title page, cover, reading or catalog record changes which pages form a
+document. Without a `startsDocument` on every page after the first - the
+page-type stage did not run, or left some out - the scan is one document; a
+partial set is logged as a warning. The page-number stage reads the documents
+by the same rule.
 
 ### Title-page selection and core invocation
 
-`filter_title_pages(pages, min_distance)` receives all `MetakatPage` elements
-sorted by `batch_index` and returns the pages to process:
+`filter_title_pages(pages, min_distance)` receives the `MetakatPage` elements
+of one document, sorted by `batch_index`, and returns the pages to process; the
+title pages of every document are then read by the core in one call:
 
 1. candidates are the pages whose `pageType` is set and whose
    `pageType[0]` is `PageType.TITLE_PAGE`;
@@ -664,7 +686,7 @@ The `hierarchy` of the candidate volume follows from what its page says:
 
 | The page's result | `MetakatVolume.hierarchy` |
 |---|---|
-| has a `periodical_volume` reading | `periodical` |
+| has a `periodical_volume` or `periodical_issue` reading | `periodical` |
 | otherwise, a `title_info` of `reading` has a `part_number` or `part_name` | `multipart` |
 | otherwise | `monograph` |
 
@@ -677,9 +699,8 @@ Both elements are candidates; emission is conditional:
 
 A title page without a title therefore contributes nothing, and all of its
 evidence becomes unreferenced. `MetakatIssue.parent_id` is deliberately left
-unset at creation: an issue's parent is decided later by position in
-[hierarchy binding](#hierarchy-binding), not by the volume candidate from its
-own page, which may not survive consolidation.
+unset at creation: an issue's volume is decided in
+[hierarchy binding](#hierarchy-binding), once every page has been read.
 
 ### Proarc single-volume resolution
 
@@ -689,8 +710,10 @@ present, `objects` holds exactly one entry, and that entry's `model` is
 with the `title` or `unit` model — returns `None` and takes the vision-only
 branch.
 
-When the record is present, `resolve_single_proarc_volume` forces the batch to
-exactly one `MetakatVolume`:
+When the record is present and the scan is one document,
+`resolve_single_proarc_volume` produces one `MetakatVolume`, which holds every
+page. A scan of several documents bypasses this shortcut, so the catalog cannot
+erase a boundary:
 
 1. **Group by page adjacency.** Candidate volumes are sorted by their anchor
    page's `batch_index`; a gap larger than one page starts a new group. A normal
@@ -883,10 +906,10 @@ first page; otherwise none.
 
 ### Periodical volume consolidation
 
-On the vision-only branch, `finalize_periodical_volumes` collapses the
-`periodical` volume candidates that repeat across pages. It considers only
-volumes whose `hierarchy` is `periodical`; `monograph` and `multipart` volumes
-are passed through untouched.
+On the vision-only branch, `_periodical_volume_bags` collapses the
+`periodical` volume candidates of the issue documents that repeat across
+pages into one bag per periodical volume. It considers only volumes whose
+`hierarchy` is `periodical`.
 
 Candidates are offered to a list of bags in two passes:
 
@@ -921,12 +944,11 @@ applies, the richer or more confident evidence becomes the new root:
 
 After every accepted candidate, `root_page_id` moves to the earlier of the two
 anchor pages. The anchor therefore reflects the bag's full page range rather
-than whichever candidate currently supplies the fields — which matters because
-[hierarchy binding](#hierarchy-binding) orders parents by that anchor.
+than whichever candidate currently supplies the fields.
 
-The output is one deep-copied root volume per bag, whose id is re-anchored to
-`root_page_id`, followed by every issue, followed by every element that is
-neither a `periodical` volume nor an issue, in their original order.
+Each bag becomes one deep-copied root volume, whose id is re-anchored to
+`root_page_id`; [hierarchy binding](#hierarchy-binding) attaches the issues to
+these volumes.
 
 ### Title creation
 
@@ -949,15 +971,18 @@ volume's detection UUIDs rather than creating new ones; of the volume's
 groups, finalizing keeps what holds the title's own values - its `titleInfo`.
 `MetakatTitle.hierarchy`
 rejects `monograph` at the schema level, which is why only the two other
-hierarchies are eligible. When no such volume exists, no title element is
-created. A created title is prepended to the element list, ahead of the volumes
-and issues.
+hierarchies are eligible. The candidates are the periodical volumes and the
+multipart leaves. When no such volume exists, no title element is created. A
+created title is prepended to the element list, ahead of the volumes and
+issues, and becomes the parent of the volumes of its own hierarchy only: a
+monograph, or a volume of the other kind, stays outside it.
 
 ### Anchor pages
 
 Every candidate volume and issue has an anchor page: the page its detections
-were read from. The anchor orders candidates, groups neighbouring ones, and is
-what [hierarchy binding](#hierarchy-binding) switches parents on. It is
+were read from. The anchor places each reading in its document, orders
+candidates, groups neighbouring ones for ProArc, and marks representative
+pages; it never decides a boundary. It is
 binder-internal - the output schema has no anchor field - and lives in an
 `Anchors` dict mapping element id to page id, built by
 `get_volume_issue_from_result` and passed explicitly to every step that
@@ -965,11 +990,13 @@ needs it. A merged ProArc volume and a consolidated periodical volume each get
 their own entry.
 
 The anchor is also the page that represents a unit: the page its title was
-read from. Right after pages are attached, `bind()` sets
+read from. Right after pages are attached, `process()` sets
 `MetakatPage.representative` on the anchor page of each issue and of each
 volume without issues - the units that hold pages - and clears it on their
-other pages. A volume with issues holds no pages and marks none; the untitled
-monograph has no anchor and marks none either.
+other pages. A leaf merged from several readings keeps the id, and so the
+anchor, of the reading with the most confident title. A volume with issues
+holds no pages and marks none; an unnamed unit has no anchor and marks none
+either.
 
 ### Groups
 
@@ -985,6 +1012,8 @@ carries the groups through its decisions about records.
   several groups did so on purpose, so then they stay as read. `series` and
   `agent` groups always stay as read: a record can have several series and
   several names.
+- **Merging the readings of one document** - the leaf takes the groups of
+  all its readings, united the same way.
 - **Choosing between records** - a periodical volume bag keeps its root
   volume, groups included; a title takes its volume's groups.
 - **Finalizing** - before the elements are written, `_finalize_groups` drops
@@ -992,105 +1021,51 @@ carries the groups through its decisions about records.
   of two readings, a field a merge does not keep - and drops groups left with
   fewer than two members.
 
-A volume or issue that arrived in the input `MetakatIO` has no anchor. Its
-position is not guessed: `bind()` leaves it out of positional parenting and
-logs a warning naming it.
-
 ### Hierarchy binding
 
-`bind()` runs last and works on `MetakatIO.elements` in place. It collects the
-*infants* — pages, issues, and volumes whose `parent_id` is still `None` — and
-the title element, then applies two rules.
+`bind(documents, candidates, anchors)` turns each document into exactly one
+leaf unit, attaches every page of the document to it, and builds the hierarchy
+above the leaves.
 
-**Title attachment.** When a title exists and there are infant volumes, every
-infant volume is attached to it. Only one title per batch is assumed; if several
-were present, the last one encountered would win.
+**The kind of a document** follows from the readings of its title pages:
 
-**Positional parenting.** Which sweeps run depends on whether any issue exists:
+| The document's readings | Leaf |
+|---|---|
+| any issue candidate or `periodical` volume candidate | `MetakatIssue` |
+| otherwise, any `multipart` volume candidate | `MetakatVolume`, `multipart` |
+| otherwise, any volume candidate | `MetakatVolume`, `monograph` |
+| none | the kind of the nearest earlier document that has one, else of the nearest later one; `monograph` when no document has one |
 
-```mermaid
-flowchart TD
-    S{Any infant issue?}
-    P1[bind_infants: pages under issues, cover nudge on]
-    P2[bind_infants: issues under volumes, cover nudge off]
-    P3[bind_infants: pages under volumes, cover nudge on]
+A document without readings is typically an issue whose first page was not a
+title page, or a book whose title page was not found; it keeps its pages and
+gets an unnamed leaf of the inherited kind rather than being merged into a
+neighbour.
 
-    S -- yes --> P1 --> P2
-    S -- no, but infant pages exist --> P3
-```
+**The leaf record.** The candidates of the leaf's kind read in the document -
+issue candidates for an issue, volume candidates for a volume - are merged
+into one record (`_merge_unit_readings`): the record keeps the id of the
+reading with the most confident title, a single-valued field keeps its most
+confident reading, a list field keeps every reading, and groups are united as
+described under [Groups](#groups). Without such candidates the leaf is unnamed.
 
-When issues exist, pages are parented to issues only; volumes then receive their
-pages indirectly, through the issues.
+**Periodical volumes** (`_bind_issues`). The `periodical` volume candidates of
+the issue documents are consolidated into bags (see
+[Periodical volume consolidation](#periodical-volume-consolidation)). An issue
+belongs to the volume its own title pages name, the bag one of its volume
+candidates joined; an issue whose pages name none, to the volume of the
+nearest earlier issue, else of the nearest later one. When no bag exists, all
+issues share one unnamed `periodical` volume.
 
-`bind_infants(pages, infants, parents, apply_cover_nudge, anchors)` walks the ordered
-page list once, tracking which parent currently owns the pages being walked:
+**The title** comes from `get_title` over the periodical volumes and the
+multipart leaves, and heads the volumes of its own hierarchy
+(see [Title creation](#title-creation)). A monograph leaf has no parent.
 
-1. it returns immediately when any of the three sequences is empty;
-2. each infant is placed at a batch index — a page uses its own `batch_index`,
-   any other infant uses the `batch_index` of its [anchor page](#anchor-pages);
-3. parents are sorted by their anchor page's `batch_index`, and the walk starts
-   at the first of them;
-4. for each page, the walk advances to the next parent exactly when that
-   parent's anchor page is reached;
-5. whenever the walked page is the anchor of an infant, that infant is attached
-   to the current parent.
+Pages are then numbered 1..n within each leaf by `assign_page_indices()`, and
+representative pages are marked (see [Anchor pages](#anchor-pages)).
+`batch_index` stays the position in the scan.
 
-Parenting therefore depends only on position, never on which page's detections
-produced which element. This is what lets a consolidated periodical volume, or a
-merged ProArc volume, take ownership of pages whose own candidates were dropped.
-
-Infants are indexed by batch index in a plain mapping, so when two infants are
-anchored on the same page only the last one is bound and the other stays
-unparented.
-
-#### The cover nudge
-
-A parent is anchored on its title page, but a volume or issue is scanned as
-front cover → … → title page → … → back cover. The pages around a boundary
-therefore lie outside the anchor range of the parent they belong to: the front
-cover of the next volume is walked while the previous volume is still current.
-`apply_cover_nudge` moves the boundary onto the covers themselves. It is a
-page-only heuristic and is switched off for the issue-to-volume sweep.
-
-The two cover types are opposites, so they act at opposite moments in the walk:
-
-| Page type | Switches | Effect |
-|---|---|---|
-| `frontCover` | before the page is attached | the cover opens the next parent and is bound to it |
-| `backCover` | after the page is attached | the cover closes the current parent and stays with it |
-
-A nudge is applied only while the current parent's own anchor page is strictly
-behind the walked page. After a nudge that anchor lies ahead, which is what
-keeps the common boundary — a back cover immediately followed by the next
-volume's front cover — from switching twice and skipping a parent entirely. The
-same guard leaves a parent anchored on a cover page in possession of it. A nudge
-at the last parent is a no-op.
-
-The walk also assumes `MetakatIO.elements` lists pages in ascending
-`batch_index`; unlike `process()`, `bind()` filters that list without re-sorting
-it.
-
-#### Pages without a detected unit
-
-This binder is the only place in the pipeline that attaches pages to issues and
-volumes; later stages read those units and never create one. The walk attaches
-every page as soon as any issue or volume exists, so a page is left over only
-when the batch produced none at all. After the walk, any page still without a
-parent is attached to one new `monograph` volume with no title, appended to
-`MetakatIO.elements`, and a warning is logged. Later stages can therefore rely
-on every page having a unit.
-
-#### Page indices
-
-Right after pages are attached, `bind()` calls `assign_page_indices()` from
-`metakat/common/aux/document_groups.py`. It numbers the pages of every
-bottom-level unit - each issue, and each volume without issues - 1…n in
-`batch_index` order, which is the meaning of MODS `<part type="pageIndex">`:
-position within the unit, not within the batch. `batch_index` stays the
-0-based position in the batch. A page attached to a volume that has issues sits
-above the bottom level and gets `pageIndex=None`, with a warning. Pages are
-created without a `pageIndex`, so no page carries a position before it has a
-unit.
+A volume or issue that arrived in the input `MetakatIO` is kept as it is, and
+no page is attached to it.
 
 ### Detection geometry retention
 
@@ -1117,8 +1092,9 @@ The surviving entries are merged into the existing maps:
 | `MetakatIO.detection_to_alto[detection_uuid]` | `MetakatAltoRefs(blocks, lines, words)` from the evidence's `alto`; only for evidence whose ALTO provided at least one ID |
 
 Existing entries written by earlier components are preserved. The new
-bibliographic elements are prepended to `MetakatIO.elements`, with the title
-first when one was created; pre-existing elements keep their relative order.
+bibliographic elements are prepended to `MetakatIO.elements`: the title first
+when one was created, then the periodical volumes, then the leaves in document
+order; pre-existing elements keep their relative order.
 
 ## Known limitations
 
@@ -1127,13 +1103,11 @@ contracts, and are documented so a change can be scoped against them.
 
 | Area | Limitation |
 |---|---|
-| Title attachment | `bind()` attaches **every** infant volume to the one title, regardless of that volume's own hierarchy. In a batch of unrelated monographs, a single spurious part-number detection creates a title that then adopts every other monograph as well. |
+| One title | A scan has at most one title. Two periodicals, or two multipart works, in one scan are put under the title of the most confidently read one. |
 | ProArc integration | Only a record with exactly one `volume`-model object is used. Multi-object records, `title` and `unit` objects, and any issue-level guidance are ignored, and such a batch silently takes the vision-only branch. |
 | Periodical path | No production label configuration in this repository maps a detector label to `PeriodicalVolumePartNumber` or `PeriodicalVolumeDateIssued`, so the `periodical` hierarchy and the consolidation it drives are reachable but not exercised by a real run. |
-| Monograph batches | Without a ProArc record, nothing consolidates `monograph` volumes: every title page carrying a `Title` detection yields its own volume. |
-| Cover nudge | The heuristic depends on `page_type` having classified the covers, and recognises only `frontCover` and `backCover` — not `cover`, `jacket`, or `frontJacket`. A run of consecutive back covers switches at the first of them, so the rest are attributed to the next parent; a run of front covers is handled correctly. |
 | Title-page grouping | `filter_title_pages` is called with `min_distance=1`, at which its grouping can never merge two distinct pages. |
-| Anchor collisions | `bind_infants` keeps one infant per batch index, so two infants anchored on the same page leave one unparented. |
+| Document kind | A document's kind comes from its own readings only; one misread periodical number makes a monograph an issue. |
 | Input pairing | Image and ALTO path lists are filtered and sorted independently; a selected title page that has only one of the two mappings shifts the pairing for the rest of the batch. |
 
 ## Observability and revision
