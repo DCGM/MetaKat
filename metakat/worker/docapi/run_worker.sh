@@ -14,10 +14,14 @@ export WORKER_KEY="$(<"$KEY_FILE")"
 
 # Optional: an OpenRouter key for the engines that read pages with a VLM. A
 # job then names it with "api_key_env": "OPENROUTER_API_KEY" instead of
-# carrying the key itself. Kept in .openrouter_api_key beside this script.
-OPENROUTER_KEY_FILE="$SCRIPT_DIR/.openrouter_api_key"
+# carrying the key itself. Kept in .openrouter_api_key beside this script, or
+# in the file OPENROUTER_KEY_FILE names. Without it, a VLM engine's job fails.
+OPENROUTER_KEY_FILE="${OPENROUTER_KEY_FILE:-$SCRIPT_DIR/.openrouter_api_key}"
 if [ -r "$OPENROUTER_KEY_FILE" ]; then
-    export OPENROUTER_API_KEY="$(<"$OPENROUTER_KEY_FILE")"
+    export OPENROUTER_API_KEY="$(tr -d '[:space:]' < "$OPENROUTER_KEY_FILE")"
+    echo "run_worker.sh: OpenRouter key from $OPENROUTER_KEY_FILE" >&2
+else
+    echo "run_worker.sh: no OpenRouter key at $OPENROUTER_KEY_FILE; VLM engines will fail" >&2
 fi
 
 # How this machine runs local VLM models (metakat/common/vlm/local_server.py):

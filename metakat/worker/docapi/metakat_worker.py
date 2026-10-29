@@ -338,7 +338,11 @@ def main():
         engines_dir=config.ENGINES_DIR,
         polling_interval=config.POLLING_INTERVAL,
         cleanup_job_dir=config.CLEANUP_JOB_DIR,
-        cleanup_old_engines=config.CLEANUP_OLD_ENGINES
+        cleanup_old_engines=config.CLEANUP_OLD_ENGINES,
+        # Without streaming, DocAPI holds the whole engine ZIP in memory and
+        # tries to parse it as JSON (DCGM/DocAPI#42); streamed, it goes
+        # straight to disk.
+        download_engine_using_stream=True,
     )
     
     logger.info(f"Starting MetakatWorker connecting to {config.API_URL}")
