@@ -37,7 +37,7 @@ an error.
 | `max_tokens`, `temperature`, `reasoning_effort`, `verbosity`, `service_tier` | - | Passed to the endpoint when set. `reasoning_effort` is also sent as OpenRouter's `reasoning.effort`. |
 | `zdr` | `false` | OpenRouter only: route the request only to Zero Data Retention endpoints (`provider.zdr`); a model without one fails instead of falling back. |
 | `image_detail` | - | OpenAI's image `detail` (`low`, `high`, `auto`). |
-| `image_max_side` | - | Longest image side in pixels; larger images are scaled down before sending, which saves tokens on large scans. |
+| `image_preprocessing` | `{}` | How large images are sent, see below. |
 
 Keys are kept out of the logs: the pipeline configuration is logged with
 `api_key` and similar keys redacted, and `VLMConfig`'s repr omits the key.
@@ -72,8 +72,30 @@ before they surface.
 Jinja; a variable a template uses but is not given is an error. With Chat
 Completions a `developer` prompt is sent as `system`. Images are attached to
 the last prompt as data URLs: JPEG, PNG and WebP as they are, anything else
-(TIFF, JPEG 2000) re-encoded as JPEG, and any image scaled down to
-`image_max_side` when set.
+(TIFF, JPEG 2000) re-encoded as JPEG, and any image scaled down as
+`image_preprocessing` sets.
+
+## Image size
+
+Every VLM engine sends its images through one resizer
+(`image_preprocessing.py`), set by the `image_preprocessing` section of the
+`vlm` config. An image is only ever scaled down, keeping its aspect ratio, and
+re-encoded as JPEG when it is.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `max_pixels` | `25000000` | Width x height at most. Always applies: it cannot be `null`, so sending more takes stating a larger number. Endpoints reject images past their own limit - OpenAI 30000 32 px patches per image, about 30.7M pixels - and the default stays below it. |
+| `max_w`, `max_h` | - | Width and height at most. |
+| `text_height` | - | Pixels the smallest text on the page is scaled down to, measured in its ALTO. |
+| `min_pixels` | - | How far `text_height` may scale a page down: a guard for text the OCR missed. Never scales up. |
+
+The maxes win over `min_pixels`. The smallest text is the lowest line, each
+line measured as the median height of its words (its own box when they have
+none). Only lines with at least three letters or digits and, when the ALTO
+gives confidences, a mean word confidence of at least 0.5 count: PERO OCR
+reads cloth covers, paper texture and blank paper as low-confidence lines,
+and specks as one or two characters. A page without such a line is scaled by
+the maxes only.
 
 ## Local models
 

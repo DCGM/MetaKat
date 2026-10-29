@@ -211,7 +211,7 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
         try:
             reply = client.request_json(
                 prompts,
-                [VLMImage.from_file(page.image, self.vlm_config.image_max_side) for page in span],
+                [VLMImage.from_file(page.image, self.vlm_config.image_preprocessing, page.alto) for page in span],
                 self.schema,
                 request_id=request_id,
             )

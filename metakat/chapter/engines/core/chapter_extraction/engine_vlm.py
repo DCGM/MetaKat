@@ -137,7 +137,7 @@ class ChapterExtractionEngineVLM:
             "annotations": None,
             "tocDraft": None,
         })
-        images = [VLMImage.from_file(str(page.image_path), self.vlm_config.image_max_side) for page in pages]
+        images = [VLMImage.from_file(page.image_path, self.vlm_config.image_preprocessing, page.alto_path) for page in pages]
         try:
             with self._model() as client:
                 reply = client.request_json(prompts, images, self.schema, request_id=f"{keys[0]}+{len(keys) - 1}")

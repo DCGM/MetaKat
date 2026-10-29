@@ -33,6 +33,8 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any, Optional
 
+from metakat.common.vlm.image_preprocessing import ImagePreprocessing, smallest_text_height
+
 logger = logging.getLogger(__name__)
 
 _APIS = ("completions", "responses")
@@ -71,9 +73,9 @@ class VLMConfig:
     # (provider.zdr); a model without one fails instead of falling back.
     zdr: bool = False
     image_detail: Optional[str] = None
-    # Longest image side in pixels sent to the model; larger images are
-    # scaled down. None sends the image as it is.
-    image_max_side: Optional[int] = None
+    # How large the images are sent (image_preprocessing); its max_pixels
+    # always applies.
+    image_preprocessing: ImagePreprocessing = field(default_factory=ImagePreprocessing)
 
     def __post_init__(self) -> None:
         for name in ("api_url", "model"):
@@ -91,8 +93,8 @@ class VLMConfig:
             raise ValueError("VLM max_attempts must be a positive integer")
         if not isinstance(self.zdr, bool):
             raise ValueError("VLM zdr must be true or false")
-        if self.image_max_side is not None and self.image_max_side < 1:
-            raise ValueError("VLM image_max_side must be positive")
+        if not isinstance(self.image_preprocessing, ImagePreprocessing):
+            raise ValueError("VLM image_preprocessing must be an ImagePreprocessing")
         if self.api_key is None and self.api_key_env is None:
             raise ValueError("VLM config needs api_key or api_key_env")
 
@@ -100,11 +102,18 @@ class VLMConfig:
     def from_config(cls, config: Mapping[str, Any], location: str = "VLM config") -> "VLMConfig":
         if not isinstance(config, Mapping):
             raise ValueError(f"{location} must be an object")
+        if "image_max_side" in config:
+            raise ValueError(f"{location}: image_max_side was replaced by image_preprocessing "
+                             "(max_pixels, max_w, max_h, text_height, min_pixels)")
         known = {f.name for f in fields(cls)}
         unknown = sorted(set(config) - known)
         if unknown:
             raise ValueError(f"{location} has unknown keys: {', '.join(unknown)}")
-        return cls(**dict(config))
+        config = dict(config)
+        if "image_preprocessing" in config:
+            config["image_preprocessing"] = ImagePreprocessing.from_config(
+                config["image_preprocessing"], f"{location} image_preprocessing")
+        return cls(**config)
 
     def resolve_api_key(self) -> str:
         if self.api_key:
@@ -136,19 +145,33 @@ class VLMImage:
     data_url: str
 
     @classmethod
-    def from_file(cls, path: str | os.PathLike[str], max_side: Optional[int] = None) -> "VLMImage":
+    def from_file(
+        cls,
+        path: str | os.PathLike[str],
+        preprocessing: Optional[ImagePreprocessing] = None,
+        alto: Optional[str | os.PathLike[str]] = None,
+    ) -> "VLMImage":
+        """The image at the size `preprocessing` allows; `alto`, when given, measures its text."""
         from PIL import Image
 
         path = Path(path)
+        preprocessing = preprocessing or ImagePreprocessing()
         with Image.open(path) as image:
             image_format = image.format
-            too_large = max_side is not None and max(image.size) > max_side
-            if image_format in _SENT_AS_IS and not too_large:
+            text_height = None
+            if preprocessing.text_height is not None and alto is not None:
+                text_height = smallest_text_height(alto, image.size)
+            size = preprocessing.scaled_size(*image.size, text_height)
+            scaled = size != image.size
+            if scaled:
+                logger.info("Image %s scaled from %dx%d to %dx%d (smallest text %s px)",
+                            path.name, *image.size, *size, "-" if text_height is None else f"{text_height:.0f}")
+            if image_format in _SENT_AS_IS and not scaled:
                 data, mime = path.read_bytes(), _SENT_AS_IS[image_format]
             else:
                 image = image.convert("RGB")
-                if too_large:
-                    image.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+                if scaled:
+                    image = image.resize(size, Image.Resampling.LANCZOS)
                 buffer = io.BytesIO()
                 image.save(buffer, format="JPEG", quality=90)
                 data, mime = buffer.getvalue(), "image/jpeg"

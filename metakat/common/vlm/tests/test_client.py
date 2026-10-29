@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-from metakat.common.vlm import VLMClient, VLMConfig, VLMImage, VLMPrompt, VLMResponseError, render_prompts
+from metakat.common.vlm import ImagePreprocessing, VLMClient, VLMConfig, VLMImage, VLMPrompt, VLMResponseError, render_prompts
 from metakat.common.vlm.client import parse_reply
 
 SCHEMA = {
@@ -218,8 +218,35 @@ def test_a_jpeg_is_sent_as_it_is_and_other_formats_as_jpeg(tmp_path):
 def test_a_large_image_is_scaled_down(tmp_path):
     Image.new("RGB", (4000, 2000), "white").save(tmp_path / "page.jpg")
 
-    image, _ = _decoded(VLMImage.from_file(tmp_path / "page.jpg", max_side=1000))
+    image, _ = _decoded(VLMImage.from_file(tmp_path / "page.jpg", ImagePreprocessing(max_w=1000)))
     assert image.size == (1000, 500)
+
+
+def test_an_image_is_scaled_to_its_smallest_text(tmp_path):
+    Image.new("RGB", (4000, 2000), "white").save(tmp_path / "page.jpg")
+    (tmp_path / "page.xml").write_text(
+        '<alto><Layout><Page WIDTH="2000" HEIGHT="1000"><PrintSpace>'
+        '<TextLine HEIGHT="20"><String CONTENT="Praha" HEIGHT="20" WC="0.9"/></TextLine>'
+        '</PrintSpace></Page></Layout></alto>')
+
+    image, _ = _decoded(VLMImage.from_file(
+        tmp_path / "page.jpg", ImagePreprocessing(text_height=20), tmp_path / "page.xml"))
+    assert image.size == (2000, 1000)
+
+
+def test_the_image_preprocessing_config_is_read_and_its_max_pixels_cannot_be_null():
+    config = VLMConfig.from_config({"api_url": "u", "model": "m", "api_key": "k",
+                                    "image_preprocessing": {"text_height": 20}})
+    assert config.image_preprocessing == ImagePreprocessing(text_height=20)
+    assert VLMConfig.from_config({"api_url": "u", "model": "m", "api_key": "k"}).image_preprocessing.max_pixels
+    with pytest.raises(ValueError, match="max_pixels cannot be null"):
+        VLMConfig.from_config({"api_url": "u", "model": "m", "api_key": "k",
+                               "image_preprocessing": {"max_pixels": None}})
+    with pytest.raises(ValueError, match="unknown keys"):
+        VLMConfig.from_config({"api_url": "u", "model": "m", "api_key": "k",
+                               "image_preprocessing": {"max_side": 5000}})
+    with pytest.raises(ValueError, match="image_max_side was replaced"):
+        VLMConfig.from_config({"api_url": "u", "model": "m", "api_key": "k", "image_max_side": 5000})
 
 
 def test_schema_and_reply_round_trip_as_json():
