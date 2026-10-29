@@ -696,7 +696,10 @@ def _build_outline(
 
     outline: list[list[Any]] = []
     destinations: dict[UUID, _RenderedPage] = {}
-    include_document_level = len(groups) > 1
+    # The units above each lowest-level document, top first: a periodical's
+    # title and volume above an issue, a multipart title above a part.
+    ancestors = {group.container.id: _ancestors(group.container, elements_by_id) for group in groups}
+    include_document_level = len(groups) > 1 or any(ancestors.values())
 
     def add_chapter(
         chapter: MetakatChapter,
@@ -740,21 +743,34 @@ def _build_outline(
             add_chapter(child, child_level, visiting)
         visiting.remove(chapter.id)
 
+    # The documents follow in scan order, so the units above them are
+    # contiguous runs: each gets its bookmark where its first document starts
+    # and nests the documents below it.
+    open_chain: list[UUID] = []
     for group in groups:
         chapter_level = 1
         if include_document_level:
+            chain = ancestors[group.container.id]
+            shared = 0
+            while (shared < min(len(chain), len(open_chain))
+                   and chain[shared].id == open_chain[shared]):
+                shared += 1
+            first_page = rendered_by_page_id[min(group.pages, key=lambda page: page.batch_index).id]
+            for depth, ancestor in enumerate(chain[shared:], shared + 1):
+                outline.append([depth, _element_label(ancestor), first_page.pdf_index + 1])
+            open_chain = [ancestor.id for ancestor in chain]
             container_destination = _container_destination(
                 group,
                 rendered_by_page_id,
             )
             outline.append(
                 [
-                    1,
+                    len(chain) + 1,
                     _container_label(group),
                     container_destination.pdf_index + 1,
                 ]
             )
-            chapter_level = 2
+            chapter_level = len(chain) + 2
         for root in roots[group.container.id]:
             add_chapter(root, chapter_level, set())
     return outline, destinations
@@ -814,9 +830,41 @@ def _value_text(values: list[Value] | None) -> str | None:
     return text or None
 
 
+def _ancestors(element: MetakatElement, elements_by_id: dict[UUID, MetakatElement]) -> list[MetakatElement]:
+    # The units an element's parent chain passes through, top first.
+    chain: list[MetakatElement] = []
+    seen: set[UUID] = {element.id}
+    current = elements_by_id.get(getattr(element, "parent_id", None))
+    while current is not None and current.id not in seen:
+        seen.add(current.id)
+        chain.append(current)
+        current = elements_by_id.get(getattr(current, "parent_id", None))
+    return chain[::-1]
+
+
+def _element_label(element: MetakatElement) -> str:
+    """A unit's bookmark: its kind, then what names it - its number, name, date or title."""
+    hierarchy = getattr(element, "hierarchy", None)
+    hierarchy = getattr(hierarchy, "value", hierarchy)
+    if element.type == DocumentType.TITLE.value:
+        kind, fields = hierarchy or "title", ("title",)
+    elif element.type == DocumentType.VOLUME.value and hierarchy == "periodical":
+        kind, fields = "volume", ("partNumber", "dateIssued")
+    elif element.type == DocumentType.VOLUME.value and hierarchy == "multipart":
+        kind, fields = "part", ("partNumber", "partName", "title")
+    elif element.type == DocumentType.VOLUME.value:
+        kind, fields = "monograph", ("title",)
+    elif element.type == DocumentType.ISSUE.value:
+        kind, fields = "issue", ("partNumber", "dateIssued", "title")
+    else:
+        kind, fields = element.type, ("partNumber", "title")
+    parts = [kind, *(text for field in fields
+                     if (text := _value_text(getattr(element, field, None))) is not None)]
+    return " | ".join(parts)
+
+
 def _container_label(group: LowestDocumentGroup) -> str:
-    title = _value_text(group.container.title)
-    return "monograph" if title is None else f"monograph | {title}"
+    return _element_label(group.container)
 
 
 def _chapter_label(chapter: MetakatChapter) -> str | None:

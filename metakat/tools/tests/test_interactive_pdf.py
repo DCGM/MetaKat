@@ -7,10 +7,12 @@ import pymupdf
 import pytest
 
 from metakat.schemas.base_objects import (
+    HierarchyType,
     MetakatChapter,
     MetakatIO,
     MetakatIssue,
     MetakatPage,
+    MetakatTitle,
     MetakatVolume,
     PageType,
     Value,
@@ -207,9 +209,9 @@ def test_multiple_documents_allow_repeated_local_page_indices(tmp_path, page_ima
     document = pymupdf.open(output)
     try:
         assert document.get_toc() == [
-            [1, "monograph | Issue A", 1],
+            [1, "issue | Issue A", 1],
             [2, "Chapter 1", 2],
-            [1, "monograph | Issue B", 3],
+            [1, "issue | Issue B", 3],
             [2, "Chapter 2", 4],
         ]
     finally:
@@ -802,3 +804,51 @@ def test_standalone_page_height_zero_means_the_native_size(tmp_path):
           mock.patch.object(pdf_module, 'create_interactive_pdf') as create):
         pdf_module.main()
     assert create.call_args.kwargs['page_height'] is None
+
+
+def test_a_periodical_outline_nests_its_volumes_issues_and_their_chapters(tmp_path, page_image):
+    title = MetakatTitle(id=uuid4(), hierarchy=HierarchyType.PERIODICAL, title=[_v("Zlatá Praha", .9)])
+    volumes = [MetakatVolume(id=uuid4(), parent_id=title.id, hierarchy=HierarchyType.PERIODICAL,
+                             partNumber=[_v(number, .9)], dateIssued=[_v(year, .9)])
+               for number, year in (("Ročník I", "1884"), ("Ročník II", "1885"))]
+    issues = [MetakatIssue(id=uuid4(), parent_id=volume.id, partNumber=[_v(f"Číslo {n}", .9)])
+              for volume, n in zip((volumes[0], volumes[0], volumes[1]), (1, 2, 1))]
+    pages, image_mapping = [], {}
+    for index, issue in enumerate(issues):
+        page_image(tmp_path / f"p{index}.jpg")
+        page = MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=index, pageIndex=1, parent_id=issue.id)
+        pages.append(page)
+        image_mapping[page.id] = f"p{index}.jpg"
+    chapter = MetakatChapter(id=uuid4(), parent_id=issues[1].id, pageIndexStart=_run(1),
+                             titleTocPage=[_v("Obsah", .8)])
+    io = MetakatIO(batch_id=uuid4(), elements=[title, *volumes, *issues, *pages, chapter],
+                   page_to_image_mapping=image_mapping)
+    output = tmp_path / "periodical.pdf"
+
+    pdf_module.create_interactive_pdf(tmp_path, io, output)
+
+    with pymupdf.open(output) as document:
+        assert document.get_toc() == [
+            [1, "periodical | Zlatá Praha", 1],
+            [2, "volume | Ročník I | 1884", 1],
+            [3, "issue | Číslo 1", 1],
+            [3, "issue | Číslo 2", 2],
+            [4, "Obsah", 2],
+            [2, "volume | Ročník II | 1885", 3],
+            [3, "issue | Číslo 1", 3],
+        ]
+
+
+def test_a_single_issue_is_still_shown_under_its_periodical_and_volume(tmp_path, page_image):
+    title = MetakatTitle(id=uuid4(), hierarchy=HierarchyType.PERIODICAL)
+    volume = MetakatVolume(id=uuid4(), parent_id=title.id, hierarchy=HierarchyType.PERIODICAL)
+    issue = MetakatIssue(id=uuid4(), parent_id=volume.id)
+    page = MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=0, pageIndex=1, parent_id=issue.id)
+    page_image(tmp_path / "p0.jpg")
+    io = MetakatIO(batch_id=uuid4(), elements=[title, volume, issue, page], page_to_image_mapping={page.id: "p0.jpg"})
+    output = tmp_path / "issue.pdf"
+
+    pdf_module.create_interactive_pdf(tmp_path, io, output)
+
+    with pymupdf.open(output) as document:
+        assert document.get_toc() == [[1, "periodical", 1], [2, "volume", 1], [3, "issue", 1]]

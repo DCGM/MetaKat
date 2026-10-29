@@ -501,8 +501,25 @@ part number | TOC title | page number
 ```
 
 Missing values are omitted. The destination title replaces the TOC title only
-when the TOC title is unavailable. Document-level outline entries use
-`monograph | title`, or `monograph` when the title is unavailable.
+when the TOC title is unavailable.
+
+Above the chapters the outline follows the bibliographic hierarchy, top level
+first. Each lowest-level document is nested under the units above it, and its
+chapters under it:
+
+```text
+periodical | title
+  volume | number | year
+    issue | number | date | title
+      chapters
+```
+
+A multipart monograph nests its parts (`part | number | name | title`) under
+`multipart | title`. A scan of monographs lists `monograph | title` per
+document, and a single document with nothing above it lists only its chapters.
+Missing values are omitted, so an unnamed unit shows only its kind. The units
+above a document are bookmarked at the first page of their first document, and
+a document at its representative page.
 
 ### Links
 
