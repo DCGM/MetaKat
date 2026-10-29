@@ -162,3 +162,11 @@ def test_the_volume_reads_what_most_of_its_issues_read():
     [run] = volume_runs([_r('I', '1887'), _r('I', '1888'), _r('I', '1888')])
     volume = run.volume()
     assert (volume.partNumber[0].text, volume.dateIssued[0].text) == ('I', '1888')
+
+
+def test_a_volume_year_that_names_no_year_is_not_read():
+    pages = _scan({4}, {0: .99, 4: .99})
+    io, _ = _bound(pages, _read(0, 'Zlatá Praha', volume='Ročník IV', year='Nr. 3567', issue='1'),
+                   _read(4, 'Zlatá Praha', volume='Ročník IV', year='9532', issue='2'))
+    [volume] = _of(io, MetakatVolume)
+    assert volume.partNumber[0].text == 'Ročník IV' and volume.dateIssued is None

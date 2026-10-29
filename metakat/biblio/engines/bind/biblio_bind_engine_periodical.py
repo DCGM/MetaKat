@@ -202,11 +202,18 @@ class VolumeReading:
 
 
 def volume_reading(span: Optional[TitleSpan]) -> Optional[VolumeReading]:
-    """The volume number and year read by an issue's authoritative span; None when it reads neither."""
+    """The volume number and year read by an issue's authoritative span; None when it reads neither.
+
+    A year that names no year (volume_years) - an issue number or a word
+    taken for it - is not read."""
     volume = span.volume if span is not None else None
     if volume is None or volume.hierarchy != HierarchyType.PERIODICAL:
         return None
-    reading = VolumeReading(kept(volume.partNumber), kept(volume.dateIssued))
+    year = kept(volume.dateIssued)
+    if year is not None and not isinstance(volume_years(year.text), frozenset):
+        logger.info("Volume year %r names no year; ignoring it", year.text)
+        year = None
+    reading = VolumeReading(kept(volume.partNumber), year)
     return reading if reading.number is not None or reading.year is not None else None
 
 

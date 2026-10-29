@@ -1020,6 +1020,10 @@ Readings are compared as values, not text:
 | number | `volume_number`: the first numeral with its numeral system, else the normalized text | `Ročník IV.`, `roč. IV`, `IV` | `IV` and `4` |
 | year | `volume_years`: the years it names, a range spanning each year | `1887-88` and `1888` | `1887` and `1888` |
 
+A year reading that names no year - from 1400 to 2099, as four digits - is not
+read at all: it is an issue number, a price or a word the detector took for
+the volume's year (`Císlo`, `Nr. 3567`, `9532`).
+
 A periodical keeps to one way of numbering its volumes, so a number in the
 other numeral system is more likely a misread - an issue number taken for the
 volume's - than the same volume; Roman and Arabic numerals are therefore
