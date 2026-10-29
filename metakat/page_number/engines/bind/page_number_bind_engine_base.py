@@ -126,13 +126,13 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
         """What the page-type stage found, for every page: its document (one unit per document, from the
         document starts, annotated or predicted), its page type and its side.
 
-        The first page of a scan always starts a document and has no start prediction of its own. Without
-        the starts of the other pages the scan is one unit."""
-        starts = all(page.startsDocument is not None for page in pages[1:])
+        The page-type stage sets a start on every page, the first one included. Without a start on every
+        page the scan is one unit."""
+        starts = all(page.startsDocument is not None for page in pages)
         unit = -1
         contexts = {}
-        for i, page in enumerate(pages):
-            unit += i == 0 or (starts and bool(page.startsDocument.val))
+        for page in pages:
+            unit += unit < 0 or (starts and bool(page.startsDocument.val))
             contexts[Path(image_mapping[page.id]).stem] = NdkPageContext(
                 unit_key=f"document-{unit}" if starts else None,
                 page_type=_text(page.pageType),

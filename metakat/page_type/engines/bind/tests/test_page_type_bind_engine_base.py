@@ -35,7 +35,8 @@ def test_binder_propagates_all_heads_in_scan_order_without_mutating_input(metaka
     assert (result.elements[0].pageType.text, result.elements[0].pageType.confidence) == (PageType.COLOPHON, .7)
     assert (result.elements[0].side.text, result.elements[0].side.confidence) == (PageSideType.LEFT, .6)
     assert (result.elements[0].startsDocument.val, result.elements[0].startsDocument.confidence) == (False, .95)
-    assert result.elements[1].startsDocument is None
+    # The scan's first page starts its first document by definition.
+    assert (result.elements[1].startsDocument.val, result.elements[1].startsDocument.confidence) == (True, 1.0)
     assert all(p.pageType is None and p.side is None for p in io.elements)
     # New field survives the internal interchange format.
     assert MetakatIO.model_validate_json(result.model_dump_json()).elements[0].startsDocument == result.elements[0].startsDocument
@@ -48,7 +49,7 @@ def test_old_classifier_optional_heads_leave_existing_values(metakat_page):
     result = binder.process('/batch', io)
     assert (result.elements[0].pageType.text, result.elements[0].pageType.confidence) == (PageType.TITLE_PAGE, .9)
     assert result.elements[0].side == metakat_page.side
-    assert result.elements[0].startsDocument is None
+    assert (result.elements[0].startsDocument.val, result.elements[0].startsDocument.confidence) == (True, 1.0)
     assert binder.core_engine.process.call_args.args[0] == [PageTypeInput(None, None)]
 
 
@@ -166,7 +167,8 @@ def test_unannotated_boundaries_are_not_model_inputs(metakat_page, flag):
                                            startsDocument=(False, .8))])
     result = binder.process('/batch', MetakatIO(batch_id=metakat_page.batch_id, elements=[metakat_page]))
     assert binder.core_engine.process.call_args.args[0] == [PageTypeInput(None)]
-    assert result.elements[0].startsDocument.val is False
+    # Not annotated, so replaced: on the first page by its start by definition.
+    assert (result.elements[0].startsDocument.val, result.elements[0].startsDocument.confidence) == (True, 1.0)
 
 
 def test_single_page_annotated_boundary_is_a_document_end(metakat_page):

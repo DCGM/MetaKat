@@ -698,11 +698,11 @@ the one multipart monograph, and otherwise every document is a monograph.
 ### Documents
 
 `bottom_documents` (`metakat/common/aux/document_groups.py`) cuts the pages,
-in `batch_index` order, into documents: one starts at the first page and at
-every later page whose `startsDocument` is true, annotated or predicted.
-Without a `startsDocument` on every page after the first - the page-type stage
-did not run, or left some out - the scan is one document; a partial set is
-logged as a warning. The page-number stage reads the documents by the same
+in `batch_index` order, into documents: one starts at every page whose
+`startsDocument` is true, annotated or predicted. The page-type stage sets it
+on every page, the first one included, as `(true, 1.0)`. Without a
+`startsDocument` on every page - the page-type stage did not run, or left some
+out - the scan is one document; a partial set is logged as a warning. The page-number stage reads the documents by the same
 rule. The binder never moves or removes a boundary; the only one it adds is a
 [second part or issue](#parts-and-issues-inside-one-document) inside a document.
 

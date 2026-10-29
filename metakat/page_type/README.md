@@ -493,7 +493,8 @@ pair coverage are tracked separately.
 The boundary head compares adjacent contextual page representations. Each
 window's first boundary output is excluded because its predecessor is outside
 that window; overlap supplies that pair elsewhere. Only the entire scan's
-first page has no valid predecessor and returns `startsDocument=None`.
+first page has no valid predecessor and returns `startsDocument=None`; the
+[binder](#engine-base-page_type_bind_engine_base) sets it to `(true, 1.0)`.
 For other positions, raw `predict()` returns a boolean and confidence of that
 boolean from the merged pair probability.
 
@@ -602,8 +603,8 @@ The resolver uses linear time and memory in the number of pages, including a
 backward pass to compute the best complete solutions with and without each
 boundary. The confidence of its selected boolean is the sigmoid of that score
 margin. It describes the resolver's preference, not calibrated probability or
-measured accuracy. Continuation wins exact score ties. Position zero remains
-implicit and returns `startsDocument=None`.
+measured accuracy. Continuation wins exact score ties. Position zero returns
+`startsDocument=None`; the [binder](#engine-base-page_type_bind_engine_base) sets it.
 
 These initial weights require development-set tuning. For ViT, raw
 `predict()` results and resolved `process()` boundaries are distinct. Context
@@ -635,6 +636,13 @@ An input without page elements returns a copied `MetakatIO` without invoking
 the core. The core is also skipped when every page type has `annotated: true`,
 even if side or document-start values are absent. In a mixed batch every page
 still reaches the core, including annotated pages, to preserve context.
+
+The core has no start prediction for the scan's first page, which has no page
+before it. Once the core has run, the binder sets that page's unannotated
+`startsDocument` to `(true, 1.0)`: the first page starts the first document by
+definition, so the 1.0 is not a model confidence. Every page then carries a
+start, and later stages read the documents from it without an implicit first
+start.
 
 ### Annotated document boundaries as model inputs
 

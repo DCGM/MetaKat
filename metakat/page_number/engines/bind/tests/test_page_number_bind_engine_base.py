@@ -268,13 +268,21 @@ def test_final_pass_passes_the_documents_found_by_the_page_type_stage_as_units()
         'document-0', 'document-0', 'document-0', 'document-1', 'document-1']
 
 
-def test_final_pass_takes_the_first_page_as_a_document_start_without_a_prediction():
+def test_final_pass_reads_one_unit_per_document_start_the_first_page_included():
+    io, pages = _scan(4, starts={0, 2}, numbers=[None] * 4)
+    binder = _final_binder(PageNumberCoreResult({f'p{i}': None for i in range(4)}))
+    binder.process_final('/batch', io)
+    contexts = binder.core_engine.process.call_args.kwargs['page_contexts']
+    assert [contexts[f'p{i}'].unit_key for i in range(4)] == ['document-0', 'document-0', 'document-1', 'document-1']
+
+
+def test_final_pass_without_a_start_on_the_first_page_treats_the_scan_as_one_document():
     io, pages = _scan(4, starts={2}, numbers=[None] * 4)
     pages[0].startsDocument = None
     binder = _final_binder(PageNumberCoreResult({f'p{i}': None for i in range(4)}))
     binder.process_final('/batch', io)
     contexts = binder.core_engine.process.call_args.kwargs['page_contexts']
-    assert [contexts[f'p{i}'].unit_key for i in range(4)] == ['document-0', 'document-0', 'document-1', 'document-1']
+    assert {c.unit_key for c in contexts.values()} == {None}
 
 
 def test_final_pass_without_document_starts_treats_the_scan_as_one_document():

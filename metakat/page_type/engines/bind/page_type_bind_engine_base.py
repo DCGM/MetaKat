@@ -51,4 +51,10 @@ class PageTypeBindEngineBase(PageTypeBindEngine):
                 page.side = prediction.side
             if prediction.startsDocument is not None and not is_annotated(page.startsDocument):
                 page.startsDocument = prediction.startsDocument
+        # The first page of a scan starts its first document by definition;
+        # the core has no prediction for it, having no page before it to
+        # compare with. Setting it here, with full confidence, spares every
+        # later stage the implicit start.
+        if not is_annotated(pages[0].startsDocument):
+            pages[0].startsDocument = (True, 1.0)
         return result

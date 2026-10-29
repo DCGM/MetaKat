@@ -808,4 +808,4 @@ def test_a_second_part_starts_on_the_first_page_of_its_opening(types, start):
     assert _parents(io) == [parts[0].id] * start + [parts[1].id] * (30 - start)
     starting = sorted((p for p in _of(io, MetakatPage) if p.startsDocument and p.startsDocument.val),
                       key=lambda p: p.batch_index)
-    assert [p.batch_index for p in starting] == [start]
+    assert [p.batch_index for p in starting] == [0, start]

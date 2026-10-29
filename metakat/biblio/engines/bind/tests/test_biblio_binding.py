@@ -308,7 +308,7 @@ def _scan(starts=(), titles=None, count=8):
     titles = titles or {}
     return [MetakatPage(id=uuid4(), batch_id=batch, batch_index=i,
                         pageType=(PageType.TITLE_PAGE, titles[i]) if i in titles else (PageType.NORMAL_PAGE, .99),
-                        startsDocument=None if i == 0 else (i in starts, .9))
+                        startsDocument=(True, 1.0) if i == 0 else (i in starts, .9))
             for i in range(count)]
 
 
