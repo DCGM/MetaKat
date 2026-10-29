@@ -28,18 +28,34 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# TYPE POLICY. Project policy for what the page-type stage tells the final pass. The standard names the
-# inserted unnumbered material (tables, illustrations, maps: rule 1.1.4, letter labels); the rest follows the
-# conventions of the DB page numbers of the evaluation batches: front covers and end sheets are the `[1a]`,
-# `[1b]` pages before page 1, back covers and end sheets continue the numbering in brackets, and some
-# library conventions (FC, SP, F1, C1, ...) label the physical parts of a binding outside the pagination.
+# TYPE POLICY. Project policy for what the page-type stage tells the final pass, from the DB page numbers
+# of 6,000 random fit documents (metakat_checks/page_number_conventions.py). The standard itself only says that
+# unnumbered inserted tables, illustrations and maps may get letters, but in the DB they are mostly counted
+# pages (66% / 97% / 70% plain numbers, at most 6% letters), so the type does not decide that: the arithmetic
+# of the neighbouring numbers does.
 #
 # Not paginated at all: no label is supplied and they do not advance the numbering (an observed number stays).
-EXCLUDED_TYPES = frozenset({"spine", "edge", "cover", "frontEndPaper", "backEndPaper"})
-# Inserted unnumbered material: a letter label after the page before it, never a counted number.
-INSERT_TYPES = frozenset({"illustration", "map", "table", "frontispiece"})
-# Pages at the very start that are not part of the numbering: [1a], [1b], ... before page [1].
+# Edges are labelled only with codes (SE, HE, BE: 100%), spines with codes or at random (38% codes, 40%
+# bracketed numbers, 21% letters), end papers and covers with library codes (F1, B1r, C1: 65% / 15%), and
+# whatever is not a page of the book (photos of the whole binding, fragments) has no number.
+EXCLUDED_TYPES = frozenset(
+    {"spine", "edge", "cover", "frontEndPaper", "backEndPaper", "customInclude", "fragmentsOfBookbinding"}
+)
+# Pages at the very start that are not part of the numbering: [1a], [1b], ... before page [1]
+# (front covers, front end sheets and front jackets 94-99% letters; jackets 66%).
 OUTSIDE_FRONT_TYPES = frozenset({"frontCover", "frontEndSheet", "frontJacket", "jacket"})
+# Pages after the last printed number that continue the numbering in brackets (rule 1.1.4, "missing in the
+# sequence", end of the copy): back end sheets 95%, back covers 94%, errata 92%, maps 88%, tables of contents
+# 84%, tables 81%, fly leaves 80%, normal pages 79%, indexes 77%, blank pages 74%. Jackets (50% continuation,
+# 39% letters), advertisements (56%) and anything else are left unresolved.
+CONTINUING_TAIL_TYPES = frozenset(
+    {
+        "backCover", "backEndSheet", "blank", "calibrationTable", "errata", "flyleaf",
+        "index", "map", "normalPage", "table", "tableOfContents",
+    }
+)
+# A page type the page-type stage is less sure of than this is treated as unknown.
+MINIMUM_TYPE_CONFIDENCE = 0.7
 
 
 @dataclass(frozen=True)
@@ -60,7 +76,17 @@ class NdkPageContext:
     segment_index: int | None = None
     insert_anchor: Literal["previous", "next"] = "previous"
     page_type: str | None = None
+    page_type_confidence: float | None = None
     side: Literal["left", "right", "singlePage"] | None = None
+
+    @property
+    def known_type(self) -> str | None:
+        """The page type, unless the page-type stage was unsure of it."""
+        confident = (
+            self.page_type_confidence is None
+            or self.page_type_confidence >= MINIMUM_TYPE_CONFIDENCE
+        )
+        return self.page_type if confident else None
 
     def __post_init__(self):
         if self.page_type is not None and (
@@ -266,15 +292,12 @@ class NdkPaginator:
     def _excluded(page, observed):
         """Excluded by the caller, or a part of the binding that is not paginated (an observed number stays)."""
         context = page.pagination
-        return context.excluded or (observed is None and context.page_type in EXCLUDED_TYPES)
+        return context.excluded or (observed is None and context.known_type in EXCLUDED_TYPES)
 
     @staticmethod
     def _counted(page):
-        """Whether the page counts in the numbering: the caller's fact, else False for inserted material."""
-        context = page.pagination
-        if context.counted is not None:
-            return context.counted
-        return False if context.page_type in INSERT_TYPES else None
+        """Whether the page counts in the numbering, as the caller knows it (None: not known)."""
+        return page.pagination.counted
 
     def _reliable(self, evidence):
         return (
@@ -490,7 +513,7 @@ class NdkPaginator:
         ):
             anchor = snapshot[pages[first].page_key]
             outside = 0
-            while outside < first and pages[outside].pagination.page_type in OUTSIDE_FRONT_TYPES:
+            while outside < first and pages[outside].pagination.known_type in OUTSIDE_FRONT_TYPES:
                 outside += 1
             if outside and anchor.value - (first - outside) == 1:
                 # Covers and end sheets are the pages before page 1; the pages after them are counted.
@@ -535,11 +558,8 @@ class NdkPaginator:
         elif all(self._counted(p) is False for p in tail):
             mode = "insert"
         if mode == "unknown" and all(
-            p.pagination.page_type is not None and p.pagination.page_type not in INSERT_TYPES
-            for p in tail
+            p.pagination.known_type in CONTINUING_TAIL_TYPES for p in tail
         ):
-            # Back covers, end sheets and blank pages after the last printed number continue the
-            # numbering in brackets (rule 1.1.4, "chybí v číselné řadě", end of the copy).
             mode = "continue"
         if mode == "unknown":
             return

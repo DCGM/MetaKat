@@ -577,10 +577,16 @@ numbers of the evaluation batches.
 
 | Page type | Use |
 |---|---|
-| `illustration`, `map`, `table`, `frontispiece` | Unnumbered **inserted material**: never a counted number; gets the letter labels (`[26a]`) and blocks a gap fill that would count it (rule 1.1.4). |
-| `spine`, `edge`, `cover`, `frontEndPaper`, `backEndPaper` | Parts of the binding that libraries label with their own codes (FC, SP, F1, C1): not paginated, no label, they do not advance the numbering. An observed number stays. |
-| `frontCover`, `frontEndSheet`, `frontJacket`, `jacket` at the start | The pages **before page 1**: `[1a]`, `[1b]`, then the counted pages `[1]`, `[2]` up to the first printed number. Only when the counting then starts exactly at 1. |
-| Any known type, except inserted material, after the last printed number | The tail is **counted**: back covers, end sheets and blank pages continue the numbering in brackets (`[259]`, `[260]`). An explicit `tail_mode` or per-page `counted` fact wins; a page of unknown type leaves the tail unresolved. |
+| `spine`, `edge`, `cover`, `frontEndPaper`, `backEndPaper`, `customInclude`, `fragmentsOfBookbinding` | Parts of the binding or things that are not pages of the book (photos of the whole binding, fragments). The DB gives them codes (edges 100%: SE, HE, BE; spines 38% codes, 40% bracketed numbers, 21% letters; end papers 65% codes), never a reliable number. No label, they do not advance the numbering; an observed number stays. |
+| `frontCover`, `frontEndSheet`, `frontJacket`, `jacket` at the start | The pages **before page 1** (94-99% letters in the DB, jackets 66%): `[1a]`, `[1b]`, then the counted pages `[1]`, `[2]` up to the first printed number. Only when the counting then starts exactly at 1. |
+| `backCover`, `backEndSheet`, `errata`, `map`, `tableOfContents`, `table`, `flyleaf`, `normalPage`, `index`, `blank`, `calibrationTable` after the last printed number | The tail **continues the numbering in brackets** (`[259]`, `[260]`): 74-100% of such pages in the DB (back end sheets 95%, back covers 94%, normal pages 79%). An explicit `tail_mode` or per-page `counted` fact wins. |
+| Anything else after the last printed number (jackets 50%, advertisements 56%, unknown types, types the model is unsure of) | The tail stays unresolved. |
+
+A page type with a confidence below 0.7 is treated as unknown everywhere above. Unnumbered illustrations, tables
+and maps are **not** treated as inserts: the standard allows letters for them, but in the DB they are mostly
+counted pages (66% / 97% / 70% plain numbers, at most 6% letters), so the neighbouring numbers decide. The
+percentages come from the DB page numbers of 6,000 random fit documents
+(`metakat_checks/page_number_conventions.py` in the training repository).
 
 **Side.** In a book the odd pages are right-hand pages (96% of the DB numbers in the evaluation batches agree).
 A supplied plain number that contradicts the known left/right side keeps its label at review confidence (at

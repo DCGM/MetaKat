@@ -136,6 +136,7 @@ class PageNumberBindEngineBase(PageNumberBindEngine):
             contexts[Path(image_mapping[page.id]).stem] = NdkPageContext(
                 unit_key=f"document-{unit}" if starts else None,
                 page_type=_text(page.pageType),
+                page_type_confidence=getattr(page.pageType, "confidence", None),
                 side=_text(page.side),
             )
         return contexts

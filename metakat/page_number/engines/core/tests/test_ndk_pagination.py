@@ -457,16 +457,26 @@ def test_back_covers_and_end_sheets_continue_the_numbering_in_brackets():
     assert labels(paginate(values, config=edges()))[5:] == [None, None]  # no types: ambiguous, as before
 
 
-def test_pages_of_unknown_type_after_the_last_printed_number_stay_unresolved():
+def test_the_tail_continues_only_for_types_that_are_numbered_in_practice():
     values = [1, 2, 3, 4, 5, None, None]
-    contexts = typed(values, {6: "backCover"})
-    assert labels(paginate(values, config=edges(), contexts=contexts))[5:] == [None, None]
+    # a page of unknown type, a jacket or an advertisement (50-56% continuation) blocks the tail
+    for blocking in (None, "jacket", "advertisement"):
+        contexts = typed(values, {5: "backCover", 6: blocking})
+        assert labels(paginate(values, config=edges(), contexts=contexts))[5:] == [None, None]
+    assert labels(paginate(values, config=edges(), contexts=typed(values, {5: "map", 6: "table"})))[5:] == ["[6]", "[7]"]
+    # a spine or a photo of the binding is no page: it gets nothing and the others still continue
+    contexts = typed(values, {5: "backCover", 6: "spine"})
+    assert labels(paginate(values, config=edges(), contexts=contexts))[5:] == ["[6]", None]
 
 
-def test_trailing_inserted_material_gets_letters_not_numbers():
-    values = [1, 2, 3, 4, 5, None]
-    contexts = typed(values, {5: "illustration"})
-    assert labels(paginate(values, config=edges(), contexts=contexts))[5] == "[5a]"
+def test_a_page_type_the_model_is_unsure_of_counts_as_unknown():
+    values = [1, 2, 3, 4, 5, None, None]
+    sure = {i: NdkPageContext(page_type="backCover", page_type_confidence=0.95) for i in (5, 6)}
+    unsure = {i: NdkPageContext(page_type="backCover", page_type_confidence=0.5) for i in (5, 6)}
+    assert labels(paginate(values, config=edges(), contexts=sure))[5:] == ["[6]", "[7]"]
+    assert labels(paginate(values, config=edges(), contexts=unsure))[5:] == [None, None]
+    spine = {5: NdkPageContext(page_type="spine", page_type_confidence=0.4)}
+    assert labels(paginate(values, config=edges(), contexts=spine))[5] is None
 
 
 def test_an_explicit_tail_mode_beats_the_types():
@@ -476,16 +486,10 @@ def test_an_explicit_tail_mode_beats_the_types():
     assert labels(paginate(values, config=config, contexts=contexts))[5] == "[5a]"
 
 
-def test_inserted_material_in_a_gap_is_not_a_counted_page():
-    values = [10, 11, 12, None, None, 15, 16, 17]
-    contexts = typed(values, {3: "illustration", 4: "illustration"})
-    assert labels(paginate(values, config=edges(), contexts=contexts))[3:5] == [None, None]
-    assert labels(paginate(values, config=edges()))[3:5] == ["13", "14"]
-
-
-def test_spines_and_edges_do_not_advance_the_numbering_and_get_no_label():
+@pytest.mark.parametrize("kind", ["spine", "edge", "cover", "frontEndPaper", "customInclude", "fragmentsOfBookbinding"])
+def test_parts_of_the_binding_and_non_pages_do_not_advance_the_numbering_and_get_no_label(kind):
     values = [10, 11, 12, None, None, 14, 15, 16]
-    contexts = typed(values, {3: "spine"})
+    contexts = typed(values, {3: kind})
     assert labels(paginate(values, config=edges(), contexts=contexts))[3:5] == [None, "13"]
 
 
