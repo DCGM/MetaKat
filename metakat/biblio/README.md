@@ -984,49 +984,68 @@ first page; otherwise none.
 
 ### Periodical volume consolidation
 
+The periodical binder follows the levels of the NDK periodical DMF: an issue
+keeps the title printed on it, the periodical's title is the one its issues
+agree on ([Title creation](#title-creation)), and a volume (ročník) is
+described by its number and year only. The DMF allows a volume title only when
+it differs from the periodical's. That is rare and cannot be told apart from
+the periodical title printed on an issue's title page, so a volume never gets
+one.
+
 In a periodical scan the volumes are contiguous runs of issues: volume, its
-issues, next volume, its issues. The periodical binder's `periodical_volumes` walks the issues in scan
-order. The volume reading of an issue's [authoritative span](#hierarchy-binding)
-- a `periodical` volume candidate with a `partNumber` or a `dateIssued` - is
-offered to the current volume's bag; when the bag rejects it, it starts the
-next volume. An issue without such a reading stays in the current volume, and
-the issues before the first named volume belong to it. Without any volume
-number or year, all issues share one unnamed `periodical` volume.
+issues, next volume, its issues. `volume_runs` walks the issues in scan order,
+each with the volume number and year read by its
+[authoritative span](#hierarchy-binding) (`VolumeReading`; none unless the
+span's candidate is `periodical`):
 
-`PeriodicalMetakatVolumeBag` holds the `root_volume` whose fields represent the
-bag, the `root_page_id` anchor, and the volumes it absorbed. `add_volume` first
-rejects a candidate that is not `periodical` or that carries neither field, then
-applies a cheap pre-filter: at least one of `partNumber` or `dateIssued` must
-match the root's. Matching compares the **normalized text** of the kept
-readings, not whole `Value`s: two genuine detections of the same volume never
-share a detection UUID and rarely share a confidence, so `Value` equality
-could only ever match a value against itself. `None` matches only
-`None`, so two candidates that both lack a field satisfy the pre-filter on that
-field alone.
+- An issue starts the next volume only when its reading has something to
+  compare with the current volume's and disagrees on all of it. Agreeing on
+  anything, or having nothing in common (one side only a number, the other
+  only a year), keeps it in the volume. Merging two volumes costs less than
+  breaking one apart: a volume often spans two years, and a number agreeing
+  with a year that does not is more likely a misread year.
+- The current volume's number and year are the values most of its issues
+  read (`_consensus`; the more confident on a tie), not the first issue's.
+- An issue reading neither stays in the current volume; the issues before the
+  first reading belong to the first volume. Without any reading all issues
+  share one unnumbered volume.
+- **A-B-A:** a run whose only reading disagrees with the runs on both sides,
+  which agree with each other, is a misread and is put back between them. A
+  single-issue run between two different volumes stays.
 
-The binding decision itself is made by the case table below; a candidate that
-passes the pre-filter but matches no case is still rejected. Once a case
-applies, the richer or more confident evidence becomes the new root:
+Readings are compared as values, not text:
 
-| Root state | Candidate state | Outcome |
-|---|---|---|
-| both fields | both fields | the higher sum of the two confidences becomes root; the other is absorbed |
-| both fields | one field matching the root's | absorbed |
-| `partNumber` only | `partNumber` only, matching | the higher `partNumber` confidence becomes root |
-| `dateIssued` only | `dateIssued` only, matching | the higher `dateIssued` confidence becomes root |
+| Field | Compared as | Same | Different |
+|---|---|---|---|
+| number | `volume_number`: the first numeral with its numeral system, else the normalized text | `Ročník IV.`, `roč. IV`, `IV` | `IV` and `4` |
+| year | `volume_years`: the years it names, a range spanning each year | `1887-88` and `1888` | `1887` and `1888` |
 
-After every accepted candidate, `root_page_id` moves to the earlier of the two
-anchor pages. The anchor therefore reflects the bag's full page range rather
-than whichever candidate currently supplies the fields.
+A periodical keeps to one way of numbering its volumes, so a number in the
+other numeral system is more likely a misread - an issue number taken for the
+volume's - than the same volume; Roman and Arabic numerals are therefore
+never equated. A Roman numeral is an uppercase token read before accents are
+stripped, so neither `č.` nor the preposition `v` reads as one.
 
-Each bag becomes one deep-copied root volume, whose id is re-anchored to
-`root_page_id`, and the parent of its issues.
+Each run becomes a `periodical` `MetakatVolume` with only `partNumber` and
+`dateIssued`, its consensus readings (their `Value`s, so their evidence), and
+is the parent of its issues. What the DMF fills from elsewhere - the year as
+`partNumber` of a volume without a printed number, the periodical's title on
+an issue without its own - is left to the MODS exporter.
 
 ### Title creation
 
-`title_from` (shared) takes the volume with the highest-confidence `title`
-among the volumes it is given - the parts of a multipart scan, the periodical
-volumes of a periodical one - and builds:
+A periodical's title is chosen by `periodical_title`. A scan holds one
+periodical, so every title read on any of its title-page spans, not only the
+authoritative ones, is a reading of that title or an outlier: a misread
+title, a subtitle or heading taken for it. Each reading is scored by its mean
+`title_similarity` (`difflib` ratio of the normalized texts) to the most
+similar half of the other readings, so a minority of outliers does not lower a
+good reading's score. The highest score wins, the more confident reading on a
+tie, and the title takes that span's `title`, `subTitle` and groups. With no
+reading the title is unnamed.
+
+A multipart monograph's title is made by `title_from` (shared), which takes
+the volume with the highest-confidence `title` among the parts and builds:
 
 ```python
 MetakatTitle(
@@ -1056,8 +1075,8 @@ pages; it never decides a boundary. It is
 binder-internal - the output schema has no anchor field - and lives in an
 `Anchors` dict mapping element id to page id, built by
 `read_spans` and passed explicitly to every step that
-needs it. A merged ProArc volume and a consolidated periodical volume each get
-their own entry.
+needs it. A merged ProArc volume gets its own entry; a periodical volume has none,
+since only bottom-level units hold pages.
 
 The anchor is also the page that represents a unit: the page its title was
 read from. Right after pages are attached, `process()` sets
@@ -1084,8 +1103,8 @@ carries the groups through its decisions about records.
   `agent` groups always stay as read: a record can have several series and
   several names.
 - **Choosing between records** - a leaf keeps its authoritative span's
-  groups; a periodical volume bag keeps its root volume, groups included; a
-  title takes its volume's groups.
+  groups; a periodical volume has no groups, only its number and year; a
+  title takes the groups of the reading it was chosen from.
 - **Finalizing** - before the elements are written, `finalize_groups` drops
   from each group the values its record no longer holds - the less confident
   of two readings, a field a merge does not keep - and drops groups left with
