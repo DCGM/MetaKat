@@ -125,12 +125,14 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
         page_numbers: Sequence[PhysicalPageNumberEvidence] | None = None,
         image_dimensions: Sequence[PageDimensions | None] | None = None,
         alto_dimensions: Sequence[PageDimensions | None] | None = None,
+        page_types: Sequence[tuple[str, float] | None] | None = None,
     ) -> TocResult:
         pages = self._pair_pages(
             images,
             alto_files,
             image_dimensions,
             alto_dimensions,
+            page_types,
         )
         external_destination_page_numbers = (
             self._external_destination_page_numbers(page_numbers)
@@ -302,8 +304,15 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
         alto_files: Sequence[str],
         image_dimensions: Sequence[PageDimensions | None] | None = None,
         alto_dimensions: Sequence[PageDimensions | None] | None = None,
+        page_types: Sequence[tuple[str, float] | None] | None = None,
     ) -> tuple[ChapterPageInput, ...]:
         image_paths = tuple(Path(path) for path in images)
+        supplied_page_types = None if page_types is None else tuple(page_types)
+        if supplied_page_types is not None and len(supplied_page_types) != len(image_paths):
+            raise ValueError(
+                "Page-type inputs must have the same length as images: "
+                f"{len(supplied_page_types)} != {len(image_paths)}"
+            )
         alto_paths = tuple(Path(path) for path in alto_files)
         supplied_image_dimensions = (
             None if image_dimensions is None else tuple(image_dimensions)
@@ -366,6 +375,16 @@ class ChapterPipelineCoreEngine(ChapterCoreEngine):
                     None
                     if supplied_alto_dimensions is None
                     else supplied_alto_dimensions[position]
+                ),
+                page_type=(
+                    None
+                    if supplied_page_types is None or supplied_page_types[position] is None
+                    else supplied_page_types[position][0]
+                ),
+                page_type_confidence=(
+                    None
+                    if supplied_page_types is None or supplied_page_types[position] is None
+                    else supplied_page_types[position][1]
                 ),
             )
             for position, image_path in enumerate(image_paths)

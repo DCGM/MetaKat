@@ -685,3 +685,54 @@ def test_toc_group_ties_prefer_shorter_then_earlier_group():
 
     assert tuple(item.page.position for item in shorter) == (5,)
     assert tuple(item.page.position for item in earlier) == (2,)
+
+
+def _typed(position, page_type=None, confidence=None):
+    return ChapterPageInput(f"page-{position}", position, Path(f"/b/page-{position}.jpg"),
+                            Path(f"/b/page-{position}.xml"), page_type=page_type, page_type_confidence=confidence)
+
+
+def test_the_longest_run_of_toc_pages_is_the_toc():
+    from metakat.chapter.engines.core.chapter_page_analysis.engine_yolo_alto import toc_pages_from_page_types
+
+    pages = [_typed(0, "titlePage", .9), _typed(1, "tableOfContents", .99), _typed(2, "normalPage", .9),
+             _typed(5, "tableOfContents", .6), _typed(6, "tableOfContents", .7), _typed(7)]
+
+    assert [page.position for page in toc_pages_from_page_types(pages)] == [5, 6]
+
+
+def test_of_equally_long_toc_runs_the_more_confident_is_the_toc():
+    from metakat.chapter.engines.core.chapter_page_analysis.engine_yolo_alto import toc_pages_from_page_types
+
+    pages = [_typed(1, "tableOfContents", .7), _typed(3, "tableOfContents", .95), _typed(9, "tableOfContents", .8)]
+
+    assert [page.position for page in toc_pages_from_page_types(pages)] == [3]
+    assert toc_pages_from_page_types([_typed(0, "normalPage", .9)]) == ()
+
+
+def test_the_page_types_decide_the_toc_whatever_the_detections_say(
+    tmp_path, analysis_engine, alignment_page, region, fake_alignment_engine,
+):
+    inputs, alignments = [], []
+    for position in range(4):
+        image, alto = tmp_path / f"page-{position}.jpg", tmp_path / f"page-{position}.xml"
+        image.touch()
+        alto.write_text(_alto_xml("Obsah"), encoding="utf-8")
+        inputs.append(ChapterPageInput(f"page-{position}", position, image, alto,
+                                       image_dimensions=PageDimensions(1000, 1000),
+                                       page_type="tableOfContents" if position == 2 else "normalPage",
+                                       page_type_confidence=0.9))
+        # Page 0 looks like a TOC to the detector; page 2 does not.
+        regions = [] if position != 0 else [
+            *[region(index, "kapitola", f"Title {index}", 10, index * 30) for index in range(2)],
+            *[region(index + 2, "cislo strany", str(index), 500, index * 30) for index in range(2)],
+        ]
+        if position == 3:
+            regions = [region(0, "nadpis v textu", "Destination", 10, 10)]
+        alignments.append(alignment_page(f"page-{position}", regions))
+    engine = analysis_engine(aligner=fake_alignment_engine(alignments))
+
+    result = engine.process(inputs)
+
+    assert [page.page_key for page in result.toc_pages] == ["page-2"]
+    assert [item.title.text for item in result.destination_chapters] == ["Destination"]

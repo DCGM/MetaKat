@@ -843,3 +843,24 @@ def test_values_carry_the_alto_ids_of_the_evidence_they_were_read_from(bind_engi
     assert alto_by_id[start.id].lines == alto_by_id[end.id].lines == ["TL2"]
     # A destination title read from an ALTO without IDs has no entry.
     assert chapter.title[0].id not in alto_by_id
+
+
+def test_process_passes_the_page_types_to_the_core(bind_engine):
+    from metakat.schemas.base_objects import PageType
+
+    batch_id = uuid4()
+    volume = MetakatVolume(id=uuid4(), hierarchy=HierarchyType.MONOGRAPH)
+    toc = MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=0, parent_id=volume.id,
+                      pageType=(PageType.TABLE_OF_CONTENTS, 0.9))
+    untyped = MetakatPage(id=uuid4(), batch_id=batch_id, batch_index=1, parent_id=volume.id)
+    metakat_io = MetakatIO(
+        batch_id=batch_id,
+        elements=[volume, toc, untyped],
+        page_to_image_mapping={toc.id: "toc.jpg", untyped.id: "page.jpg"},
+        page_to_alto_mapping={toc.id: "toc.xml", untyped.id: "page.xml"},
+    )
+    bind_engine.core_engine = types.SimpleNamespace(process=mock.Mock(return_value=TocResult(())))
+
+    bind_engine.process("/batch", metakat_io)
+
+    assert bind_engine.core_engine.process.call_args.kwargs["page_types"] == (("tableOfContents", 0.9), None)

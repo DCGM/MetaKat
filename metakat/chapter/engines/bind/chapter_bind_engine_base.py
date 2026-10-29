@@ -175,6 +175,18 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 core_options["image_dimensions"] = image_dimensions
             if any(value is not None for value in alto_dimensions):
                 core_options["alto_dimensions"] = alto_dimensions
+            # What the page-type stage found decides the TOC pages.
+            page_types = tuple(
+                None
+                if page.pageType is None
+                else (
+                    getattr(page.pageType.text, "value", page.pageType.text),
+                    page.pageType.confidence,
+                )
+                for page in processable_pages
+            )
+            if any(value is not None for value in page_types):
+                core_options["page_types"] = page_types
             core_result = self.core_engine.process(
                 images,
                 alto_files,

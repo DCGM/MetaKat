@@ -332,7 +332,11 @@ process(
 ```
 
 The input is the complete ordered document, not just suspected TOC pages.
-Every item supplies the image and ALTO pair needed for analysis.
+Every item supplies the image and ALTO pair needed for analysis, and the page
+type the page-type stage gave the page with its confidence (`page_type`,
+`page_type_confidence`, None without one). The chapter bind passes the page
+types of the document's pages to the core as `page_types`, a
+`(PageType value, confidence)` or None per page.
 
 #### Output
 
@@ -678,6 +682,20 @@ The following engine implements the
 This engine detects page-layout regions with YOLO, fills their text from ALTO,
 selects one consecutive TOC-page block, and returns destination-title
 and physical-page-number evidence from pages outside that block.
+
+##### TOC pages from the page types
+
+The TOC pages are the ones the page-type stage classified `tableOfContents`:
+its detection of TOC pages is reliable, so the engine does not second-guess
+it. A document has one TOC, so the consecutive runs of such pages compete
+(`toc_pages_from_page_types`): the longest run is the TOC, the one with the
+greater mean page-type confidence on a tie, the first on a full tie. A stray
+page classified as a TOC elsewhere in the document is ignored. Without a
+`tableOfContents` page the document has no TOC pages.
+
+Only when no page of the document has a page type - the page-type stage did
+not run - are the TOC pages found from the detections and the TOC keywords,
+as the rest of this section describes.
 
 ##### Configuration
 

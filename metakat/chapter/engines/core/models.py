@@ -33,6 +33,10 @@ class ChapterPageInput:
     alto_path: Path
     image_dimensions: PageDimensions | None = None
     alto_dimensions: PageDimensions | None = None
+    # The page type the page-type stage gave the page (a PageType value) and
+    # its confidence; None when it gave none.
+    page_type: str | None = None
+    page_type_confidence: float | None = None
 
 
 @dataclass(frozen=True)

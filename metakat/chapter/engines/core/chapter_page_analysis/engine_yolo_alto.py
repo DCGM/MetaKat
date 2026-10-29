@@ -34,7 +34,7 @@ from metakat.chapter.engines.core.physical_page_numbers.resolver import (
     PageNumberSelectionMode,
     PhysicalPageNumberResolver,
 )
-from metakat.schemas.base_objects import ChapterType
+from metakat.schemas.base_objects import ChapterType, PageType
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,11 @@ class _TocCandidateWindows:
 
 
 class ChapterPageAnalysisEngineYOLOALTO:
-    """Select TOC pages and collect title evidence from body pages."""
+    """Select TOC pages and collect title evidence from body pages.
+
+    The TOC pages are the ones the page-type stage classified
+    `tableOfContents` (toc_pages_from_page_types). Only when no page has a
+    page type are they found from the detections and the TOC keywords."""
 
     DEFAULT_LABELS: dict[ChapterType, str] = {
         ChapterType.LEVEL_1_TITLE: "kapitola",
@@ -229,6 +233,10 @@ class ChapterPageAnalysisEngineYOLOALTO:
                 + ", ".join(missing)
             )
 
+        if any(page.page_type is not None for page in ordered_pages):
+            toc_pages = toc_pages_from_page_types(ordered_pages)
+            return self._result(ordered_pages, alignments, toc_pages)
+
         candidates: list[_TocCandidate] = []
         total_pages = len(ordered_pages)
 
@@ -316,6 +324,24 @@ class ChapterPageAnalysisEngineYOLOALTO:
 
         selected_group = self._best_group(candidates)
         toc_pages = tuple(candidate.page for candidate in selected_group)
+        if selected_group:
+            logger.info(
+                "Selected consecutive TOC block: pages=%s, positions=%s, "
+                "contains_keyword=%s, visual_score=%d, candidates=%d",
+                [candidate.page.page_key for candidate in selected_group],
+                [candidate.page.position for candidate in selected_group],
+                any(candidate.contains_keyword for candidate in selected_group),
+                sum(candidate.visual_score for candidate in selected_group),
+                len(candidates),
+            )
+        return self._result(ordered_pages, alignments, toc_pages)
+
+    def _result(
+        self,
+        ordered_pages: Sequence[ChapterPageInput],
+        alignments: dict,
+        toc_pages: tuple[ChapterPageInput, ...],
+    ) -> ChapterPageAnalysisResult:
         toc_page_keys = {page.page_key for page in toc_pages}
         destination_chapters = tuple(
             evidence
@@ -338,17 +364,7 @@ class ChapterPageAnalysisEngineYOLOALTO:
             )
             is not None
         )
-        if selected_group:
-            logger.info(
-                "Selected consecutive TOC block: pages=%s, positions=%s, "
-                "contains_keyword=%s, visual_score=%d, candidates=%d",
-                [candidate.page.page_key for candidate in selected_group],
-                [candidate.page.position for candidate in selected_group],
-                any(candidate.contains_keyword for candidate in selected_group),
-                sum(candidate.visual_score for candidate in selected_group),
-                len(candidates),
-            )
-        else:
+        if not toc_pages:
             logger.warning(
                 "No TOC page block selected from %d analyzed page(s)",
                 len(ordered_pages),
@@ -712,3 +728,37 @@ class ChapterPageAnalysisEngineYOLOALTO:
             ),
         )
         return tuple(best)
+
+
+def toc_pages_from_page_types(
+    pages: Sequence[ChapterPageInput],
+) -> tuple[ChapterPageInput, ...]:
+    """The TOC of a document: its run of consecutive `tableOfContents` pages.
+
+    A document has one TOC, so when the page-type stage finds several runs -
+    a stray page classified as TOC, a list of illustrations - the longest
+    run is the TOC, the one with the greater mean page-type confidence on a
+    tie, the first on a full tie. Pages without a page type are not TOC."""
+    runs: list[list[ChapterPageInput]] = []
+    for page in sorted(pages, key=lambda page: page.position):
+        if page.page_type != PageType.TABLE_OF_CONTENTS.value:
+            continue
+        if runs and page.position == runs[-1][-1].position + 1:
+            runs[-1].append(page)
+        else:
+            runs.append([page])
+    if not runs:
+        return ()
+
+    def confidence(run):
+        return sum(page.page_type_confidence or 0. for page in run) / len(run)
+
+    best = max(runs, key=lambda run: (len(run), confidence(run)))
+    logger.info(
+        "TOC pages from the page types: pages=%s, positions=%s, mean confidence=%.3f, runs=%s",
+        [page.page_key for page in best],
+        [page.position for page in best],
+        confidence(best),
+        [[page.position for page in run] for run in runs],
+    )
+    return tuple(best)

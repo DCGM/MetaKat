@@ -32,5 +32,7 @@ class ChapterCoreEngine(ABC):
         page_numbers: Sequence[PhysicalPageNumberEvidence] | None = None,
         image_dimensions: Sequence[PageDimensions | None] | None = None,
         alto_dimensions: Sequence[PageDimensions | None] | None = None,
+        page_types: Sequence[tuple[str, float] | None] | None = None,
     ) -> TocResult:
-        pass
+        """The chapters of one document. `page_types`, when given, holds per
+        page the (PageType value, confidence) the page-type stage gave it."""
