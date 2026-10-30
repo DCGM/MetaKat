@@ -1604,13 +1604,20 @@ Of each entry the engine reads:
 | Reply | `ChapterBase` |
 |---|---|
 | `tocPage`, the index of the image the entry starts on | `toc_page_key` |
-| `titleInfo[0].title`, the first language version | `title_toc_page` |
+| `titleInfo[0].title`, the first language version; else `designation` | `title_toc_page` |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |
 | `pageReference`, parsed by `ArabicRomanChapterPageNumberParser` | `page_number_toc_page` |
 
+An entry printed with only its designation ("Kapitola 3") has the designation
+as its title: the NDK gives a chapter's title as printed in the book, its
+example being "Kapitola 3" (Pravidla pro popis monografií 2.1). Its part
+number is printed in the same words, and a word goes to one value only, so
+the part number takes its words from the title.
+
 A grouping heading is an entry like any other. Not read: the parallel titles,
-the chapter descriptions, `designation`, `pages` and `lang`. Parallel title
-versions are inspected only to decide whether column reordering is safe.
+the chapter descriptions, `pages`, `lang`, and `designation` when the entry
+has a title. Parallel title versions are inspected only to decide whether
+column reordering is safe.
 
 The model names no regions, so each value is located afterwards among the ALTO
 words of the entry's page, then of the next page for an entry continuing onto

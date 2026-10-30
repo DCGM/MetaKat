@@ -20,16 +20,18 @@ the configured `confidence` (0.95 unless set).
 
 Of an entry the stage reads:
 
-- the title of its first `titleInfo` object, as `title_toc_page`; the
-  parallel titles in other languages and the chapter descriptions are not
-  read;
+- the title of its first `titleInfo` object, as `title_toc_page`; an entry
+  printed with only its designation ("Kapitola 3") has the designation as
+  its title, as the NDK gives such a chapter's title, and its part number
+  takes its words from it; the parallel titles in other languages and the
+  chapter descriptions are not read;
 - its `partNumber`, the printed numbering without its words, as
   `part_number_toc_page`;
 - its `pageReference`, parsed as the YOLO stage parses a detected reference
   (ArabicRomanChapterPageNumberParser), as `page_number_toc_page`.
 
-A heading (`kind` heading) is an entry as an item is. `designation`, `pages`
-and `lang` are not read.
+A heading (`kind` heading) is an entry as an item is. `pages` and `lang` are
+not read, nor `designation` of an entry with a title.
 
 The model is either behind an API (`vlm.api_url`) or a local one that vLLM
 serves only while `process()` runs (`local`, metakat.common.vlm.local_server),
@@ -52,8 +54,10 @@ import contextlib
 import dataclasses
 import json
 import logging
+import re
 from collections.abc import Iterator, Mapping
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Optional, Sequence
 
 from metakat.chapter.engines.core.chapter_page_number_parsers import (
@@ -212,6 +216,19 @@ class ChapterExtractionEngineVLM:
                         if path is None or region.alto_geometry is None:
                             continue
                         located.setdefault((path[1], path[2]), (page_index, region))
+        # An entry titled by its designation ("Kapitola 3") prints its part
+        # number in the title's words, and a word goes to one value only, so
+        # the part number takes its words from the title.
+        for index, entry in enumerate(entries):
+            number = entry.get("partNumber")
+            if ((index, "partNumber") in located or (index, "title") not in located
+                    or not isinstance(number, str) or _own_title(entry) is not None):
+                continue
+            page_index, title = located[index, "title"]
+            tokens = {_bare(token) for token in number.split()} - {""}
+            words = [word for word in title.words if _bare(word.text) in tokens]
+            if words:
+                located[index, "partNumber"] = (page_index, _words_region(words))
         return located
 
 
@@ -221,12 +238,11 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
     open_entries: list[tuple[int, dict]] = []
     for index, entry in enumerate(entries):
         level = entry.get("level") if isinstance(entry.get("level"), int) and entry.get("level") > 0 else 1
-        titles = [item for item in entry.get("titleInfo") or () if isinstance(item, Mapping)]
         reference = evidence(index, "pageReference", entry.get("pageReference"))
         node = {
             "chapter": dict(
                 toc_page_key=page_keys[_page_index(entry, len(page_keys))],
-                title_toc_page=evidence(index, "title", titles[0].get("title")) if titles else None,
+                title_toc_page=evidence(index, "title", _title_text(entry)),
                 part_number_toc_page=evidence(index, "partNumber", entry.get("partNumber")),
                 page_number_toc_page=None if reference is None else ArabicRomanChapterPageNumberParser.create(reference),
             ),
@@ -252,12 +268,37 @@ def _page_index(entry: Mapping[str, Any], page_count: int) -> int:
     return min(max(index, 0), page_count - 1)
 
 
+def _own_title(entry: Mapping[str, Any]) -> Optional[str]:
+    # The title of the first titleInfo object, None when it has none.
+    titles = [item for item in entry.get("titleInfo") or () if isinstance(item, Mapping)]
+    title = titles[0].get("title") if titles else None
+    return title if isinstance(title, str) and title.strip() else None
+
+
+def _title_text(entry: Mapping[str, Any]) -> Any:
+    # An entry printed with only its designation ("Kapitola 3") is titled by
+    # it: the NDK gives a chapter's title as printed in the book, "Kapitola 3"
+    # for one without a title of its own.
+    return _own_title(entry) or entry.get("designation")
+
+
+def _bare(text: str) -> str:
+    return re.sub(r"\W", "", text).casefold()
+
+
+def _words_region(words: Sequence[Any]) -> SimpleNamespace:
+    # Some words of an aligned region, with their box, as evidence() reads a region.
+    x, y = min(word.bbox.x for word in words), min(word.bbox.y for word in words)
+    return SimpleNamespace(words=tuple(words), alto_geometry=SimpleNamespace(
+        x=x, y=y, width=max(word.bbox.x_max for word in words) - x,
+        height=max(word.bbox.y + word.bbox.height for word in words) - y))
+
+
 def _entry_texts(entry: Mapping[str, Any]) -> dict:
     # The values of an entry the stage reads, by field: only they are
     # looked for in the ALTO, so no other text takes their words.
-    titles = [item for item in entry.get("titleInfo") or () if isinstance(item, Mapping)]
     texts = {
-        "title": titles[0].get("title") if titles else None,
+        "title": _title_text(entry),
         "partNumber": entry.get("partNumber"),
         "pageReference": entry.get("pageReference"),
     }
