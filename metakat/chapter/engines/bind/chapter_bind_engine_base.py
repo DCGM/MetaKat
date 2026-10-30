@@ -517,6 +517,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 pageIndexEnd=page_index_end,
                 title=title,
                 pageIndexTocPage=toc_page.pageIndex,
+                entryKindTocPage=resolved.kind_toc_page,
                 titleTocPage=with_versions(title_toc_page, 0),
                 subTitleTocPage=with_versions(subtitle_toc_page, 1),
                 partNumberTocPage=part_number_toc_page,

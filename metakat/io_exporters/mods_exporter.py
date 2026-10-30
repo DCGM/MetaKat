@@ -503,7 +503,7 @@ _INTERNAL_PART_SECTIONS = {
     "pageReferenceTocPage": None,
     "pageNumberStartTocPage": "part:pageNumber", "pageNumberEndTocPage": "part:pageNumber",
     "pageIndexStart": "part:pageIndex", "pageIndexEnd": "part:pageIndex",
-    "pageIndexTocPage": None,
+    "pageIndexTocPage": None, "entryKindTocPage": None,
 }
 
 

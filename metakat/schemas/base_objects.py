@@ -118,6 +118,13 @@ class ArticleGenre(str, enum.Enum):
     TABLE_OF_CONTENTS = "tableOfContents"
 
 
+class TocEntryKind(str, enum.Enum):
+    """What a table-of-contents entry is: a heading grouping the entries
+    below it ("Část první", "I. Poezie") or an item, an entry of its own."""
+    HEADING = "heading"
+    ITEM = "item"
+
+
 class NameType(str, enum.Enum):
     """What an agent is, MODS <name type="...">: the four name types of the
     DMF, which the name authorities use as well."""
@@ -787,6 +794,11 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     # Which scan carries the TOC entry. A pointer, not a range, so it stays
     # scalar. MetaKat-only.
     pageIndexTocPage: Optional[int] = None
+
+    # Whether the TOC entry is a heading grouping the entries below it or an
+    # item, as the reader of the TOC classifies it. Both are internal parts,
+    # the heading the parent of its entries. MetaKat-only.
+    entryKindTocPage: Optional[ClassifiedValue[TocEntryKind]] = None
 
 
 class MetakatInternalPart(_MetakatInternalPartFields, MetakatAgents, _MetakatInternalPartHead):

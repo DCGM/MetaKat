@@ -6,7 +6,7 @@ from pathlib import Path
 
 from metakat.common.models import AgentRole, DetectionEvidence, PageDimensions
 from metakat.common.vlm.report import VLMCallReport
-from metakat.schemas.base_objects import NameType
+from metakat.schemas.base_objects import ClassifiedValue, NameType, TocEntryKind
 from metakat.chapter.engines.core.physical_page_numbers.models import (
     PageNumberNumeralSystem,
     PageNumberTextCase,
@@ -163,6 +163,8 @@ class ChapterBase:
     # printed order; None when the reader does not split it, and the binder
     # splits page_number_toc_page by its parsed shape.
     page_runs_toc_page: tuple[ChapterPageRun, ...] | None = field(default=None, kw_only=True)
+    # Whether the entry is a heading or an item, when the reader tells it.
+    kind_toc_page: ClassifiedValue[TocEntryKind] | None = field(default=None, kw_only=True)
     children: tuple[ChapterBase, ...] = ()
 
 

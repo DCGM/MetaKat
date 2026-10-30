@@ -46,8 +46,11 @@ Of an entry the stage reads:
   range a range, several a list of their first pages, and no number when a
   page is not one ("12a") or there are none ("mapa za titulem").
 
-A heading (`kind` heading) is an entry as an item is. `designation` of an
-entry with a title is not read.
+- its `kind`, heading or item, as `kind_toc_page` with the configured
+  confidence; a heading is an entry as an item is, the parent of the
+  entries of a higher level after it.
+
+`designation` of an entry with a title is not read.
 
 The model is either behind an API (`vlm.api_url`) or a local one that vLLM
 serves only while `process()` runs (`local`, metakat.common.vlm.local_server),
@@ -103,7 +106,7 @@ from metakat.common.vlm import (
 )
 from metakat.common.vlm.local_server import LocalModelConfig, serve
 from metakat.engine_config import require_config_mapping
-from metakat.schemas.base_objects import NameType
+from metakat.schemas.base_objects import ClassifiedValue, NameType, TocEntryKind
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +205,7 @@ class ChapterExtractionEngineVLM:
                 lang=lang if isinstance(lang, str) else None,
             )
 
-        result = TocBase(build_hierarchy(entries, evidence, keys), reports=(report,))
+        result = TocBase(build_hierarchy(entries, evidence, keys, self.confidence), reports=(report,))
         logger.info("Chapter extraction produced %d entry/entries, %d root(s); located %d value(s) in the ALTO",
                     len(entries), len(result.chapters), len(located))
         return result
@@ -274,14 +277,17 @@ class ChapterExtractionEngineVLM:
         return located
 
 
-def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: Sequence[str]) -> tuple:
-    """The flat entries as a tree: the parent of an entry is the nearest preceding entry of a smaller level."""
+def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: Sequence[str],
+                    confidence: float = DEFAULT_CONFIDENCE) -> tuple:
+    """The flat entries as a tree: the parent of an entry is the nearest preceding entry of a smaller level.
+    An entry's `kind` is classified with `confidence`."""
     roots: list[dict] = []
     open_entries: list[tuple[int, dict]] = []
     for index, entry in enumerate(entries):
         level = entry.get("level") if isinstance(entry.get("level"), int) and entry.get("level") > 0 else 1
         reference = evidence(index, "pageReference", entry.get("pageReference"))
         runs = page_runs(entry.get("pages")) if reference is not None else None
+        kind = entry.get("kind")
         title_info = _first_title_info(entry)
         lang = title_info.get("lang")
         node = {
@@ -298,6 +304,8 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
                 page_number_toc_page=None if reference is None else page_number(reference, runs),
                 page_reference_toc_page=reference,
                 page_runs_toc_page=runs,
+                kind_toc_page=(ClassifiedValue[TocEntryKind](text=TocEntryKind(kind), confidence=confidence)
+                               if kind in TocEntryKind._value2member_map_ else None),
             ),
             "children": [],
         }

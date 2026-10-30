@@ -27,6 +27,7 @@ from metakat.schemas.base_objects import (
     MetakatIO,
     MetakatPage,
     PageType,
+    TocEntryKind,
     Value,
 )
 
@@ -1077,6 +1078,9 @@ def _chapter_annotation_text(
         for value in (values or [])
     ]
     lines.append(f"level: {level}")
+    if chapter.entryKindTocPage is not None:
+        lines.append(f"entryKindTocPage: {TocEntryKind(chapter.entryKindTocPage.text).value} "
+                     f"({chapter.entryKindTocPage.confidence:.2f})")
     lines.append(f"pageIndexTocPage: {chapter.pageIndexTocPage}")
     lines.append(f"pageIndexStart: {_indices(chapter.pageIndexStart)}")
     lines.append(f"pageIndexEnd: {_indices(chapter.pageIndexEnd)}")

@@ -20,6 +20,8 @@ from metakat.chapter.engines.core.physical_page_numbers.parsers import (
     DecoratedPageNumberParser,
 )
 from metakat.schemas.base_objects import (
+    ClassifiedValue,
+    TocEntryKind,
     HierarchyType,
     NameType,
     MetakatChapter,
@@ -951,3 +953,16 @@ def test_a_reference_the_reader_split_gives_its_pages_and_ranges_as_printed(bind
     assert [group.members for group in chapter.groups if group.type == "pageRange"] == [
         [chapter.pageNumberStartTocPage[2].id, chapter.pageNumberEndTocPage[0].id]]
     assert len({bbox_by_id[value.id] for value in (*chapter.pageNumberStartTocPage, *chapter.pageReferenceTocPage)}) == 1
+
+
+def test_the_kind_of_a_toc_entry_is_its_chapters(bind_engine, evidence):
+    page = MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=0, pageIndex=1)
+    kind = ClassifiedValue[TocEntryKind](text=TocEntryKind.HEADING, confidence=.9)
+    result = TocResult(chapters=(ChapterResult(toc_page_key="toc", title_toc_page=evidence("Část první", "toc"),
+                                               kind_toc_page=kind),))
+
+    elements, _, _, _ = bind_engine.extract_metakat_elements_from_pipeline(result, {"toc": page}, container_id=uuid4())
+
+    chapter = next(element for element in elements if element.type == "chapter")
+    assert (chapter.entryKindTocPage.text, chapter.entryKindTocPage.confidence) == (TocEntryKind.HEADING, .9)
+    assert MetakatChapter.model_validate_json(chapter.model_dump_json()).entryKindTocPage.text == TocEntryKind.HEADING

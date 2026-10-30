@@ -5,10 +5,15 @@ import pytest
 from PIL import Image
 
 from metakat.chapter.engines.core.chapter_core_engine_pipeline import check_chapter_pipeline_stages
-from metakat.chapter.engines.core.chapter_extraction.engine_vlm import ChapterExtractionEngineVLM, page_number, page_runs
+from metakat.chapter.engines.core.chapter_extraction.engine_vlm import (
+    ChapterExtractionEngineVLM,
+    build_hierarchy,
+    page_number,
+    page_runs,
+)
 from metakat.chapter.engines.core.models import ChapterPageInput, ChapterPageNumberKind, ChapterPageRun
 from metakat.common.models import AgentRole, AltoRefs, BoundingBox
-from metakat.schemas.base_objects import NameType
+from metakat.schemas.base_objects import NameType, TocEntryKind
 
 # Two TOC pages: the first lists two chapters, the second a section of the
 # second chapter and an appendix whose title the OCR missed.
@@ -41,7 +46,7 @@ _REPLY = {"entries": [
     {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "I", "designation": "I.",
      "titleInfo": [{"title": "Úvod", "subTitle": None, "description": None, "lang": "cze", "translated": False}], "agents": [],
      "pageReference": "5", "pages": ["5"]},
-    {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "II", "designation": "II.",
+    {"tocPage": 0, "level": 1, "kind": "heading", "partNumber": "II", "designation": "II.",
      "titleInfo": [{"title": "Les a voda", "subTitle": None, "description": "O lesích", "lang": "cze", "translated": False},
                    {"title": "Wald und Wasser", "subTitle": None, "description": None, "lang": "ger", "translated": True}],
      "agents": [], "pageReference": "12—30", "pages": [{"start": "12", "end": "30"}]},
@@ -115,6 +120,9 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     # The reference as printed, located, and the model's split of it.
     assert (second.page_reference_toc_page.text, second.page_reference_toc_page.alto.words) == ("12—30", ("C3W4",))
     assert second.page_runs_toc_page == (ChapterPageRun("12", "30"),)
+    # Whether an entry is a heading or an item, with the configured confidence.
+    assert [(c.kind_toc_page.text, c.kind_toc_page.confidence) for c in (first, second, second.children[0])] == [
+        (TocEntryKind.ITEM, .95), (TocEntryKind.HEADING, .95), (TocEntryKind.ITEM, .95)]
     # A level-2 entry on the next page is a child of the last level-1 entry before it.
     [section] = second.children
     assert (section.toc_page_key, section.title_toc_page.text) == ("0008", "Pramen")
@@ -321,3 +329,9 @@ def test_the_page_reference_is_parsed_from_the_models_split_and_kept_as_printed(
 def test_the_models_split_keeps_its_printed_tokens():
     assert page_runs(["125", {"start": "81", "end": "83"}, " ", {"start": "", "end": "9"}]) == (
         ChapterPageRun("125"), ChapterPageRun("81", "83"))
+
+
+def test_a_kind_the_schema_does_not_know_is_not_read():
+    [entry] = build_hierarchy([{"kind": "chapter"}], lambda *args, **kwargs: None, ["p"])
+
+    assert entry.kind_toc_page is None

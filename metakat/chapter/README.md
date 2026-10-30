@@ -430,6 +430,7 @@ ChapterBase(
     page_number_toc_page: ChapterPageNumberEvidence | None = None,
     page_reference_toc_page: DetectionEvidence | None = None,
     page_runs_toc_page: tuple[ChapterPageRun, ...] | None = None,
+    kind_toc_page: ClassifiedValue[TocEntryKind] | None = None,
     children: tuple[ChapterBase, ...] = (),
 )
 ```
@@ -445,6 +446,7 @@ ChapterBase(
 | `page_number_toc_page` | Optional parsed `PageNumber` printed in the TOC entry. It denotes the destination page number and retains the complete source evidence together with normalized semantic values for alignment. |
 | `page_reference_toc_page` | Optional page reference as printed, unparsed, when the engine reads it apart from `page_number_toc_page` (the VLM engine); otherwise the text of `page_number_toc_page` is the printed one. |
 | `page_runs_toc_page` | Optional reference split by the engine into its pages and ranges, in printed order, each a `ChapterPageRun(start, end)` of printed tokens (`end` `None` for a single page); the VLM engine's `pages`. `None` when the engine does not split it, and the binder splits `page_number_toc_page` by its parsed kind. |
+| `kind_toc_page` | Optional `TocEntryKind` of the entry - `heading`, grouping the entries below it, or `item` - with its confidence; the VLM engine reads it, the YOLO engine has none. |
 | `children` | Nested TOC entries. The model supports arbitrary hierarchy depth. |
 
 The `ChapterPageNumberEvidence` model extends `DetectionEvidence`:
@@ -1634,6 +1636,7 @@ Of each entry the engine reads:
 | `agents[]`, each in its `role` (never `redaktor`), with its `type`, its `termsOfAddress[]` and its `description[]` as affiliations; each name, term of address and affiliation is located on its own | `agents_toc_page`; terms bound to `termsOfAddressTocPage`, in the agent's group |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |
 | `pageReference`, the reference as printed | `page_reference_toc_page` |
+| `kind`, heading or item | `kind_toc_page`, with the configured `confidence` |
 | `pages`, the reference split into its pages (strings) and ranges (`start`, `end`) | `page_runs_toc_page`, bound as the page numbers; and `page_number_toc_page`, its pages parsed by `ArabicRomanChapterPageNumberParser.parse_page`, for the alignment: one page a single number, one range a range (its start alone when the end is lower or in another numeral system), several runs a list of their first pages, and no number when a page is not one (`12a`) or there are none (`mapa za titulem`) |
 
 An entry printed with only its designation ("Kapitola 3") has the designation
@@ -1642,9 +1645,9 @@ example being "Kapitola 3" (Pravidla pro popis monografií 2.1). Its part
 number is printed in the same words, and a word goes to one value only, so
 the part number takes its words from the title.
 
-A grouping heading is an entry like any other. Not read: `designation` when
-the entry has a title, and `kind`: a heading and an item are both chapters,
-told apart only by their `level`, which places each in the hierarchy.
+A grouping heading is an entry like any other: a heading and an item are
+both chapters, placed in the hierarchy by their `level`, and the `kind` is
+kept beside it. Not read: `designation` when the entry has a title.
 The model's split of the reference is used rather than parsing
 `pageReference` again, which fails on a range inside a list (`58, 69, 81—83`),
 on `125., 138., 286` and on a page like `12a`. Parallel title versions are inspected only to decide whether
@@ -2298,6 +2301,7 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 | `pageIndexEnd` | One entry `(pageIndex of page_end_key, entry UUID)`; `None` when unresolved or unavailable. |
 | `title` | `ChapterResult.title`: title evidence from the destination page. It is not copied into `titleTocPage`. |
 | `pageIndexTocPage` | `pageIndex` of `toc_page_key`; may be `None`. |
+| `entryKindTocPage` | `kind_toc_page`: whether the TOC entry is a `heading` or an `item` (`TocEntryKind`), a classified value. MetaKat-only. |
 | `titleTocPage` | `title_toc_page`: title evidence detected on the TOC page. |
 | `subTitleTocPage` | `subtitle_toc_page`: a subtitle completing the entry's title on the TOC page. |
 | `partNumberTocPage` | `part_number_toc_page`: part-number evidence detected on the TOC page. |
