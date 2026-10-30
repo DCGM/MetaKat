@@ -28,11 +28,13 @@ fi
 # MAIL_SERVER and MAIL_SENDER_MAIL the worker sends no emails. The password, if
 # the server needs one, is kept in .mail_password beside this script, or in the
 # file MAIL_PASSWORD_FILE names.
-# export MAIL_SERVER=smtp.example.com
-# export MAIL_PORT=587
-# export MAIL_SECURITY=starttls
-# export MAIL_SENDER_MAIL=metakat@example.com
-# export MAIL_RECEIVER_MAILS=admin@example.com
+# From inside the FIT network, the faculty's mail server takes mail for
+# fit.vut.cz addresses on port 25 without a login (port 587 requires one).
+export MAIL_SERVER=smtp.fit.vut.cz
+export MAIL_PORT=25
+export MAIL_SECURITY=starttls
+export MAIL_SENDER_MAIL=ikohut@fit.vut.cz
+export MAIL_RECEIVER_MAILS=ikohut@fit.vut.cz
 MAIL_PASSWORD_FILE="${MAIL_PASSWORD_FILE:-$SCRIPT_DIR/.mail_password}"
 if [ -r "$MAIL_PASSWORD_FILE" ]; then
     export MAIL_PASSWORD="$(<"$MAIL_PASSWORD_FILE")"
