@@ -1,5 +1,8 @@
 import os
 import json
+import functools
+import socket
+import subprocess
 import tempfile
 import shutil
 from pathlib import Path
@@ -14,6 +17,9 @@ from doc_worker.doc_worker_wrapper import DocWorkerWrapper, WorkerResponse
 from doc_api.api.schemas.base_objects import Job
 from doc_api.connector import Connector
 from doc_api.tools.mail.mail_sender import MailSender
+import doc_api
+
+import metakat
 
 from metakat.process_batch import process_batch
 from metakat.engine_config import prepare_engine_config, require_config_mapping
@@ -179,13 +185,22 @@ class MetakatWorker(DocWorkerWrapper):
         summary = self._summarize(job, response, job_dir, duration_s)
         return render_text(summary), render_text(summary, with_error=False)
 
-    @staticmethod
-    def _summarize(job: Job, response: WorkerResponse, job_dir: Optional[str], duration_s: float) -> JobSummary:
+    @classmethod
+    def _summarize(cls, job: Job, response: WorkerResponse, job_dir: Optional[str], duration_s: float) -> JobSummary:
         definition = job.engine_definition if isinstance(job.engine_definition, dict) else {}
+        metadata = None
+        meta_file = Path(job_dir) / "meta.json" if job_dir else None
+        if meta_file is not None and meta_file.is_file():
+            try:
+                metadata = cls._load_metadata_envelope(str(meta_file))
+            except Exception:
+                logger.warning("Job metadata could not be read for the job summary", exc_info=True)
         return summarize_job(
             job, response, duration_s,
-            metakat_json=Path(job_dir) / "result" / "metakat.json" if job_dir else None,
+            job_dir=Path(job_dir) if job_dir else None,
             has_chapter_stage="chapter" in definition,
+            worker=worker_description(),
+            metadata=metadata,
         )
 
     @staticmethod
@@ -228,6 +243,22 @@ class MetakatWorker(DocWorkerWrapper):
             if item is not None and not isinstance(item, dict):
                 raise ValueError(f"Job metadata {key!r} must be an object or null")
         return result
+
+
+@functools.lru_cache(maxsize=None)
+def worker_description() -> str:
+    """The MetaKat and DocAPI commits the worker runs and its host, read once, when the worker starts."""
+    def commit(directory: Path) -> str:
+        try:
+            run = functools.partial(subprocess.run, cwd=directory, capture_output=True, text=True, timeout=10)
+            head = run(["git", "rev-parse", "--short", "HEAD"]).stdout.strip()
+            dirty = run(["git", "status", "--porcelain", "--untracked-files=no"]).stdout.strip()
+            return (head + ("+dirty" if dirty else "")) if head else "unknown"
+        except (OSError, subprocess.SubprocessError):
+            return "unknown"
+
+    return (f"metakat {commit(Path(metakat.__file__).parent)}, "
+            f"docapi {commit(Path(doc_api.__file__).parent)}, {socket.gethostname()}")
 
 
 def mail_sender_from_config(config) -> Optional[MailSender]:
@@ -404,6 +435,7 @@ def main():
     )
 
     logger.info(f"Starting MetakatWorker connecting to {config.API_URL}")
+    logger.info(f"Worker: {worker_description()}")
     logger.info(f"Base directory: {config.BASE_DIR}")
     logger.info(f"Jobs directory: {config.JOBS_DIR}")
     logger.info(f"Engines directory: {config.ENGINES_DIR}")
