@@ -13,7 +13,7 @@ from typing import Optional
 from doc_worker.doc_worker_wrapper import DocWorkerWrapper, WorkerResponse
 from doc_api.api.schemas.base_objects import Job
 from doc_api.connector import Connector
-from doc_api.tools.mail.mail_logger import MailLogger
+from doc_api.tools.mail.mail_sender import MailSender
 
 from metakat.process_batch import process_batch
 from metakat.engine_config import prepare_engine_config, require_config_mapping
@@ -191,14 +191,13 @@ class MetakatWorker(DocWorkerWrapper):
         return result
 
 
-def mail_logger_from_config(config) -> Optional[MailLogger]:
-    """The mail logger MetakatWorker.send_mail uses, or None when mailing is not set up."""
+def mail_sender_from_config(config) -> Optional[MailSender]:
+    """The mail sender MetakatWorker.send_mail uses, or None when mailing is not set up."""
     if not config.MAIL_SERVER or not config.MAIL_SENDER_MAIL:
         return None
-    return MailLogger(
-        logger_name="metakat.worker.mail",
-        sender_mail=config.MAIL_SENDER_MAIL,
+    return MailSender(
         server=config.MAIL_SERVER,
+        sender_mail=config.MAIL_SENDER_MAIL,
         port=config.MAIL_PORT,
         receiver_mails=config.MAIL_RECEIVER_MAILS,
         sender_name=config.MAIL_SENDER_NAME,
@@ -362,7 +361,7 @@ def main():
         # tries to parse it as JSON (DCGM/DocAPI#42); streamed, it goes
         # straight to disk.
         download_engine_using_stream=True,
-        mail_logger=mail_logger_from_config(config),
+        mail_sender=mail_sender_from_config(config),
     )
 
     logger.info(f"Starting MetakatWorker connecting to {config.API_URL}")
@@ -371,9 +370,9 @@ def main():
     logger.info(f"Engines directory: {config.ENGINES_DIR}")
     logger.info(f"Store MetaKat PDF: {config.STORE_METAKAT_PDF}")
     logger.info(f"Store MODS overview: {config.STORE_MODS_OVERVIEW}")
-    if worker.mail_logger is not None:
+    if worker.mail_sender is not None:
         logger.info(f"Mail: {config.MAIL_SENDER_MAIL} via {config.MAIL_SERVER}:{config.MAIL_PORT} "
-                    f"({worker.mail_logger.security}), default receivers: "
+                    f"({worker.mail_sender.security}), default receivers: "
                     f"{', '.join(config.MAIL_RECEIVER_MAILS) or 'none'}")
     else:
         logger.info("Mail: not set up (MAIL_SERVER and MAIL_SENDER_MAIL), send_mail sends nothing")

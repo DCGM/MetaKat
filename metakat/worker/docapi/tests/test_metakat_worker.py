@@ -52,7 +52,7 @@ def test_store_metakat_pdf_defaults_false_and_reads_environment():
 
 def test_mailing_is_off_without_a_server():
     with mock.patch.dict("os.environ", {"MAIL_SENDER_MAIL": "metakat@example.com"}, clear=True):
-        assert worker_module.mail_logger_from_config(Config()) is None
+        assert worker_module.mail_sender_from_config(Config()) is None
 
 
 def test_mailing_reads_its_settings_from_the_environment():
@@ -66,12 +66,12 @@ def test_mailing_reads_its_settings_from_the_environment():
         "MAIL_RECEIVER_MAILS": "admin@example.com, user@example.com",
     }
     with mock.patch.dict("os.environ", environment, clear=True):
-        mail_logger = worker_module.mail_logger_from_config(Config())
+        mail_sender = worker_module.mail_sender_from_config(Config())
 
-    assert mail_logger.receiver_mails == ["admin@example.com", "user@example.com"]
+    assert mail_sender.receiver_mails == ["admin@example.com", "user@example.com"]
     with mock.patch("smtplib.SMTP") as smtp_class:
-        assert mail_logger.send("Job done", "body")
-    smtp_class.assert_called_once_with("smtp.example.com", 587)
+        assert mail_sender.send("Job done", "body")
+    smtp_class.assert_called_once_with("smtp.example.com", 587, timeout=60)
     smtp = smtp_class.return_value
     smtp.starttls.assert_called_once_with()
     smtp.login.assert_called_once_with("login", "secret")
