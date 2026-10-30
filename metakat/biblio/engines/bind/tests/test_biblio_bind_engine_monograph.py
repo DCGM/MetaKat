@@ -726,6 +726,16 @@ def test_merging_one_volumes_pages_unites_its_statements_but_keeps_its_series_ap
     ]
 
 
+def test_the_distributor_describes_the_volume():
+    io, _ = _process(_scan((), {1: .99}), _read(1, 'Kytice', distributor=('v Praze', 'Fr. Řivnáče')))
+
+    [volume] = _of(io, MetakatVolume)
+    assert ([v.text for v in volume.distributionPlaceTerm], [v.text for v in volume.distributor]) == (
+        ['v Praze'], ['Fr. Řivnáče'])
+    [distribution] = [group for group in volume.groups if group.type == GroupType.ORIGIN_INFO_DISTRIBUTION]
+    assert distribution.members == [volume.distributionPlaceTerm[0].id, volume.distributor[0].id]
+
+
 def test_a_part_number_makes_every_document_a_part_of_one_multipart_monograph():
     pages = _scan({4}, {1: .99, 5: .99})
     io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1'), _read(5, 'Dějiny'))

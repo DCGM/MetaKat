@@ -22,6 +22,7 @@ from metakat.biblio.engines.bind.biblio_bind_engine_periodical import (
 )
 from metakat.biblio.engines.bind.tests.test_biblio_binding import _of, _parents, _process, _read, _scan, _v
 from metakat.schemas.base_objects import (
+    GroupType,
     HierarchyType,
     MetakatEngine,
     MetakatIO,
@@ -166,6 +167,20 @@ def test_the_issn_is_the_periodical_titles_and_the_isbn_and_names_the_issues():
     assert [value.text for value in issue.isbn] == ['80-7004-015-2'] and title.isbn is None
     assert ([v.text for v in issue.issuingBody], [v.text for v in issue.termsOfAddress],
             [v.text for v in issue.etal]) == (['Spolek'], ['Dr.'], ['a kol.'])
+
+
+def test_the_distributor_describes_the_issue_like_its_imprint():
+    io, _ = _bound(_scan((), {0: .99}),
+                   _read(0, 'Zlatá Praha', volume='Ročník 5', issue='1', distributor=('v Praze', 'Fr. Řivnáče')))
+
+    [issue] = _of(io, MetakatIssue)
+    assert ([v.text for v in issue.distributionPlaceTerm], [v.text for v in issue.distributor]) == (
+        ['v Praze'], ['Fr. Řivnáče'])
+    [distribution] = [group for group in issue.groups if group.type == GroupType.ORIGIN_INFO_DISTRIBUTION]
+    assert distribution.members == [issue.distributionPlaceTerm[0].id, issue.distributor[0].id]
+    [volume] = _of(io, MetakatVolume)
+    [title] = _of(io, MetakatTitle)
+    assert volume.distributor is None and title.distributor is None
 
 
 def _with_issn(reading, *issns):

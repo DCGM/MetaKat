@@ -23,6 +23,7 @@ from metakat.biblio.engines.core.models import (
     BiblioAgent,
     BiblioCopyright,
     BiblioCoreResult,
+    BiblioDistribution,
     BiblioIdentifiers,
     BiblioManufacture,
     BiblioPart,
@@ -520,8 +521,9 @@ def _scan(starts=(), titles=None, count=8):
             for i in range(count)]
 
 
-def _read(index, title, confidence=.9, part=None, part_name=None, volume=None, year=None, issue=None, kind=None):
-    """What the core reads on page `index`, as a one-page span result."""
+def _read(index, title, confidence=.9, part=None, part_name=None, volume=None, year=None, issue=None, kind=None,
+          distributor=None):
+    """What the core reads on page `index`, as a one-page span result; a `distributor` is (place, name)."""
     key = f'p{index}'
 
     def ev(text):
@@ -537,7 +539,9 @@ def _read(index, title, confidence=.9, part=None, part_name=None, volume=None, y
         page_keys=(key,),
         reading=BiblioReading(title_infos=(BiblioTitleInfo(
             title=ev(title) if title else None, part_number=ev(part) if part else None,
-            part_name=ev(part_name) if part_name else None),)),
+            part_name=ev(part_name) if part_name else None),),
+            distributions=(BiblioDistribution(places=(ev(distributor[0]),), distributors=(ev(distributor[1]),)),)
+            if distributor else ()),
         periodical_volume=periodical_volume,
         periodical_issue=BiblioReading(title_infos=(BiblioTitleInfo(part_number=ev(issue)),)) if issue else None,
         kind=kind,

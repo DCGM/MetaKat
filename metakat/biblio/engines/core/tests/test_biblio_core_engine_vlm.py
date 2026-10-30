@@ -584,6 +584,7 @@ _PERIODICAL_REPLY = _reply(
     agents=[_agent("editor", "K. J. ERBEN", type="personal"),
             _agent("issuingBody", "Spolek", type="corporate")],
     publication=[{"placeTerm": ["Praze"], "publisher": [], "publisherInferred": False, "dateIssued": None}],
+    distribution=[{"distributionPlaceTerm": ["v Praze"], "distributor": ["Fr. Řivnáče"], "distributionDate": None}],
     statementOfResponsibility=["Řídí K. J. Erben"],
     copyrightDate="1925",
     issn=["0862-5832"],
@@ -608,6 +609,9 @@ def test_the_periodical_engine_reads_the_volume_the_issue_and_the_editor_as_reda
     [publication] = result.reading.publications
     assert [p.text for p in publication.places] == ["Praze"]
     assert publication.frequency.text == "Vychází každou sobotu"
+    [distribution] = result.reading.distributions
+    assert ([p.text for p in distribution.places], [d.text for d in distribution.distributors], distribution.date) == (
+        ["v Praze"], ["Fr. Řivnáče"], None)
     # The editor of a periodical is its redaktor; every other role keeps its name.
     assert [(a.role, a.name.text, a.type) for a in result.reading.agents] == [
         (AgentRole.REDAKTOR, "K. J. ERBEN", NameType.PERSONAL),
