@@ -1637,7 +1637,7 @@ Of each entry the engine reads:
 | the main version's `description`, its synopsis | `description_toc_page` |
 | the main version's `lang` | the `lang` of the title, subtitle and synopsis evidence, so of their values (`<titleInfo lang>`, `<abstract lang>`) |
 | the other `titleInfo[]` objects, the parallel versions flagged `translated`, each with its title, subtitle, synopsis and `lang` | `parallel_titles_toc_page` (`ChapterTitleVersion`); bound after the main version in `titleTocPage`, `subTitleTocPage` (flagged `translated`) and `abstractTocPage`, a titleInfo group each |
-| `agents[]`, each in its `role` (never `redaktor`), with its `type`, its `termsOfAddress[]`, its life `dates`, its `description[]` and its `affiliation[]`; each is located on its own, except an affiliation printed in its agent's description, which takes its words from there | `agents_toc_page`; bound to `termsOfAddressTocPage`, `nameDateTocPage`, `nameDescriptionTocPage` and `affiliationTocPage`, in the agent's group |
+| `agents[]`, each in its `role`, with its `type`, its `termsOfAddress[]`, its life `dates`, its `description[]` and its `affiliation[]`; each is located on its own, except an affiliation printed in its agent's description, which takes its words from there | `agents_toc_page`; bound to `termsOfAddressTocPage`, `nameDateTocPage`, `nameDescriptionTocPage` and `affiliationTocPage`, in the agent's group |
 | `etal`, the phrase saying there are more agents than named | `etal_toc_page`, bound to `etalTocPage` |
 | `designation`, the whole printed entry marker with its words and punctuation | `designation_toc_page`, bound to `designationTocPage` |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |

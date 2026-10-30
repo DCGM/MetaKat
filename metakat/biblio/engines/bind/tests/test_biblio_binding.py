@@ -389,7 +389,7 @@ def test_a_periodical_page_gives_a_volume_and_an_issue(metakat_page):
             publications=(BiblioPublication(
                 places=(_ev("Praha", 0.8),), publishers=(_ev("Otto", 0.8),), edition=_ev("2. vyd.", 0.5),
             ),),
-            agents=(BiblioAgent(role=AgentRole.REDAKTOR, name=_ev("Novák", 0.7)),
+            agents=(BiblioAgent(role=AgentRole.EDITOR, name=_ev("Novák", 0.7)),
                     BiblioAgent(role=AgentRole.AUTHOR, name=_ev("Vrchlický", 0.7))),
         ),
         periodical_volume=BiblioReading(
@@ -401,22 +401,30 @@ def test_a_periodical_page_gives_a_volume_and_an_issue(metakat_page):
         ),
     )
 
-    volume, issue = span_candidates(page)[0]
+    volume, issue = span_candidates(page, periodical=True)[0]
 
     assert volume.hierarchy == HierarchyType.PERIODICAL
     assert (_tc(volume.partNumber), _tc(volume.dateIssued)) == (("Ročník IV", 0.8), ("1887", 0.7))
     assert _tc(issue.partNumber) == ("Číslo 3", 0.8)
     # The issue repeats its title page's title, imprint and names, but not
-    # the volume's date or edition; a redaktor is the issue's only.
+    # the volume's date or edition; the editor of a periodical is the issue's only.
     assert issue.title == volume.title and issue.publisher == volume.publisher
-    assert (issue.dateIssued, issue.edition, volume.redaktor) == (None, None, None)
-    assert _tc(issue.redaktor) == ("Novák", 0.7)
+    assert (issue.dateIssued, issue.edition, volume.editor) == (None, None, None)
+    assert _tc(issue.editor) == ("Novák", 0.7)
     assert _tc(issue.author) == _tc(volume.author) == ("Vrchlický", 0.7)
     # The title and the volume number are one titleInfo of the volume.
     finalize_groups(volume)
     [title_info] = _group(volume, "titleInfo")
     [part] = _group(volume, "part")
     assert (title_info.members, part.members) == ([volume.title[0].id, part.id], [volume.partNumber[0].id])
+
+
+def test_the_editor_of_a_book_is_its_volumes(metakat_page):
+    page = _page_result(_titled(agents=(BiblioAgent(role=AgentRole.EDITOR, name=_ev("Novák", 0.7)),)))
+
+    volume, _ = span_candidates(page)[0]
+
+    assert _tc(volume.editor) == ("Novák", 0.7)
 
 
 def test_a_periodical_issue_is_read_with_its_title_even_without_a_number(metakat_page):

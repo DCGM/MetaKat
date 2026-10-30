@@ -75,7 +75,7 @@ Anchors = Dict[UUID, UUID]
 
 # What an issue takes from its title page's reading besides its own number
 # and date: what each issue repeats - the periodical's title, imprint,
-# manufacture statement and distributor, its redaktor and the other persons
+# manufacture statement and distributor, its editor and the other persons
 # and bodies named with their terms of address, life dates, descriptions and
 # affiliations, the
 # statements of responsibility, a copyright date and the ISBN the DMF gives an
@@ -437,9 +437,9 @@ def _compose(record: Union[MetakatVolume, MetakatIssue, MetakatSupplement], sour
 # The core decided what was read and how it groups; this decides only
 # which record each value describes:
 #
-#   * `reading` - level not stated. The volume takes all of it except
-#     redaktor; the issue takes the fields a periodical issue repeats from
-#     its title page (_ISSUE_FIELDS).
+#   * `reading` - level not stated. The volume takes all of it, but in a
+#     periodical not the editor, who edits the issues; the issue takes the
+#     fields a periodical issue repeats from its title page (_ISSUE_FIELDS).
 #   * `periodical_volume` / `periodical_issue` - that record only.
 #
 # A span the core tells is a supplement's also gives a candidate supplement:
@@ -458,7 +458,9 @@ def span_candidates(
     page_result: BiblioSpanResult,
     detection_page_keys: Optional[Dict[UUID, str]] = None,
     set_isbn_ids: Optional[set] = None,
+    periodical: bool = False,
 ) -> Tuple[List[MetakatElement], dict, dict]:
+    # periodical: the span is read for the periodical binder.
     # detection_page_keys, when given, receives the page key each value
     # was read on; set_isbn_ids the ids of the ISBNs of a whole work in
     # several volumes, which the candidate volume holds in `isbn` until the
@@ -522,7 +524,7 @@ def span_candidates(
     metakat_volume = MetakatVolume(id=uuid4(), hierarchy=span_hierarchy(page_result))
     metakat_issue = MetakatIssue(id=uuid4())
     _compose(metakat_volume, [
-        _restrict(reading, lambda field_name: field_name != "redaktor"),
+        _restrict(reading, lambda field_name: not periodical or field_name != AgentRole.EDITOR.value),
         periodical_volume,
     ])
     _compose(metakat_issue, [
@@ -589,13 +591,15 @@ class Scan:
     set_isbn_ids: set = dataclasses.field(default_factory=set)
 
 
-def read_scan(core_engine, batch_dir: str, metakat_io: MetakatIO) -> Scan:
+def read_scan(core_engine, batch_dir: str, metakat_io: MetakatIO, periodical: bool = False) -> Scan:
     """A copy of the scan cut into its documents and title-page spans, with every span read by the core.
 
     The bottom-level documents are the page-type stage's decision
     (bottom_documents); a binder adds a boundary where it finds a second unit
     in a document, and removes one only when configured to decide alone
-    (the monograph binder's `multipart_boundaries`)."""
+    (the monograph binder's `multipart_boundaries`). `periodical` is set by
+    the periodical binder: an editor read there is the issue's, not the
+    volume's (span_candidates)."""
     metakat_io = copy.deepcopy(metakat_io)
     pages = sorted((el for el in metakat_io.elements if el.type == DocumentType.PAGE.value),
                    key=lambda page: page.batch_index)
@@ -624,7 +628,8 @@ def read_scan(core_engine, batch_dir: str, metakat_io: MetakatIO) -> Scan:
         if (image_filename := image_mapping.get(page.id)) is not None
     }
     set_isbn_ids: set = set()
-    bboxes, page_ids, alto, anchors = read_spans(spans, core_result, page_key_to_metakat_page, set_isbn_ids)
+    bboxes, page_ids, alto, anchors = read_spans(spans, core_result, page_key_to_metakat_page, set_isbn_ids,
+                                                 periodical)
     logger.info(f"{sum(span.names for span in spans)} span(s) name a document")
     return Scan(metakat_io, pages, documents, spans, anchors, bboxes, page_ids, alto,
                 core_result.reports, page_key_to_metakat_page, set_isbn_ids)
@@ -703,6 +708,7 @@ def read_spans(
     core_result: BiblioCoreResult,
     page_key_to_metakat_page: dict,
     set_isbn_ids: Optional[set] = None,
+    periodical: bool = False,
 ) -> Tuple[dict, dict, dict, Anchors]:
     """Each span's candidate volume and issue, its score, and the geometry of every value read.
 
@@ -715,7 +721,7 @@ def read_spans(
         if result is None:
             continue
         page_keys: Dict[UUID, str] = {}
-        elements, bboxes, alto = span_candidates(result, page_keys, set_isbn_ids)
+        elements, bboxes, alto = span_candidates(result, page_keys, set_isbn_ids, periodical)
         for detection_id, page_key in page_keys.items():
             page = page_key_to_metakat_page.get(page_key)
             if page is None:

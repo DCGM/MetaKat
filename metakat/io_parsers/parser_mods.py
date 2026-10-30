@@ -19,7 +19,7 @@ ROLE_TERM_TO_FIELD = {
     "pht": "photographer",
     "trl": "translator",
     "edt": "editor",
-    "red": "redaktor",
+    "red": "editor",
     "cmp": "composer",
     "rev": "reviewer",
     "isb": "issuingBody",
@@ -40,7 +40,7 @@ FIELD_NAMES = (
     "title", "subTitle", "partName", "partNumber", "dateIssued", "edition",
     "placeTerm", "publisher", "manufacturePublisher", "manufacturePlaceTerm",
     "author", "illustrator", "photographer", "translator", "editor",
-    "redaktor", "composer", "reviewer", "issuingBody", "contributor", "other",
+    "composer", "reviewer", "issuingBody", "contributor", "other",
     "seriesName", "seriesNumber",
 )
 

@@ -6,7 +6,7 @@ class BiblioCoreEngineYOLOMonograph(BiblioCoreEngineYOLO):
     """The YOLO core of monographs and multipart monographs.
 
     Its detector is trained on books, which print no periodical volume or
-    issue and no redaktor, so it reads every other label."""
+    issue and no redaktor of a periodical, so it reads every other label."""
 
     BIBLIO_TYPES = frozenset(BiblioType) - {
         BiblioType.PERIODICAL_VOLUME_PART_NUMBER,

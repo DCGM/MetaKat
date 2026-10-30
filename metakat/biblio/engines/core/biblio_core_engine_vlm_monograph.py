@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 
 _MONOGRAPH = RESOURCES / "monograph"
 # Every role the schema has is the field of the same name.
-_ROLES = {role.value: role for role in AgentRole if role is not AgentRole.REDAKTOR}
+_ROLES = {role.value: role for role in AgentRole}
 
 
 class BiblioCoreEngineVLMMonograph(BiblioCoreEngineVLMBase):

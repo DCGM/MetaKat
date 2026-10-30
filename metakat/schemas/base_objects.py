@@ -423,8 +423,8 @@ class MetakatAgents(MetakatBaseModel):
     supplement, a chapter and an article may all carry any of these roles.
     MetaKat encodes the role in the field name instead of a roleTerm, which
     is why there is one field per role rather than one agent field. The roles
-    are those the VLM prompts ask for, and `redaktor`, the editor of a
-    periodical; `other` holds a name in a role none of the others covers.
+    are those the VLM prompts ask for; `other` holds a name in a role none of
+    the others covers.
     Each name is an AgentValue, carrying what the agent is - <name type>.
 
     `termsOfAddress` (<namePart type="termsOfAddress">: an academic title or
@@ -454,7 +454,6 @@ class MetakatAgents(MetakatBaseModel):
     photographer: Optional[List[AgentValue]] = None
     translator: Optional[List[AgentValue]] = None
     editor: Optional[List[AgentValue]] = None
-    redaktor: Optional[List[AgentValue]] = None
     composer: Optional[List[AgentValue]] = None
     reviewer: Optional[List[AgentValue]] = None
     issuingBody: Optional[List[AgentValue]] = None
@@ -1113,7 +1112,6 @@ class ObjectItem(BaseModel):
     photographer: Optional[List[str]] = None
     translator: Optional[List[str]] = None
     editor: Optional[List[str]] = None
-    redaktor: Optional[List[str]] = None
     composer: Optional[List[str]] = None
     reviewer: Optional[List[str]] = None
     issuingBody: Optional[List[str]] = None

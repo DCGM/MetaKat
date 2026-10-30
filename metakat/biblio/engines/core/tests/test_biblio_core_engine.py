@@ -192,7 +192,7 @@ def test_every_name_is_its_own_agent():
         ("redaktor", "Novák", 0.7),
     ), BY_LABEL)
     assert [(agent.role, agent.name.text) for agent in result.reading.agents] == [
-        (AgentRole.AUTHOR, "Němcová"), (AgentRole.AUTHOR, "Erben"), (AgentRole.REDAKTOR, "Novák")]
+        (AgentRole.AUTHOR, "Němcová"), (AgentRole.AUTHOR, "Erben"), (AgentRole.EDITOR, "Novák")]
 
 
 def test_one_series_name_and_number_are_one_series():
@@ -395,7 +395,7 @@ def test_the_monograph_core_drops_the_periodical_labels_its_model_is_not_trained
     assert "not found in the engine" not in caplog.text
 
 
-def test_the_periodical_core_reads_the_volume_issue_and_redaktor_but_no_edition(monkeypatch):
+def test_the_periodical_core_reads_the_volume_issue_and_redaktor_as_editor_but_no_edition(monkeypatch):
     aligned = _Aligned(_page(("titulek", "Zlatá Praha", 0.9), ("cislo", "Č. 3", 0.8), ("rocnik", "Ročník V", 0.8),
                              ("redaktor", "Novák", 0.7), ("vydani", "2. vydání", 0.9), page_key="p1"))
     engine = _yolo(aligned, BiblioCoreEngineYOLOPeriodical, monkeypatch)
@@ -404,6 +404,6 @@ def test_the_periodical_core_reads_the_volume_issue_and_redaktor_but_no_edition(
 
     assert result.periodical_issue.title_infos[0].part_number.text == "Č. 3"
     assert result.periodical_volume.title_infos[0].part_number.text == "Ročník V"
-    assert [agent.role for agent in result.reading.agents] == [AgentRole.REDAKTOR]
+    assert [agent.role for agent in result.reading.agents] == [AgentRole.EDITOR]
     assert all(publication.edition is None for publication in result.reading.publications)
     assert engine.ignored_labels == {"vydani", "prekladatel", "fotograf"}

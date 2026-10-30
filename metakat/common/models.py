@@ -18,7 +18,6 @@ class AgentRole(str, enum.Enum):
     PHOTOGRAPHER = "photographer"
     TRANSLATOR = "translator"
     EDITOR = "editor"
-    REDAKTOR = "redaktor"
     COMPOSER = "composer"
     REVIEWER = "reviewer"
     ISSUING_BODY = "issuingBody"

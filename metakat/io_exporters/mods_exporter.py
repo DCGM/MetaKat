@@ -66,15 +66,14 @@ UNIT_TYPES = (
 )
 INTERNAL_PART_TYPES = (DocumentType.CHAPTER.value, DocumentType.ARTICLE.value)
 
-# MARC relator codes, as Czech catalogue records use them: a redaktor is an
-# editor there too. Which MetaKat field a name came from stays in provenance.
+# MARC relator codes, as Czech catalogue records use them. Which MetaKat
+# field a name came from stays in provenance.
 ROLE_CODES = {
     "author": "aut",
     "illustrator": "ill",
     "photographer": "pht",
     "translator": "trl",
     "editor": "edt",
-    "redaktor": "edt",
     "composer": "cmp",
     "reviewer": "rev",
     "issuingBody": "isb",
@@ -83,9 +82,9 @@ ROLE_CODES = {
 }
 AGENT_FIELDS = (*ROLE_CODES, "termsOfAddress", "nameDate", "nameDescription", "affiliation")
 # An internal part's agents read in its TOC entry: the same fields with the
-# suffix TocPage; a TOC names no redaktor.
-TOC_AGENT_FIELDS = tuple(f"{field_name}TocPage" for field_name in AGENT_FIELDS if field_name != "redaktor")
-ROLE_CODES |= {f"{field_name}TocPage": code for field_name, code in ROLE_CODES.items() if field_name != "redaktor"}
+# suffix TocPage.
+TOC_AGENT_FIELDS = tuple(f"{field_name}TocPage" for field_name in AGENT_FIELDS)
+ROLE_CODES |= {f"{field_name}TocPage": code for field_name, code in ROLE_CODES.items()}
 ROLE_CODES["reviewedWorkAuthor"] = "aut"
 ROLE_CODES["seriesEditor"] = "edt"
 _AFFILIATION_FIELDS = ("affiliation", "affiliationTocPage")

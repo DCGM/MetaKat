@@ -17,9 +17,8 @@ is not read. Of the reply this engine reads:
   instead of a publisher's or a printer's name with them, as for books, and
   the `frequency`, as part of the first imprint;
 - the `agents`, each with its type, its life `dates`, its `description` and
-  its `affiliation`, in the field of its role: an editor of a periodical is its
-  `redaktor`, which the periodical binder gives to the issue; every other
-  role keeps its name;
+  its `affiliation`, in the field of its role; the periodical binder gives
+  the editor to the issue only;
 - the terms of address of the agents and `etal`;
 - the statements of responsibility, the `copyrightDate`, the `issn` and
   `isbn` and the `language` and `originalLanguage` codes;
@@ -59,10 +58,8 @@ from metakat.biblio.engines.core.models import (
 logger = logging.getLogger(__name__)
 
 _PERIODICAL = RESOURCES / "periodical"
-# Every role the schema has is the field of the same name, but the editor of a
-# periodical is its redaktor.
-_ROLES = {**{role.value: role for role in AgentRole if role is not AgentRole.REDAKTOR},
-          "editor": AgentRole.REDAKTOR}
+# Every role the schema has is the field of the same name.
+_ROLES = {role.value: role for role in AgentRole}
 
 # The dense body text: within one TextBlock, at least MIN_RUN consecutive
 # lines whose height is within HEIGHT_TOLERANCE of the page's body height and

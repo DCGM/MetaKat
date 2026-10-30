@@ -718,7 +718,7 @@ _PERIODICAL_REPLY = _reply(
 )
 
 
-def test_the_periodical_engine_reads_the_volume_the_issue_and_the_editor_as_redaktor(page):
+def test_the_periodical_engine_reads_the_volume_the_issue_and_the_agents(page):
     engine = BiblioCoreEngineVLMPeriodical(_periodical_config(), client=_Endpoint(_PERIODICAL_REPLY).client())
 
     result = engine.process(_span(page)).spans[0]
@@ -737,9 +737,9 @@ def test_the_periodical_engine_reads_the_volume_the_issue_and_the_editor_as_reda
     [distribution] = result.reading.distributions
     assert ([p.text for p in distribution.places], [d.text for d in distribution.distributors], distribution.date) == (
         ["v Praze"], ["Fr. Řivnáče"], None)
-    # The editor of a periodical is its redaktor; every other role keeps its name.
+    # Every role is the field of its name.
     assert [(a.role, a.name.text, a.type) for a in result.reading.agents] == [
-        (AgentRole.REDAKTOR, "K. J. ERBEN", NameType.PERSONAL),
+        (AgentRole.EDITOR, "K. J. ERBEN", NameType.PERSONAL),
         (AgentRole.ISSUING_BODY, "Spolek", NameType.CORPORATE)]
     assert title_info.title.lang == "cze"
     [responsibility] = result.reading.responsibilities

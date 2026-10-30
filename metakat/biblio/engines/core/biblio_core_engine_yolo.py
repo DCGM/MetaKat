@@ -49,7 +49,8 @@ _SLOTS: Dict[BiblioType, Tuple[str, str, str]] = {
     BiblioType.PHOTOGRAPHER: (_READING, AgentRole.PHOTOGRAPHER.value, _ALL),
     BiblioType.TRANSLATOR: (_READING, AgentRole.TRANSLATOR.value, _ALL),
     BiblioType.EDITOR: (_READING, AgentRole.EDITOR.value, _ALL),
-    BiblioType.REDAKTOR: (_READING, AgentRole.REDAKTOR.value, _ALL),
+    # The detector's redaktor of a periodical is its editor.
+    BiblioType.REDAKTOR: (_READING, AgentRole.EDITOR.value, _ALL),
     BiblioType.PERIODICAL_VOLUME_PART_NUMBER: (_VOLUME, "part_number", _BEST),
     BiblioType.PERIODICAL_VOLUME_DATE_ISSUED: (_VOLUME, "date_issued", _BEST),
     BiblioType.PERIODICAL_ISSUE_PART_NUMBER: (_ISSUE, "part_number", _BEST),

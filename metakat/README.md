@@ -756,9 +756,9 @@ title and whose second has only a part number reads as:
 ```
 
 The role-derived name fields — `author`, `illustrator`, `photographer`,
-`translator`, `editor`, `redaktor`, `composer`, `reviewer`, `issuingBody`,
+`translator`, `editor`, `composer`, `reviewer`, `issuingBody`,
 `contributor` and `other`, from the marcrelator codes `aut`, `ill`, `pht`, `trl`,
-`edt`, `red`, `cmp`, `rev`, `isb`, `ctb` and `oth` — are a set of names rather
+`edt` (and `red`), `cmp`, `rev`, `isb`, `ctb` and `oth` — are a set of names rather
 than a column of an aligned group, so they never hold a placeholder and stay
 `List[str]`.
 

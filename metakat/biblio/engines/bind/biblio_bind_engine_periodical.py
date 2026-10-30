@@ -105,7 +105,7 @@ def unit_of(winner: Optional[TitleSpan]):
 
 class BiblioBindEnginePeriodical(BiblioBindEngine):
     def process(self, batch_dir: str, metakat_io: MetakatIO, proarc_io: ProarcIO = None) -> MetakatIO:
-        scan = read_scan(self.core_engine, batch_dir, metakat_io)
+        scan = read_scan(self.core_engine, batch_dir, metakat_io, periodical=True)
         return write_scan(scan, self.bind(scan))
 
     def bind(self, scan: Scan) -> List[MetakatElement]:

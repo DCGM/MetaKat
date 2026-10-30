@@ -315,7 +315,7 @@ def test_the_issn_is_the_periodical_titles_and_the_isbn_and_names_the_issues():
                                        issns=(dataclasses.replace(ev, text='0862-5832'),)),),
         agents=(BiblioAgent(role=AgentRole.ISSUING_BODY, name=dataclasses.replace(ev, text='Spolek'),
                             terms_of_address=()),
-                BiblioAgent(role=AgentRole.REDAKTOR, name=dataclasses.replace(ev, text='Jan Novák'),
+                BiblioAgent(role=AgentRole.EDITOR, name=dataclasses.replace(ev, text='Jan Novák'),
                             terms_of_address=(dataclasses.replace(ev, text='Dr.'),))),
         etals=(BiblioEtal(phrase=dataclasses.replace(ev, text='a kol.')),),
     ))
@@ -503,7 +503,7 @@ def _with_publisher(reading, place, publisher, date='1909'):
     publication = BiblioPublication(places=(dataclasses.replace(ev, text=place),),
                                     publishers=(dataclasses.replace(ev, text=publisher),),
                                     date_issued=dataclasses.replace(ev, text=date))
-    agents = (BiblioAgent(role=AgentRole.REDAKTOR, name=dataclasses.replace(ev, text='Jan Novák')),)
+    agents = (BiblioAgent(role=AgentRole.EDITOR, name=dataclasses.replace(ev, text='Jan Novák')),)
     return dataclasses.replace(reading, reading=dataclasses.replace(reading.reading, publications=(publication,),
                                                                      agents=agents))
 
@@ -519,7 +519,7 @@ def test_the_periodical_title_takes_the_place_and_publisher_its_title_pages_agre
 
     [title] = _of(io, MetakatTitle)
     assert ([v.text for v in title.placeTerm], [v.text for v in title.publisher]) == (['Praha'], ['Otto'])
-    assert (title.dateIssued, title.redaktor) == (None, None)
+    assert (title.dateIssued, title.editor) == (None, None)
     [publication] = [group for group in title.groups if group.type == GroupType.ORIGIN_INFO_PUBLICATION]
     assert publication.members == [title.placeTerm[0].id, title.publisher[0].id]
     assert [v.text for issue in _of(io, MetakatIssue) for v in issue.publisher] == ['Otto', 'Otto', 'Vilímek']

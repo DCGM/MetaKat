@@ -177,7 +177,7 @@ other's (`MetakatGroup` members can be group ids):
 | `BiblioManufacture` | `<originInfo eventType="manufacture">` / `originInfoManufacture` | `places` → `manufacturePlaceTerm`, `manufacturers` → `manufacturePublisher`, `statement` → `manufacturePublisherStatement`, `date` → `manufactureDate` |
 | `BiblioDistribution` | `<originInfo eventType="distribution">` / `originInfoDistribution` | `places` → `distributionPlaceTerm`, `distributors` → `distributor`, `date` → `distributionDate` |
 | `BiblioSeries` | `<relatedItem type="series">` / `series` | `titles` (`BiblioSeriesTitle`, a `<titleInfo>` and a `seriesTitleInfo` group each, one per language: `name` → `seriesName` as a `TitleValue` with its `translated` flag, `part_number` → `seriesPartNumber`, `part_name` → `seriesPartName`), `issns` → `seriesIssn`, `editors` (`BiblioSeriesEditor`, an `agent` group each, read as an agent is: `name` → `seriesEditor` as an `AgentValue` with its `type`, `terms_of_address` → `seriesEditorTermsOfAddress`, `affiliations` → `seriesEditorAffiliation`) |
-| `BiblioAgent` | `<name>` / `agent` | `name` → the field named by `role` (`AgentRole`: `author`, `illustrator`, `photographer`, `translator`, `editor`, `redaktor`, `composer`, `reviewer`, `issuingBody`, `contributor`, `other`), as an `AgentValue` whose `type` is the agent's `type` (`NameType`: personal, corporate, conference, family; `None` when unknown), `terms_of_address` → `termsOfAddress`, `dates` (life dates) → `nameDate`, `descriptions` (position, profession) → `nameDescription`, `affiliations` (the institutions it belongs to) → `affiliation`, `emails` → `email` |
+| `BiblioAgent` | `<name>` / `agent` | `name` → the field named by `role` (`AgentRole`: `author`, `illustrator`, `photographer`, `translator`, `editor`, `composer`, `reviewer`, `issuingBody`, `contributor`, `other`), as an `AgentValue` whose `type` is the agent's `type` (`NameType`: personal, corporate, conference, family; `None` when unknown), `terms_of_address` → `termsOfAddress`, `dates` (life dates) → `nameDate`, `descriptions` (position, profession) → `nameDescription`, `affiliations` (the institutions it belongs to) → `affiliation`, `emails` → `email` |
 | `BiblioResponsibility` | `<note type="statement of responsibility">`, one per statement / no group | `statements` → `statementOfResponsibility` |
 | `BiblioCopyright` | `<originInfo eventType="copyright">` / no group | `date` → `copyrightDate` |
 | `BiblioEtal` | `<name><etal>` / no group | `phrase` → `etal` |
@@ -448,7 +448,7 @@ Each `BiblioType` has one place in the result:
 | `ManufacturePublisher` | `reading` | `BiblioManufacture.manufacturers` | all |
 | `SeriesName` | `reading` | `BiblioSeriesTitle.name` (of a `BiblioSeries`) | all |
 | `SeriesNumber` | `reading` | `BiblioSeriesTitle.part_number` | all |
-| `Author`, `Illustrator`, `Photographer`, `Translator`, `Editor`, `Redaktor` | `reading` | one `BiblioAgent` each, with the matching `AgentRole` | all |
+| `Author`, `Illustrator`, `Photographer`, `Translator`, `Editor`, `Redaktor` | `reading` | one `BiblioAgent` each, with the matching `AgentRole`; a `Redaktor` (of a periodical) is an `editor` | all |
 | `PeriodicalVolumePartNumber` | `periodical_volume` | `BiblioTitleInfo.part_number` | highest confidence |
 | `PeriodicalVolumeDateIssued` | `periodical_volume` | `BiblioPublication.date_issued` | highest confidence |
 | `PeriodicalIssuePartNumber` | `periodical_issue` | `BiblioTitleInfo.part_number` | highest confidence |
@@ -672,7 +672,7 @@ is not read:
 | statements | `statementOfResponsibility[]` as one `BiblioResponsibility`; `copyrightDate` as a `BiblioCopyright`; `illustrativeContent[]` as one `BiblioIllustrations` | `statementOfResponsibility[]`, `copyrightDate` as for books |
 | identifiers | `isbn[]` and `isbnSet[]` (the whole set's, `set_isbns`) as one `BiblioIdentifiers` (`seriesIssn` is the series') | `isbn[]` and `issn[]` as one `BiblioIdentifiers` |
 | languages | `language[]` as `languages`, `originalLanguage[]` as `original_languages` | the same |
-| names | `agents[]`, each in its role, with its `type`, `termsOfAddress[]`, life `dates`, `description[]` and `affiliation[]`; `etal` as a `BiblioEtal` | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`, `termsOfAddress[]`, life `dates`, `description[]` and `affiliation[]`; `etal` |
+| names | `agents[]`, each in its role, with its `type`, `termsOfAddress[]`, life `dates`, `description[]` and `affiliation[]`; `etal` as a `BiblioEtal` | `agents[]`, each in its role (the periodical binder gives the editor to the issue only), with its `type`, `termsOfAddress[]`, life `dates`, `description[]` and `affiliation[]`; `etal` |
 | supplement | `supplement`, an object on a page of a supplement (a map, an atlas, plates or a key issued with a volume) and null otherwise, as the span result's `supplement`; its `supplementPartNumber` and `supplementPartName` - the supplement's own - as `supplement_numbering`, one `BiblioTitleInfo`; its date is the imprint's (`publication`) | `supplement`, an object on a page of a supplement and null otherwise, as the span result's `supplement`; its `supplementPartNumber`, `supplementPartName` and `supplementDateIssued` - the supplement's own - as `supplement_numbering`, the number and name as a `BiblioTitleInfo`, the date as a `BiblioPublication`; `volume` and `issue` are then the numbering of the volume and the issue it belongs to |
 
 Both schemas, and the TOC schema of the VLM chapter extraction, ask for the
@@ -865,7 +865,7 @@ Which record a value goes to is the binder's decision, made per reading:
 
 | Reading | `MetakatVolume` takes | `MetakatIssue` takes |
 |---|---|---|
-| `reading` | everything except `redaktor` | `title`, `subTitle`, `publisher`, `publisherStatement`, `placeTerm`, `frequency`, `manufacturePublisher`, `manufacturePublisherStatement`, `manufacturePlaceTerm`, `manufactureDate`, the distribution fields, every agent role (`redaktor` included) with `termsOfAddress` and `affiliation`, `etal`, `statementOfResponsibility`, `copyrightDate`, `isbn`, the languages and original languages - what an issue repeats from its title page |
+| `reading` | everything, but in the periodical binder not the `editor` | `title`, `subTitle`, `publisher`, `publisherStatement`, `placeTerm`, `frequency`, `manufacturePublisher`, `manufacturePublisherStatement`, `manufacturePlaceTerm`, `manufactureDate`, the distribution fields, every agent role (`editor` included) with `termsOfAddress` and `affiliation`, `etal`, `statementOfResponsibility`, `copyrightDate`, `isbn`, the languages and original languages - what an issue repeats from its title page |
 | `periodical_volume` | all of it | — |
 | `periodical_issue` | — | all of it |
 

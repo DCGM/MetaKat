@@ -125,8 +125,8 @@ DEFAULT_CONFIDENCE = 0.95
 # The CP-SAT selection is exact but may take long on a page with many
 # candidates; past this limit the best selection found so far is used.
 _SELECTION_TIME_LIMIT_SECONDS = 10.0
-# Every role the schema has is the field of the same name; a TOC names no redaktor.
-_ROLES = {role.value: role for role in AgentRole if role is not AgentRole.REDAKTOR}
+# Every role the schema has is the field of the same name.
+_ROLES = {role.value: role for role in AgentRole}
 
 
 class ChapterExtractionEngineVLM:

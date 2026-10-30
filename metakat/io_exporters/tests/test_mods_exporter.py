@@ -74,7 +74,7 @@ class _Batch:
         v.placeTerm = [self.v("Praha", 0.8, 0)]
         v.dateIssued = [self.v("1853", 0.9, 0)]
         v.author = [self.v("Karel Jaromír Erben", 0.9, 0)]
-        v.redaktor = [self.v("Jan Novák", 0.5, 0)]
+        v.editor = [self.v("Jan Novák", 0.5, 0)]
         v.seriesName = [self.v("Knihovna klasiků", 0.6, 0)]
         v.statementOfResponsibility = [self.v("sepsal K. J. Erben", 0.7, 0)]
         v.language = [("cze", 0.97)]
@@ -335,11 +335,11 @@ def test_a_chapters_parallel_toc_title_is_written_as_translated_not_demoted(batc
         (None, ["PŘEDMLUVA", "k druhému vydání"]), ("translated", ["Preface"])]
 
 
-def test_a_redaktor_is_coded_as_an_editor_and_keeps_its_field_in_provenance(batch, tmp_path):
+def test_an_editor_is_coded_edt_and_keeps_its_field_in_provenance(batch, tmp_path):
     volume = _export(batch, tmp_path)[str(batch.volume.id)]
 
     assert _texts(volume, "//mods:name[mods:namePart='Jan Novák']/mods:role/mods:roleTerm") == ["edt"]
-    assert volume.xpath("//mkp:event[mkp:observedValue='Jan Novák']/@field", namespaces=NS) == ["redaktor"]
+    assert volume.xpath("//mkp:event[mkp:observedValue='Jan Novák']/@field", namespaces=NS) == ["editor"]
 
 
 def test_a_name_has_the_type_of_its_agent_and_every_role_its_code(batch, tmp_path):
