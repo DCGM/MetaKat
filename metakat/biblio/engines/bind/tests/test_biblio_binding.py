@@ -12,6 +12,7 @@ import pytest
 from metakat.biblio.engines.bind.biblio_bind_engine_monograph import BiblioBindEngineMonograph
 from metakat.biblio.engines.bind.biblio_binding import (
     finalize_groups,
+    isbn_key,
     part_paths,
     referenced_detection_ids,
     same_part,
@@ -760,3 +761,13 @@ def test_a_value_keeps_the_page_it_was_read_on_with_or_without_a_box():
     title, sub_title = volume.title[0], volume.subTitle[0]
     assert set(io.detection_to_bbox) == {title.id}
     assert io.detection_to_page_mapping == {title.id: pages[1].id, sub_title.id: pages[2].id}
+
+
+@pytest.mark.parametrize("text, key", [
+    ("ISBN 80-7004-015 /celý soubor/", "807004015"),
+    ("(Bd. 2) ISBN 3-540-12345-6", "3540123456"),
+    ("ISBN 80 85865 01 6", "8085865016"),
+    ("ISBN 978-80-200-1234-5 (váz.)", "9788020012345"),
+])
+def test_an_isbn_read_as_printed_is_compared_by_its_digits(text, key):
+    assert isbn_key(text) == key

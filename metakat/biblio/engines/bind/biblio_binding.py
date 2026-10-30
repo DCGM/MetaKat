@@ -789,8 +789,8 @@ _ISBN = re.compile(r"\d(?:[\s-]?[\dXx]){7,12}")
 
 
 def isbn_key(text: str) -> str:
-    """The digits of the ISBN a reading prints, its qualifier left out ("80-7004-015 /celý soubor/" gives
-    "807004015"); the whole text, normalized, when it prints none."""
+    """The digits of the ISBN a reading prints, as printed with its label and qualifiers, without them
+    ("ISBN 80-7004-015 /celý soubor/" gives "807004015"); the whole text, normalized, when it prints none."""
     match = _ISBN.search(text)
     return re.sub(r"[\s-]", "", match.group(0)).upper() if match else normalize_text(text)
 

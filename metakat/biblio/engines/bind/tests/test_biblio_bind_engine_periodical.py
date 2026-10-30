@@ -16,6 +16,7 @@ from metakat.biblio.engines.core.models import (
 from metakat.common.vlm import VLMCallReport
 from metakat.biblio.engines.bind.biblio_bind_engine_periodical import (
     BiblioBindEnginePeriodical,
+    issn_key,
     VolumeReading,
     volume_number,
     volume_runs,
@@ -471,3 +472,8 @@ def test_the_periodical_title_takes_no_publisher_its_title_pages_split_on():
 
     [title] = _of(io, MetakatTitle)
     assert ([v.text for v in title.placeTerm], title.publisher) == (['Praha'], None)
+
+
+@pytest.mark.parametrize("text", ["ISSN 0862-5832", "(print) ISSN 0862-5832", "ISSN 0862 5832", "ISSN 0862-5832 (print)"])
+def test_an_issn_read_as_printed_is_compared_by_its_number(text):
+    assert issn_key(text) == "0862-5832"

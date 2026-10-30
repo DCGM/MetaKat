@@ -207,7 +207,8 @@ _ISSN = re.compile(r"(?<![\dXx])(\d{4})\s*[-‐‑–—]?\s*(\d{3}[\dXx])(?![\d
 
 
 def issn_key(text: str) -> Optional[str]:
-    """The ISSN a reading prints, as NNNN-NNNC, a qualifier such as "(print)" left out; None if it prints none."""
+    """The ISSN a reading prints, as NNNN-NNNC, without its label and a qualifier such as "(print)"; None if it
+    prints none."""
     match = _ISSN.search(text)
     return None if match is None else f"{match.group(1)}-{match.group(2).upper()}"
 
