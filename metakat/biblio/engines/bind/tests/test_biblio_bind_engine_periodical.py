@@ -154,6 +154,25 @@ def test_the_issn_is_the_periodical_titles_and_the_isbn_and_names_the_issues():
             [v.text for v in issue.etal]) == (['Spolek'], ['Dr.'], ['a kol.'])
 
 
+def _with_issn(reading, *issns):
+    ev = reading.reading.title_infos[0].title
+    return dataclasses.replace(reading, reading=dataclasses.replace(reading.reading, identifiers=(
+        BiblioIdentifiers(issns=tuple(dataclasses.replace(ev, text=issn) for issn in issns)),)))
+
+
+def test_the_periodicals_issn_is_the_valid_one_its_title_pages_agree_on():
+    pages = _scan({4, 8, 12}, {0: .99, 4: .99, 8: .99, 12: .99}, count=16)
+    io, _ = _bound(pages,
+                   _with_issn(_read(0, 'Zlatá Praha', .7, issue='1'), 'ISSN 0317-8472'),
+                   _with_issn(_read(4, 'Zlatá Praha', .9, issue='2'), '0317-8472'),
+                   _with_issn(_read(8, 'Zlatá Praha', .6, issue='3'), '0317 8471 (print)'),
+                   _read(12, 'Zlatá Praha', .8, issue='4'))
+
+    [title] = _of(io, MetakatTitle)
+    # Read twice, 0317-8472 fails its check digit: the one read once passes it.
+    assert [value.text for value in title.issn] == ['0317 8471 (print)']
+
+
 def test_the_periodical_is_named_by_its_issues_without_any_volume_number():
     pages = _scan({4}, {0: .99})
     io, _ = _bound(pages, _read(0, 'Zlatá Praha', issue='1'))

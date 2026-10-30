@@ -823,8 +823,11 @@ Which record a value goes to is the binder's decision, made per reading:
 | `periodical_issue` | — | all of it |
 
 A title made above the volumes (`title_from`, and the periodical's title)
-takes the languages of the volume whose title it takes; the periodical's title
-also its ISSN, which the DMF gives the title of a periodical.
+takes the languages of the volume whose title it takes. The periodical's title
+also takes the ISSN, which the DMF gives the title of a periodical, from all
+its title pages (`periodical_issn`): an ISSN whose check digit (ISO 3297,
+modulus 11) agrees is preferred, then the one read on most title pages, then
+the more confident; its most confident reading is kept as printed.
 
 Each container becomes one group on each record it reaches, holding the
 values of it that reached that record. When two readings of one page give a

@@ -20,7 +20,7 @@ import difflib
 import logging
 import math
 import re
-from typing import Callable, Hashable, List, Optional
+from typing import Callable, Dict, Hashable, List, Optional
 
 from uuid import uuid4
 
@@ -105,11 +105,13 @@ def periodical_title(spans: List[TitleSpan]) -> MetakatTitle:
     similarity to the most similar half of the others (title_similarity),
     so a minority of outliers does not lower the score of a good reading.
     The highest score wins, the more confident reading on a tie. The title
-    takes that span's title, subtitle, title group, languages and ISSN, which
-    the DMF gives the title of a periodical."""
+    takes that span's title, subtitle, title group and languages, and the
+    ISSN its title pages agree on (periodical_issn), which the DMF gives the
+    title of a periodical."""
     candidates = [span.volume for span in spans if span.volume is not None and span.volume.title]
     if not candidates:
         return MetakatTitle(id=uuid4(), hierarchy=HierarchyType.PERIODICAL)
+    issn = periodical_issn(candidates)
     texts = [kept(candidate.title).text for candidate in candidates]
 
     def score(index: int) -> float:
@@ -125,7 +127,46 @@ def periodical_title(spans: List[TitleSpan]) -> MetakatTitle:
     logger.info("Periodical title %r chosen from %d title reading(s)", texts[best], len(candidates))
     return MetakatTitle(id=uuid4(), hierarchy=HierarchyType.PERIODICAL, title=winner.title,
                         subTitle=winner.subTitle, language=winner.language,
-                        originalLanguage=winner.originalLanguage, issn=winner.issn, groups=winner.groups)
+                        originalLanguage=winner.originalLanguage, issn=issn, groups=winner.groups)
+
+
+_ISSN = re.compile(r"(?<![\dXx])(\d{4})\s*[-‐‑–—]?\s*(\d{3}[\dXx])(?![\dXx])")
+
+
+def issn_key(text: str) -> Optional[str]:
+    """The ISSN a reading prints, as NNNN-NNNC, a qualifier such as "(print)" left out; None if it prints none."""
+    match = _ISSN.search(text)
+    return None if match is None else f"{match.group(1)}-{match.group(2).upper()}"
+
+
+def issn_valid(key: str) -> bool:
+    """Whether an ISSN's check digit agrees with its first seven digits (ISO 3297, modulus 11)."""
+    digits = key.replace("-", "")
+    remainder = sum(int(digit) * weight for digit, weight in zip(digits[:7], range(8, 1, -1))) % 11
+    check = (11 - remainder) % 11
+    return digits[7] == ("X" if check == 10 else str(check))
+
+
+def periodical_issn(volumes: List[MetakatVolume]) -> Optional[List[Value]]:
+    """The ISSN of the periodical, from the ISSNs read on all its title pages; None when none reads one.
+
+    A scan holds one periodical, so every ISSN read is a reading of its ISSN
+    or a misread. An ISSN carries its own check digit: one that passes it is
+    preferred to one that does not, then the one read on most title pages,
+    then the more confident. The ISSN is that one's most confident reading."""
+    readings: Dict[str, List[Value]] = {}
+    for volume in volumes:
+        for value in volume.issn or ():
+            key = issn_key(value.text)
+            if key is not None:
+                readings.setdefault(key, []).append(value)
+    if not readings:
+        return None
+    key = max(readings, key=lambda key: (issn_valid(key), len(readings[key]),
+                                         max(value.confidence for value in readings[key])))
+    logger.info("Periodical ISSN %s chosen from %d ISSN reading(s)", key,
+                sum(len(values) for values in readings.values()))
+    return [max(readings[key], key=lambda value: value.confidence)]
 
 
 # --- the volumes ----------------------------------------------------------------

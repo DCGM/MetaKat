@@ -70,7 +70,7 @@ Anchors = Dict[UUID, UUID]
 # distributor, its redaktor and the other persons and bodies named with their
 # terms of address and affiliations, the statements of responsibility, a
 # copyright date and the ISBN the DMF gives an issue - and its languages
-# (span_candidates). The ISSN is the periodical title's (periodical_title).
+# (span_candidates). The ISSN is the periodical title's (periodical_issn).
 # Everything else a title page says describes the volume.
 _ISSUE_FIELDS = frozenset((
     "title", "subTitle", "publisher", "placeTerm", "manufacturePublisher", "manufacturePlaceTerm",
