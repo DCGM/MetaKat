@@ -585,8 +585,12 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     # <language>, a classifier output like articleGenre.
     language: Optional[List[ClassifiedValue[str]]] = None  # iso639-2b codes
 
-    # <abstract> and <subject><topic>
+    # <abstract> and <subject><topic>. abstractTocPage is the synopsis printed
+    # with the TOC entry - what the chapter covers, often with the page numbers
+    # of its topics - which the DMF's <abstract>, a summary of the internal
+    # part's content, holds; it is not a subtitle.
     abstract: Optional[List[Value]] = None
+    abstractTocPage: Optional[List[Value]] = None
     keywords: Optional[List[Value]] = None
 
     # <relatedItem type="reviewOf">, holding the reviewed work's own

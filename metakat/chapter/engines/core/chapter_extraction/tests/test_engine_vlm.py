@@ -88,8 +88,10 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     assert (first.toc_page_key, first.title_toc_page.text, first.part_number_toc_page.text) == ("0007", "Úvod", "I")
     assert first.title_toc_page.bbox == BoundingBox(140, 200, 100, 30)
     assert first.title_toc_page.alto == AltoRefs(blocks=("B",), lines=("BL2",), words=("B2W1",))
-    # The first language version is the title; a range is parsed as one.
+    # The first language version is the title, its synopsis the description;
+    # a range is parsed as one.
     assert second.title_toc_page.text == "Les a voda"
+    assert (second.description_toc_page.text, first.description_toc_page) == ("O lesích", None)
     assert second.page_number_toc_page.kind is ChapterPageNumberKind.RANGE
     assert (second.page_number_toc_page.normalized_start(), second.page_number_toc_page.normalized_end()) == (
         "12", "30")

@@ -89,6 +89,7 @@ ChapterResult(
     toc_page_key: str,
     title_toc_page: DetectionEvidence | None,
     subtitle_toc_page: DetectionEvidence | None = None,
+    description_toc_page: DetectionEvidence | None = None,
     part_number_toc_page: DetectionEvidence | None = None,
     page_number_toc_page: ChapterPageNumberEvidence | None = None,
     title: DetectionEvidence | None = None,
@@ -102,7 +103,8 @@ ChapterResult(
 |---|---|
 | `toc_page_key` | Input image stem of the page containing the source TOC entry. |
 | `title_toc_page` | Title evidence from the TOC page, when available. |
-| `subtitle_toc_page` | Optional subtitle evidence associated with the title on the TOC page. |
+| `subtitle_toc_page` | Optional subtitle completing the entry's title on the TOC page. |
+| `description_toc_page` | Optional synopsis printed with the TOC entry: what the chapter covers, often with the page numbers of its topics. It is not a subtitle. |
 | `part_number_toc_page` | Optional chapter or section-number evidence from the TOC page. |
 | `page_number_toc_page` | Optional parsed destination-page reference from the TOC page. It retains the original OCR evidence as well as the normalized values supplied by the TOC-producing engine. It is not the physical number detected on the destination page. |
 | `title` | Optional title evidence found on the resolved destination page. |
@@ -420,6 +422,7 @@ ChapterBase(
     toc_page_key: str,
     title_toc_page: DetectionEvidence | None,
     subtitle_toc_page: DetectionEvidence | None = None,
+    description_toc_page: DetectionEvidence | None = None,
     part_number_toc_page: DetectionEvidence | None = None,
     page_number_toc_page: ChapterPageNumberEvidence | None = None,
     children: tuple[ChapterBase, ...] = (),
@@ -430,7 +433,8 @@ ChapterBase(
 |---|---|
 | `toc_page_key` | Physical TOC page containing the entry. It is present even when the entry has no title evidence. |
 | `title_toc_page` | Chapter title detected on the TOC page. This remains distinct from a title later found on the destination page, which `ChapterResult` holds as `title`. |
-| `subtitle_toc_page` | Optional subtitle detected below and geometrically associated with the entry's title on the TOC page. A subtitle never creates an entry by itself. |
+| `subtitle_toc_page` | Optional subtitle completing the entry's title on the TOC page. |
+| `description_toc_page` | Optional synopsis printed with the entry: what the chapter covers, often with the page numbers of its topics. The YOLO engine fills it from its `Subtitle` class (`podnadpis`), which the annotators put on the synopsis, the VLM engine from `titleInfo[].description`. A description never creates an entry by itself. |
 | `part_number_toc_page` | Optional chapter/section number printed as part of the TOC entry, such as `2.3`. It is not the destination page number. |
 | `page_number_toc_page` | Optional parsed `PageNumber` printed in the TOC entry. It denotes the destination page number and retains the complete source evidence together with normalized semantic values for alignment. |
 | `children` | Nested TOC entries. The model supports arbitrary hierarchy depth. |
@@ -459,7 +463,7 @@ range. The optional case is `"lowercase"` or `"uppercase"`; `None` preserves
 the normalized token case. `output_text(case=None)` returns normalized text
 when available and otherwise falls back to the complete original OCR text.
 
-`title_toc_page`, `subtitle_toc_page`, `part_number_toc_page`, and
+`title_toc_page`, `subtitle_toc_page`, `description_toc_page`, `part_number_toc_page`, and
 `page_number_toc_page` each retain independent text,
 confidence, geometry, and source-page provenance. For every non-null field,
 its `DetectionEvidence.page_key` is expected to equal `toc_page_key`, and its
@@ -1421,6 +1425,11 @@ top-to-bottom reading order. Every unit has `subtitle=None`.
 
 ###### Subtitle assignment to constructed units
 
+The `Subtitle` class (`podnadpis`) was annotated on the synopsis printed with an
+entry, so an assigned candidate becomes the entry's `description_toc_page`,
+not a subtitle. The class and its parameters keep their names, which the
+trained model and the engine configurations use.
+
 The unit-construction method then assigns the remaining `Subtitle` candidates
 to the completed units. A subtitle never creates a standalone unit. Only
 titled units in the same candidate group are considered. The title must start
@@ -1605,6 +1614,7 @@ Of each entry the engine reads:
 |---|---|
 | `tocPage`, the index of the image the entry starts on | `toc_page_key` |
 | `titleInfo[0].title`, the first language version; else `designation` | `title_toc_page` |
+| `titleInfo[0].description`, its synopsis | `description_toc_page` |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |
 | `pageReference`, parsed by `ArabicRomanChapterPageNumberParser` | `page_number_toc_page` |
 
@@ -1615,7 +1625,7 @@ number is printed in the same words, and a word goes to one value only, so
 the part number takes its words from the title.
 
 A grouping heading is an entry like any other. Not read: the parallel titles,
-the chapter descriptions, `pages`, `lang`, and `designation` when the entry
+`pages`, `lang`, and `designation` when the entry
 has a title. Parallel title versions are inspected only to decide whether
 column reordering is safe.
 
@@ -2260,10 +2270,11 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 | `title` | `ChapterResult.title`: title evidence from the destination page. It is not copied into `titleTocPage`. |
 | `pageIndexTocPage` | `pageIndex` of `toc_page_key`; may be `None`. |
 | `titleTocPage` | `title_toc_page`: title evidence detected on the TOC page. |
-| `subTitleTocPage` | `subtitle_toc_page`: subtitle evidence detected on the TOC page and associated with the entry's title during stage 2. |
+| `subTitleTocPage` | `subtitle_toc_page`: a subtitle completing the entry's title on the TOC page. |
 | `partNumberTocPage` | `part_number_toc_page`: part-number evidence detected on the TOC page. |
 | `pageNumberStartTocPage` | `page_number_toc_page` split by its parsed kind: a single page gives one start, a range its first page, a list one start per listed page, and a reference that failed to parse its original text. It is not the physical page number. |
 | `pageNumberEndTocPage` | The last page of a range reference; otherwise `None`. |
+| `abstractTocPage` | `description_toc_page`: the synopsis printed with the TOC entry, written to MODS as `<abstract>`; it is in no group. |
 | `groups` | See below. |
 
 Every field is named as in the core result: an unsuffixed field was read on

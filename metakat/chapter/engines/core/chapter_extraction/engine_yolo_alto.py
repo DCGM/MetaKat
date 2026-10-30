@@ -82,7 +82,7 @@ class _MutableEntry:
     toc_page_key: str
     title: DetectionEvidence | None
     level: int
-    subtitle: DetectionEvidence | None = None
+    description: DetectionEvidence | None = None
     part_number: DetectionEvidence | None = None
     page_number: ChapterPageNumberEvidence | None = None
     children: list[_MutableEntry] = field(default_factory=list)
@@ -94,6 +94,8 @@ class ChapterExtractionEngineYOLOALTO:
     DEFAULT_LABELS: dict[ChapterType, str] = {
         ChapterType.LEVEL_1_TITLE: "kapitola",
         ChapterType.LEVEL_2_TITLE: "jiny nadpis",
+        # The detector's Subtitle class (podnadpis) was annotated on the
+        # synopsis printed with an entry, so it is the entry's description.
         ChapterType.SUBTITLE: "podnadpis",
         ChapterType.PAGE_NUMBER: "cislo strany",
         ChapterType.PART_NUMBER: "jine cislo",
@@ -257,13 +259,13 @@ class ChapterExtractionEngineYOLOALTO:
                 toc_page_key=unit.toc_page_key,
                 title=self._to_detection_evidence(unit.title),
                 level=level,
-                subtitle=self._to_detection_evidence(unit.subtitle),
+                description=self._to_detection_evidence(unit.subtitle),
                 part_number=self._to_detection_evidence(unit.part_number),
                 page_number=page_number,
             )
             logger.debug(
                 "Extracted TOC entry %d: page=%r, level=%s, title=%r, "
-                "subtitle=%r, part_number=%r, page_number=%r",
+                "description=%r, part_number=%r, page_number=%r",
                 unit_index,
                 unit.toc_page_key,
                 unit.level,
@@ -1303,7 +1305,7 @@ class ChapterExtractionEngineYOLOALTO:
         return ChapterBase(
             toc_page_key=entry.toc_page_key,
             title_toc_page=entry.title,
-            subtitle_toc_page=entry.subtitle,
+            description_toc_page=entry.description,
             part_number_toc_page=entry.part_number,
             page_number_toc_page=entry.page_number,
             children=tuple(cls._freeze(child) for child in entry.children),

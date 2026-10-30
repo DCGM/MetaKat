@@ -36,7 +36,7 @@ one against the Library of Congress schema.
 | series fields | `<relatedItem type="series"><titleInfo>` |
 | `statementOfResponsibility` | `<note type="statement of responsibility">` |
 | `language`, `form` | `<language><languageTerm authority="iso639-2b">`, `<physicalDescription><form authority="marcform">` |
-| internal part `abstract`, `keywords` | `<abstract>`, `<subject><topic>` |
+| internal part `abstract`, else `abstractTocPage` (the TOC synopsis), `keywords` | `<abstract>`, `<subject><topic>` |
 | reviewed work | `<relatedItem type="reviewOf">` |
 | page runs | `<part type="pageIndex">` and `<part type="pageNumber">` with `extent/start`, `end` |
 | internal part `dateIssued` | provenance only: an internal part has no `<originInfo>` |

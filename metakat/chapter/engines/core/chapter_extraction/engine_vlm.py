@@ -23,8 +23,9 @@ Of an entry the stage reads:
 - the title of its first `titleInfo` object, as `title_toc_page`; an entry
   printed with only its designation ("Kapitola 3") has the designation as
   its title, as the NDK gives such a chapter's title, and its part number
-  takes its words from it; the parallel titles in other languages and the
-  chapter descriptions are not read;
+  takes its words from it; the parallel titles in other languages are not
+  read;
+- the synopsis of its first `titleInfo` object, as `description_toc_page`;
 - its `partNumber`, the printed numbering without its words, as
   `part_number_toc_page`;
 - its `pageReference`, parsed as the YOLO stage parses a detected reference
@@ -243,6 +244,7 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
             "chapter": dict(
                 toc_page_key=page_keys[_page_index(entry, len(page_keys))],
                 title_toc_page=evidence(index, "title", _title_text(entry)),
+                description_toc_page=evidence(index, "description", _first_title_info(entry).get("description")),
                 part_number_toc_page=evidence(index, "partNumber", entry.get("partNumber")),
                 page_number_toc_page=None if reference is None else ArabicRomanChapterPageNumberParser.create(reference),
             ),
@@ -268,10 +270,14 @@ def _page_index(entry: Mapping[str, Any], page_count: int) -> int:
     return min(max(index, 0), page_count - 1)
 
 
+def _first_title_info(entry: Mapping[str, Any]) -> Mapping[str, Any]:
+    # The first language version, which the stage reads; {} when there is none.
+    return next((item for item in entry.get("titleInfo") or () if isinstance(item, Mapping)), {})
+
+
 def _own_title(entry: Mapping[str, Any]) -> Optional[str]:
     # The title of the first titleInfo object, None when it has none.
-    titles = [item for item in entry.get("titleInfo") or () if isinstance(item, Mapping)]
-    title = titles[0].get("title") if titles else None
+    title = _first_title_info(entry).get("title")
     return title if isinstance(title, str) and title.strip() else None
 
 
@@ -299,6 +305,7 @@ def _entry_texts(entry: Mapping[str, Any]) -> dict:
     # looked for in the ALTO, so no other text takes their words.
     texts = {
         "title": _title_text(entry),
+        "description": _first_title_info(entry).get("description"),
         "partNumber": entry.get("partNumber"),
         "pageReference": entry.get("pageReference"),
     }

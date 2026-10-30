@@ -136,10 +136,10 @@ def test_assigns_subtitles_with_configured_geometry_guards(
     assert engine.subtitle_max_vertical_overlap_height_fraction == 0.25
     assert engine.subtitle_min_horizontal_overlap_fraction == 0.5
     chapters = {chapter.title_toc_page.text: chapter for chapter in result.chapters}
-    assert chapters["Overlap"].subtitle_toc_page.text == "Overlap subtitle"
-    assert chapters["Too far"].subtitle_toc_page is None
-    assert chapters["No horizontal"].subtitle_toc_page is None
-    assert chapters["Assigned"].subtitle_toc_page.text == "Assigned subtitle"
+    assert chapters["Overlap"].description_toc_page.text == "Overlap subtitle"
+    assert chapters["Too far"].description_toc_page is None
+    assert chapters["No horizontal"].description_toc_page is None
+    assert chapters["Assigned"].description_toc_page.text == "Assigned subtitle"
 
 
 def test_subtitles_are_partitioned_with_their_multicolumn_titles(
@@ -192,8 +192,8 @@ def test_subtitles_are_partitioned_with_their_multicolumn_titles(
     result = engine.process((_toc_page(),))
 
     chapters = {chapter.title_toc_page.text: chapter for chapter in result.chapters}
-    assert chapters["Left 1"].subtitle_toc_page.text == "Left subtitle"
-    assert chapters["Right 1"].subtitle_toc_page.text == "Right subtitle"
+    assert chapters["Left 1"].description_toc_page.text == "Left subtitle"
+    assert chapters["Right 1"].description_toc_page.text == "Right subtitle"
 
 
 def test_units_claim_best_available_subtitle_in_reading_order(
@@ -218,8 +218,8 @@ def test_units_claim_best_available_subtitle_in_reading_order(
     result = engine.process((_toc_page(),))
 
     chapters = {chapter.title_toc_page.text: chapter for chapter in result.chapters}
-    assert chapters["Earlier"].subtitle_toc_page.text == "First subtitle"
-    assert chapters["Later"].subtitle_toc_page.text == "Second subtitle"
+    assert chapters["Earlier"].description_toc_page.text == "First subtitle"
+    assert chapters["Later"].description_toc_page.text == "Second subtitle"
 
 
 def test_equal_title_scores_retain_group_reading_order(
@@ -251,8 +251,8 @@ def test_equal_title_scores_retain_group_reading_order(
     result = engine.process((_toc_page(),))
 
     chapters = {chapter.title_toc_page.text: chapter for chapter in result.chapters}
-    assert chapters["First in reading order"].subtitle_toc_page.text == "Subtitle"
-    assert chapters["Lower top edge"].subtitle_toc_page is None
+    assert chapters["First in reading order"].description_toc_page.text == "Subtitle"
+    assert chapters["Lower top edge"].description_toc_page is None
 
 
 def test_subtitle_confidence_precedes_horizontal_overlap(
@@ -291,7 +291,7 @@ def test_subtitle_confidence_precedes_horizontal_overlap(
 
     result = engine.process((_toc_page(),))
 
-    assert result.chapters[0].subtitle_toc_page.text == "Higher confidence"
+    assert result.chapters[0].description_toc_page.text == "Higher confidence"
 
 
 def test_subtitle_ties_prefer_area_then_width(
@@ -339,7 +339,7 @@ def test_subtitle_ties_prefer_area_then_width(
 
     result = engine.process((_toc_page(),))
 
-    assert result.chapters[0].subtitle_toc_page.text == "Wider equal area"
+    assert result.chapters[0].description_toc_page.text == "Wider equal area"
 
 
 @pytest.mark.parametrize(

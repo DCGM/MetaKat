@@ -213,7 +213,7 @@ def _mark_toc_readings(record: _Record) -> None:
     if record.element.type not in INTERNAL_PART_TYPES:
         return
     for own, toc in (("title", "titleTocPage"), ("subTitle", "subTitleTocPage"),
-                     ("partNumber", "partNumberTocPage")):
+                     ("partNumber", "partNumberTocPage"), ("abstract", "abstractTocPage")):
         own_values = _values(record.element, own)
         toc_values = _values(record.element, toc)
         if own_values and toc_values:
@@ -290,7 +290,8 @@ def _related_items(record: _Record, group_type: str, item_type: str, fields: dic
 def _simple(record: _Record, field_name: str, tag: str, prop: Optional[str] = None,
             child: Optional[tuple] = None, lang: bool = False, **attributes: str) -> None:
     """One container per value; the value is the container's text or `child`'s."""
-    for value in _values(record.element, field_name):
+    demoted = _demoted_ids(record)
+    for value in (value for value in _values(record.element, field_name) if value.id not in demoted):
         extra = _common_lang([value]) if lang else {}
         container, target = record.container(record.root, tag, **attributes, **extra)
         if child is None:
@@ -380,7 +381,7 @@ _INTERNAL_PART_SECTIONS = {
     "articleGenre": "genre",
     # An internal part has no <originInfo>; its date is written to provenance only.
     "dateIssued": "provenance:dateIssued",
-    "abstract": "abstract",
+    "abstract": "abstract", "abstractTocPage": "abstract",
     "keywords": "subject",
     "reviewedWorkTitle": "relatedItem:reviewOf", "reviewedWorkAuthor": "relatedItem:reviewOf",
     "reviewedWorkImprint": "relatedItem:reviewOf",
@@ -472,7 +473,9 @@ _SECTION_WRITERS = {
     "provenance:dateIssued": _provenance_only_dates,
     "language": _languages,
     "physicalDescription": _form,
-    "abstract": lambda record: _simple(record, "abstract", "abstract", lang=True),
+    "abstract": lambda record: [_simple(record, field_name, "abstract", lang=True)
+                                for field_name in ("abstract", "abstractTocPage")
+                                if field_name in type(record.element).model_fields],
     "note": lambda record: _simple(record, "statementOfResponsibility", "note", prop="note",
                                    type="statement of responsibility"),
     "subject": lambda record: _simple(record, "keywords", "subject", child=("topic", {}), lang=True),

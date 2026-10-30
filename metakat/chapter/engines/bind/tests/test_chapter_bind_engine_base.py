@@ -592,6 +592,7 @@ def test_recursive_result_binds_schema_and_detection_provenance(
                 toc_page_key="toc",
                 title_toc_page=evidence("Chapter", "toc"),
                 subtitle_toc_page=evidence("Subtitle", "toc", y=30),
+                description_toc_page=evidence("Topics 12", "toc", y=60),
                 page_number_toc_page=ArabicRomanChapterPageNumberParser.create(
                     evidence("10", "toc", x=500)
                 ),
@@ -634,6 +635,9 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     assert _indices(child.pageIndexEnd) == [20]
     assert root.pageNumberStartTocPage[0].text == "10"
     assert root.subTitleTocPage[0].text == "Subtitle"
+    # The synopsis printed with the entry is its abstract, outside the titleInfo group.
+    assert root.abstractTocPage[0].text == "Topics 12"
+    assert root.abstractTocPage[0].id not in root.groups[0].members
     # The core calls the TOC reading `title`; the schema keeps the heading
     # read on the chapter's own page in `title` and the TOC's in titleTocPage.
     assert root.title[0].text == "CHAPTER"
@@ -641,7 +645,7 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     assert root.id not in bbox_by_id
     assert page_by_detection[root.titleTocPage[0].id] == pages[0].id
     assert page_by_detection[root.title[0].id] == pages[1].id
-    assert len(bbox_by_id) == 5
+    assert len(bbox_by_id) == 6
 
 
 def test_explicit_container_parents_all_chapter_roots(bind_engine, evidence):

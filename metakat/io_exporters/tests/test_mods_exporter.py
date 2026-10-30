@@ -81,6 +81,7 @@ class _Batch:
         c.title = [self.v("PŘEDMLUVA", 0.6, 1)]
         c.titleTocPage = [self.v("Předmluva", 0.9, 2)]
         c.subTitleTocPage = [self.v("k druhému vydání", 0.8, 2)]
+        c.abstractTocPage = [self.v("Proč druhé vydání 7; poděkování 9.", 0.8, 2)]
         c.pageIndexStart = [(2, uuid4())]
         c.pageIndexEnd = [(3, uuid4())]
         c.pageNumberStartTocPage = [self.v("7", 0.9, 2)]
@@ -181,6 +182,18 @@ def test_a_chapter_writes_its_own_reading_and_keeps_the_toc_one_in_provenance(ba
     assert [(e.get("field"), e.findtext(f"{{{PROVENANCE_NS}}}observedValue")) for e in events] == [
         ("title", "PŘEDMLUVA"), ("titleTocPage", "Předmluva")]
     assert events[0].getparent().get("selectedEvent") == events[0].get("id")
+
+
+def test_a_chapters_toc_synopsis_is_its_abstract_unless_its_own_page_has_one(batch, tmp_path):
+    batch.article.abstractTocPage = [batch.v("Obsah z obsahu.", 0.8, 2)]
+    records = _export(batch, tmp_path)
+    chapter, article = records[str(batch.chapter.id)], records[str(batch.article.id)]
+
+    assert _texts(chapter, "/mods:mods/mods:abstract") == ["Proč druhé vydání 7; poděkování 9."]
+    # The article's own abstracts are written; its TOC reading backs the first.
+    assert _texts(article, "/mods:mods/mods:abstract") == ["Krátký obsah.", "A short summary."]
+    events = article.xpath("//mkp:assertion[@property='abstract'][1]/mkp:event/@field", namespaces=NS)
+    assert events == ["abstract", "abstractTocPage"]
 
 
 def test_grouped_runs_pair_and_ungrouped_starts_stand_alone(batch, tmp_path):
