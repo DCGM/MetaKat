@@ -531,6 +531,7 @@ _PERIODICAL_REPLY = _reply(
             _agent("issuingBody", "Spolek", type="corporate")],
     publication=[{"placeTerm": ["Praze"], "publisher": [], "publisherInferred": False, "dateIssued": None}],
     statementOfResponsibility=["Řídí K. J. Erben"],
+    copyrightDate="1925",
     language=["cze"],
 )
 
@@ -558,6 +559,8 @@ def test_the_periodical_engine_reads_the_volume_the_issue_and_the_editor_as_reda
     assert title_info.title.lang == "cze"
     [responsibility] = result.reading.responsibilities
     assert [s.text for s in responsibility.statements] == ["Řídí K. J. Erben"]
+    [copyright_] = result.reading.copyrights
+    assert copyright_.date.text == "1925"
     assert [language.text for language in result.reading.languages] == ["cze"]
 
 

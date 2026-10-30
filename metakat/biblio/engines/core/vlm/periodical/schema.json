@@ -264,6 +264,12 @@
         "additionalProperties": false
       }
     },
+    "copyrightDate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "issn": {
       "type": "array",
       "items": {
@@ -301,6 +307,7 @@
     "publication",
     "manufacture",
     "distribution",
+    "copyrightDate",
     "issn",
     "isbn",
     "language",

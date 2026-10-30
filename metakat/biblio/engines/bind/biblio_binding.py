@@ -68,11 +68,12 @@ Anchors = Dict[UUID, UUID]
 # What an issue takes from its title page's reading besides its own number
 # and date: what each issue repeats - the periodical's title and imprint, its
 # redaktor and the other persons and bodies named with their affiliations,
-# the statements of responsibility - and its languages (span_candidates).
+# the statements of responsibility and a copyright date - and its languages
+# (span_candidates).
 # Everything else a title page says describes the volume.
 _ISSUE_FIELDS = frozenset((
     "title", "subTitle", "publisher", "placeTerm", "manufacturePublisher", "manufacturePlaceTerm",
-    *(role.value for role in AgentRole), "affiliation", "statementOfResponsibility",
+    *(role.value for role in AgentRole), "affiliation", "statementOfResponsibility", "copyrightDate",
 ))
 # The statements a record has one of per event: when several readings of the
 # same record are combined, their groups of these types are united (see

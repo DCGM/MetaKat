@@ -134,10 +134,10 @@ def test_statements_copyright_languages_and_the_language_of_a_title_are_bound(me
     assert [(language.text, language.confidence) for language in volume.language] == [("cze", 0.9), ("ger", 0.9)]
     # Each statement is a container of its own: none is grouped.
     assert [group.type for group in volume.groups] == ["titleInfo"]
-    # A periodical issue repeats its statements and languages, not a copyright.
+    # A periodical issue repeats its statements, copyright and languages.
     assert _tc(issue.statementOfResponsibility) == ("napsal K. J. Erben", 0.8)
+    assert _tc(issue.copyrightDate) == ("© 1853", 0.8)
     assert [language.text for language in issue.language] == ["cze", "ger"]
-    assert issue.copyrightDate is None
     # A language is a label, with no detection behind it.
     assert volume.language[0].id not in referenced_detection_ids([volume])
     assert title_from([volume], HierarchyType.MULTIPART).language == volume.language

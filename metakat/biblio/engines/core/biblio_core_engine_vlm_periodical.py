@@ -18,7 +18,8 @@ is not read. Of the reply this engine reads:
   affiliations, in the field of its role: an editor of a periodical is its
   `redaktor`, which the periodical binder gives to the issue; every other
   role keeps its name;
-- the statements of responsibility and the `language` codes.
+- the statements of responsibility, the `copyrightDate` and the `language`
+  codes.
 
 Not read: `supplement` (the binder binds issues only), `etal`,
 `distribution`, `issn`, `isbn`, the terms of address of the agents and
@@ -41,6 +42,7 @@ from metakat.biblio.engines.core.biblio_core_engine_vlm import (
 )
 from metakat.biblio.engines.core.models import (
     AgentRole,
+    BiblioCopyright,
     BiblioManufacture,
     BiblioPage,
     BiblioPublication,
@@ -141,6 +143,8 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         agents=agents,
         responsibilities=kept_containers((BiblioResponsibility(
             statements=values.many(("statementOfResponsibility",), reply.get("statementOfResponsibility"))),)),
+        copyrights=kept_containers((BiblioCopyright(
+            date=values.one(("copyrightDate",), reply.get("copyrightDate"))),)),
         languages=values.languages(reply),
     )
     result = BiblioSpanResult(

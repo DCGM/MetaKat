@@ -649,7 +649,7 @@ is not read:
 | imprint | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`, `edition` | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`; `frequency` in the first one |
 | printer | `manufacture[]`: one `BiblioManufacture` each | the same |
 | series | `series[]` - `seriesName`, `seriesPartNumber`, `seriesPartName`, every value in its `lang` | - |
-| statements | `statementOfResponsibility[]` as one `BiblioResponsibility`; `copyrightDate` as a `BiblioCopyright` | `statementOfResponsibility[]` as one `BiblioResponsibility` |
+| statements | `statementOfResponsibility[]` as one `BiblioResponsibility`; `copyrightDate` as a `BiblioCopyright` | the same |
 | languages | `language[]` as `languages` | the same |
 | names | `agents[]`, each in its role, with its `type`; `description[]` as affiliations | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`; `description[]` as affiliations |
 | not read | `etal`, `distribution`, `isbn`, `illustrativeContent`, `seriesIssn`, `seriesEditor`, `termsOfAddress`, `publisherInferred`, `originalLanguage` | `supplement`, `etal`, `distribution`, `issn`, `isbn`, `termsOfAddress`, `publisherInferred`, `originalLanguage` |
@@ -812,7 +812,7 @@ Which record a value goes to is the binder's decision, made per reading:
 
 | Reading | `MetakatVolume` takes | `MetakatIssue` takes |
 |---|---|---|
-| `reading` | everything except `redaktor` | `title`, `subTitle`, `publisher`, `placeTerm`, `manufacturePublisher`, `manufacturePlaceTerm`, every agent role (`redaktor` included) with `affiliation`, `statementOfResponsibility`, the languages - what an issue repeats from its title page |
+| `reading` | everything except `redaktor` | `title`, `subTitle`, `publisher`, `placeTerm`, `manufacturePublisher`, `manufacturePlaceTerm`, every agent role (`redaktor` included) with `affiliation`, `statementOfResponsibility`, `copyrightDate`, the languages - what an issue repeats from its title page |
 | `periodical_volume` | all of it | — |
 | `periodical_issue` | — | all of it |
 
