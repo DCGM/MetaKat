@@ -496,6 +496,11 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_ro
 
     [title_info] = result.reading.title_infos
     assert (title_info.part_number.text, title_info.part_name.text) == ("4", "ČECHY")
+    # The part it belongs to comes before it; the part of the same level after it is another volume.
+    [higher] = title_info.higher_parts
+    assert (higher.number.text, higher.name.text) == ("I", "PŮDA")
+    assert [(field, evidence.text) for field, evidence in container_values(title_info)][1:] == [
+        ("partNumber", "I"), ("partName", "PŮDA"), ("partNumber", "4"), ("partName", "ČECHY")]
     [series] = result.reading.series
     assert (series.name.text, series.part_number.text) == ("SVĚTOVÁ KNIHOVNA", "sv. 312")
     translator, composer, body = result.reading.agents

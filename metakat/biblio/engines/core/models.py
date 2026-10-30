@@ -34,13 +34,26 @@ def _to(metakat_field: str):
 
 
 @dataclass(frozen=True)
+class BiblioPart:
+    """One level of the part a volume is: its number and name (a `díl` above a `část`)."""
+
+    number: Optional[DetectionEvidence] = field(default=None, metadata=_to("partNumber"))
+    name: Optional[DetectionEvidence] = field(default=None, metadata=_to("partName"))
+
+
+@dataclass(frozen=True)
 class BiblioTitleInfo:
-    """One <titleInfo>: a title and the subtitle, number and name read with it."""
+    """One <titleInfo>: a title and the subtitle, number and name read with it.
+
+    `part_number` and `part_name` are the part this volume is; `higher_parts`
+    the parts it belongs to, the highest first, which MODS gives before it in
+    the same <titleInfo> (a part of several levels, MARC 245 $n $p)."""
 
     GROUP_TYPE = GroupType.TITLE_INFO
 
     title: Optional[DetectionEvidence] = field(default=None, metadata=_to("title"))
     sub_title: Optional[DetectionEvidence] = field(default=None, metadata=_to("subTitle"))
+    higher_parts: tuple[BiblioPart, ...] = field(default=(), metadata={"parts": True})
     part_number: Optional[DetectionEvidence] = field(default=None, metadata=_to("partNumber"))
     part_name: Optional[DetectionEvidence] = field(default=None, metadata=_to("partName"))
 
@@ -198,11 +211,18 @@ class BiblioCoreResult:
     reports: tuple[VLMCallReport, ...] = ()
 
 
-def container_values(container: BiblioContainer) -> Iterator[tuple[str, DetectionEvidence]]:
-    """(MetakatBibliographic field, evidence) for every reading in a container, in field order."""
+def container_values(container: BiblioContainer | BiblioPart) -> Iterator[tuple[str, DetectionEvidence]]:
+    """(MetakatBibliographic field, evidence) for every reading in a container, in field order.
+
+    The parts of a title come in the printed order, each number before its
+    name, as a titleInfo group keeps them (MetakatGroup)."""
     if isinstance(container, BiblioAgent):
         yield container.role.value, container.name
     for container_field in dataclasses.fields(container):
+        if container_field.metadata.get("parts"):
+            for part in getattr(container, container_field.name):
+                yield from container_values(part)
+            continue
         metakat_field = container_field.metadata.get("metakat")
         if metakat_field is None:
             continue

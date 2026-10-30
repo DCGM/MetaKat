@@ -27,7 +27,7 @@ one against the Library of Congress schema.
 | MetaKat | MODS |
 |---|---|
 | element type | `<genre>`; an article's `articleGenre` as `genre@type` |
-| `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>` |
+| `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>`; the parts in the order of their titleInfo group, each number before its name, the highest level first (MODS has no level, MARC 245 repeats `$n` `$p`) |
 | agents | `<name><namePart>` whole, with `role/roleTerm` marcrelator code: `aut`, `ill`, `pht`, `trl`, `edt`, `cmp` (composer), `rev` (reviewer), `isb` (issuingBody), `ctb` (contributor), `oth` (other) - a redaktor is `edt`, as in Czech records; the name's `type` (personal, corporate, conference, family) as `name@type` when its values agree on one |
 | `affiliation` | `<name><affiliation>` |
 | internal part `authorTocPage`, `translatorTocPage`, … (every role but redaktor) and `affiliationTocPage` | `<name>` as the agents, unless the part's own page has a name in the same role; an affiliation follows its name |

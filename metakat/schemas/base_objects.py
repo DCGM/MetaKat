@@ -341,7 +341,12 @@ class MetakatGroup(MetakatBaseModel):
 
     A group is one statement: the values read together as one imprint, one
     title or one series, which MODS writes as one container. It does not
-    claim which value inside it pairs with which. The DMF ties <originInfo>
+    claim which value inside it pairs with which - except in a titleInfo
+    group, whose members are in the printed order: a part of several levels
+    ("Díl I. Země. Část 4. Čechy") has its partNumber and partName values
+    level by level, the highest first, each number before the name of its
+    part, as MODS orders them in one <titleInfo> and MARC 245 its $n and $p.
+    The DMF ties <originInfo>
     to the catalogue's 260/264 fields - one container per field - and for
     parallel places or publishers within one field allows either
     serialisation: the subelements repeated inside that one container, or

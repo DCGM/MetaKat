@@ -201,13 +201,42 @@ class TitleSpan:
             or (self.issue is not None and (self.issue.partNumber is not None or self.issue.dateIssued is not None)))
 
 
+def volume_parts(volume: MetakatVolume) -> List[Tuple[Optional[str], Optional[str]]]:
+    """The levels of the part a volume is, the highest first, as normalized (number, name).
+
+    Read in the printed order of its titleInfo group (MetakatGroup), where a
+    name follows the number of its part; without a group, numbers and names
+    pair from the lowest level."""
+    numbers = {value.id: value for value in volume.partNumber or ()}
+    names = {value.id: value for value in volume.partName or ()}
+    order = next((group.members for group in volume.groups or ()
+                  if group.type == GroupType.TITLE_INFO.value
+                  and any(member in numbers or member in names for member in group.members)), None)
+    if order is None:
+        order = [*numbers, *names]
+    parts: List[List[Optional[str]]] = []
+    for member in order:
+        if member in numbers:
+            parts.append([normalize_text(numbers[member].text), None])
+        elif member in names:
+            name = normalize_text(names[member].text)
+            if parts and parts[-1][1] is None:
+                parts[-1][1] = name
+            else:
+                parts.append([None, name])
+    return [(number, name) for number, name in parts]
+
+
 def same_unit(first: TitleSpan, second: TitleSpan) -> bool:
-    # Two spans reading the same part number or name, or the same issue
-    # number, describe one unit twice - a half-title far from its title page.
-    for field_name in ("partNumber", "partName"):
-        if kept(getattr(first.volume, field_name)) is not None and \
-                texts_match(getattr(first.volume, field_name), getattr(second.volume, field_name)):
-            return True
+    # Two spans reading the same part, or the same issue number, describe one
+    # unit twice - a half-title far from its title page. A part is the same
+    # when every level both read agrees in its number or its name, aligned
+    # from the lowest: a half-title printing only "část 4" is "díl I, část 4",
+    # "díl II, část 4" is not.
+    common = list(zip(reversed(volume_parts(first.volume)), reversed(volume_parts(second.volume))))
+    if common and all((a_number is not None and a_number == b_number) or (a_name is not None and a_name == b_name)
+                      for (a_number, a_name), (b_number, b_name) in common):
+        return True
     if first.issue is not None and second.issue is not None and first.issue.partNumber is not None:
         return texts_match(first.issue.partNumber, second.issue.partNumber)
     return False

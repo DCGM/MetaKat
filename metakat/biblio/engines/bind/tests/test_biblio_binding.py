@@ -13,6 +13,7 @@ from metakat.biblio.engines.bind.biblio_bind_engine_monograph import BiblioBindE
 from metakat.biblio.engines.bind.biblio_binding import (
     finalize_groups,
     referenced_detection_ids,
+    same_unit,
     span_candidates,
     title_from,
 )
@@ -22,6 +23,7 @@ from metakat.biblio.engines.core.models import (
     BiblioCopyright,
     BiblioCoreResult,
     BiblioManufacture,
+    BiblioPart,
     BiblioPublication,
     BiblioReading,
     BiblioResponsibility,
@@ -141,6 +143,33 @@ def test_statements_copyright_languages_and_the_language_of_a_title_are_bound(me
     # A language is a label, with no detection behind it.
     assert volume.language[0].id not in referenced_detection_ids([volume])
     assert title_from([volume], HierarchyType.MULTIPART).language == volume.language
+
+
+def test_a_part_of_several_levels_keeps_its_printed_order_and_is_told_apart_by_every_level(metakat_page):
+    def candidate(*levels):
+        *higher, own = levels
+        title_info = BiblioTitleInfo(title=_ev("Země", 0.9), higher_parts=tuple(
+            BiblioPart(number=_ev(number, 0.9), name=_ev(name, 0.9) if name else None) for number, name in higher),
+            part_number=_ev(own[0], 0.9), part_name=_ev(own[1], 0.9) if own[1] else None)
+        volume, _ = span_candidates(_page_result(_titled(title_infos=(title_info,))))[0]
+        return volume
+
+    volume = candidate(("I", None), ("4", "Čechy"))
+    [group] = _group(volume, "titleInfo")
+    assert group.members == [volume.title[0].id, volume.partNumber[0].id, volume.partNumber[1].id,
+                             volume.partName[0].id]
+    assert [value.text for value in volume.partNumber] == ["I", "4"]
+
+    def spans(*volumes):
+        return [SimpleNamespace(volume=v, issue=None) for v in volumes]
+
+    same, other_volume, half_title = (candidate(("I", None), ("4", "Čechy")), candidate(("II", None), ("4", "Čechy")),
+                                      candidate(("4", "Čechy")))
+    assert same_unit(*spans(volume, same))
+    # Another díl with a část of the same number is another volume.
+    assert not same_unit(*spans(volume, other_volume))
+    # A half-title printing only the lowest level reads the same volume.
+    assert same_unit(*spans(half_title, volume))
 
 
 def test_readings_without_a_title_are_not_referenced(metakat_page):

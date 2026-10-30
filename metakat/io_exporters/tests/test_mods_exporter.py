@@ -170,6 +170,23 @@ def test_a_group_is_one_container_and_ungrouped_values_get_their_own(batch, tmp_
     assert _texts(volume, "//mods:note[@type='statement of responsibility']") == ["sepsal K. J. Erben"]
 
 
+def test_the_parts_of_a_title_keep_the_printed_order_of_their_group(batch, tmp_path, mods_schema):
+    v = batch.volume
+    v.partNumber = [batch.v("I", 0.9, 0), batch.v("4", 0.9, 0)]
+    v.partName = [batch.v("Čechy", 0.9, 0)]
+    # "Díl I. – Část 4. Čechy": the name is the lower part's, after its number.
+    v.groups = [MetakatGroup(type=GroupType.TITLE_INFO, members=[
+        v.title[0].id, v.subTitle[0].id, v.partNumber[0].id, v.partNumber[1].id, v.partName[0].id])]
+    records = _export(batch, tmp_path)
+
+    volume = records[str(v.id)]
+    assert mods_schema.validate(volume), mods_schema.error_log.last_error
+    assert [(etree.QName(node).localname, node.text) for node in volume.xpath("/mods:mods/mods:titleInfo/*",
+                                                                                namespaces=NS)] == [
+        ("title", "Kytice"), ("subTitle", "z pověstí národních"),
+        ("partNumber", "I"), ("partNumber", "4"), ("partName", "Čechy")]
+
+
 def test_a_redaktor_is_coded_as_an_editor_and_keeps_its_field_in_provenance(batch, tmp_path):
     volume = _export(batch, tmp_path)[str(batch.volume.id)]
 

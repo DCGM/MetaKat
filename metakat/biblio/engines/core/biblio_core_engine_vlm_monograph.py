@@ -5,8 +5,10 @@ in it is not read. Of the reply this engine reads:
 
 - every `titleInfo` as a title with its subtitle, and the part this volume is:
   of its `parts`, the first of the deepest level, the most specific one (a
-  `část` inside a `díl`); the other parts are not kept, as a titleInfo holds
-  one part number and name;
+  `část` inside a `díl`), with the parts it belongs to - for each level
+  above, the nearest part of it printed before - which MODS gives before it
+  in the same titleInfo; the other parts of a level are not kept, as they are
+  other volumes;
 - every `publication`, without its `publisherInferred` flag: a publisher the
   model derived from the page - the author of a book published "nákladem
   vlastním" - is read as the publisher;
@@ -37,6 +39,7 @@ from metakat.biblio.engines.core.models import (
     AgentRole,
     BiblioCopyright,
     BiblioManufacture,
+    BiblioPart,
     BiblioPublication,
     BiblioReading,
     BiblioResponsibility,
@@ -71,14 +74,17 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
     values = ReplyValues(evidence)
     title_infos = []
     for path, item in values.items(reply, "titleInfo"):
-        part_path, part = _volume_part(path, item)
         lang = item.get("lang")
+        parts = [BiblioPart(number=values.one(part_path + ("partNumber",), part.get("partNumber"), lang),
+                            name=values.one(part_path + ("partName",), part.get("partName"), lang))
+                 for part_path, part in _volume_parts(path, item)]
+        own = parts.pop() if parts else BiblioPart()
         title_infos.append(BiblioTitleInfo(
             title=values.one(path + ("title",), item.get("title"), lang),
             sub_title=values.one(path + ("subTitle",), item.get("subTitle"), lang),
-            part_number=None if part is None else values.one(
-                part_path + ("partNumber",), part.get("partNumber"), lang),
-            part_name=None if part is None else values.one(part_path + ("partName",), part.get("partName"), lang),
+            higher_parts=tuple(part for part in parts if part.number is not None or part.name is not None),
+            part_number=own.number,
+            part_name=own.name,
         ))
     publications = [
         BiblioPublication(
@@ -123,13 +129,23 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
     return BiblioSpanResult(page_keys=tuple(page_keys), reading=reading)
 
 
-def _volume_part(path: tuple, title_info: Mapping[str, Any]) -> tuple[tuple, Optional[Mapping[str, Any]]]:
-    # The part this volume is: the first part of the deepest level printed.
+def _volume_parts(path: tuple, title_info: Mapping[str, Any]) -> list[tuple[tuple, Mapping[str, Any]]]:
+    # The part this volume is - the first part of the deepest level printed -
+    # last, after the parts it belongs to: for each level above it, the
+    # nearest part of that level printed before it. Each with its JSON path.
     parts = [(index, part) for index, part in enumerate(title_info.get("parts") or ())
              if isinstance(part, Mapping)]
     if not parts:
-        return path, None
-    level = max(part.get("level") if isinstance(part.get("level"), int) else 1 for _, part in parts)
-    index, part = next((index, part) for index, part in parts
-                       if (part.get("level") if isinstance(part.get("level"), int) else 1) == level)
-    return path + ("parts", index), part
+        return []
+
+    def level(part: Mapping[str, Any]) -> int:
+        return part.get("level") if isinstance(part.get("level"), int) else 1
+
+    deepest = max(level(part) for _, part in parts)
+    position = next(position for position, (_, part) in enumerate(parts) if level(part) == deepest)
+    chain, current = [parts[position]], deepest
+    for index, part in reversed(parts[:position]):
+        if level(part) < current:
+            chain.append((index, part))
+            current = level(part)
+    return [(path + ("parts", index), part) for index, part in reversed(chain)]

@@ -168,7 +168,7 @@ container, so one `MetakatGroup` type:
 
 | Container | MODS container / `GroupType` | Fields → MetaKat field |
 |---|---|---|
-| `BiblioTitleInfo` | `<titleInfo>` / `titleInfo` | `title` → `title`, `sub_title` → `subTitle`, `part_number` → `partNumber`, `part_name` → `partName` |
+| `BiblioTitleInfo` | `<titleInfo>` / `titleInfo` | `title` → `title`, `sub_title` → `subTitle`, `higher_parts` (`BiblioPart`: `number` → `partNumber`, `name` → `partName`, the parts the volume's part belongs to, highest first), `part_number` → `partNumber`, `part_name` → `partName` |
 | `BiblioPublication` | `<originInfo eventType="publication">` / `originInfoPublication` | `places` → `placeTerm`, `publishers` → `publisher`, `date_issued` → `dateIssued`, `edition` → `edition`, `frequency` → `frequency` |
 | `BiblioManufacture` | `<originInfo eventType="manufacture">` / `originInfoManufacture` | `places` → `manufacturePlaceTerm`, `manufacturers` → `manufacturePublisher`, `date` → `manufactureDate` |
 | `BiblioSeries` | `<relatedItem type="series">` / `series` | `name` → `seriesName`, `part_number` → `seriesPartNumber`, `part_name` → `seriesPartName` |
@@ -644,7 +644,7 @@ is not read:
 | Reply | Monograph engine | Periodical engine |
 |---|---|---|
 | title | `titleInfo[]` - `title`, `subTitle`: one `BiblioTitleInfo` each, every value in its `lang` | `periodical[]` - `periodicalTitle`, `periodicalSubTitle`: one `BiblioTitleInfo` each, every value in its `lang` |
-| parts | of `titleInfo[].parts`, the first of the deepest `level` (a `část` within a `díl`) as `part_number`, `part_name`; the others are not kept, as a title holds one part | - |
+| parts | of `titleInfo[].parts`, the first of the deepest `level` (a `část` within a `díl`) as `part_number`, `part_name`, and for each level above it the nearest part of that level printed before it as `higher_parts`; the other parts of a level are other volumes and not kept | - |
 | volume, issue | - | `volume` (`volumePartNumber`, `volumeDateIssued`) as `periodical_volume`, `issue` (`issuePartNumber`, `issuePartName`, `issueDateIssued`) as `periodical_issue`: the number and name as a `BiblioTitleInfo`, the date as a `BiblioPublication`, as the YOLO engine reads them |
 | imprint | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`, `edition` | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`; `frequency` in the first one |
 | printer | `manufacture[]`: one `BiblioManufacture` each | the same |
@@ -1209,7 +1209,9 @@ previous strong span of the same document:
   and a title page do not;
 - at least one of them reads a part number or name (an issue number or date,
   or a `periodical` volume, in a periodical);
-- they are not the same unit twice: the same part number or name, or the same
+- they are not the same unit twice: the same part - every level both read
+  agreeing in its number or name, aligned from the lowest, so a half-title
+  with "část 4" is "díl I, část 4" but "díl II, část 4" is not - or the same
   issue number;
 - the start page's `startsDocument` is not annotated.
 

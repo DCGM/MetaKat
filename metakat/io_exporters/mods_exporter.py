@@ -33,7 +33,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Optional, Sequence
+from typing import Callable, Iterable, Optional, Sequence
 from uuid import UUID
 
 from metakat.schemas.base_objects import (
@@ -172,12 +172,17 @@ def _common_lang(values: Iterable[Value]) -> dict:
 
 # ---------------------------------------------------------------- containers
 
-def _consume_groups(record: _Record, group_type: Optional[str], fields: Sequence[str]):
+def _consume_groups(record: _Record, group_type: Optional[str], fields: Sequence[str],
+                    rank: Optional[Callable[[str], int]] = None):
     """Yield [(Value, field)] per group of `group_type`, then per ungrouped value.
 
     Only the producer's groups decide which values share a container. A
-    group_type of None means these fields are never grouped.
+    group_type of None means these fields are never grouped. A group's
+    members are written in the order `rank` gives their fields (their
+    position in the model unless given), fields of one rank in the group's
+    own order.
     """
+    rank = rank or record.position
     demoted = _demoted_ids(record)
     by_id = {}
     model_fields = type(record.element).model_fields
@@ -190,7 +195,7 @@ def _consume_groups(record: _Record, group_type: Optional[str], fields: Sequence
         if group_type is None or group.type != group_type:
             continue
         members = [by_id[member] for member in group.members if member in by_id and member not in used]
-        members.sort(key=lambda member: record.position(member[1]))
+        members.sort(key=lambda member: rank(member[1]))
         if members:
             used.update(value.id for value, _ in members)
             yield members
@@ -210,7 +215,13 @@ _TITLE_LEAF = {
 
 
 def _title_infos(record: _Record) -> None:
-    for members in _consume_groups(record, GroupType.TITLE_INFO.value, tuple(_TITLE_LEAF)):
+    # The parts of a title keep the printed order of their group - each
+    # number before its name, the highest level first (MetakatGroup).
+    def rank(field_name: str) -> int:
+        part = _TITLE_LEAF[field_name] in ("partNumber", "partName")
+        return record.position("partNumber" if part else field_name)
+
+    for members in _consume_groups(record, GroupType.TITLE_INFO.value, tuple(_TITLE_LEAF), rank):
         container, target = record.container(record.root, "titleInfo", **_common_lang(v for v, _ in members))
         for value, field_name in members:
             record.leaf(container, _TITLE_LEAF[field_name], value.text)
