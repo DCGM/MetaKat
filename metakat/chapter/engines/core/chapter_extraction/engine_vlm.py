@@ -31,8 +31,10 @@ Of an entry the stage reads:
   languages, as `parallel_titles_toc_page`, each with its title, subtitle,
   synopsis and `lang`, bound as translated titles;
 - its `agents`, as `agents_toc_page`, each in its role, with its type, its
-  terms of address and its `description` as its affiliations, every name,
-  term of address and affiliation located as a value of its own;
+  terms of address, its life `dates`, its `description` and its
+  `affiliation`, every one located as a value of its own, except an
+  affiliation printed in its agent's description, which takes its words
+  from there (metakat.common.vlm.word_regions);
 - its `etal`, the phrase saying there are more agents than named ("a kol."),
   as `etal_toc_page`;
 - its `designation`, the whole printed entry marker with its words and
@@ -75,10 +77,8 @@ import contextlib
 import dataclasses
 import json
 import logging
-import re
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Optional, Sequence
 
 from metakat.chapter.engines.core.chapter_page_number_parsers import (
@@ -107,6 +107,7 @@ from metakat.common.vlm import (
     render_prompts,
 )
 from metakat.common.vlm.local_server import LocalModelConfig, serve
+from metakat.common.vlm.word_regions import bare, words_region, words_run
 from metakat.engine_config import require_config_mapping
 from metakat.schemas.base_objects import ClassifiedValue, NameType, TocEntryKind
 
@@ -271,10 +272,21 @@ class ChapterExtractionEngineVLM:
             if (index, "designation") not in located or not isinstance(number, str):
                 continue
             page_index, designation = located[index, "designation"]
-            tokens = {_bare(token) for token in number.split()} - {""}
-            words = [word for word in designation.words if _bare(word.text) in tokens]
+            words = words_run(designation.words, number)
             if words:
-                located[index, "partNumber"] = (page_index, _words_region(words))
+                located[index, "partNumber"] = (page_index, words_region(words))
+        # An affiliation is printed in the words of its agent's description
+        # ("profesor Komenského university v Bratislavě") and takes them.
+        for index, entry in enumerate(entries):
+            for affiliation, descriptions in _affiliation_sources(entry):
+                if (index, "affiliations", affiliation[0]) in located:
+                    continue
+                for position in descriptions:
+                    page_index, description = located.get((index, "descriptions", position), (None, None))
+                    words = () if description is None else words_run(description.words, affiliation[1])
+                    if words:
+                        located[index, "affiliations", affiliation[0]] = (page_index, words_region(words))
+                        break
         return located
 
 
@@ -403,15 +415,41 @@ def _descriptions(agent: Mapping[str, Any]) -> list[str]:
     return [text for text in agent.get("description") or () if isinstance(text, str) and text.strip()]
 
 
+def _affiliations(agent: Mapping[str, Any]) -> list[str]:
+    return [text for text in agent.get("affiliation") or () if isinstance(text, str) and text.strip()]
+
+
+def _dates(agent: Mapping[str, Any]) -> list[str]:
+    # The life dates, one value or none.
+    return [agent["dates"]] if _has_text(agent.get("dates")) else []
+
+
+def _affiliation_sources(entry: Mapping[str, Any]) -> Iterator[tuple[tuple[int, str], range]]:
+    # Each affiliation by its position among the entry's affiliations, with
+    # the positions of its agent's descriptions among the entry's descriptions.
+    affiliations = descriptions = 0
+    for agent in _agents(entry):
+        own = range(descriptions, descriptions + len(_descriptions(agent)))
+        for text in _affiliations(agent):
+            yield (affiliations, text), own
+            affiliations += 1
+        descriptions = own.stop
+
+
+def _from_description(agent: Mapping[str, Any], text: str) -> bool:
+    # Whether an affiliation repeats words of its agent's description, where it takes them.
+    return any(bare(text) in bare(description) for description in _descriptions(agent))
+
+
 def _terms(agent: Mapping[str, Any]) -> list[str]:
     return [text for text in agent.get("termsOfAddress") or () if isinstance(text, str) and text.strip()]
 
 
 def _toc_agents(index: int, entry: Mapping[str, Any], evidence) -> tuple[ChapterAgent, ...]:
-    # A term of address or an affiliation is located by its position among
-    # all the entry's terms of address or affiliations, as _entry_texts lists
-    # them.
-    agents, positions = [], {"termsOfAddress": 0, "affiliations": 0}
+    # A term of address, life dates, a description or an affiliation is
+    # located by its position among all the entry's values of its kind, as
+    # _entry_texts lists them.
+    agents, positions = [], {"termsOfAddress": 0, "dates": 0, "descriptions": 0, "affiliations": 0}
 
     def located(field: str, texts: list[str]) -> tuple:
         found = []
@@ -422,7 +460,9 @@ def _toc_agents(index: int, entry: Mapping[str, Any], evidence) -> tuple[Chapter
 
     for item, agent in enumerate(_agents(entry)):
         terms = located("termsOfAddress", _terms(agent))
-        affiliations = located("affiliations", _descriptions(agent))
+        dates = located("dates", _dates(agent))
+        descriptions = located("descriptions", _descriptions(agent))
+        affiliations = located("affiliations", _affiliations(agent))
         label = agent.get("type")
         agents.append(ChapterAgent(
             role=_ROLES[agent["role"]],
@@ -430,6 +470,8 @@ def _toc_agents(index: int, entry: Mapping[str, Any], evidence) -> tuple[Chapter
             type=NameType(label) if isinstance(label, str) and label in NameType._value2member_map_ else None,
             affiliations=affiliations,
             terms_of_address=terms,
+            dates=next(iter(dates), None),
+            descriptions=descriptions,
         ))
     return tuple(agents)
 
@@ -453,18 +495,6 @@ def _parallel_titles(index: int, entry: Mapping[str, Any], evidence) -> tuple[Ch
     return tuple(versions)
 
 
-def _bare(text: str) -> str:
-    return re.sub(r"\W", "", text).casefold()
-
-
-def _words_region(words: Sequence[Any]) -> SimpleNamespace:
-    # Some words of an aligned region, with their box, as evidence() reads a region.
-    x, y = min(word.bbox.x for word in words), min(word.bbox.y for word in words)
-    return SimpleNamespace(words=tuple(words), alto_geometry=SimpleNamespace(
-        x=x, y=y, width=max(word.bbox.x_max for word in words) - x,
-        height=max(word.bbox.y + word.bbox.height for word in words) - y))
-
-
 def _entry_texts(entry: Mapping[str, Any]) -> dict:
     # The values of an entry the stage reads, by field: only they are
     # looked for in the ALTO, so no other text takes their words.
@@ -477,14 +507,19 @@ def _entry_texts(entry: Mapping[str, Any]) -> dict:
            for field in ("title", "subTitle", "description")},
         "agents": [agent["name"] for agent in _agents(entry)],
         "termsOfAddress": [text for agent in _agents(entry) for text in _terms(agent)],
-        "affiliations": [text for agent in _agents(entry) for text in _descriptions(agent)],
+        "dates": [text for agent in _agents(entry) for text in _dates(agent)],
+        "descriptions": [text for agent in _agents(entry) for text in _descriptions(agent)],
+        # One printed in a description has no words of its own (_locate).
+        "affiliations": [None if _from_description(agent, text) else text
+                         for agent in _agents(entry) for text in _affiliations(agent)],
         "etal": entry.get("etal"),
         "designation": entry.get("designation"),
         # Printed in the designation's words, which it takes when there is one.
         "partNumber": None if _has_text(entry.get("designation")) else entry.get("partNumber"),
         "pageReference": entry.get("pageReference"),
     }
-    return {field: text for field, text in texts.items() if _has_text(text) or (isinstance(text, list) and text)}
+    return {field: text for field, text in texts.items()
+            if _has_text(text) or (isinstance(text, list) and any(item is not None for item in text))}
 
 
 def _has_text(text: Any) -> bool:

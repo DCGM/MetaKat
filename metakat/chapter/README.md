@@ -443,7 +443,7 @@ ChapterBase(
 | `toc_page_key` | Physical TOC page containing the entry. It is present even when the entry has no title evidence. |
 | `title_toc_page` | Chapter title detected on the TOC page. This remains distinct from a title later found on the destination page, which `ChapterResult` holds as `title`. |
 | `subtitle_toc_page` | Optional subtitle completing the entry's title on the TOC page; the VLM engine reads it, the YOLO engine has none. |
-| `agents_toc_page` | The persons and bodies printed with the entry - a byline before or after the title - in printed order, each a `ChapterAgent`: its `role` (`AgentRole`, the MetaKat field it goes to), its `name` evidence, its `type` (`NameType`, `None` when unknown) and its `affiliations` evidence. The VLM engine reads them, the YOLO engine none. |
+| `agents_toc_page` | The persons and bodies printed with the entry - a byline before or after the title - in printed order, each a `ChapterAgent`: its `role` (`AgentRole`, the MetaKat field it goes to), its `name` evidence, its `type` (`NameType`, `None` when unknown), its `terms_of_address`, its life `dates`, its `descriptions` (position, profession) and its `affiliations` (the institutions it belongs to) evidence. The VLM engine reads them, the YOLO engine none. |
 | `etal_toc_page` | Optional phrase printed with the agents saying there are more than named ("a kol.", "et al."); bound to `etalTocPage`, a `<name><etal>` of its own in MODS unless the chapter's own page reads one. The VLM engine reads it, the YOLO engine none. |
 | `description_toc_page` | Optional synopsis printed with the entry: what the chapter covers, often with the page numbers of its topics. The YOLO engine fills it from its `Subtitle` class (`podnadpis`), which the annotators put on the synopsis, the VLM engine from `titleInfo[].description`. A description never creates an entry by itself. |
 | `part_number_toc_page` | Optional chapter/section number printed as part of the TOC entry, such as `2.3`. It is not the destination page number. |
@@ -1637,7 +1637,7 @@ Of each entry the engine reads:
 | the main version's `description`, its synopsis | `description_toc_page` |
 | the main version's `lang` | the `lang` of the title, subtitle and synopsis evidence, so of their values (`<titleInfo lang>`, `<abstract lang>`) |
 | the other `titleInfo[]` objects, the parallel versions flagged `translated`, each with its title, subtitle, synopsis and `lang` | `parallel_titles_toc_page` (`ChapterTitleVersion`); bound after the main version in `titleTocPage`, `subTitleTocPage` (flagged `translated`) and `abstractTocPage`, a titleInfo group each |
-| `agents[]`, each in its `role` (never `redaktor`), with its `type`, its `termsOfAddress[]` and its `description[]` as affiliations; each name, term of address and affiliation is located on its own | `agents_toc_page`; terms bound to `termsOfAddressTocPage`, in the agent's group |
+| `agents[]`, each in its `role` (never `redaktor`), with its `type`, its `termsOfAddress[]`, its life `dates`, its `description[]` and its `affiliation[]`; each is located on its own, except an affiliation printed in its agent's description, which takes its words from there | `agents_toc_page`; bound to `termsOfAddressTocPage`, `nameDateTocPage`, `nameDescriptionTocPage` and `affiliationTocPage`, in the agent's group |
 | `etal`, the phrase saying there are more agents than named | `etal_toc_page`, bound to `etalTocPage` |
 | `designation`, the whole printed entry marker with its words and punctuation | `designation_toc_page`, bound to `designationTocPage` |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |
@@ -2314,7 +2314,7 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 | `subTitleTocPage` | `subtitle_toc_page`: a subtitle completing the entry's title on the TOC page. |
 | `partNumberTocPage` | `part_number_toc_page`: part-number evidence detected on the TOC page. |
 | `authorTocPage`, `translatorTocPage`, … | `agents_toc_page`: each name in the TOC field of its role (`<role>TocPage`), an `AgentValue` with the agent's `type`; written to MODS as `<name>` unless the chapter's own page has a name in that role. |
-| `affiliationTocPage` | The affiliations of those agents, each in an `agent` group with its name. |
+| `termsOfAddressTocPage`, `nameDateTocPage`, `nameDescriptionTocPage`, `affiliationTocPage` | The terms of address, life dates, descriptions and affiliations of those agents, each in an `agent` group with its name. |
 | `pageReferenceTocPage` | `page_reference_toc_page`, else the text of `page_number_toc_page`: the reference as printed, unparsed. MetaKat-only: the DMF's `<extent>` has only a start and an end. |
 | `pageNumberStartTocPage` | `page_runs_toc_page` when the engine split the reference - the first page of each run as printed - otherwise `page_number_toc_page` split by its parsed kind: a single page gives one start, a range its first page, a list one start per listed page, and a reference that failed to parse its original text. It is not the physical page number. |
 | `pageNumberEndTocPage` | The last page of each range run, or of a range reference; otherwise `None`. |
@@ -2337,7 +2337,7 @@ only when it would have at least two members:
   belongs to is not known here: its pages stay ungrouped, and each range is a
   `pageRange` of its own, its start with its end, so MODS writes it as one
   `<part>`.
-- `agent`: a TOC agent's name and its affiliations - one `<name>`.
+- `agent`: a TOC agent's name with its terms of address, life dates, descriptions and affiliations - one `<name>`.
 
 Page keys are translated through the image-stem mapping for the processed
 document. An unknown TOC or evidence page key is an error. Unknown start/end

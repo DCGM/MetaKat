@@ -600,7 +600,9 @@ def test_recursive_result_binds_schema_and_detection_provenance(
                     ChapterAgent(AgentRole.AUTHOR, evidence("Anna Nová", "toc", y=90), NameType.PERSONAL),
                     ChapterAgent(AgentRole.TRANSLATOR, evidence("Jan Novák", "toc", y=120), NameType.PERSONAL,
                                  affiliations=(evidence("Praha", "toc", y=150),),
-                                 terms_of_address=(evidence("Dr.", "toc", y=170),)),
+                                 terms_of_address=(evidence("Dr.", "toc", y=170),),
+                                 dates=evidence("1890—1950", "toc", y=172),
+                                 descriptions=(evidence("profesor", "toc", y=174),)),
                 ),
                 etal_toc_page=evidence("a kol.", "toc", y=175),
                 designation_toc_page=evidence("Kapitola 3.", "toc", y=5),
@@ -661,10 +663,11 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     assert [(value.text, value.type) for value in root.authorTocPage] == [("Anna Nová", "personal")]
     [translator] = root.translatorTocPage
     [affiliation] = root.affiliationTocPage
-    [term] = root.termsOfAddressTocPage
-    assert (translator.text, term.text, affiliation.text) == ("Jan Novák", "Dr.", "Praha")
+    [term], [dates], [description] = root.termsOfAddressTocPage, root.nameDateTocPage, root.nameDescriptionTocPage
+    assert (translator.text, term.text, dates.text, description.text, affiliation.text) == (
+        "Jan Novák", "Dr.", "1890—1950", "profesor", "Praha")
     groups = [(group.type, group.members) for group in root.groups]
-    assert ("agent", [translator.id, term.id, affiliation.id]) in groups
+    assert ("agent", [translator.id, term.id, dates.id, description.id, affiliation.id]) in groups
     # A phrase saying there are more agents than named is a value of its own.
     assert [value.text for value in root.etalTocPage] == ["a kol."]
     # The entry's marker as printed, for the normalization to title by.
@@ -686,7 +689,7 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     assert page_by_detection[root.title[0].id] == pages[1].id
     # The printed reference is a value of its own beside the number it parses into.
     assert root.pageReferenceTocPage[0].text == "10"
-    assert len(bbox_by_id) == 16
+    assert len(bbox_by_id) == 18
 
 
 def test_explicit_container_parents_all_chapter_roots(bind_engine, evidence):

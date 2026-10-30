@@ -146,16 +146,19 @@ class BiblioSeriesTitle:
 @dataclass(frozen=True)
 class BiblioSeriesEditor:
     """One editor of a series, read as any agent is: the name, what the agent is, with
-    its terms of address and affiliations; an AGENT group nested in its series' group.
+    its terms of address, life dates, descriptions and affiliations; an AGENT group
+    nested in its series' group.
 
-    MODS writes the name in the series' <relatedItem>; the terms of address and
-    affiliations have fields of their own, so no <name> of the record takes them."""
+    MODS writes the name in the series' <relatedItem>; the rest have fields of
+    their own, so no <name> of the record takes them."""
 
     GROUP_TYPE = GroupType.AGENT
 
     name: DetectionEvidence = field(metadata=_to("seriesEditor"))
     type: Optional[NameType] = None
     terms_of_address: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("seriesEditorTermsOfAddress"))
+    dates: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesEditorDate"))
+    descriptions: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("seriesEditorDescription"))
     affiliations: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("seriesEditorAffiliation"))
 
 
@@ -177,7 +180,8 @@ class BiblioSeries:
 @dataclass(frozen=True)
 class BiblioAgent:
     """One <name>: a person or body in one role, what it is when known, with their
-    terms of address (academic titles, ranks) and affiliations."""
+    terms of address (academic titles, ranks), life dates, descriptions (position,
+    profession) and affiliations (the institutions they belong to)."""
 
     GROUP_TYPE = GroupType.AGENT
 
@@ -185,6 +189,8 @@ class BiblioAgent:
     name: DetectionEvidence
     type: Optional[NameType] = None
     terms_of_address: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("termsOfAddress"))
+    dates: Optional[DetectionEvidence] = field(default=None, metadata=_to("nameDate"))
+    descriptions: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("nameDescription"))
     affiliations: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("affiliation"))
     emails: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("email"))
 

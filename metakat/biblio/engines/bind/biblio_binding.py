@@ -75,7 +75,8 @@ Anchors = Dict[UUID, UUID]
 # What an issue takes from its title page's reading besides its own number
 # and date: what each issue repeats - the periodical's title, imprint,
 # manufacture statement and distributor, its redaktor and the other persons
-# and bodies named with their terms of address and affiliations, the
+# and bodies named with their terms of address, life dates, descriptions and
+# affiliations, the
 # statements of responsibility, a copyright date and the ISBN the DMF gives an
 # issue - and its languages (span_candidates). The frequency only a supplement
 # keeps (unit_of); the ISSN is the periodical title's (periodical_issn).
@@ -84,7 +85,7 @@ _ISSUE_FIELDS = frozenset((
     "title", "subTitle", "publisher", "publisherStatement", "placeTerm", "frequency",
     "manufacturePublisher", "manufacturePublisherStatement", "manufacturePlaceTerm", "manufactureDate",
     "distributionPlaceTerm", "distributor", "distributionDate",
-    *(role.value for role in AgentRole), "termsOfAddress", "affiliation", "etal",
+    *(role.value for role in AgentRole), "termsOfAddress", "nameDate", "nameDescription", "affiliation", "etal",
     "statementOfResponsibility", "copyrightDate", "isbn",
 ))
 # The statements a record has one of per event: when several readings of the
@@ -863,7 +864,7 @@ _TITLE_EVENTS = {
                                               "manufacturePublisherStatement", "manufactureDate"),
 }
 # What a name carries beside it in its <name> group.
-_NAME_DETAILS = ("termsOfAddress", "affiliation", "email")
+_NAME_DETAILS = ("termsOfAddress", "nameDate", "nameDescription", "affiliation", "email")
 
 
 def agreed_field(records: List[MetakatElement], field_name: str) -> Optional[List[Value]]:
@@ -906,7 +907,7 @@ def agreed_agents(records: List[MetakatElement]) -> Tuple[Dict[str, List[Value]]
     """The names read in one role on more than half of the records, with their <name> groups.
 
     A name is compared as normalized text. Its most confident reading is
-    taken, with the terms of address, affiliations and emails of its group on
+    taken, with the terms of address, life dates, descriptions, affiliations and emails of its group on
     the record it was read on."""
     fields: Dict[str, List[Value]] = {}
     groups = []

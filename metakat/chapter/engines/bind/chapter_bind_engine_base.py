@@ -394,18 +394,22 @@ class ChapterBindEngineBase(ChapterBindEngine):
             agents: tuple[ChapterAgent, ...],
         ) -> tuple[dict[str, list[Value]], list[list[UUID]]]:
             # Each name, with what the agent is, goes to the TOC field of its
-            # role; a name, its terms of address and its affiliations are one
-            # <name>.
+            # role; a name, its terms of address, life dates, descriptions and
+            # affiliations are one <name>.
             fields: dict[str, list[Value]] = {}
             groups = []
             for agent in agents:
                 name = new_value(agent.name, agent.name.text, AgentValue, type=agent.type)
                 terms = [new_value(evidence, evidence.text) for evidence in agent.terms_of_address]
+                dates = [new_value(evidence, evidence.text) for evidence in (agent.dates,) if evidence is not None]
+                descriptions = [new_value(evidence, evidence.text) for evidence in agent.descriptions]
                 affiliations = [new_value(evidence, evidence.text) for evidence in agent.affiliations]
                 fields.setdefault(f"{agent.role.value}TocPage", []).append(name)
                 fields.setdefault("termsOfAddressTocPage", []).extend(terms)
+                fields.setdefault("nameDateTocPage", []).extend(dates)
+                fields.setdefault("nameDescriptionTocPage", []).extend(descriptions)
                 fields.setdefault("affiliationTocPage", []).extend(affiliations)
-                groups.append([name.id, *(value.id for value in (*terms, *affiliations))])
+                groups.append([name.id, *(value.id for value in (*terms, *dates, *descriptions, *affiliations))])
             return {field: values for field, values in fields.items() if values}, groups
 
         def bind_page_runs(

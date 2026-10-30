@@ -114,13 +114,17 @@ class ChapterPageNumberEvidence(DetectionEvidence):
 class ChapterAgent:
     """A person or body printed with a TOC entry: its name in its role (MetakatChapter's
     field of the role with the suffix TocPage), what it is when known, its terms
-    of address (termsOfAddressTocPage) and its affiliations (affiliationTocPage)."""
+    of address (termsOfAddressTocPage), its life dates (nameDateTocPage), the
+    statements describing it (nameDescriptionTocPage) and the institutions it
+    belongs to (affiliationTocPage)."""
 
     role: AgentRole
     name: DetectionEvidence
     type: NameType | None = None
     affiliations: tuple[DetectionEvidence, ...] = ()
     terms_of_address: tuple[DetectionEvidence, ...] = ()
+    dates: DetectionEvidence | None = None
+    descriptions: tuple[DetectionEvidence, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -81,7 +81,7 @@ ROLE_CODES = {
     "contributor": "ctb",
     "other": "oth",
 }
-AGENT_FIELDS = (*ROLE_CODES, "termsOfAddress", "affiliation")
+AGENT_FIELDS = (*ROLE_CODES, "termsOfAddress", "nameDate", "nameDescription", "affiliation")
 # An internal part's agents read in its TOC entry: the same fields with the
 # suffix TocPage; a TOC names no redaktor.
 TOC_AGENT_FIELDS = tuple(f"{field_name}TocPage" for field_name in AGENT_FIELDS if field_name != "redaktor")
@@ -90,8 +90,10 @@ ROLE_CODES["reviewedWorkAuthor"] = "aut"
 ROLE_CODES["seriesEditor"] = "edt"
 _AFFILIATION_FIELDS = ("affiliation", "affiliationTocPage")
 _TERMS_FIELDS = ("termsOfAddress", "termsOfAddressTocPage")
+_DATE_FIELDS = ("nameDate", "nameDateTocPage")
+_DESCRIPTION_FIELDS = ("nameDescription", "nameDescriptionTocPage")
 # What a <name> holds besides the names in their roles.
-_NAME_DETAIL_FIELDS = (*_TERMS_FIELDS, *_AFFILIATION_FIELDS)
+_NAME_DETAIL_FIELDS = (*_TERMS_FIELDS, *_DATE_FIELDS, *_AFFILIATION_FIELDS, *_DESCRIPTION_FIELDS)
 
 def _m(tag: str) -> str:
     return f"{{{MODS_NS}}}{tag}"
@@ -280,7 +282,8 @@ def _mark_toc_readings(record: _Record) -> None:
             record.supplementary.setdefault(own_values[0].id, []).extend(
                 (value, toc) for value in toc_values
             )
-    # A TOC affiliation or title of address goes with the name it describes.
+    # A TOC term of address, life dates, description or affiliation goes with
+    # the name it describes.
     for group in record.element.groups or []:
         if group.type != GroupType.AGENT.value:
             continue
@@ -288,7 +291,7 @@ def _mark_toc_readings(record: _Record) -> None:
                        if any(value.id in group.members for value, _ in readings)), None)
         if backed is not None:
             record.supplementary[backed].extend(
-                (value, toc) for toc in ("termsOfAddressTocPage", "affiliationTocPage")
+                (value, toc) for toc in _NAME_DETAIL_FIELDS if toc in TOC_AGENT_FIELDS
                 for value in _values(record.element, toc) if value.id in group.members
             )
 
@@ -310,6 +313,10 @@ def _names(record: _Record) -> None:
             if field_name in _TERMS_FIELDS:
                 record.leaf(container, "namePart", value.text, type="termsOfAddress")
                 record.value(target, container, "namePart", value, field_name)
+        for value, field_name in members:
+            if field_name in _DATE_FIELDS:
+                record.leaf(container, "namePart", value.text, type="date")
+                record.value(target, container, "namePart", value, field_name)
         for code in roles:
             role = ET.SubElement(container, _m("role"))
             record.leaf(role, "roleTerm", code, type="code", authority="marcrelator")
@@ -317,6 +324,10 @@ def _names(record: _Record) -> None:
             if field_name in _AFFILIATION_FIELDS:
                 record.leaf(container, "affiliation", value.text)
                 record.value(target, container, "affiliation", value, field_name)
+        for value, field_name in members:
+            if field_name in _DESCRIPTION_FIELDS:
+                record.leaf(container, "description", value.text)
+                record.value(target, container, "description", value, field_name)
     # There are more agents than named: a <name> holding only <etal> (DMF),
     # read on the part's own page or, failing that, in its TOC entry.
     demoted = _demoted_ids(record)
@@ -514,7 +525,8 @@ _BIBLIOGRAPHIC_SECTIONS = {
     "seriesPartName": "relatedItem:series", "seriesIssn": "relatedItem:series",
     "seriesEditor": "relatedItem:series",
     # The DMF maps no more of a series than its titles: MetaKat's only.
-    "seriesEditorTermsOfAddress": None, "seriesEditorAffiliation": None,
+    "seriesEditorTermsOfAddress": None, "seriesEditorDate": None, "seriesEditorDescription": None,
+    "seriesEditorAffiliation": None,
     "isbn": "identifier", "issn": "identifier",
 }
 _INTERNAL_PART_SECTIONS = {

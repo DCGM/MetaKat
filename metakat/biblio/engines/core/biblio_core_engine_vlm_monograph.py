@@ -15,10 +15,11 @@ in it is not read. Of the reply this engine reads:
 - every `series` with its ISSNs and editors and its `titleInfo`: the names
   of the series, one per language, each with its number and part name,
   flagged `translated` when it is a parallel name; each editor, read as an
-  agent is, with its type, its terms of address and its `description` as its
-  affiliations;
+  agent is, with its type, its terms of address, its life `dates`, its
+  `description` and its `affiliation`;
 - the `agents`, each in the field of its role, with its type, its terms of
-  address and its `description` as its affiliations, and `etal`;
+  address, its life `dates`, its `description` and its `affiliation`, and
+  `etal`;
 - the statements of responsibility, the `copyrightDate`, the `isbn` and
   `isbnSet` (the whole set's, `set_isbns`), the `illustrativeContent` and the
   `language` and `originalLanguage` codes;
@@ -131,7 +132,9 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
                     name=name,
                     type=_name_type(editor.get("type")),
                     terms_of_address=values.many(path + editor_path + ("termsOfAddress",), editor.get("termsOfAddress")),
-                    affiliations=values.many(path + editor_path + ("description",), editor.get("description")),
+                    dates=values.one(path + editor_path + ("dates",), editor.get("dates")),
+                    descriptions=values.many(path + editor_path + ("description",), editor.get("description")),
+                    affiliations=values.many(path + editor_path + ("affiliation",), editor.get("affiliation")),
                 )
                 for editor_path, editor in values.items(item, "seriesEditor")
                 if (name := values.one(path + editor_path + ("name",), editor.get("name"))) is not None

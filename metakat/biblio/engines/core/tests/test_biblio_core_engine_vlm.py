@@ -85,7 +85,8 @@ def _reply(engine_class, **fields):
 
 
 def _agent(role, name, **fields):
-    return {"role": role, "type": "personal", "name": name, "termsOfAddress": [], "description": [], **fields}
+    return {"role": role, "type": "personal", "name": name, "termsOfAddress": [], "dates": None, "description": [],
+            "affiliation": [], **fields}
 
 
 _REPLY = _reply(
@@ -474,6 +475,43 @@ def test_every_vlm_schema_asks_for_the_agents_alike():
     assert agents(chapter_schema, "properties", "entries", "items", "properties") == monograph
 
 
+_AGENT_ALTO = _ALTO.replace('''<TextBlock ID="TB2">''', '''<TextBlock ID="TB5">
+          <TextLine ID="TL5">
+            <String ID="S11" CONTENT="(1850—1910)" HPOS="400" VPOS="150" WIDTH="200" HEIGHT="30"/>
+          </TextLine>
+          <TextLine ID="TL6">
+            <String ID="S12" CONTENT="profesor" HPOS="300" VPOS="200" WIDTH="120" HEIGHT="30"/>
+            <String ID="S13" CONTENT="Komenského" HPOS="430" VPOS="200" WIDTH="160" HEIGHT="30"/>
+            <String ID="S14" CONTENT="university" HPOS="600" VPOS="200" WIDTH="140" HEIGHT="30"/>
+            <String ID="S15" CONTENT="v" HPOS="750" VPOS="200" WIDTH="20" HEIGHT="30"/>
+            <String ID="S16" CONTENT="Bratislavě" HPOS="780" VPOS="200" WIDTH="150" HEIGHT="30"/>
+          </TextLine>
+        </TextBlock>
+        <TextBlock ID="TB2">''')
+
+
+@pytest.mark.parametrize("engine_class", [BiblioCoreEngineVLMMonograph, BiblioCoreEngineVLMPeriodical])
+def test_an_agents_life_dates_description_and_affiliation_are_read_and_the_affiliation_takes_its_descriptions_words(
+        engine_class, tmp_path):
+    Image.new("RGB", (1000, 1500), "white").save(tmp_path / "0001_page.jpg")
+    (tmp_path / "0001_page.xml").write_text(_AGENT_ALTO, encoding="utf-8")
+    reply = _reply(engine_class, agents=[_agent(
+        "author", "K. J. ERBEN", dates="1850—1910", description=["profesor Komenského university v Bratislavě"],
+        affiliation=["Komenského university v Bratislavě"])])
+    engine = engine_class(_config() if engine_class is BiblioCoreEngineVLMMonograph else _periodical_config(),
+                          client=_Endpoint(reply).client())
+
+    [agent] = engine.process(_span((str(tmp_path / "0001_page.jpg"), str(tmp_path / "0001_page.xml")))).spans[0] \
+        .reading.agents
+
+    assert (agent.dates.text, agent.dates.alto.words) == ("1850—1910", ("S11",))
+    [description], [affiliation] = agent.descriptions, agent.affiliations
+    assert description.alto.words == ("S12", "S13", "S14", "S15", "S16")
+    # The institution is printed in the description's words and takes them.
+    assert (affiliation.text, affiliation.alto.words) == ("Komenského university v Bratislavě", ("S13", "S14", "S15", "S16"))
+    assert affiliation.bbox == BoundingBox(430, 200, 500, 30)
+
+
 def test_a_page_in_two_spans_is_rejected(page):
     with pytest.raises(ValueError, match="more than one place"):
         BiblioCoreEngineVLMMonograph(_config(), client=object()).process(_span(page) + _span(page))
@@ -490,8 +528,9 @@ def test_the_monograph_engine_keeps_every_part_as_nested_and_every_agent_with_it
                      {"partNumber": "5", "partName": "MORAVA", "parts": []}]}]}],
              "series": [{"titleInfo": [{"seriesName": "SVĚTOVÁ KNIHOVNA", "seriesPartNumber": "sv. 312",
                                         "seriesPartName": None, "lang": "cze", "translated": False}],
-                         "seriesIssn": ["ISSN 1211-3298"], "seriesEditor": [{"type": "personal", "name": "JOSEF TŮMA", "termsOfAddress": ["Dr."], "description": ["ředitel"]}]}],
-             "agents": [_agent("translator", "J. V. NOVÁK", termsOfAddress=["Dr."],
+                         "seriesIssn": ["ISSN 1211-3298"], "seriesEditor": [{"type": "personal", "name": "JOSEF TŮMA", "termsOfAddress": ["Dr."], "dates": "1850—1910",
+                                            "description": ["ředitel musea v Táboře"], "affiliation": ["musea v Táboře"]}]}],
+             "agents": [_agent("translator", "J. V. NOVÁK", termsOfAddress=["Dr."], dates="* 1850",
                                description=["c. k. professor v Praze"]),
                         _agent("composer", "B. SMETANA"), _agent("issuingBody", "UNIVERZITA KARLOVA", type="corporate")],
              "statementOfResponsibility": ["Přeložil Dr. J. V. NOVÁK"], "isbn": ["80-7004-015"],
@@ -518,7 +557,9 @@ def test_the_monograph_engine_keeps_every_part_as_nested_and_every_agent_with_it
     assert (series_title.name.text, series_title.part_number.text) == ("SVĚTOVÁ KNIHOVNA", "sv. 312")
     translator, composer, body = result.reading.agents
     assert (translator.role, translator.type) == (AgentRole.TRANSLATOR, NameType.PERSONAL)
-    assert [a.text for a in translator.affiliations] == ["c. k. professor v Praze"]
+    # A position naming no institution is a description and no affiliation.
+    assert ([d.text for d in translator.descriptions], translator.affiliations) == (["c. k. professor v Praze"], ())
+    assert translator.dates.text == "* 1850"
     assert (composer.role, composer.name.text) == (AgentRole.COMPOSER, "B. SMETANA")
     assert (body.role, body.type) == (AgentRole.ISSUING_BODY, NameType.CORPORATE)
     # A titleInfo's and a series' language is the language of each of their values.
@@ -532,9 +573,11 @@ def test_the_monograph_engine_keeps_every_part_as_nested_and_every_agent_with_it
     assert [language.text for language in result.reading.original_languages] == ["rus"]
     [issn], [editor] = series.issns, series.editors
     assert (issn.text, editor.name.text, editor.type) == ("ISSN 1211-3298", "JOSEF TŮMA", NameType.PERSONAL)
-    # A series editor is read as any agent is, with its terms of address and description.
-    assert ([term.text for term in editor.terms_of_address], [a.text for a in editor.affiliations]) == (
-        ["Dr."], ["ředitel"])
+    # A series editor is read as any agent is, with its terms of address, life
+    # dates, description and affiliation.
+    assert ([term.text for term in editor.terms_of_address], editor.dates.text,
+            [d.text for d in editor.descriptions], [a.text for a in editor.affiliations]) == (
+        ["Dr."], "1850—1910", ["ředitel musea v Táboře"], ["musea v Táboře"])
     assert [term.text for term in translator.terms_of_address] == ["Dr."]
     [etal] = result.reading.etals
     assert etal.phrase.text == "a kol."

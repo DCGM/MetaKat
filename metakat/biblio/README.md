@@ -175,7 +175,7 @@ other's (`MetakatGroup` members can be group ids):
 | `BiblioManufacture` | `<originInfo eventType="manufacture">` / `originInfoManufacture` | `places` → `manufacturePlaceTerm`, `manufacturers` → `manufacturePublisher`, `statement` → `manufacturePublisherStatement`, `date` → `manufactureDate` |
 | `BiblioDistribution` | `<originInfo eventType="distribution">` / `originInfoDistribution` | `places` → `distributionPlaceTerm`, `distributors` → `distributor`, `date` → `distributionDate` |
 | `BiblioSeries` | `<relatedItem type="series">` / `series` | `titles` (`BiblioSeriesTitle`, a `<titleInfo>` and a `seriesTitleInfo` group each, one per language: `name` → `seriesName` as a `TitleValue` with its `translated` flag, `part_number` → `seriesPartNumber`, `part_name` → `seriesPartName`), `issns` → `seriesIssn`, `editors` (`BiblioSeriesEditor`, an `agent` group each, read as an agent is: `name` → `seriesEditor` as an `AgentValue` with its `type`, `terms_of_address` → `seriesEditorTermsOfAddress`, `affiliations` → `seriesEditorAffiliation`) |
-| `BiblioAgent` | `<name>` / `agent` | `name` → the field named by `role` (`AgentRole`: `author`, `illustrator`, `photographer`, `translator`, `editor`, `redaktor`, `composer`, `reviewer`, `issuingBody`, `contributor`, `other`), as an `AgentValue` whose `type` is the agent's `type` (`NameType`: personal, corporate, conference, family; `None` when unknown), `terms_of_address` → `termsOfAddress`, `affiliations` → `affiliation`, `emails` → `email` |
+| `BiblioAgent` | `<name>` / `agent` | `name` → the field named by `role` (`AgentRole`: `author`, `illustrator`, `photographer`, `translator`, `editor`, `redaktor`, `composer`, `reviewer`, `issuingBody`, `contributor`, `other`), as an `AgentValue` whose `type` is the agent's `type` (`NameType`: personal, corporate, conference, family; `None` when unknown), `terms_of_address` → `termsOfAddress`, `dates` (life dates) → `nameDate`, `descriptions` (position, profession) → `nameDescription`, `affiliations` (the institutions it belongs to) → `affiliation`, `emails` → `email` |
 | `BiblioResponsibility` | `<note type="statement of responsibility">`, one per statement / no group | `statements` → `statementOfResponsibility` |
 | `BiblioCopyright` | `<originInfo eventType="copyright">` / no group | `date` → `copyrightDate` |
 | `BiblioEtal` | `<name><etal>` / no group | `phrase` → `etal` |
@@ -660,11 +660,11 @@ is not read:
 | imprint | `publication[]` - `placeTerm[]`, `publisher[]`, `publisherStatement`, `dateIssued`, `edition` | `publication[]` - `placeTerm[]`, `publisher[]`, `publisherStatement`, `dateIssued`; `frequency` in the first one |
 | distributor | `distribution[]`: one `BiblioDistribution` each | the same |
 | printer | `manufacture[]`: one `BiblioManufacture` each, `manufacturePublisherStatement` as its `statement` | the same |
-| series | `series[]` - one `BiblioSeries` each, with `seriesIssn[]` and `seriesEditor[]`, each editor an agent without a role (`type`, `name`, `termsOfAddress[]`, `description[]` as affiliations); its `titleInfo[]` - `seriesName`, `seriesPartNumber`, `seriesPartName`, one `BiblioSeriesTitle` per language, every value in its `lang`, `translated` (a parallel name of the series) as its flag | - |
+| series | `series[]` - one `BiblioSeries` each, with `seriesIssn[]` and `seriesEditor[]`, each editor an agent without a role (`type`, `name`, `termsOfAddress[]`, `dates`, `description[]`, `affiliation[]`); its `titleInfo[]` - `seriesName`, `seriesPartNumber`, `seriesPartName`, one `BiblioSeriesTitle` per language, every value in its `lang`, `translated` (a parallel name of the series) as its flag | - |
 | statements | `statementOfResponsibility[]` as one `BiblioResponsibility`; `copyrightDate` as a `BiblioCopyright`; `illustrativeContent[]` as one `BiblioIllustrations` | `statementOfResponsibility[]`, `copyrightDate` as for books |
 | identifiers | `isbn[]` and `isbnSet[]` (the whole set's, `set_isbns`) as one `BiblioIdentifiers` (`seriesIssn` is the series') | `isbn[]` and `issn[]` as one `BiblioIdentifiers` |
 | languages | `language[]` as `languages`, `originalLanguage[]` as `original_languages` | the same |
-| names | `agents[]`, each in its role, with its `type`, `termsOfAddress[]` and `description[]` as affiliations; `etal` as a `BiblioEtal` | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`, `termsOfAddress[]` and `description[]` as affiliations; `etal` |
+| names | `agents[]`, each in its role, with its `type`, `termsOfAddress[]`, life `dates`, `description[]` and `affiliation[]`; `etal` as a `BiblioEtal` | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`, `termsOfAddress[]`, life `dates`, `description[]` and `affiliation[]`; `etal` |
 | supplement | `supplement` as the span result's `supplement`: a map, an atlas, plates or a key issued with a volume | `supplement` as the span result's `supplement`; its `issue` is the numbering of the issue it belongs to |
 
 Both schemas, and the TOC schema of the VLM chapter extraction, ask for the
@@ -1257,8 +1257,8 @@ volume with the highest-confidence `title` among the parts for its `title`,
 of the whole work (DMF monografie 7.4.1), it takes what more than half of the
 volumes agree on, compared as normalized text:
 
-- the names (`<name>` MA), each in its role with the terms of address,
-  affiliations and emails of its group (`agreed_agents`): a translator or an
+- the names (`<name>` MA), each in its role with the terms of address, life
+  dates, descriptions, affiliations and emails of its group (`agreed_agents`): a translator or an
   editor of one volume of three stays with that volume;
 - the publication, distribution and manufacture statements (`<originInfo>`
   M), field by field among the volumes reading the field, each event one

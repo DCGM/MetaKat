@@ -13,7 +13,10 @@ the span's first page.
 Equally good repeated matches prefer nearby sibling fields, such as the date
 and publisher of an imprint. Within a top-level field words remain exclusive;
 a publisher or printer printed only as a phrase (`publisherStatement`,
-`manufacturePublisherStatement`) is never given geometry, the phrase is. Ambiguous text can still be located
+`manufacturePublisherStatement`) is never given geometry, the phrase is. An
+agent's affiliation repeats the institution's words from its description
+("Komenského university v Bratislavě" of "profesor Komenského university v
+Bratislavě"), so it takes them from there. Ambiguous text can still be located
 on the wrong occurrence. The model gives no per-value confidence, so every value
 carries the configured `confidence` (0.95 unless set).
 
@@ -80,6 +83,7 @@ from metakat.common.vlm import (
     render_prompts,
 )
 from metakat.common.vlm.local_server import LocalModelConfig, serve
+from metakat.common.vlm.word_regions import bare, words_region, words_run
 from metakat.schemas.base_objects import NameType
 
 logger = logging.getLogger(__name__)
@@ -245,6 +249,7 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
             for path, region in self._locate(alto_page, reply).items():
                 if region.alto_geometry is not None and path not in located:
                     located[path] = (page.page_key, region)
+        _locate_affiliations(reply, located)
 
         def evidence(path: tuple, text: Optional[str]) -> Optional[DetectionEvidence]:
             if text is None or not text.strip():
@@ -340,7 +345,7 @@ class ReplyValues:
     def agents(self, reply: Mapping[str, Any], roles: Mapping[str, AgentRole],
                page_key: str) -> tuple[BiblioAgent, ...]:
         """Every named object under `agents`, in the role `roles` gives its role, with
-        its type, its terms of address and its description as its affiliations."""
+        its type, its terms of address, life dates, descriptions and affiliations."""
         agents = []
         for path, item in self.items(reply, "agents"):
             role = roles.get(item.get("role"))
@@ -353,7 +358,9 @@ class ReplyValues:
                     role=role, name=name,
                     type=NameType(label) if isinstance(label, str) and label in NameType._value2member_map_ else None,
                     terms_of_address=self.many(path + ("termsOfAddress",), item.get("termsOfAddress")),
-                    affiliations=self.many(path + ("description",), item.get("description")),
+                    dates=self.one(path + ("dates",), item.get("dates")),
+                    descriptions=self.many(path + ("description",), item.get("description")),
+                    affiliations=self.many(path + ("affiliation",), item.get("affiliation")),
                 ))
         return tuple(agents)
 
@@ -371,15 +378,48 @@ def _alignable(reply: Any, label_keys: frozenset[str] = frozenset()) -> Any:
     JSON path.
     """
     if isinstance(reply, Mapping):
-        return {key: None if key in label_keys or (key in _STATEMENTS and reply.get(_STATEMENTS[key]))
-                else _alignable(value, label_keys)
-                for key, value in reply.items()}
+        aligned = {key: None if key in label_keys or (key in _STATEMENTS and reply.get(_STATEMENTS[key]))
+                   else _alignable(value, label_keys)
+                   for key, value in reply.items()}
+        # An affiliation repeated from a description has no words of its own
+        # there (_locate_affiliations).
+        descriptions = [bare(text) for text in _texts(reply.get("description")) if text is not None]
+        if isinstance(aligned.get("affiliation"), list):
+            aligned["affiliation"] = [None if text is not None and any(bare(text) in description
+                                                                       for description in descriptions) else text
+                                      for text in aligned["affiliation"]]
+        return aligned
     if isinstance(reply, list):
         return [_alignable(value, label_keys) for value in reply]
     # Only text is printed on the page: a flag or a number is not looked for.
     if not isinstance(reply, str) or not reply.strip():
         return None
     return reply
+
+
+def _locate_affiliations(reply: Any, located: dict, path: tuple = ()) -> None:
+    """An affiliation repeated from a description of its agent takes its words from that description."""
+    if isinstance(reply, list):
+        for index, value in enumerate(reply):
+            _locate_affiliations(value, located, path + (index,))
+        return
+    if not isinstance(reply, Mapping):
+        return
+    for key, value in reply.items():
+        _locate_affiliations(value, located, path + (key,))
+    for index, affiliation in enumerate(_texts(reply.get("affiliation"))):
+        if affiliation is None or path + ("affiliation", index) in located:
+            continue
+        for number in range(len(_texts(reply.get("description")))):
+            page_key, region = located.get(path + ("description", number), (None, None))
+            words = () if region is None else words_run(region.words, affiliation)
+            if words:
+                located[path + ("affiliation", index)] = (page_key, words_region(words))
+                break
+
+
+def _texts(values: Any) -> list:
+    return [value if isinstance(value, str) else None for value in values] if isinstance(values, list) else []
 
 
 def span_text(page_texts: Sequence[Optional[str]]) -> str:

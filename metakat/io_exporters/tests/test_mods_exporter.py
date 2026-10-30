@@ -420,18 +420,37 @@ def test_a_chapters_toc_designation_is_not_exported(batch, tmp_path):
     assert "Kapitola 3." not in etree.tostring(chapter, encoding="unicode")
 
 
+def test_an_agents_life_dates_description_and_affiliation_are_parts_of_its_name(batch, tmp_path, mods_schema):
+    v = batch.volume
+    v.nameDate = [batch.v("1811—1870", 0.9, 0)]
+    v.nameDescription = [batch.v("archivář města Prahy", 0.9, 0)]
+    v.affiliation = [batch.v("města Prahy", 0.9, 0)]
+    v.groups += [MetakatGroup(type=GroupType.AGENT, members=[
+        v.author[0].id, v.nameDate[0].id, v.nameDescription[0].id, v.affiliation[0].id])]
+    volume = _export(batch, tmp_path)[str(v.id)]
+
+    assert mods_schema.validate(volume), mods_schema.error_log.last_error
+    [name] = volume.xpath("/mods:mods/mods:name[mods:namePart='Karel Jaromír Erben']", namespaces=NS)
+    assert [(etree.QName(node).localname, node.get("type"), node.text) for node in name
+            if etree.QName(node).localname != "role"] == [
+        ("namePart", None, "Karel Jaromír Erben"), ("namePart", "date", "1811—1870"),
+        ("affiliation", None, "města Prahy"), ("description", None, "archivář města Prahy")]
+
+
 def test_a_chapters_toc_agent_is_one_name_with_its_affiliation_unless_its_own_page_has_the_role(batch, tmp_path):
-    translator, affiliation = batch.agent("Petr Malý", "personal", 2), batch.v("Brno", 0.9, 2)
+    translator, affiliation = batch.agent("Petr Malý", "personal", 2), batch.v("Masarykova univerzita", 0.9, 2)
+    dates = batch.v("1890—1950", 0.9, 2)
     batch.chapter.translatorTocPage = [translator]
     batch.chapter.affiliationTocPage = [affiliation]
+    batch.chapter.nameDateTocPage = [dates]
     batch.chapter.groups = [*(batch.chapter.groups or []),
-                            MetakatGroup(type=GroupType.AGENT, members=[translator.id, affiliation.id])]
+                            MetakatGroup(type=GroupType.AGENT, members=[translator.id, dates.id, affiliation.id])]
     chapter = _export(batch, tmp_path)[str(batch.chapter.id)]
 
     [name] = chapter.xpath("/mods:mods/mods:name", namespaces=NS)
     assert name.get("type") == "personal"
     assert _texts(chapter, "/mods:mods/mods:name/mods:namePart | /mods:mods/mods:name/mods:affiliation") == [
-        "Petr Malý", "Brno"]
+        "Petr Malý", "1890—1950", "Masarykova univerzita"]
     assert _texts(chapter, "/mods:mods/mods:name/mods:role/mods:roleTerm") == ["trl"]
 
     # The chapter's own translator wins: the TOC's, with its affiliation, backs it in provenance.
@@ -441,7 +460,7 @@ def test_a_chapters_toc_agent_is_one_name_with_its_affiliation_unless_its_own_pa
     assert _texts(chapter, "/mods:mods/mods:name/mods:namePart") == ["PETR MALÝ"]
     assert _texts(chapter, "/mods:mods/mods:name/mods:affiliation") == []
     events = chapter.xpath("//mkp:assertion[@property='namePart']/mkp:event/@field", namespaces=NS)
-    assert events == ["translator", "translatorTocPage", "affiliationTocPage"]
+    assert events == ["translator", "translatorTocPage", "nameDateTocPage", "affiliationTocPage"]
 
 
 def test_grouped_runs_pair_and_ungrouped_starts_stand_alone(batch, tmp_path):

@@ -145,7 +145,19 @@
               "type": "string"
             }
           },
+          "dates": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "description": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "affiliation": {
             "type": "array",
             "items": {
               "type": "string"
@@ -157,7 +169,9 @@
           "type",
           "name",
           "termsOfAddress",
-          "description"
+          "dates",
+          "description",
+          "affiliation"
         ],
         "additionalProperties": false
       }

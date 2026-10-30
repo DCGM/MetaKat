@@ -16,8 +16,8 @@ is not read. Of the reply this engine reads:
 - every `publication`, `distribution` and `manufacture`, the phrases printed
   instead of a publisher's or a printer's name with them, as for books, and
   the `frequency`, as part of the first imprint;
-- the `agents`, each with its type and its `description` as its
-  affiliations, in the field of its role: an editor of a periodical is its
+- the `agents`, each with its type, its life `dates`, its `description` and
+  its `affiliation`, in the field of its role: an editor of a periodical is its
   `redaktor`, which the periodical binder gives to the issue; every other
   role keeps its name;
 - the terms of address of the agents and `etal`;

@@ -428,8 +428,13 @@ class MetakatAgents(MetakatBaseModel):
     Each name is an AgentValue, carrying what the agent is - <name type>.
 
     `termsOfAddress` (<namePart type="termsOfAddress">: an academic title or
-    rank printed with a person, "Dr.") and `affiliation` are <name> children
-    too. Each describes *one* agent and repeats within that agent, so which
+    rank printed with a person, "Dr."), `nameDate` (<namePart type="date">:
+    the life dates printed with a person, "1792—1860"), `nameDescription`
+    (<description>: a statement describing the person, its position or
+    profession, "profesor Komenského university v Bratislavě") and
+    `affiliation` (<affiliation>: an institution the person belongs to,
+    "Komenského university v Bratislavě", repeated from the description that
+    names it) are <name> children too. Each describes *one* agent and repeats within that agent, so which
     goes with which name is not expressible while these are parallel flat
     lists - the clearest case for the grouping overlay (an AGENT group).
     `etal` is the phrase saying there are more agents than named ("a kol."):
@@ -456,6 +461,8 @@ class MetakatAgents(MetakatBaseModel):
     contributor: Optional[List[AgentValue]] = None
     other: Optional[List[AgentValue]] = None
     termsOfAddress: Optional[List[Value]] = None
+    nameDate: Optional[List[Value]] = None
+    nameDescription: Optional[List[Value]] = None
     affiliation: Optional[List[Value]] = None
     etal: Optional[List[Value]] = None
     email: Optional[List[Value]] = None
@@ -546,9 +553,9 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     # <relatedItem type="series">: its title, its ISSNs as
     # <identifier type="issn"> and its editors as <name> with the role edt.
     # An editor is read as any agent is, with what it is (AgentValue), its
-    # terms of address and its affiliations, in an AGENT group nested in the
-    # series' group; the DMF maps no more of a series than its titles (MARC
-    # 490/830), so those two are MetaKat's only.
+    # terms of address, life dates, descriptions and affiliations, in an AGENT
+    # group nested in the series' group; the DMF maps no more of a series than
+    # its titles (MARC 490/830), so those four are MetaKat's only.
     # A parallel name of a series is flagged translated and written in the
     # relatedItem of its series as <titleInfo type="translated"> (DMF: one
     # <titleInfo> per field under a common relatedItem).
@@ -558,6 +565,8 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     seriesIssn: Optional[List[Value]] = None
     seriesEditor: Optional[List[AgentValue]] = None
     seriesEditorTermsOfAddress: Optional[List[Value]] = None
+    seriesEditorDate: Optional[List[Value]] = None
+    seriesEditorDescription: Optional[List[Value]] = None
     seriesEditorAffiliation: Optional[List[Value]] = None
 
     # <identifier type="isbn"> and <identifier type="issn">, as printed. The
@@ -729,6 +738,8 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     contributorTocPage: Optional[List[AgentValue]] = None
     otherTocPage: Optional[List[AgentValue]] = None
     termsOfAddressTocPage: Optional[List[Value]] = None
+    nameDateTocPage: Optional[List[Value]] = None
+    nameDescriptionTocPage: Optional[List[Value]] = None
     affiliationTocPage: Optional[List[Value]] = None
     # The phrase printed with them saying there are more than named ("a kol."),
     # a <name><etal> of its own, as `etal` (MetakatAgents).
