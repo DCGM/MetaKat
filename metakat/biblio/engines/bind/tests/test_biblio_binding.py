@@ -193,17 +193,33 @@ def test_the_isbn_of_the_whole_set_goes_to_the_title_of_a_multipart_monograph():
         ['80-7004-057-2 /tento svazek/'], ['80-7004-058-0'])
 
 
-def test_a_monograph_that_is_not_multipart_keeps_only_its_own_isbn():
-    reading = _read(0, 'Kytice')
+def _with_set_isbn(reading):
     ev = reading.reading.title_infos[0].title
-    reading = dataclasses.replace(reading, reading=dataclasses.replace(reading.reading, identifiers=(
+    return dataclasses.replace(reading, reading=dataclasses.replace(reading.reading, identifiers=(
         BiblioIdentifiers(isbns=(dataclasses.replace(ev, text='80-7004-057-2'),),
                           set_isbns=(dataclasses.replace(ev, text='80-7004-015 /celý soubor/'),)),)))
-    io, _ = _process(_scan(titles={0: .99}), reading)
 
+
+def test_a_lone_volume_printing_the_set_isbn_is_a_volume_of_a_multipart_monograph():
+    # No part number or name read: the set ISBN alone says the book is one volume of a work.
+    io, _ = _process(_scan(titles={0: .99}), _with_set_isbn(_read(0, 'Země')))
+
+    [title] = _of(io, MetakatTitle)
     [volume] = _of(io, MetakatVolume)
+    assert (title.hierarchy, volume.hierarchy, volume.parent_id) == (
+        HierarchyType.MULTIPART, HierarchyType.MULTIPART, title.id)
+    assert ([v.text for v in title.isbn], [v.text for v in volume.isbn]) == (
+        ['80-7004-015 /celý soubor/'], ['80-7004-057-2'])
+
+
+def test_a_set_isbn_in_one_of_three_monographs_does_not_make_them_one_work():
+    pages = _scan({4, 8}, {0: .99, 4: .99, 8: .99}, count=12)
+    io, _ = _process(pages, _with_set_isbn(_read(0, 'Země')), _read(4, 'Kytice'), _read(8, 'Babička'))
+
     assert _of(io, MetakatTitle) == []
-    assert [value.text for value in volume.isbn] == ['80-7004-057-2']
+    first = next(volume for volume in _of(io, MetakatVolume) if volume.title[0].text == 'Země')
+    # Without a title above it, the set ISBN describes nothing bound and is dropped.
+    assert [v.text for v in first.isbn] == ['80-7004-057-2']
 
 
 def test_readings_without_a_title_are_not_referenced(metakat_page):

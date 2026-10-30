@@ -1202,8 +1202,10 @@ carries the groups through its decisions about records.
 
 The monograph binder's `is_multipart` decides whether the scan is one
 multipart monograph: at least `PART_MINIMUM_SHARE` (`0.5`) of the documents
-named by a span read a part number or part name (a `multipart` candidate).
-Otherwise, and when no document is named, every document is a monograph. A
+named by a span read a part number or part name (a `multipart` candidate) or
+the ISBN of a whole set (`isbnSet`), which a book prints only as one volume of
+a work in several. A set ISBN counts here only: it does not split a document,
+as it says the book is a volume, not where one begins. Otherwise, and when no document is named, every document is a monograph. A
 share rather than a single reading keeps one stray part number from turning a
 batch of unrelated monographs into a multipart work, while a multipart batch
 needs only every other part to show its number.

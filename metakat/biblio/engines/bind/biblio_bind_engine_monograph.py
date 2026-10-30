@@ -239,14 +239,20 @@ class BiblioBindEngineMonograph(BiblioBindEngine):
         """Whether the scan is one multipart monograph rather than monographs.
 
         At least PART_MINIMUM_SHARE of the documents named by a title page
-        read a part number or part name. A share rather than one reading keeps
-        a stray part number from making unrelated monographs one work, while a
-        multipart scan needs only every other part to show its number."""
+        read a part number or part name, or the ISBN of a whole set - which
+        a book prints only as one volume of a work in several. A share rather
+        than one reading keeps a stray part number from making unrelated
+        monographs one work, while a multipart scan needs only every other part
+        to show its number. A set ISBN does not split a document (split_documents
+        reads parts only): it says the book is a volume, not where one begins."""
+        def volume_of_a_set(span: TitleSpan) -> bool:
+            return span.part or any(value.id in scan.set_isbn_ids for value in span.volume.isbn or ())
+
         named = [[s for s in scan.spans if s.document == index and s.names] for index in range(len(scan.documents))]
         named = [document for document in named if document]
         if not named:
             return False
-        parts = sum(any(span.part for span in document) for document in named)
+        parts = sum(any(volume_of_a_set(span) for span in document) for document in named)
         return parts / len(named) >= PART_MINIMUM_SHARE
 
     def bind(self, scan: Scan) -> List[MetakatElement]:
