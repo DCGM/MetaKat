@@ -177,14 +177,16 @@ def _common_lang(values: Iterable[Value]) -> dict:
 # ---------------------------------------------------------------- containers
 
 def _consume_groups(record: _Record, group_type: Optional[str], fields: Sequence[str],
-                    rank: Optional[Callable[[str], int]] = None):
+                    rank: Optional[Callable[[str], int]] = None, nested: bool = False):
     """Yield [(Value, field)] per group of `group_type`, then per ungrouped value.
 
     Only the producer's groups decide which values share a container. A
     group_type of None means these fields are never grouped. A group's
     members are written in the order `rank` gives their fields (their
     position in the model unless given), fields of one rank in the group's
-    own order.
+    own order. A group nested in it (MetakatGroup) is, when `nested`, the
+    list of its own members, ranked by its first; otherwise its members
+    stand in its place.
     """
     rank = rank or record.position
     demoted = _demoted_ids(record)
@@ -194,15 +196,29 @@ def _consume_groups(record: _Record, group_type: Optional[str], fields: Sequence
         for value in _values(record.element, field_name):
             if value.id not in demoted:
                 by_id[value.id] = (value, field_name)
+    groups = {group.id: group for group in record.element.groups or []}
+    inner = {member for group in groups.values() for member in group.members if member in groups}
     used = set()
-    for group in record.element.groups or []:
-        if group_type is None or group.type != group_type:
+
+    def entry_rank(entry) -> int:
+        return rank(entry[1]) if isinstance(entry, tuple) else entry_rank(entry[0])
+
+    def members_of(group) -> list:
+        entries = []
+        for member in group.members:
+            if member in groups:
+                if inner_entries := members_of(groups[member]):
+                    entries.append(inner_entries)
+            elif member in by_id and member not in used:
+                used.add(member)
+                entries.append(by_id[member])
+        return sorted(entries, key=entry_rank)
+
+    for group in groups.values():
+        if group_type is None or group.type != group_type or group.id in inner:
             continue
-        members = [by_id[member] for member in group.members if member in by_id and member not in used]
-        members.sort(key=lambda member: rank(member[1]))
-        if members:
-            used.update(value.id for value, _ in members)
-            yield members
+        if members := members_of(group):
+            yield members if nested else _flat_members(members)
     for value_id, member in by_id.items():
         if value_id not in used:
             yield [member]
@@ -331,49 +347,26 @@ def _origin_info(record: _Record, group_type: Optional[str], event_type: str, ro
 
 
 def _related_items(record: _Record, group_type: str, item_type: str, fields: dict[str, str]) -> None:
-    # A parallel name of a series - flagged translated - is a <titleInfo
-    # type="translated"> in the relatedItem of its series (DMF: one titleInfo
-    # per field under a common relatedItem): the main name with the same
-    # number, else the nearest main name before it, else the first one. What
-    # it repeats of its series - the ISSN, an editor - is written once.
-    groups = list(_consume_groups(record, group_type, tuple(fields)))
-    parallel = [any(getattr(v, "translated", None) is True for v, _ in members) for members in groups]
-    main = [index for index, flag in enumerate(parallel) if not flag]
-
-    def number(members) -> Optional[str]:
-        return next((v.text for v, f in members if fields[f] == "partNumber"), None)
-
-    def series_of(index: int) -> Optional[int]:
-        same = [m for m in main if number(groups[m]) is not None and number(groups[m]) == number(groups[index])]
-        before = [m for m in main if m < index]
-        return (same or before[-1:] or main[:1] or [None])[0]
-
-    items = {}
-    for index in main + [index for index, flag in enumerate(parallel) if flag]:
-        members = groups[index]
-        owner = series_of(index) if parallel[index] else index
-        if owner in items:
-            container, target = items[owner]
-        else:
-            container, target = items[index] = record.container(record.root, "relatedItem", type=item_type)
-        title_members = [(v, f) for v, f in members if fields[f] in ("title", "partNumber", "partName")]
-        if title_members:
+    # Each <titleInfo> of the item is a group nested in its group - a name of
+    # a series in one language, with its number and part name - flagged
+    # translated when it is a parallel name; the title fields in the item's
+    # group directly are one more.
+    for members in _consume_groups(record, group_type, tuple(fields), nested=True):
+        container, target = record.container(record.root, "relatedItem", type=item_type)
+        direct = [(v, f) for v, f in (m for m in members if isinstance(m, tuple))
+                  if fields[f] in ("title", "partNumber", "partName")]
+        for title_members in ([direct] if direct else []) + [m for m in members if isinstance(m, list)]:
+            title_members = [(v, f) for v, f in _flat_members(title_members)
+                             if fields[f] in ("title", "partNumber", "partName")]
             attributes = _common_lang(v for v, _ in title_members)
-            if parallel[index]:
+            if any(getattr(value, "translated", None) is True for value, _ in title_members):
                 attributes["type"] = "translated"
             title_info = ET.SubElement(container, _m("titleInfo"), attributes)
             for value, field_name in title_members:
                 record.leaf(title_info, fields[field_name], value.text)
                 record.value(target, container, fields[field_name], value, field_name)
-        for value, field_name in members:
-            # A repeated ISSN or editor backs the one written in provenance.
-            repeated = next((assertion for assertion in record.assertions
-                             if assertion.target == target and fields[field_name] in ("identifier", "name")
-                             and assertion.values[0][1] == field_name
-                             and assertion.values[0][0].text.strip() == value.text.strip()), None)
-            if repeated is not None:
-                repeated.values.append((value, field_name))
-            elif fields[field_name] == "identifier":
+        for value, field_name in _flat_members(members):
+            if fields[field_name] == "identifier":
                 identifier = record.leaf(container, "identifier", value.text, type="issn")
                 record.value(target, container, "identifier", value, field_name, leaf=identifier)
             elif fields[field_name] == "name":
@@ -386,6 +379,11 @@ def _related_items(record: _Record, group_type: str, item_type: str, fields: dic
                 origin = ET.SubElement(container, _m("originInfo"))
                 record.leaf(origin, "publisher", value.text)
                 record.value(target, container, "publisher", value, field_name)
+
+
+def _flat_members(members: list) -> list:
+    return [leaf for member in members
+            for leaf in (_flat_members(member) if isinstance(member, list) else [member])]
 
 
 def _simple(record: _Record, field_name: str, tag: str, prop: Optional[str] = None,

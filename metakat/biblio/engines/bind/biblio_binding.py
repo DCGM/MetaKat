@@ -29,10 +29,11 @@ from metakat.biblio.engines.core.models import (
     BiblioCoreResult,
     BiblioPage,
     BiblioReading,
-    BiblioSeries,
+    BiblioSeriesTitle,
     BiblioSpanResult,
     BiblioTitleInfo,
-    container_values,
+    Nested,
+    container_items,
     merge_languages,
 )
 from metakat.common.models import AgentRole
@@ -128,9 +129,18 @@ def texts_match(
     return normalize_text(first_value.text) == normalize_text(second_value.text)
 
 
+@dataclasses.dataclass
+class _Node:
+    """A container's group as read: its type and members - value ids and nested _Nodes."""
+
+    group_type: Optional[str]
+    members: list
+
+
 # One source's containers, as they reach a record: per container, its group
-# type and (MetaKat field, Value, whether the field is single-valued in it).
-_SourceContainers = List[Tuple[str, List[Tuple[str, Value, bool]]]]
+# type, (MetaKat field, Value, whether the field is single-valued in it) and
+# its group as read.
+_SourceContainers = List[Tuple[Optional[str], List[Tuple[str, Value, bool]], _Node]]
 
 
 def _is_single(container: BiblioContainer, field_name: str) -> bool:
@@ -145,9 +155,24 @@ def _is_single(container: BiblioContainer, field_name: str) -> bool:
 
 def _restrict(source: _SourceContainers, keep: Callable[[str], bool]) -> _SourceContainers:
     return [
-        (group_type, [value for value in values if keep(value[0])])
-        for group_type, values in source
+        (group_type, [value for value in values if keep(value[0])], node)
+        for group_type, values, node in source
     ]
+
+
+def _node_groups(node: _Node, present: set) -> List[MetakatGroup]:
+    """The group of `node` and those nested in it, of the members in `present`: the
+    node's own group first; none when it keeps no member."""
+    members, nested = [], []
+    for member in node.members:
+        if isinstance(member, _Node):
+            groups = _node_groups(member, present)
+            if groups:
+                members.append(groups[0].id)
+                nested += groups
+        elif member in present:
+            members.append(member)
+    return [MetakatGroup(type=node.group_type, members=members), *nested] if members else []
 
 
 def union_groups(sources: List[List[MetakatGroup]]) -> List[MetakatGroup]:
@@ -156,7 +181,9 @@ def union_groups(sources: List[List[MetakatGroup]]) -> List[MetakatGroup]:
     A statement type every reading has at most one group of - one title, one
     imprint - is one statement of the record, so those groups are united.
     Anything else stays as read: a reading that split a statement did so on
-    purpose, and series and names are separate entities.
+    purpose, and series and names are separate entities. A group nested in
+    another - a level of a part, a name of a series - keeps its id, so the
+    united group still holds it.
     """
     result: List[MetakatGroup] = []
     group_types = list(dict.fromkeys(group.type for groups in sources for group in groups))
@@ -210,26 +237,26 @@ class TitleSpan:
 def volume_parts(volume: MetakatVolume) -> List[Tuple[Optional[str], Optional[str]]]:
     """The levels of the part a volume is, the highest first, as normalized (number, name).
 
-    Read in the printed order of its titleInfo group (MetakatGroup), where a
-    name follows the number of its part; without a group, numbers and names
-    pair from the lowest level."""
-    numbers = {value.id: value for value in volume.partNumber or ()}
-    names = {value.id: value for value in volume.partName or ()}
-    order = next((group.members for group in volume.groups or ()
-                  if group.type == GroupType.TITLE_INFO.value
-                  and any(member in numbers or member in names for member in group.members)), None)
-    if order is None:
-        order = [*numbers, *names]
-    parts: List[List[Optional[str]]] = []
-    for member in order:
-        if member in numbers:
-            parts.append([normalize_text(numbers[member].text), None])
-        elif member in names:
-            name = normalize_text(names[member].text)
-            if parts and parts[-1][1] is None:
-                parts[-1][1] = name
-            else:
-                parts.append([None, name])
+    Read from its titleInfo group (MetakatGroup): each PART group is a level,
+    and so is a number or name in the titleInfo directly. Without a group,
+    numbers and names pair from the lowest level."""
+    numbers = {value.id: normalize_text(value.text) for value in volume.partNumber or ()}
+    names = {value.id: normalize_text(value.text) for value in volume.partName or ()}
+    groups = {group.id: group for group in volume.groups or ()}
+    title_info = next((group for group in groups.values() if group.type == GroupType.TITLE_INFO.value
+                       and any(member in numbers or member in names or member in groups
+                               for member in group.members)), None)
+    if title_info is not None:
+        levels = [groups[member].members if member in groups else [member] for member in title_info.members]
+        parts = [(next((numbers[m] for m in level if m in numbers), None),
+                  next((names[m] for m in level if m in names), None)) for level in levels]
+        return [part for part in parts if part != (None, None)]
+    parts: List[List[Optional[str]]] = [[number, None] for number in numbers.values()]
+    for name in names.values():
+        if parts and parts[-1][1] is None:
+            parts[-1][1] = name
+        else:
+            parts.append([None, name])
     return [(number, name) for number, name in parts]
 
 
@@ -260,7 +287,7 @@ def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceCo
     groups_per_source: List[List[MetakatGroup]] = []
     for index, source in enumerate(sources):
         groups = []
-        for group_type, values in source:
+        for group_type, values, node in source:
             if not values:
                 continue
             for field_name, value, single in values:
@@ -273,7 +300,7 @@ def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceCo
                     if single and earlier is None:
                         single_source[field_name] = index
             if group_type is not None:
-                groups.append(MetakatGroup(type=group_type, members=[value.id for _, value, _ in values]))
+                groups += _node_groups(node, {value.id for _, value, _ in values})
         groups_per_source.append(groups)
     for field_name, values in fields.items():
         setattr(record, field_name, values)
@@ -310,16 +337,26 @@ def span_candidates(
         for container in (reading.containers() if reading is not None else ()):
             values = []
             set_isbns = {id(evidence) for evidence in getattr(container, "set_isbns", ())}
-            for field_name, evidence in container_values(container):
-                if isinstance(container, BiblioAgent) and field_name == container.role.value:
+
+            def node(group_type, items, owner) -> _Node:
+                members = []
+                for item in items:
+                    if isinstance(item, Nested):
+                        members.append(node(item.group_type.value, item.items, item.container or owner))
+                    else:
+                        members.append(value_of(*item, owner).id)
+                return _Node(group_type, members)
+
+            def value_of(field_name, evidence, owner) -> Value:
+                if isinstance(owner, BiblioAgent) and field_name == owner.role.value:
                     # The name, with what the agent is.
                     value = AgentValue(text=evidence.text, confidence=evidence.confidence, id=uuid4(),
-                                       lang=evidence.lang, type=container.type)
-                elif (isinstance(container, BiblioTitleInfo) and field_name in ("title", "subTitle")
-                      or isinstance(container, BiblioSeries) and field_name == "seriesName"):
+                                       lang=evidence.lang, type=owner.type)
+                elif (isinstance(owner, BiblioTitleInfo) and field_name in ("title", "subTitle")
+                      or isinstance(owner, BiblioSeriesTitle) and field_name == "seriesName"):
                     # A title or a series name, main or parallel.
                     value = TitleValue(text=evidence.text, confidence=evidence.confidence, id=uuid4(),
-                                       lang=evidence.lang, translated=container.translated)
+                                       lang=evidence.lang, translated=owner.translated)
                 else:
                     value = Value(text=evidence.text, confidence=evidence.confidence, id=uuid4(), lang=evidence.lang)
                 if id(evidence) in set_isbns and set_isbn_ids is not None:
@@ -335,8 +372,12 @@ def span_candidates(
                         lines=list(evidence.alto.lines),
                         words=list(evidence.alto.words),
                     )
-                values.append((field_name, value, _is_single(container, field_name)))
-            yield container.GROUP_TYPE, values
+                values.append((field_name, value, _is_single(owner, field_name)))
+                return value
+
+            group_type = container.GROUP_TYPE.value if container.GROUP_TYPE is not None else None
+            tree = node(group_type, container_items(container), container)
+            yield group_type, values, tree
 
     reading = list(containers(page_result.reading))
     periodical_volume = list(containers(page_result.periodical_volume))
@@ -660,15 +701,27 @@ def title_from(volumes: List[MetakatVolume], hierarchy: HierarchyType) -> Metaka
 def finalize_groups(element: MetakatElement) -> None:
     # Groups are carried through merging with every value that was read,
     # so a value a merge dropped - the less confident of two readings, a
-    # field the record does not keep - is dropped from its group here. A
-    # group left with one member pairs nothing.
+    # field the record does not keep - is dropped from its group here, and
+    # a group left with no member from the group holding it. A group nested
+    # in another keeps even one member: it says where that member sits (a
+    # part number alone is a level of the part). A group holding nothing
+    # else left with one value pairs nothing.
     present = referenced_detection_ids([element])
-    groups = []
-    for group in element.groups or []:
-        members = [member for member in group.members if member in present]
-        if len(members) > 1:
-            groups.append(MetakatGroup(type=group.type, members=members))
-    element.groups = groups or None
+    groups = {group.id: group for group in element.groups or []}
+    changed = True
+    while changed:
+        changed = False
+        for group_id, group in list(groups.items()):
+            members = [member for member in group.members if member in present or member in groups]
+            if not members:
+                del groups[group_id]
+                changed = True
+            elif members != group.members:
+                groups[group_id] = group.model_copy(update={"members": members})
+                changed = True
+    nested = {member for group in groups.values() for member in group.members if member in groups}
+    element.groups = [group for group in groups.values()
+                      if group.id in nested or len(group.members) > 1 or group.members[0] in groups] or None
 
 
 def referenced_detection_ids(elements: List[MetakatElement]) -> set:

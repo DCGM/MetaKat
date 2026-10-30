@@ -483,8 +483,9 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_ro
                  {"level": 1, "partNumber": "I", "partName": "PŮDA"},
                  {"level": 2, "partNumber": "4", "partName": "ČECHY"},
                  {"level": 2, "partNumber": "5", "partName": "MORAVA"}]}],
-             "series": [{"seriesName": "SVĚTOVÁ KNIHOVNA", "seriesPartNumber": "sv. 312", "seriesPartName": None,
-                         "seriesIssn": "1211-3298", "seriesEditor": ["JOSEF TŮMA"], "lang": "cze", "translated": False}],
+             "series": [{"titleInfo": [{"seriesName": "SVĚTOVÁ KNIHOVNA", "seriesPartNumber": "sv. 312",
+                                        "seriesPartName": None, "lang": "cze", "translated": False}],
+                         "seriesIssn": "1211-3298", "seriesEditor": ["JOSEF TŮMA"]}],
              "agents": [_agent("translator", "J. V. NOVÁK", termsOfAddress=["Dr."],
                                description=["c. k. professor v Praze"]),
                         _agent("composer", "B. SMETANA"), _agent("issuingBody", "UNIVERZITA KARLOVA", type="corporate")],
@@ -505,14 +506,15 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_ro
     assert [(field, evidence.text) for field, evidence in container_values(title_info)][1:] == [
         ("partNumber", "I"), ("partName", "PŮDA"), ("partNumber", "4"), ("partName", "ČECHY")]
     [series] = result.reading.series
-    assert (series.name.text, series.part_number.text) == ("SVĚTOVÁ KNIHOVNA", "sv. 312")
+    [series_title] = series.titles
+    assert (series_title.name.text, series_title.part_number.text) == ("SVĚTOVÁ KNIHOVNA", "sv. 312")
     translator, composer, body = result.reading.agents
     assert (translator.role, translator.type) == (AgentRole.TRANSLATOR, NameType.PERSONAL)
     assert [a.text for a in translator.affiliations] == ["c. k. professor v Praze"]
     assert (composer.role, composer.name.text) == (AgentRole.COMPOSER, "B. SMETANA")
     assert (body.role, body.type) == (AgentRole.ISSUING_BODY, NameType.CORPORATE)
     # A titleInfo's and a series' language is the language of each of their values.
-    assert (title_info.title.lang, title_info.part_name.lang, series.name.lang) == ("cze", "cze", "cze")
+    assert (title_info.title.lang, title_info.part_name.lang, series_title.name.lang) == ("cze", "cze", "cze")
     [responsibility] = result.reading.responsibilities
     assert [s.text for s in responsibility.statements] == ["Přeložil Dr. J. V. NOVÁK"]
     [copyright_] = result.reading.copyrights
@@ -545,17 +547,19 @@ def test_a_parallel_title_is_flagged_translated_and_the_main_one_not(page):
     assert [(t.title.text, t.translated) for t in (parallel, main)] == [("BOUQUET", True), ("KYTICE", False)]
 
 
-def test_a_parallel_series_name_is_flagged_translated_and_the_main_one_not(page):
-    series = {"seriesPartNumber": "3", "seriesPartName": None, "seriesIssn": None, "seriesEditor": []}
-    reply = {**_REPLY, "series": [
-        {**series, "seriesName": "KNIHOVNA KLASIKŮ", "lang": "cze", "translated": False},
-        {**series, "seriesName": "BIBLIOTHEK DER KLASSIKER", "lang": "ger", "translated": True}]}
+def test_the_names_of_a_series_in_several_languages_are_one_series_and_the_parallel_one_is_flagged(page):
+    reply = {**_REPLY, "series": [{"titleInfo": [
+        {"seriesName": "KNIHOVNA KLASIKŮ", "seriesPartNumber": "sv. 3", "seriesPartName": None, "lang": "cze",
+         "translated": False},
+        {"seriesName": "BIBLIOTHEK DER KLASSIKER", "seriesPartNumber": "Bd. 3", "seriesPartName": None, "lang": "ger",
+         "translated": True}], "seriesIssn": "1211-3298", "seriesEditor": []}]}
     engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(reply).client())
 
-    main, parallel = engine.process(_span(page)).spans[0].reading.series
+    [series] = engine.process(_span(page)).spans[0].reading.series
 
-    assert [(s.name.text, s.translated) for s in (main, parallel)] == [
-        ("KNIHOVNA KLASIKŮ", False), ("BIBLIOTHEK DER KLASSIKER", True)]
+    assert [(t.name.text, t.part_number.text, t.name.lang, t.translated) for t in series.titles] == [
+        ("KNIHOVNA KLASIKŮ", "sv. 3", "cze", False), ("BIBLIOTHEK DER KLASSIKER", "Bd. 3", "ger", True)]
+    assert series.issn.text == "1211-3298"
 
 
 # --- the periodical engine ----------------------------------------------------

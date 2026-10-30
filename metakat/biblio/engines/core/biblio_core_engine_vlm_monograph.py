@@ -14,13 +14,16 @@ in it is not read. Of the reply this engine reads:
   model derived from the page - the author of a book published "nákladem
   vlastním" - is read as the publisher;
 - every `distribution` and `manufacture`, and every `series` with its ISSN
-  and editors, flagged `translated` when it is a parallel name of a series;
+  and editors and its `titleInfo`: the names of the series, one per
+  language, each with its number and part name, flagged `translated` when it
+  is a parallel name;
 - the `agents`, each in the field of its role, with its type, its terms of
   address and its `description` as its affiliations, and `etal`;
 - the statements of responsibility, the `copyrightDate`, the `isbn` and
   `isbnSet` (the whole set's, `set_isbns`), the `illustrativeContent` and the
   `language` and `originalLanguage` codes;
-- the `lang` of a titleInfo or series, as the language of each of its values.
+- the `lang` of a titleInfo or of a series' titleInfo, as the language of each
+  of its values.
 
 Not read: the `publisherInferred` flag.
 """
@@ -48,6 +51,7 @@ from metakat.biblio.engines.core.models import (
     BiblioReading,
     BiblioResponsibility,
     BiblioSeries,
+    BiblioSeriesTitle,
     BiblioSpanResult,
     BiblioTitleInfo,
 )
@@ -110,12 +114,19 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
     ]
     series = [
         BiblioSeries(
-            name=values.one(path + ("seriesName",), item.get("seriesName"), item.get("lang")),
-            part_number=values.one(path + ("seriesPartNumber",), item.get("seriesPartNumber"), item.get("lang")),
-            part_name=values.one(path + ("seriesPartName",), item.get("seriesPartName"), item.get("lang")),
+            titles=kept_containers(
+                BiblioSeriesTitle(
+                    translated=title.get("translated") if isinstance(title.get("translated"), bool) else None,
+                    name=values.one(path + title_path + ("seriesName",), title.get("seriesName"), title.get("lang")),
+                    part_number=values.one(path + title_path + ("seriesPartNumber",), title.get("seriesPartNumber"),
+                                           title.get("lang")),
+                    part_name=values.one(path + title_path + ("seriesPartName",), title.get("seriesPartName"),
+                                         title.get("lang")),
+                )
+                for title_path, title in values.items(item, "titleInfo")
+            ),
             issn=values.one(path + ("seriesIssn",), item.get("seriesIssn")),
             editors=values.many(path + ("seriesEditor",), item.get("seriesEditor")),
-            translated=item.get("translated") if isinstance(item.get("translated"), bool) else None,
         )
         for path, item in values.items(reply, "series")
     ]

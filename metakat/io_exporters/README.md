@@ -27,7 +27,7 @@ one against the Library of Congress schema.
 | MetaKat | MODS |
 |---|---|
 | element type | `<genre>`; an article's `articleGenre` as `genre@type` |
-| `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>`; the parts in the order of their titleInfo group, each number before its name, the highest level first (MODS has no level, MARC 245 repeats `$n` `$p`); a titleInfo whose `title` or `subTitle` is a `TitleValue` flagged `translated` is `type="translated"` (a parallel title, MARC 246 second indicator 1) |
+| `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>`; the parts in the order of their titleInfo group - a `part` group per level, its number before its name, the highest level first (MODS has no level, MARC 245 repeats `$n` `$p`); a titleInfo whose `title` or `subTitle` is a `TitleValue` flagged `translated` is `type="translated"` (a parallel title, MARC 246 second indicator 1) |
 | agents | `<name><namePart>` whole, with `role/roleTerm` marcrelator code: `aut`, `ill`, `pht`, `trl`, `edt`, `cmp` (composer), `rev` (reviewer), `isb` (issuingBody), `ctb` (contributor), `oth` (other) - a redaktor is `edt`, as in Czech records; the name's `type` (personal, corporate, conference, family) as `name@type` when its values agree on one |
 | `termsOfAddress`, `affiliation` | `<name><namePart type="termsOfAddress">`, `<name><affiliation>` of the name they are grouped with |
 | `etal` | a `<name>` of its own holding only `<etal>` (DMF) |
@@ -37,7 +37,7 @@ one against the Library of Congress schema.
 | distribution fields | `<originInfo eventType="distribution">`, distributor as `agent` with role `distributor`, date as `dateOther type="distribution"` |
 | `copyrightDate` | `<originInfo eventType="copyright">` |
 | manufacture fields | `<originInfo eventType="manufacture">`, printer as `agent` with role `manufacturer`, date as `dateOther type="manufacture"` |
-| series fields | `<relatedItem type="series">`: `<titleInfo>`, `seriesIssn` as `<identifier type="issn">`, `seriesEditor` as `<name>` with role `edt`; a series group whose `seriesName` is flagged `translated` (a parallel name) is a `<titleInfo type="translated">` in the relatedItem of its series - the main name with the same number, else the nearest main name before it, else the first (DMF: one titleInfo per field under a common relatedItem) - and an ISSN or editor it repeats is written once, backing the written one in provenance |
+| series fields | `<relatedItem type="series">`: `<titleInfo>`, `seriesIssn` as `<identifier type="issn">`, `seriesEditor` as `<name>` with role `edt`; one relatedItem per `series` group, a `<titleInfo>` per `seriesTitleInfo` group nested in it (DMF: one titleInfo per field under a common relatedItem), `type="translated"` when its `seriesName` is flagged `translated` (a parallel name) |
 | `statementOfResponsibility` | `<note type="statement of responsibility">` |
 | `language`, `originalLanguage` | `<language><languageTerm authority="iso639-2b">`; an original language with `objectPart="translation"` (DMF, MARC 041 `$h`) |
 | `form`, `illustrativeContent` | one `<physicalDescription>`: `<form authority="marcform">`, each statement of illustrations as `<note type="physical details">` (the LoC note type for MARC 300 details) |
@@ -75,7 +75,9 @@ without deciding where it goes.
 ### Containers come only from groups
 
 The code that creates values groups what it knows belongs together. A group
-becomes one container; every ungrouped value gets its own. The exporter never
+becomes one container, a group nested in it (`part`, `seriesTitleInfo`) the
+values of one part level or one inner `<titleInfo>`; every ungrouped value
+gets its own. The exporter never
 pairs or merges anything itself: a page run is written with an end only when a
 `pageRange` group pairs them, so an ungrouped start stands alone and an
 ungrouped end is not written. A container carries `lang` when its values share

@@ -25,10 +25,12 @@ from metakat.biblio.engines.core.models import (
     BiblioCopyright,
     BiblioManufacture,
     BiblioPage,
+    BiblioPart,
     BiblioPublication,
     BiblioReading,
     BiblioResponsibility,
     BiblioSeries,
+    BiblioSeriesTitle,
     BiblioTitleInfo,
     container_values,
     merge_readings,
@@ -195,7 +197,8 @@ def test_every_name_is_its_own_agent():
 def test_one_series_name_and_number_are_one_series():
     result = read_page(_page(("serie", "Edice Klasika", 0.9), ("cislo serie", "5", 0.8)), BY_LABEL)
     [series] = result.reading.series
-    assert (series.name.text, series.part_number.text) == ("Edice Klasika", "5")
+    [title] = series.titles
+    assert (title.name.text, title.part_number.text) == ("Edice Klasika", "5")
 
 
 def test_several_series_names_are_not_paired_with_numbers():
@@ -250,7 +253,7 @@ def test_every_result_field_maps_to_a_bibliographic_field_in_its_containers_mods
 def test_every_grouped_bibliographic_field_is_covered_by_a_container():
     covered = {
         f.metadata["metakat"]
-        for container in CONTAINERS
+        for container in (*CONTAINERS, BiblioPart, BiblioSeriesTitle)
         for f in dataclasses.fields(container)
         if "metakat" in f.metadata
     } | {role.value for role in AgentRole}

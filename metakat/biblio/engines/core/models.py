@@ -4,7 +4,9 @@ The core is given spans: each span is the consecutive title pages of one
 bottom-level document (a half-title and a title page, say), in page order. It
 reads the bibliographic information printed on a span as one record and
 returns it grouped as MODS groups it: every container class below is one MODS
-container, and so one MetakatGroup type. Values inside one container were read
+container, and so one MetakatGroup type; a container nested in another - a
+level of a part in a title, a name of a series - is a group nested in the
+other's (MetakatGroup). Values inside one container were read
 as one statement - one imprint, one title, one series - and do not claim which
 of them pairs with which; the DMF allows parallel places or publishers of one
 imprint inside one <originInfo>. Values the core cannot place in a common
@@ -28,14 +30,20 @@ from metakat.common.vlm.report import VLMCallReport
 from metakat.schemas.base_objects import GroupType, NameType
 
 
-def _to(metakat_field: str):
+def _to(metakat_field: str, **metadata):
     """Metadata naming the MetakatBibliographic field a result field maps to."""
-    return {"metakat": metakat_field}
+    return {"metakat": metakat_field, **metadata}
+
+
+# A field holding containers nested in this one, each a group of its own.
+_NESTED = {"nested": True}
 
 
 @dataclass(frozen=True)
 class BiblioPart:
     """One level of the part a volume is: its number and name (a `díl` above a `část`)."""
+
+    GROUP_TYPE = GroupType.PART
 
     number: Optional[DetectionEvidence] = field(default=None, metadata=_to("partNumber"))
     name: Optional[DetectionEvidence] = field(default=None, metadata=_to("partName"))
@@ -47,7 +55,8 @@ class BiblioTitleInfo:
 
     `part_number` and `part_name` are the part this volume is; `higher_parts`
     the parts it belongs to, the highest first, which MODS gives before it in
-    the same <titleInfo> (a part of several levels, MARC 245 $n $p).
+    the same <titleInfo> (a part of several levels, MARC 245 $n $p). Each
+    level is a PART group in the titleInfo group, this volume's last.
     `translated` is true for a parallel title in another language, false for
     the main title, None when the reader cannot tell (TitleValue)."""
 
@@ -57,9 +66,9 @@ class BiblioTitleInfo:
 
     title: Optional[DetectionEvidence] = field(default=None, metadata=_to("title"))
     sub_title: Optional[DetectionEvidence] = field(default=None, metadata=_to("subTitle"))
-    higher_parts: tuple[BiblioPart, ...] = field(default=(), metadata={"parts": True})
-    part_number: Optional[DetectionEvidence] = field(default=None, metadata=_to("partNumber"))
-    part_name: Optional[DetectionEvidence] = field(default=None, metadata=_to("partName"))
+    higher_parts: tuple[BiblioPart, ...] = field(default=(), metadata=_NESTED)
+    part_number: Optional[DetectionEvidence] = field(default=None, metadata=_to("partNumber", own_part=True))
+    part_name: Optional[DetectionEvidence] = field(default=None, metadata=_to("partName", own_part=True))
 
 
 @dataclass(frozen=True)
@@ -98,19 +107,33 @@ class BiblioManufacture:
 
 
 @dataclass(frozen=True)
-class BiblioSeries:
-    """One series statement: <relatedItem type="series">, with its ISSN and editors.
+class BiblioSeriesTitle:
+    """One name of a series in one language, with the number and part name printed with it:
+    a <titleInfo> of its <relatedItem type="series">.
 
-    `translated` is true for a parallel name of a series in another language,
-    false for its main name, None when the reader cannot tell (TitleValue)."""
+    `translated` is true for a parallel name of the series in another
+    language, false for its main name, None when the reader cannot tell
+    (TitleValue)."""
 
-    GROUP_TYPE = GroupType.SERIES
+    GROUP_TYPE = GroupType.SERIES_TITLE_INFO
 
     translated: Optional[bool] = None
 
     name: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesName"))
     part_number: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesPartNumber"))
     part_name: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesPartName"))
+
+
+@dataclass(frozen=True)
+class BiblioSeries:
+    """One series: <relatedItem type="series">, with its names, ISSN and editors.
+
+    `titles` are its names, one per language, the main one first as printed;
+    each is a SERIES_TITLE_INFO group in the series group."""
+
+    GROUP_TYPE = GroupType.SERIES
+
+    titles: tuple[BiblioSeriesTitle, ...] = field(default=(), metadata=_NESTED)
     issn: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesIssn"))
     editors: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("seriesEditor"))
 
@@ -279,27 +302,58 @@ class BiblioCoreResult:
     reports: tuple[VLMCallReport, ...] = ()
 
 
-def container_values(container: BiblioContainer | BiblioPart) -> Iterator[tuple[str, DetectionEvidence]]:
-    """(MetakatBibliographic field, evidence) for every reading in a container, in field order.
+@dataclass(frozen=True)
+class Nested:
+    """A container nested in another, as container_items gives it: its group type, items and
+    the container itself (None for a volume's own part, read from fields of the title)."""
 
-    The parts of a title come in the printed order, each number before its
-    name, as a titleInfo group keeps them (MetakatGroup)."""
+    group_type: GroupType
+    items: tuple
+    container: Optional[BiblioPart | BiblioSeriesTitle] = None
+
+
+BiblioNestable = BiblioContainer | BiblioPart | BiblioSeriesTitle
+
+
+def container_items(container: BiblioNestable) -> Iterator[tuple[str, DetectionEvidence] | Nested]:
+    """The readings of a container in field order, as (MetakatBibliographic field, evidence),
+    and the containers nested in it, each as a Nested of its own items.
+
+    The parts of a title come in the printed order, the highest level first,
+    this volume's own part last, each a PART (MetakatGroup); the names of a
+    series each a SERIES_TITLE_INFO."""
     if isinstance(container, BiblioAgent):
         yield container.role.value, container.name
+    own_part = []
     for container_field in dataclasses.fields(container):
-        if container_field.metadata.get("parts"):
-            for part in getattr(container, container_field.name):
-                yield from container_values(part)
+        if container_field.metadata.get("nested"):
+            for nested in getattr(container, container_field.name):
+                yield Nested(nested.GROUP_TYPE, tuple(container_items(nested)), nested)
             continue
         metakat_field = container_field.metadata.get("metakat")
         if metakat_field is None:
             continue
         value = getattr(container, container_field.name)
-        if isinstance(value, tuple):
-            for evidence in value:
-                yield metakat_field, evidence
-        elif value is not None:
-            yield metakat_field, value
+        readings = [(metakat_field, evidence) for evidence in value] if isinstance(value, tuple) else (
+            [(metakat_field, value)] if value is not None else [])
+        if container_field.metadata.get("own_part"):
+            own_part += readings
+        else:
+            yield from readings
+    if own_part:
+        yield Nested(GroupType.PART, tuple(own_part))
+
+
+def container_values(container: BiblioNestable) -> Iterator[tuple[str, DetectionEvidence]]:
+    """(MetakatBibliographic field, evidence) for every reading in a container and the
+    containers nested in it, in the order of container_items."""
+    for item in container_items(container):
+        yield from _flatten(item) if isinstance(item, Nested) else [item]
+
+
+def _flatten(nested: Nested) -> Iterator[tuple[str, DetectionEvidence]]:
+    for item in nested.items:
+        yield from (_flatten(item) if isinstance(item, Nested) else [item])
 
 
 def merge_readings(readings: Sequence[BiblioReading]) -> BiblioReading:

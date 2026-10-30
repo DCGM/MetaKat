@@ -29,6 +29,7 @@ from metakat.biblio.engines.core.models import (
     BiblioReading,
     BiblioResponsibility,
     BiblioSeries,
+    BiblioSeriesTitle,
     BiblioSpanResult,
     BiblioTitleInfo,
     merge_span,
@@ -158,8 +159,11 @@ def test_a_part_of_several_levels_keeps_its_printed_order_and_is_told_apart_by_e
 
     volume = candidate(("I", None), ("4", "Čechy"))
     [group] = _group(volume, "titleInfo")
-    assert group.members == [volume.title[0].id, volume.partNumber[0].id, volume.partNumber[1].id,
-                             volume.partName[0].id]
+    # Each level is a part group in the titleInfo, the highest first.
+    higher, own = _group(volume, "part")
+    assert group.members == [volume.title[0].id, higher.id, own.id]
+    assert (higher.members, own.members) == ([volume.partNumber[0].id],
+                                             [volume.partNumber[1].id, volume.partName[0].id])
     assert [value.text for value in volume.partNumber] == ["I", "4"]
 
     def spans(*volumes):
@@ -236,15 +240,22 @@ def test_a_title_and_its_subtitle_carry_whether_the_title_is_parallel(metakat_pa
 
 
 def test_a_series_name_carries_whether_it_is_parallel(metakat_page):
-    page = _page_result(_titled(series=(
-        BiblioSeries(name=_ev("Knihovna klasiků", 0.9), part_number=_ev("3", 0.9), translated=False),
-        BiblioSeries(name=_ev("Bibliothek der Klassiker", 0.9), part_number=_ev("3", 0.9), translated=True),
-    )))
+    page = _page_result(_titled(series=(BiblioSeries(titles=(
+        BiblioSeriesTitle(name=_ev("Knihovna klasiků", 0.9), part_number=_ev("sv. 3", 0.9), translated=False),
+        BiblioSeriesTitle(name=_ev("Bibliothek der Klassiker", 0.9), part_number=_ev("Bd. 3", 0.9), translated=True),
+    ), issn=_ev("1211-3298", 0.9)),)))
 
     volume, _ = span_candidates(page)[0]
+    finalize_groups(volume)
 
     assert [(value.text, value.translated) for value in volume.seriesName] == [
         ("Knihovna klasiků", False), ("Bibliothek der Klassiker", True)]
+    # One series group holds a group per name, each with its number, and the ISSN.
+    [series] = _group(volume, "series")
+    main, parallel = _group(volume, "seriesTitleInfo")
+    assert series.members == [main.id, parallel.id, volume.seriesIssn[0].id]
+    assert [main.members, parallel.members] == [[volume.seriesName[0].id, volume.seriesPartNumber[0].id],
+                                                [volume.seriesName[1].id, volume.seriesPartNumber[1].id]]
 
 
 def test_readings_without_a_title_are_not_referenced(metakat_page):
@@ -356,7 +367,8 @@ def test_a_periodical_page_gives_a_volume_and_an_issue(metakat_page):
     # The title and the volume number are one titleInfo of the volume.
     finalize_groups(volume)
     [title_info] = _group(volume, "titleInfo")
-    assert title_info.members == [volume.title[0].id, volume.partNumber[0].id]
+    [part] = _group(volume, "part")
+    assert (title_info.members, part.members) == ([volume.title[0].id, part.id], [volume.partNumber[0].id])
 
 
 def test_a_periodical_issue_is_read_with_its_title_even_without_a_number(metakat_page):
@@ -383,8 +395,10 @@ def test_a_field_read_twice_on_one_page_keeps_the_more_confident_reading(metakat
 
     assert volume.hierarchy == HierarchyType.PERIODICAL
     assert _tc(volume.partNumber) == ("Ročník IV", 0.8)
+    # The losing reading's part group is left empty and dropped.
     [title_info] = _group(volume, "titleInfo")
-    assert title_info.members == [volume.title[0].id, volume.partNumber[0].id]
+    [part] = _group(volume, "part")
+    assert (title_info.members, part.members) == ([volume.title[0].id, part.id], [volume.partNumber[0].id])
     # The losing reading's geometry is returned; process() drops it.
     assert len(detection_to_bbox) == 3
 
@@ -402,6 +416,25 @@ def test_finalized_groups_hold_only_the_records_own_values():
     finalize_groups(volume)
 
     assert [(group.type, group.members) for group in volume.groups] == [("titleInfo", [kept.id, other.id])]
+
+
+def test_a_nested_group_keeps_one_member_and_an_emptied_one_leaves_its_group():
+    title, number, dropped = _v("Země", 0.9), _v("Díl I", 0.9), _v("Část 4", 0.5)
+    level, emptied = (MetakatGroup(type=GroupType.PART, members=[number.id]),
+                      MetakatGroup(type=GroupType.PART, members=[dropped.id]))
+    volume = MetakatVolume(id=uuid4(), title=[title], partNumber=[number], groups=[
+        MetakatGroup(type=GroupType.TITLE_INFO, members=[title.id, level.id, emptied.id]), level, emptied])
+    title_info_id = volume.groups[0].id
+
+    finalize_groups(volume)
+
+    # A part number alone is still a level; ids survive, so the titleInfo still holds it.
+    assert [(group.id, group.type, group.members) for group in volume.groups] == [
+        (title_info_id, "titleInfo", [title.id, level.id]), (level.id, "part", [number.id])]
+    # A title above the volume holds no part: its titleInfo is left with the title alone.
+    title_record = title_from([volume], HierarchyType.MULTIPART)
+    finalize_groups(title_record)
+    assert title_record.groups is None
 
 
 def test_a_lone_value_is_not_grouped():

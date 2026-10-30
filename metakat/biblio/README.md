@@ -164,15 +164,17 @@ describe, never by a hierarchy decision:
 | `periodical_issue` | What the core read as explicitly describing a periodical issue, such as an issue number or date. |
 
 A `BiblioReading` holds **containers**. Each container class is one MODS
-container, so one `MetakatGroup` type:
+container, so one `MetakatGroup` type. A container nested in another - a
+level of a part in a title, a name of a series - is a group nested in the
+other's (`MetakatGroup` members can be group ids):
 
 | Container | MODS container / `GroupType` | Fields → MetaKat field |
 |---|---|---|
-| `BiblioTitleInfo` | `<titleInfo>` / `titleInfo` | `title` → `title`, `sub_title` → `subTitle`, `higher_parts` (`BiblioPart`: `number` → `partNumber`, `name` → `partName`, the parts the volume's part belongs to, highest first), `part_number` → `partNumber`, `part_name` → `partName` |
+| `BiblioTitleInfo` | `<titleInfo>` / `titleInfo` | `title` → `title`, `sub_title` → `subTitle`, `higher_parts` (`BiblioPart`, a `part` group each: `number` → `partNumber`, `name` → `partName`, the parts the volume's part belongs to, highest first), `part_number` → `partNumber`, `part_name` → `partName` (together the last `part` group) |
 | `BiblioPublication` | `<originInfo eventType="publication">` / `originInfoPublication` | `places` → `placeTerm`, `publishers` → `publisher`, `date_issued` → `dateIssued`, `edition` → `edition`, `frequency` → `frequency` |
 | `BiblioManufacture` | `<originInfo eventType="manufacture">` / `originInfoManufacture` | `places` → `manufacturePlaceTerm`, `manufacturers` → `manufacturePublisher`, `date` → `manufactureDate` |
 | `BiblioDistribution` | `<originInfo eventType="distribution">` / `originInfoDistribution` | `places` → `distributionPlaceTerm`, `distributors` → `distributor`, `date` → `distributionDate` |
-| `BiblioSeries` | `<relatedItem type="series">` / `series` | `name` → `seriesName` (a `TitleValue` with the series' `translated` flag), `part_number` → `seriesPartNumber`, `part_name` → `seriesPartName`, `issn` → `seriesIssn`, `editors` → `seriesEditor` |
+| `BiblioSeries` | `<relatedItem type="series">` / `series` | `titles` (`BiblioSeriesTitle`, a `<titleInfo>` and a `seriesTitleInfo` group each, one per language: `name` → `seriesName` as a `TitleValue` with its `translated` flag, `part_number` → `seriesPartNumber`, `part_name` → `seriesPartName`), `issn` → `seriesIssn`, `editors` → `seriesEditor` |
 | `BiblioAgent` | `<name>` / `agent` | `name` → the field named by `role` (`AgentRole`: `author`, `illustrator`, `photographer`, `translator`, `editor`, `redaktor`, `composer`, `reviewer`, `issuingBody`, `contributor`, `other`), as an `AgentValue` whose `type` is the agent's `type` (`NameType`: personal, corporate, conference, family; `None` when unknown), `terms_of_address` → `termsOfAddress`, `affiliations` → `affiliation`, `emails` → `email` |
 | `BiblioResponsibility` | `<note type="statement of responsibility">`, one per statement / no group | `statements` → `statementOfResponsibility` |
 | `BiblioCopyright` | `<originInfo eventType="copyright">` / no group | `date` → `copyrightDate` |
@@ -189,9 +191,10 @@ of a VLM title or series), which becomes the `lang` of its `Value`
 
 A field typed `DetectionEvidence | None` holds one reading; a tuple field holds
 any number, in reading order. The mapping is declared on the dataclass fields
-themselves (`metadata={"metakat": ...}`), and `container_values(container)`
-yields `(MetaKat field, evidence)` for every reading in a container, in field
-order. The tests hold the mapping to the schema: every mapped name must be a
+themselves (`metadata={"metakat": ...}`); `container_items(container)` yields
+`(MetaKat field, evidence)` for every reading in a container, in field order,
+and each nested container as a `Nested` of its own items, and
+`container_values(container)` the readings of both, flattened. The tests hold the mapping to the schema: every mapped name must be a
 `MetakatBibliographic` field in the container's MODS section, and every
 grouped bibliographic field must be covered by a container.
 
@@ -213,8 +216,9 @@ A core therefore:
 - puts values it cannot place in a common statement into containers of their
   own.
 
-The binder turns each container holding at least two values into one
-`MetakatGroup`; a value alone in its container stays ungrouped.
+The binder turns each container into one `MetakatGroup`, a nested container
+into a group nested in it; a value alone in a container nested in nothing
+stays ungrouped.
 
 **Merging the pages of a span** (`merge_readings`, `merge_span` in
 `models.py`, used by the YOLO core). A statement every page prints at most once
@@ -440,8 +444,8 @@ Each `BiblioType` has one place in the result:
 | `Edition` | `reading` | `BiblioPublication.edition` | highest confidence |
 | `ManufacturePlaceTerm` | `reading` | `BiblioManufacture.places` | all |
 | `ManufacturePublisher` | `reading` | `BiblioManufacture.manufacturers` | all |
-| `SeriesName` | `reading` | `BiblioSeries.name` | all |
-| `SeriesNumber` | `reading` | `BiblioSeries.part_number` | all |
+| `SeriesName` | `reading` | `BiblioSeriesTitle.name` (of a `BiblioSeries`) | all |
+| `SeriesNumber` | `reading` | `BiblioSeriesTitle.part_number` | all |
 | `Author`, `Illustrator`, `Photographer`, `Translator`, `Editor`, `Redaktor` | `reading` | one `BiblioAgent` each, with the matching `AgentRole` | all |
 | `PeriodicalVolumePartNumber` | `periodical_volume` | `BiblioTitleInfo.part_number` | highest confidence |
 | `PeriodicalVolumeDateIssued` | `periodical_volume` | `BiblioPublication.date_issued` | highest confidence |
@@ -458,10 +462,10 @@ by the one thing a page tells it - that it was printed together:
 - each reading gets at most one `BiblioTitleInfo`, one `BiblioPublication`
   and one `BiblioManufacture`, holding everything of that kind read on the
   page;
-- a series name with at most one series number is one `BiblioSeries`; with
-  several names or several numbers, which number belongs to which name is
-  unknown, and a series holds one title, so each gets a `BiblioSeries` of its
-  own;
+- a series name with at most one series number is one `BiblioSeries` with one
+  `BiblioSeriesTitle`; with several names or several numbers, which number
+  belongs to which name, and which names are one series, is unknown, so each
+  gets a `BiblioSeries` of its own;
 - every name is its own `BiblioAgent`.
 
 Configuring a label is what makes a type reachable. A `BiblioType` absent from
@@ -653,7 +657,7 @@ is not read:
 | imprint | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`, `edition` | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`; `frequency` in the first one |
 | distributor | `distribution[]`: one `BiblioDistribution` each | the same |
 | printer | `manufacture[]`: one `BiblioManufacture` each | the same |
-| series | `series[]` - `seriesName`, `seriesPartNumber`, `seriesPartName`, every value in its `lang`, `translated` (a parallel name of a series) as its flag | - |
+| series | `series[]` - one `BiblioSeries` each, with `seriesIssn` and `seriesEditor`; its `titleInfo[]` - `seriesName`, `seriesPartNumber`, `seriesPartName`, one `BiblioSeriesTitle` per language, every value in its `lang`, `translated` (a parallel name of the series) as its flag | - |
 | statements | `statementOfResponsibility[]` as one `BiblioResponsibility`; `copyrightDate` as a `BiblioCopyright`; `illustrativeContent[]` as one `BiblioIllustrations` | `statementOfResponsibility[]`, `copyrightDate` as for books |
 | identifiers | `isbn[]` and `isbnSet[]` (the whole set's, `set_isbns`) as one `BiblioIdentifiers` (`seriesIssn` is the series') | `isbn[]` and `issn[]` as one `BiblioIdentifiers` |
 | languages | `language[]` as `languages`, `originalLanguage[]` as `original_languages` | the same |
@@ -1189,14 +1193,17 @@ carries the groups through its decisions about records.
   title and one imprint per event. A reading that split such a statement into
   several groups did so on purpose, so then they stay as read. `series` and
   `agent` groups always stay as read: a record can have several series and
-  several names.
+  several names. Nested `part` and `seriesTitleInfo` groups keep their ids,
+  so a united `titleInfo` holds the `part` groups of every reading.
 - **Choosing between records** - a leaf keeps its authoritative span's
   groups; a periodical volume has no groups, only its number and year; a
   title takes the groups of the reading it was chosen from.
 - **Finalizing** - before the elements are written, `finalize_groups` drops
   from each group the values its record no longer holds - the less confident
-  of two readings, a field a merge does not keep - and drops groups left with
-  fewer than two members.
+  of two readings, a field a merge does not keep - and groups left empty from
+  the groups holding them. A nested group keeps even one member (a part
+  number alone is a level of its own); a group nested in nothing left with
+  one value is dropped.
 
 ### Multipart or monographs
 

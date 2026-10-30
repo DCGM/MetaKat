@@ -81,23 +81,52 @@
       "items": {
         "type": "object",
         "properties": {
-          "seriesName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "seriesPartNumber": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "seriesPartName": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "titleInfo": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "seriesName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "seriesPartNumber": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "seriesPartName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "lang": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/languageCode"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "translated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "seriesName",
+                "seriesPartNumber",
+                "seriesPartName",
+                "lang",
+                "translated"
+              ],
+              "additionalProperties": false
+            }
           },
           "seriesIssn": {
             "type": [
@@ -110,29 +139,12 @@
             "items": {
               "type": "string"
             }
-          },
-          "lang": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/languageCode"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "translated": {
-            "type": "boolean"
           }
         },
         "required": [
-          "seriesName",
-          "seriesPartNumber",
-          "seriesPartName",
+          "titleInfo",
           "seriesIssn",
-          "seriesEditor",
-          "lang",
-          "translated"
+          "seriesEditor"
         ],
         "additionalProperties": false
       }

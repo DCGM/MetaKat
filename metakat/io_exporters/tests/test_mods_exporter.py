@@ -178,9 +178,11 @@ def test_the_parts_of_a_title_keep_the_printed_order_of_their_group(batch, tmp_p
     v = batch.volume
     v.partNumber = [batch.v("I", 0.9, 0), batch.v("4", 0.9, 0)]
     v.partName = [batch.v("Čechy", 0.9, 0)]
-    # "Díl I. – Část 4. Čechy": the name is the lower part's, after its number.
-    v.groups = [MetakatGroup(type=GroupType.TITLE_INFO, members=[
-        v.title[0].id, v.subTitle[0].id, v.partNumber[0].id, v.partNumber[1].id, v.partName[0].id])]
+    # "Díl I. – Část 4. Čechy": a part group per level, the name with the lower part's number.
+    higher = MetakatGroup(type=GroupType.PART, members=[v.partNumber[0].id])
+    own = MetakatGroup(type=GroupType.PART, members=[v.partNumber[1].id, v.partName[0].id])
+    v.groups = [MetakatGroup(type=GroupType.TITLE_INFO, members=[v.title[0].id, v.subTitle[0].id, higher.id, own.id]),
+                higher, own]
     records = _export(batch, tmp_path)
 
     volume = records[str(v.id)]
@@ -236,31 +238,28 @@ def test_identifiers_series_details_names_distribution_languages_and_illustratio
         (None, "cze"), ("translated", "fre")]
 
 
-def test_a_parallel_series_name_is_a_translated_title_info_in_the_related_item_of_its_series(
+def test_a_series_is_one_related_item_with_a_title_info_per_name_and_the_parallel_one_translated(
         batch, tmp_path, mods_schema):
     v = batch.volume
-    v.seriesName += [batch.v("Řada zábavná", 0.9, 0), batch.parallel_title("Bibliothek der Klassiker", 0, "ger")]
-    v.seriesPartNumber = [batch.v("3", 0.9, 0), batch.v("12", 0.9, 0), batch.v("3", 0.9, 0)]
-    v.seriesIssn = [batch.v("1211-3298", 0.9, 0), batch.v("1211-3298", 0.8, 0)]
-    main, other, parallel = zip(v.seriesName, v.seriesPartNumber)
+    v.seriesName += [batch.parallel_title("Bibliothek der Klassiker", 0, "ger"), batch.v("Řada zábavná", 0.9, 0)]
+    v.seriesPartNumber = [batch.v("sv. 3", 0.9, 0), batch.v("Bd. 3", 0.9, 0), batch.v("12", 0.9, 0)]
+    v.seriesIssn = [batch.v("1211-3298", 0.9, 0)]
+    main, parallel, other = (MetakatGroup(type=GroupType.SERIES_TITLE_INFO, members=[name.id, number.id])
+                             for name, number in zip(v.seriesName, v.seriesPartNumber))
     v.groups += [
-        MetakatGroup(type=GroupType.SERIES, members=[main[0].id, main[1].id, v.seriesIssn[0].id]),
-        MetakatGroup(type=GroupType.SERIES, members=[other[0].id, other[1].id]),
-        MetakatGroup(type=GroupType.SERIES, members=[parallel[0].id, parallel[1].id, v.seriesIssn[1].id]),
+        MetakatGroup(type=GroupType.SERIES, members=[main.id, parallel.id, v.seriesIssn[0].id]), main, parallel,
+        MetakatGroup(type=GroupType.SERIES, members=[other.id]), other,
     ]
-    volume = _export(batch, tmp_path, provenance=True)[str(v.id)]
+    volume = _export(batch, tmp_path)[str(v.id)]
 
     assert mods_schema.validate(volume), mods_schema.error_log.last_error
     items = volume.xpath("/mods:mods/mods:relatedItem[@type='series']", namespaces=NS)
-    # The parallel name joins the series with its number, not the one before it.
     assert [[(title_info.get("type"), [child.text for child in title_info])
              for title_info in item.findall(f"{{{NS['mods']}}}titleInfo")] for item in items] == [
-        [(None, ["Knihovna klasiků", "3"]), ("translated", ["Bibliothek der Klassiker", "3"])],
+        [(None, ["Knihovna klasiků", "sv. 3"]), ("translated", ["Bibliothek der Klassiker", "Bd. 3"])],
         [(None, ["Řada zábavná", "12"])],
     ]
-    # The repeated ISSN is written once and backs it in provenance.
-    assert _texts(volume, "/mods:mods/mods:relatedItem/mods:identifier") == ["1211-3298"]
-    assert len(volume.xpath("//mkp:event[mkp:observedValue='1211-3298']", namespaces=NS)) == 2
+    assert [_texts(item, "mods:identifier") for item in items] == [["1211-3298"], []]
 
 
 def test_a_chapters_parallel_toc_title_is_written_as_translated_not_demoted(batch, tmp_path, mods_schema):

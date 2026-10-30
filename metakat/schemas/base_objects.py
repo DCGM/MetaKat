@@ -190,12 +190,14 @@ class GroupType(str, enum.Enum):
     # Named after the MODS element the members would sit inside. originInfo
     # takes a suffix because one element serves several events and the
     # eventType attribute is what tells them apart.
-    TITLE_INFO = "titleInfo"                          # title, subTitle, partNumber, partName
+    TITLE_INFO = "titleInfo"                          # title, subTitle, its PART groups
+    PART = "part"                    # one level of a part in a titleInfo: partNumber, partName
     ORIGIN_INFO_PUBLICATION = "originInfoPublication"  # placeTerm, publisher, dateIssued, edition
     ORIGIN_INFO_DISTRIBUTION = "originInfoDistribution"  # the distribution trio
     ORIGIN_INFO_MANUFACTURE = "originInfoManufacture"  # the manufacture trio
     AGENT = "agent"                  # <name>: one person, their terms of address, affiliation and email
-    SERIES = "series"                # <relatedItem type="series">: the series fields
+    SERIES = "series"                # <relatedItem type="series">: its SERIES_TITLE_INFO groups, seriesIssn, seriesEditor
+    SERIES_TITLE_INFO = "seriesTitleInfo"  # one <titleInfo> of a series: seriesName, seriesPartNumber, seriesPartName
     REVIEWED_WORK = "reviewedWork"   # <relatedItem>: reviewed title, author and imprint
 
     # One run of an internal part: the pageNumberStartTocPage and
@@ -350,25 +352,34 @@ def classification_pair(value):
 class MetakatGroup(MetakatBaseModel):
     """Detections that belong together, named by what they jointly describe.
 
-    A member is the id of the thing it identifies, so a group needs no
-    identifier space of its own: for a Value that is its `id`, for a
-    pageIndexStart or pageIndexEnd entry the id carried beside the scan
-    index. Every member resolves to a value on this element - never to
+    A member is the id of the thing it identifies: for a Value that is its
+    `id`, for a pageIndexStart or pageIndexEnd entry the id carried beside
+    the scan index, for a group nested in this one that group's `id`. Every
+    member resolves to a value or a group on this element - never to
     another element - so reading a group means scanning this element's own
-    fields and nothing else.
+    fields and groups and nothing else. A group is a member of at most one
+    group, and a value of at most one group.
+
+    Nesting says which values of a statement belong together inside it,
+    where MODS nests containers: a titleInfo group holds its title and
+    subtitle and a PART group per level of the part - each with that
+    level's partNumber and partName, the highest level first; a SERIES
+    group holds a SERIES_TITLE_INFO group per name of the series - each
+    with that name's number and part name, one per language - and the
+    series' ISSN and editors. A member that is not nested sits in the
+    statement directly: a partNumber printed alone is a level of its own.
 
     That holds for values no detector produced: `id` is mandatory on every
     Value, so catalogue-derived or hand-entered values are grouped on the
     same terms.
 
     A group is one statement: the values read together as one imprint, one
-    title or one series, which MODS writes as one container. It does not
-    claim which value inside it pairs with which - except in a titleInfo
-    group, whose members are in the printed order: a part of several levels
-    ("Díl I. Země. Část 4. Čechy") has its partNumber and partName values
-    level by level, the highest first, each number before the name of its
-    part, as MODS orders them in one <titleInfo> and MARC 245 its $n and $p.
-    The DMF ties <originInfo>
+    title or one series, which MODS writes as one container. Beyond its
+    nested groups it does not claim which value inside it pairs with which.
+    The members of a titleInfo group are in the printed order: the levels of
+    a part ("Díl I. Země. Část 4. Čechy"), the highest first, as MODS orders
+    them in one <titleInfo> and MARC 245 its $n and $p; MODS has no element
+    for the level itself, and neither has a group. The DMF ties <originInfo>
     to the catalogue's 260/264 fields - one container per field - and for
     parallel places or publishers within one field allows either
     serialisation: the subelements repeated inside that one container, or
@@ -384,6 +395,7 @@ class MetakatGroup(MetakatBaseModel):
     publishers grouped - is a normal state, not a broken one.
     """
 
+    id: UUID = Field(default_factory=uuid4)
     type: GroupType
     members: List[UUID]
 

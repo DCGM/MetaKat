@@ -13,6 +13,7 @@ from metakat.biblio.engines.core.models import (
     BiblioPublication,
     BiblioReading,
     BiblioSeries,
+    BiblioSeriesTitle,
     BiblioSpan,
     BiblioSpanResult,
     BiblioTitleInfo,
@@ -265,11 +266,11 @@ def _series(names: List[DetectionEvidence], numbers: List[DetectionEvidence]) ->
     if not names and not numbers:
         return ()
     if len(names) <= 1 and len(numbers) <= 1:
-        return (BiblioSeries(name=names[0] if names else None,
-                             part_number=numbers[0] if numbers else None),)
+        return (BiblioSeries(titles=(BiblioSeriesTitle(name=names[0] if names else None,
+                                                       part_number=numbers[0] if numbers else None),)),)
     return (
-        *(BiblioSeries(name=name) for name in names),
-        *(BiblioSeries(part_number=number) for number in numbers),
+        *(BiblioSeries(titles=(BiblioSeriesTitle(name=name),)) for name in names),
+        *(BiblioSeries(titles=(BiblioSeriesTitle(part_number=number),)) for number in numbers),
     )
 
 
