@@ -314,7 +314,7 @@ class VLMClient:
         def report() -> VLMCallReport:
             return VLMCallReport(
                 api=self.config.api, api_url=self.config.api_url, model=self.config.model,
-                reasoning_effort=self.config.reasoning_effort, started_utc=started_utc,
+                reasoning_effort=self.config.reasoning_effort, zdr=self.config.zdr, started_utc=started_utc,
                 duration_s=round(time.monotonic() - started, 3), attempts=tuple(attempts),
                 images=tuple(image.size for image in images),
             )

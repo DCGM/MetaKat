@@ -293,6 +293,15 @@ def test_zero_data_retention_routes_openrouter_only_to_zdr_endpoints(api, expect
     assert endpoint.requests[0]["extra_body"] == expected
 
 
+@pytest.mark.parametrize("zdr", [True, False])
+def test_the_report_records_whether_the_call_was_zero_data_retention(zdr):
+    endpoint = _Endpoint('{"title": null}')
+    reply = VLMClient(_config(zdr=zdr), endpoint.client()).request(PROMPTS, [], SCHEMA)
+
+    assert reply.report.zdr is zdr
+    assert reply.report.for_engine("engine", [], []).to_metakat([], stage="biblio", engine=None).zdr is zdr
+
+
 def test_explicit_prompt_caching_caches_only_the_leading_prompts_under_a_stable_key():
     endpoint = _Endpoint('{"title": null}', '{"title": null}', '{"title": null}')
     client = VLMClient(_config(prompt_cache="explicit", zdr=True), endpoint.client())

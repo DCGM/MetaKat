@@ -1003,6 +1003,8 @@ class MetakatVLMProcessingReport(MetakatBaseModel):
     api_url: str
     model: str
     reasoning_effort: Optional[str] = None
+    # Whether the call was routed to Zero Data Retention endpoints only (OpenRouter provider.zdr).
+    zdr: bool = False
     images: List[MetakatVLMImage] = Field(default_factory=list)
     tokens: MetakatTokenUsage
     attempts: List[MetakatVLMAttempt]

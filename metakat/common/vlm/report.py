@@ -215,6 +215,7 @@ class VLMCallReport:
     started_utc: datetime
     duration_s: float
     attempts: tuple[MetakatVLMAttempt, ...]
+    zdr: bool = False
     images: tuple[Optional[VLMImageSize], ...] = ()
     page_keys: tuple[str, ...] = ()
     core_engine: Optional[str] = None
@@ -276,6 +277,7 @@ class VLMCallReport:
             api_url=self.api_url,
             model=self.model,
             reasoning_effort=self.reasoning_effort,
+            zdr=self.zdr,
             images=images,
             tokens=self.tokens,
             attempts=list(self.attempts),
