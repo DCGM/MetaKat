@@ -385,15 +385,18 @@ class ChapterBindEngineBase(ChapterBindEngine):
             agents: tuple[ChapterAgent, ...],
         ) -> tuple[dict[str, list[Value]], list[list[UUID]]]:
             # Each name, with what the agent is, goes to the TOC field of its
-            # role; a name and its affiliations are one <name>.
+            # role; a name, its terms of address and its affiliations are one
+            # <name>.
             fields: dict[str, list[Value]] = {}
             groups = []
             for agent in agents:
                 name = new_value(agent.name, agent.name.text, AgentValue, type=agent.type)
+                terms = [new_value(evidence, evidence.text) for evidence in agent.terms_of_address]
                 affiliations = [new_value(evidence, evidence.text) for evidence in agent.affiliations]
                 fields.setdefault(f"{agent.role.value}TocPage", []).append(name)
+                fields.setdefault("termsOfAddressTocPage", []).extend(terms)
                 fields.setdefault("affiliationTocPage", []).extend(affiliations)
-                groups.append([name.id, *(value.id for value in affiliations)])
+                groups.append([name.id, *(value.id for value in (*terms, *affiliations))])
             return {field: values for field, values in fields.items() if values}, groups
 
         def bind_page_numbers(
@@ -479,6 +482,16 @@ class ChapterBindEngineBase(ChapterBindEngine):
             subtitle_toc_page = bind_evidence(resolved.subtitle_toc_page)
             description_toc_page = bind_evidence(resolved.description_toc_page)
             agents_toc_page, agent_groups = bind_agents(resolved.agents_toc_page)
+            # Each parallel version of the title is a titleInfo of its own,
+            # after the first version; its synopsis an abstract in its language.
+            versions = [(bind_evidence(version.title), bind_evidence(version.subtitle),
+                         bind_evidence(version.description))
+                        for version in resolved.parallel_titles_toc_page]
+
+            def with_versions(first: list[Value] | None, position: int) -> list[Value] | None:
+                values = [*(first or ()), *(value for version in versions for value in (version[position] or ()))]
+                return values or None
+
             part_number_toc_page = bind_evidence(resolved.part_number_toc_page)
             page_number_start, page_number_end = bind_page_numbers(
                 resolved.page_number_toc_page
@@ -490,15 +503,17 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 pageIndexEnd=page_index_end,
                 title=title,
                 pageIndexTocPage=toc_page.pageIndex,
-                titleTocPage=title_toc_page,
-                subTitleTocPage=subtitle_toc_page,
+                titleTocPage=with_versions(title_toc_page, 0),
+                subTitleTocPage=with_versions(subtitle_toc_page, 1),
                 partNumberTocPage=part_number_toc_page,
                 **agents_toc_page,
                 pageNumberStartTocPage=page_number_start,
                 pageNumberEndTocPage=page_number_end,
-                abstractTocPage=description_toc_page,
+                abstractTocPage=with_versions(description_toc_page, 2),
                 groups=self._chapter_groups(
                     titles=(title, title_toc_page, subtitle_toc_page, part_number_toc_page),
+                    parallel_titles=[[value.id for values in version[:2] for value in (values or ())]
+                                     for version in versions],
                     page_index_start=page_index_start,
                     page_index_end=page_index_end,
                     page_number_start=page_number_start,
@@ -544,17 +559,21 @@ class ChapterBindEngineBase(ChapterBindEngine):
         page_number_start: list[Value] | None,
         page_number_end: list[Value] | None,
         agents: list[list[UUID]] | None = None,
+        parallel_titles: list[list[UUID]] | None = None,
     ) -> list[MetakatGroup] | None:
         # Only what this binder knows belongs together. All title readings
         # describe the one chapter. The resolved scan start and end are its
         # one run, and a single or range TOC reference is the number the core
         # aligned that run to; a list is left out, since which of its pages
-        # the run belongs to is not known here. An agent's name and its
-        # affiliations are one <name>. A group of one pairs nothing.
+        # the run belongs to is not known here. An agent's name, its terms of
+        # address and its affiliations are one <name>. A parallel version of
+        # the title is a titleInfo of its own. A group of one pairs nothing.
         groups = []
         title_members = [value.id for values in titles for value in (values or [])]
         if len(title_members) > 1:
             groups.append(MetakatGroup(type=GroupType.TITLE_INFO, members=title_members))
+        groups += [MetakatGroup(type=GroupType.TITLE_INFO, members=members)
+                   for members in parallel_titles or () if len(members) > 1]
         run_members = [entry_id for _, entry_id in (page_index_start or [])]
         run_members += [entry_id for _, entry_id in (page_index_end or [])]
         if page_number_start and len(page_number_start) == 1:

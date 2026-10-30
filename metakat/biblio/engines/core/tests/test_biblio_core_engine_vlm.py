@@ -489,7 +489,10 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_ro
                                description=["c. k. professor v Praze"]),
                         _agent("composer", "B. SMETANA"), _agent("issuingBody", "UNIVERZITA KARLOVA", type="corporate")],
              "statementOfResponsibility": ["Přeložil Dr. J. V. NOVÁK"], "isbn": ["80-7004-015"],
-             "copyrightDate": "© 1853", "language": ["cze", "ger", "cze"]}
+             "copyrightDate": "© 1853", "language": ["cze", "ger", "cze"],
+             "etal": "a kol.", "illustrativeContent": ["Se 14 vyobrazeními"], "originalLanguage": ["rus"],
+             "distribution": [{"distributionPlaceTerm": ["v Praze"], "distributor": ["Fr. Řivnáče"],
+                               "distributionDate": None}]}
     engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(reply).client())
 
     result = engine.process(_span(page)).spans[0]
@@ -516,6 +519,18 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_ro
     assert copyright_.date.text == "© 1853"
     # A language is a label: given once, located nowhere.
     assert [(language.text, language.bbox) for language in result.reading.languages] == [("cze", None), ("ger", None)]
+    assert [language.text for language in result.reading.original_languages] == ["rus"]
+    assert (series.issn.text, [editor.text for editor in series.editors]) == ("1211-3298", ["JOSEF TŮMA"])
+    assert [term.text for term in translator.terms_of_address] == ["Dr."]
+    [etal] = result.reading.etals
+    assert etal.phrase.text == "a kol."
+    [identifiers] = result.reading.identifiers
+    assert ([isbn.text for isbn in identifiers.isbns], identifiers.issns) == (["80-7004-015"], ())
+    [illustrations] = result.reading.illustrations
+    assert [s.text for s in illustrations.statements] == ["Se 14 vyobrazeními"]
+    [distribution] = result.reading.distributions
+    assert ([p.text for p in distribution.places], [d.text for d in distribution.distributors], distribution.date) == (
+        ["v Praze"], ["Fr. Řivnáče"], None)
     assert result.periodical_volume is None and result.periodical_issue is None
 
 
@@ -537,6 +552,8 @@ _PERIODICAL_REPLY = _reply(
     publication=[{"placeTerm": ["Praze"], "publisher": [], "publisherInferred": False, "dateIssued": None}],
     statementOfResponsibility=["Řídí K. J. Erben"],
     copyrightDate="1925",
+    issn=["0862-5832"],
+    isbn=["80-7004-015-2"],
     language=["cze"],
 )
 
@@ -566,6 +583,9 @@ def test_the_periodical_engine_reads_the_volume_the_issue_and_the_editor_as_reda
     assert [s.text for s in responsibility.statements] == ["Řídí K. J. Erben"]
     [copyright_] = result.reading.copyrights
     assert copyright_.date.text == "1925"
+    [identifiers] = result.reading.identifiers
+    assert ([i.text for i in identifiers.issns], [i.text for i in identifiers.isbns]) == (
+        ["0862-5832"], ["80-7004-015-2"])
     assert [language.text for language in result.reading.languages] == ["cze"]
 
 

@@ -1,4 +1,5 @@
 import dataclasses
+import typing
 
 import pytest
 from text_geometry_aligner import (
@@ -20,6 +21,7 @@ from metakat.biblio.engines.core.biblio_core_engine_yolo_periodical import Bibli
 from metakat.biblio.engines.core.models import (
     AgentRole,
     BiblioAgent,
+    BiblioContainer,
     BiblioCopyright,
     BiblioManufacture,
     BiblioPage,
@@ -230,7 +232,7 @@ def test_a_page_without_periodical_labels_has_no_periodical_readings():
 # --- the contract's mapping to the schema --------------------------------
 
 
-CONTAINERS = (BiblioTitleInfo, BiblioPublication, BiblioManufacture, BiblioSeries, BiblioAgent)
+CONTAINERS = typing.get_args(BiblioContainer)
 
 
 def test_every_result_field_maps_to_a_bibliographic_field_in_its_containers_mods_section():
@@ -252,8 +254,8 @@ def test_every_grouped_bibliographic_field_is_covered_by_a_container():
         for f in dataclasses.fields(container)
         if "metakat" in f.metadata
     } | {role.value for role in AgentRole}
-    grouped_sections = {"titleInfo", "name", "originInfo:publication", "originInfo:manufacture",
-                        "relatedItem:series"}
+    grouped_sections = {"titleInfo", "name", "originInfo:publication", "originInfo:distribution",
+                        "originInfo:manufacture", "relatedItem:series"}
     grouped = {name for name, section in _BIBLIOGRAPHIC_SECTIONS.items() if section in grouped_sections}
     assert grouped - covered == set()
 

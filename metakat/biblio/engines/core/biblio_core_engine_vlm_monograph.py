@@ -12,15 +12,14 @@ in it is not read. Of the reply this engine reads:
 - every `publication`, without its `publisherInferred` flag: a publisher the
   model derived from the page - the author of a book published "nákladem
   vlastním" - is read as the publisher;
-- every `manufacture` and `series` (without its ISSN and editors);
-- the `agents`, each in the field of its role, with its type and its
-  `description` as its affiliations;
-- the statements of responsibility, the `copyrightDate` and the `language`
-  codes;
+- every `distribution`, `manufacture` and `series`, with its ISSN and editors;
+- the `agents`, each in the field of its role, with its type, its terms of
+  address and its `description` as its affiliations, and `etal`;
+- the statements of responsibility, the `copyrightDate`, the `isbn`, the
+  `illustrativeContent` and the `language` and `originalLanguage` codes;
 - the `lang` of a titleInfo or series, as the language of each of its values.
 
-Not read: `etal`, `distribution`, `isbn`, `illustrativeContent`, the terms of
-address of the agents and `originalLanguage`.
+Not read: the `publisherInferred` flag.
 """
 from __future__ import annotations
 
@@ -38,6 +37,8 @@ from metakat.biblio.engines.core.biblio_core_engine_vlm import (
 from metakat.biblio.engines.core.models import (
     AgentRole,
     BiblioCopyright,
+    BiblioIdentifiers,
+    BiblioIllustrations,
     BiblioManufacture,
     BiblioPart,
     BiblioPublication,
@@ -108,6 +109,8 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
             name=values.one(path + ("seriesName",), item.get("seriesName"), item.get("lang")),
             part_number=values.one(path + ("seriesPartNumber",), item.get("seriesPartNumber"), item.get("lang")),
             part_name=values.one(path + ("seriesPartName",), item.get("seriesPartName"), item.get("lang")),
+            issn=values.one(path + ("seriesIssn",), item.get("seriesIssn")),
+            editors=values.many(path + ("seriesEditor",), item.get("seriesEditor")),
         )
         for path, item in values.items(reply, "series")
     ]
@@ -115,14 +118,20 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
     reading = BiblioReading(
         title_infos=kept_containers(title_infos),
         publications=kept_containers(publications),
+        distributions=values.distributions(reply),
         manufactures=kept_containers(manufactures),
         series=kept_containers(series),
         agents=agents,
+        etals=values.etals(reply),
         responsibilities=kept_containers((BiblioResponsibility(
             statements=values.many(("statementOfResponsibility",), reply.get("statementOfResponsibility"))),)),
         copyrights=kept_containers((BiblioCopyright(
             date=values.one(("copyrightDate",), reply.get("copyrightDate"))),)),
+        illustrations=kept_containers((BiblioIllustrations(
+            statements=values.many(("illustrativeContent",), reply.get("illustrativeContent"))),)),
+        identifiers=kept_containers((BiblioIdentifiers(isbns=values.many(("isbn",), reply.get("isbn"))),)),
         languages=values.languages(reply),
+        original_languages=values.languages(reply, "originalLanguage"),
     )
     if reading.is_empty():
         return None

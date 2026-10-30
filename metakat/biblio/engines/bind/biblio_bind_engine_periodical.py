@@ -105,7 +105,8 @@ def periodical_title(spans: List[TitleSpan]) -> MetakatTitle:
     similarity to the most similar half of the others (title_similarity),
     so a minority of outliers does not lower the score of a good reading.
     The highest score wins, the more confident reading on a tie. The title
-    takes that span's title, subtitle, title group and languages."""
+    takes that span's title, subtitle, title group, languages and ISSN, which
+    the DMF gives the title of a periodical."""
     candidates = [span.volume for span in spans if span.volume is not None and span.volume.title]
     if not candidates:
         return MetakatTitle(id=uuid4(), hierarchy=HierarchyType.PERIODICAL)
@@ -123,7 +124,8 @@ def periodical_title(spans: List[TitleSpan]) -> MetakatTitle:
     winner = candidates[best]
     logger.info("Periodical title %r chosen from %d title reading(s)", texts[best], len(candidates))
     return MetakatTitle(id=uuid4(), hierarchy=HierarchyType.PERIODICAL, title=winner.title,
-                        subTitle=winner.subTitle, language=winner.language, groups=winner.groups)
+                        subTitle=winner.subTitle, language=winner.language,
+                        originalLanguage=winner.originalLanguage, issn=winner.issn, groups=winner.groups)
 
 
 # --- the volumes ----------------------------------------------------------------

@@ -12,18 +12,17 @@ is not read. Of the reply this engine reads:
 - every `periodical` object as a title with its subtitle, both in its `lang`;
 - `volume` and `issue` as the periodical volume and issue: the volume's number
   and year, the issue's number, date and name (`issuePartName`);
-- every `publication`, without its `publisherInferred` flag, `manufacture`,
-  and the `frequency`, as part of the first imprint;
+- every `publication`, without its `publisherInferred` flag, `distribution`,
+  `manufacture`, and the `frequency`, as part of the first imprint;
 - the `agents`, each with its type and its `description` as its
   affiliations, in the field of its role: an editor of a periodical is its
   `redaktor`, which the periodical binder gives to the issue; every other
   role keeps its name;
-- the statements of responsibility, the `copyrightDate` and the `language`
-  codes.
+- the terms of address of the agents and `etal`;
+- the statements of responsibility, the `copyrightDate`, the `issn` and
+  `isbn` and the `language` and `originalLanguage` codes.
 
-Not read: `supplement` (the binder binds issues only), `etal`,
-`distribution`, `issn`, `isbn`, the terms of address of the agents and
-`originalLanguage`.
+Not read: `supplement` (the binder binds issues only).
 """
 from __future__ import annotations
 
@@ -43,6 +42,7 @@ from metakat.biblio.engines.core.biblio_core_engine_vlm import (
 from metakat.biblio.engines.core.models import (
     AgentRole,
     BiblioCopyright,
+    BiblioIdentifiers,
     BiblioManufacture,
     BiblioPage,
     BiblioPublication,
@@ -139,13 +139,18 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
     reading = BiblioReading(
         title_infos=kept_containers(title_infos),
         publications=kept_containers(publications),
+        distributions=values.distributions(reply),
         manufactures=kept_containers(manufactures),
         agents=agents,
+        etals=values.etals(reply),
         responsibilities=kept_containers((BiblioResponsibility(
             statements=values.many(("statementOfResponsibility",), reply.get("statementOfResponsibility"))),)),
         copyrights=kept_containers((BiblioCopyright(
             date=values.one(("copyrightDate",), reply.get("copyrightDate"))),)),
+        identifiers=kept_containers((BiblioIdentifiers(isbns=values.many(("isbn",), reply.get("isbn")),
+                                                       issns=values.many(("issn",), reply.get("issn"))),)),
         languages=values.languages(reply),
+        original_languages=values.languages(reply, "originalLanguage"),
     )
     result = BiblioSpanResult(
         page_keys=tuple(page_keys),

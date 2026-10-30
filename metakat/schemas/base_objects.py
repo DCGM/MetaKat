@@ -192,9 +192,10 @@ class GroupType(str, enum.Enum):
     # eventType attribute is what tells them apart.
     TITLE_INFO = "titleInfo"                          # title, subTitle, partNumber, partName
     ORIGIN_INFO_PUBLICATION = "originInfoPublication"  # placeTerm, publisher, dateIssued, edition
+    ORIGIN_INFO_DISTRIBUTION = "originInfoDistribution"  # the distribution trio
     ORIGIN_INFO_MANUFACTURE = "originInfoManufacture"  # the manufacture trio
-    AGENT = "agent"                  # <name>: one person, their affiliation and email
-    SERIES = "series"                # <relatedItem type="series">: the three series fields
+    AGENT = "agent"                  # <name>: one person, their terms of address, affiliation and email
+    SERIES = "series"                # <relatedItem type="series">: the series fields
     REVIEWED_WORK = "reviewedWork"   # <relatedItem>: reviewed title, author and imprint
 
     # One run of an internal part: the pageNumberStartTocPage and
@@ -384,12 +385,15 @@ class MetakatAgents(MetakatBaseModel):
     periodical; `other` holds a name in a role none of the others covers.
     Each name is an AgentValue, carrying what the agent is - <name type>.
 
-    `affiliation` is a <name> child too. Note it describes *one* agent and
-    repeats within that agent, so which affiliation goes with which name is
-    not expressible while these are parallel flat lists - the clearest case
-    for the grouping overlay. `email` has no MODS element at all; MODS does
-    not model contact data for names, so it is a MetaKat-only field that
-    cannot be exported.
+    `termsOfAddress` (<namePart type="termsOfAddress">: an academic title or
+    rank printed with a person, "Dr.") and `affiliation` are <name> children
+    too. Each describes *one* agent and repeats within that agent, so which
+    goes with which name is not expressible while these are parallel flat
+    lists - the clearest case for the grouping overlay (an AGENT group).
+    `etal` is the phrase saying there are more agents than named ("a kol."):
+    the DMF gives it a <name> of its own, <name><etal>a kol.</etal></name>.
+    `email` has no MODS element at all; MODS does not model contact data for
+    names, so it is a MetaKat-only field that cannot be exported.
 
     Mixed into both document bases, between their <titleInfo> fields and the
     rest, as MODS puts <name> right after <titleInfo>. That is also why it excludes
@@ -409,7 +413,9 @@ class MetakatAgents(MetakatBaseModel):
     issuingBody: Optional[List[AgentValue]] = None
     contributor: Optional[List[AgentValue]] = None
     other: Optional[List[AgentValue]] = None
+    termsOfAddress: Optional[List[Value]] = None
     affiliation: Optional[List[Value]] = None
+    etal: Optional[List[Value]] = None
     email: Optional[List[Value]] = None
 
 
@@ -448,6 +454,14 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     edition: Optional[List[Value]] = None
     frequency: Optional[List[Value]] = None
 
+    # <originInfo eventType="distribution">: a distributor printed apart from
+    # the publisher ("V komissi ..."). The date is <dateOther
+    # type="distribution">. Between publication and manufacture, as MARC 264
+    # numbers the events.
+    distributionPlaceTerm: Optional[List[Value]] = None
+    distributor: Optional[List[Value]] = None
+    distributionDate: Optional[List[Value]] = None
+
     # <originInfo eventType="manufacture">. The date is
     # <dateOther type="manufacture">, not a dateIssued - hence the name.
     manufacturePlaceTerm: Optional[List[Value]] = None
@@ -465,15 +479,32 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     # `form` is singular because the marcform axis admits one answer per
     # document.
     language: Optional[List[ClassifiedValue[str]]] = None  # iso639-2b codes
+    # <language objectPart="translation">: the language(s) the work was
+    # translated from, when the document states it (MARC 041 $h).
+    originalLanguage: Optional[List[ClassifiedValue[str]]] = None  # iso639-2b codes
     form: Optional[ClassifiedValue[FormType]] = None
+    # <physicalDescription><note type="physical details">: a printed statement
+    # of the illustrations, maps, tables ... the document contains ("Se 14
+    # vyobrazeními"), as printed - the note type of MARC 300 details in the
+    # LoC list of MODS note types; <extent> is the cataloguer's own.
+    illustrativeContent: Optional[List[Value]] = None
 
     # <note type="statement of responsibility">
     statementOfResponsibility: Optional[List[Value]] = None
 
-    # <relatedItem type="series">
+    # <relatedItem type="series">: its title, its ISSN as
+    # <identifier type="issn"> and its editors as <name> with the role edt.
     seriesName: Optional[List[Value]] = None
     seriesPartNumber: Optional[List[Value]] = None
     seriesPartName: Optional[List[Value]] = None
+    seriesIssn: Optional[List[Value]] = None
+    seriesEditor: Optional[List[Value]] = None
+
+    # <identifier type="isbn"> and <identifier type="issn">, as printed. The
+    # DMF gives an ISSN to the title of a periodical (a series' ISSN is the
+    # series'), an ISBN to a volume, an issue or a supplement.
+    isbn: Optional[List[Value]] = None
+    issn: Optional[List[Value]] = None
 
 
 class MetakatBibliographic(_MetakatBibliographicFields, MetakatAgents, _MetakatBibliographicHead):
@@ -584,7 +615,10 @@ class _MetakatInternalPartHead(MetakatBaseModel):
     id: UUID
     parent_id: UUID
 
-    # <titleInfo>
+    # <titleInfo>. A TOC entry printing its title in several languages gives
+    # titleTocPage and subTitleTocPage the first version first and then each
+    # parallel version, every one in a titleInfo group of its own and with its
+    # `lang`; MODS writes a parallel one as <titleInfo type="translated">.
     title: Optional[List[Value]] = None
     titleTocPage: Optional[List[Value]] = None
     subTitle: Optional[List[Value]] = None
@@ -628,6 +662,7 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     issuingBodyTocPage: Optional[List[AgentValue]] = None
     contributorTocPage: Optional[List[AgentValue]] = None
     otherTocPage: Optional[List[AgentValue]] = None
+    termsOfAddressTocPage: Optional[List[Value]] = None
     affiliationTocPage: Optional[List[Value]] = None
 
     # <genre type="...">. A typed classifier value; in practice only articles

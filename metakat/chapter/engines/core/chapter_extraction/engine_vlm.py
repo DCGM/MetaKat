@@ -23,14 +23,16 @@ Of an entry the stage reads:
 - the title of its first `titleInfo` object, as `title_toc_page`; an entry
   printed with only its designation ("Kapitola 3") has the designation as
   its title, as the NDK gives such a chapter's title, and its part number
-  takes its words from it; the parallel titles in other languages are not
-  read;
+  takes its words from it;
 - the subtitle and the synopsis of its first `titleInfo` object, as
   `subtitle_toc_page` and `description_toc_page`; the title, subtitle and
   synopsis are in the `lang` of that object;
-- its `agents`, as `agents_toc_page`, each in its role, with its type and
-  its `description` as its affiliations, every name and affiliation
-  located as a value of its own; the terms of address are not read;
+- the other `titleInfo` objects, the parallel versions in other
+  languages, as `parallel_titles_toc_page`, each with its title, subtitle,
+  synopsis and `lang`;
+- its `agents`, as `agents_toc_page`, each in its role, with its type, its
+  terms of address and its `description` as its affiliations, every name,
+  term of address and affiliation located as a value of its own;
 - its `partNumber`, the printed numbering without its words, as
   `part_number_toc_page`;
 - its `pageReference`, parsed as the YOLO stage parses a detected reference
@@ -69,7 +71,7 @@ from typing import Any, Optional, Sequence
 from metakat.chapter.engines.core.chapter_page_number_parsers import (
     ArabicRomanChapterPageNumberParser,
 )
-from metakat.chapter.engines.core.models import ChapterAgent, ChapterBase, ChapterPageInput, TocBase
+from metakat.chapter.engines.core.models import ChapterAgent, ChapterBase, ChapterPageInput, ChapterTitleVersion, TocBase
 from metakat.common.models import AgentRole, AltoRefs, BoundingBox, DetectionEvidence
 from metakat.common.vlm import (
     VLMCallReport,
@@ -271,6 +273,7 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
                 subtitle_toc_page=evidence(index, "subTitle", title_info.get("subTitle"), lang=lang),
                 description_toc_page=evidence(index, "description", title_info.get("description"), lang=lang),
                 agents_toc_page=_toc_agents(index, entry, evidence),
+                parallel_titles_toc_page=_parallel_titles(index, entry, evidence),
                 part_number_toc_page=evidence(index, "partNumber", entry.get("partNumber")),
                 page_number_toc_page=None if reference is None else ArabicRomanChapterPageNumberParser.create(reference),
             ),
@@ -325,23 +328,54 @@ def _descriptions(agent: Mapping[str, Any]) -> list[str]:
     return [text for text in agent.get("description") or () if isinstance(text, str) and text.strip()]
 
 
+def _terms(agent: Mapping[str, Any]) -> list[str]:
+    return [text for text in agent.get("termsOfAddress") or () if isinstance(text, str) and text.strip()]
+
+
 def _toc_agents(index: int, entry: Mapping[str, Any], evidence) -> tuple[ChapterAgent, ...]:
-    # An affiliation is located by its position among all the entry's
-    # affiliations, as _entry_texts lists them.
-    agents, position = [], 0
+    # A term of address or an affiliation is located by its position among
+    # all the entry's terms of address or affiliations, as _entry_texts lists
+    # them.
+    agents, positions = [], {"termsOfAddress": 0, "affiliations": 0}
+
+    def located(field: str, texts: list[str]) -> tuple:
+        found = []
+        for text in texts:
+            found.append(evidence(index, field, text, positions[field]))
+            positions[field] += 1
+        return tuple(found)
+
     for item, agent in enumerate(_agents(entry)):
-        affiliations = []
-        for text in _descriptions(agent):
-            affiliations.append(evidence(index, "affiliations", text, position))
-            position += 1
+        terms = located("termsOfAddress", _terms(agent))
+        affiliations = located("affiliations", _descriptions(agent))
         label = agent.get("type")
         agents.append(ChapterAgent(
             role=_ROLES[agent["role"]],
             name=evidence(index, "agents", agent["name"], item),
             type=NameType(label) if isinstance(label, str) and label in NameType._value2member_map_ else None,
-            affiliations=tuple(affiliations),
+            affiliations=affiliations,
+            terms_of_address=terms,
         ))
     return tuple(agents)
+
+
+def _title_versions(entry: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    # The titleInfo objects after the first: the parallel versions.
+    return [item for item in entry.get("titleInfo") or () if isinstance(item, Mapping)][1:]
+
+
+def _parallel_titles(index: int, entry: Mapping[str, Any], evidence) -> tuple[ChapterTitleVersion, ...]:
+    versions = []
+    for number, item in enumerate(_title_versions(entry), start=1):
+        lang = item.get("lang")
+        version = ChapterTitleVersion(
+            title=evidence(index, f"title.{number}", item.get("title"), lang=lang),
+            subtitle=evidence(index, f"subTitle.{number}", item.get("subTitle"), lang=lang),
+            description=evidence(index, f"description.{number}", item.get("description"), lang=lang),
+        )
+        if version != ChapterTitleVersion():
+            versions.append(version)
+    return tuple(versions)
 
 
 def _bare(text: str) -> str:
@@ -363,7 +397,11 @@ def _entry_texts(entry: Mapping[str, Any]) -> dict:
         "title": _title_text(entry),
         "subTitle": _first_title_info(entry).get("subTitle"),
         "description": _first_title_info(entry).get("description"),
+        **{f"{field}.{number}": item.get(field)
+           for number, item in enumerate(_title_versions(entry), start=1)
+           for field in ("title", "subTitle", "description")},
         "agents": [agent["name"] for agent in _agents(entry)],
+        "termsOfAddress": [text for agent in _agents(entry) for text in _terms(agent)],
         "affiliations": [text for agent in _agents(entry) for text in _descriptions(agent)],
         "partNumber": entry.get("partNumber"),
         "pageReference": entry.get("pageReference"),

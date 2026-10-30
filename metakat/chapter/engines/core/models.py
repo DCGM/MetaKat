@@ -104,13 +104,25 @@ class ChapterPageNumberEvidence(DetectionEvidence):
 @dataclass(frozen=True)
 class ChapterAgent:
     """A person or body printed with a TOC entry: its name in its role (MetakatChapter's
-    field of the role with the suffix TocPage), what it is when known, and its
-    affiliations (affiliationTocPage)."""
+    field of the role with the suffix TocPage), what it is when known, its terms
+    of address (termsOfAddressTocPage) and its affiliations (affiliationTocPage)."""
 
     role: AgentRole
     name: DetectionEvidence
     type: NameType | None = None
     affiliations: tuple[DetectionEvidence, ...] = ()
+    terms_of_address: tuple[DetectionEvidence, ...] = ()
+
+
+@dataclass(frozen=True)
+class ChapterTitleVersion:
+    """A parallel version of a TOC entry's title in another language: its title,
+    subtitle and synopsis, each in that language (titleTocPage, subTitleTocPage,
+    abstractTocPage after the entry's first version)."""
+
+    title: DetectionEvidence | None = None
+    subtitle: DetectionEvidence | None = None
+    description: DetectionEvidence | None = None
 
 
 # Field names follow the MetaKat schema (MetakatChapter): a `_toc_page` field
@@ -126,6 +138,8 @@ class ChapterBase:
     description_toc_page: DetectionEvidence | None = field(default=None, kw_only=True)
     # The persons and bodies printed with the entry, in printed order.
     agents_toc_page: tuple[ChapterAgent, ...] = field(default=(), kw_only=True)
+    # The entry's title in other languages, after the version above.
+    parallel_titles_toc_page: tuple[ChapterTitleVersion, ...] = field(default=(), kw_only=True)
     part_number_toc_page: DetectionEvidence | None = None
     page_number_toc_page: ChapterPageNumberEvidence | None = None
     children: tuple[ChapterBase, ...] = ()

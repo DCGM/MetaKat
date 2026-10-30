@@ -59,6 +59,8 @@ from metakat.biblio.engines.core.biblio_core_engine import BiblioCoreEngine
 from metakat.biblio.engines.core.models import (
     BiblioAgent,
     BiblioCoreResult,
+    BiblioDistribution,
+    BiblioEtal,
     BiblioPage,
     BiblioSpan,
     BiblioSpanResult,
@@ -309,9 +311,23 @@ class ReplyValues:
             if (item := self.one(path + (index,), value)) is not None
         )
 
-    def languages(self, reply: Mapping[str, Any]) -> tuple[DetectionEvidence, ...]:
-        """The codes under `language`, each once."""
-        return tuple({item.text: item for item in self.many(("language",), reply.get("language"))}.values())
+    def languages(self, reply: Mapping[str, Any], key: str = "language") -> tuple[DetectionEvidence, ...]:
+        """The codes under `key`, each once."""
+        return tuple({item.text: item for item in self.many((key,), reply.get(key))}.values())
+
+    def distributions(self, reply: Mapping[str, Any]) -> tuple[BiblioDistribution, ...]:
+        """Every object under `distribution`."""
+        return kept_containers(
+            BiblioDistribution(
+                places=self.many(path + ("distributionPlaceTerm",), item.get("distributionPlaceTerm")),
+                distributors=self.many(path + ("distributor",), item.get("distributor")),
+                date=self.one(path + ("distributionDate",), item.get("distributionDate")),
+            )
+            for path, item in self.items(reply, "distribution")
+        )
+
+    def etals(self, reply: Mapping[str, Any]) -> tuple[BiblioEtal, ...]:
+        return kept_containers((BiblioEtal(phrase=self.one(("etal",), reply.get("etal"))),))
 
     @staticmethod
     def items(reply: Mapping[str, Any], key: str) -> Iterator[tuple[tuple, Mapping[str, Any]]]:
@@ -323,7 +339,7 @@ class ReplyValues:
     def agents(self, reply: Mapping[str, Any], roles: Mapping[str, AgentRole],
                page_key: str) -> tuple[BiblioAgent, ...]:
         """Every named object under `agents`, in the role `roles` gives its role, with
-        its type and its description as its affiliations."""
+        its type, its terms of address and its description as its affiliations."""
         agents = []
         for path, item in self.items(reply, "agents"):
             role = roles.get(item.get("role"))
@@ -335,6 +351,7 @@ class ReplyValues:
                 agents.append(BiblioAgent(
                     role=role, name=name,
                     type=NameType(label) if isinstance(label, str) and label in NameType._value2member_map_ else None,
+                    terms_of_address=self.many(path + ("termsOfAddress",), item.get("termsOfAddress")),
                     affiliations=self.many(path + ("description",), item.get("description")),
                 ))
         return tuple(agents)

@@ -80,13 +80,17 @@ ROLE_CODES = {
     "contributor": "ctb",
     "other": "oth",
 }
-AGENT_FIELDS = (*ROLE_CODES, "affiliation")
+AGENT_FIELDS = (*ROLE_CODES, "termsOfAddress", "affiliation")
 # An internal part's agents read in its TOC entry: the same fields with the
 # suffix TocPage; a TOC names no redaktor.
 TOC_AGENT_FIELDS = tuple(f"{field_name}TocPage" for field_name in AGENT_FIELDS if field_name != "redaktor")
 ROLE_CODES |= {f"{field_name}TocPage": code for field_name, code in ROLE_CODES.items() if field_name != "redaktor"}
 ROLE_CODES["reviewedWorkAuthor"] = "aut"
+ROLE_CODES["seriesEditor"] = "edt"
 _AFFILIATION_FIELDS = ("affiliation", "affiliationTocPage")
+_TERMS_FIELDS = ("termsOfAddress", "termsOfAddressTocPage")
+# What a <name> holds besides the names in their roles.
+_NAME_DETAIL_FIELDS = (*_TERMS_FIELDS, *_AFFILIATION_FIELDS)
 
 def _m(tag: str) -> str:
     return f"{{{MODS_NS}}}{tag}"
@@ -221,8 +225,21 @@ def _title_infos(record: _Record) -> None:
         part = _TITLE_LEAF[field_name] in ("partNumber", "partName")
         return record.position("partNumber" if part else field_name)
 
+    # A title in another language than the first title is a parallel title:
+    # <titleInfo type="translated">, as MARC 246 with second indicator 1 maps.
+    # The first title's language may be known only from the TOC reading
+    # backing it.
+    first_lang = None
     for members in _consume_groups(record, GroupType.TITLE_INFO.value, tuple(_TITLE_LEAF), rank):
-        container, target = record.container(record.root, "titleInfo", **_common_lang(v for v, _ in members))
+        attributes = _common_lang(v for v, _ in members)
+        if any(_TITLE_LEAF[field_name] == "title" for _, field_name in members):
+            lang = _common_lang([*(v for v, _ in members),
+                                 *(v for value, _ in members for v, _ in record.supplementary.get(value.id, ()))])
+            if first_lang is None:
+                first_lang = lang.get("lang", "")
+            elif lang.get("lang") and first_lang and lang["lang"] != first_lang:
+                attributes["type"] = "translated"
+        container, target = record.container(record.root, "titleInfo", **attributes)
         for value, field_name in members:
             record.leaf(container, _TITLE_LEAF[field_name], value.text)
             record.value(target, container, _TITLE_LEAF[field_name], value, field_name)
@@ -233,17 +250,34 @@ def _mark_toc_readings(record: _Record) -> None:
     # value in provenance instead of being written a second time.
     if record.element.type not in INTERNAL_PART_TYPES:
         return
+    # A TOC title of a parallel version - after the first value of its field,
+    # in a titleInfo of its own, or a synopsis in another language - is no
+    # reading of the part's own title, and is written.
+    title_groups = [set(group.members) for group in record.element.groups or []
+                    if group.type == GroupType.TITLE_INFO.value]
+
+    def backs(own_value: Value, toc_value: Value, toc: str) -> bool:
+        if toc == "abstractTocPage":
+            return own_value.lang is None or toc_value.lang is None or own_value.lang == toc_value.lang
+        if toc not in ("titleTocPage", "subTitleTocPage", "partNumberTocPage"):
+            return True
+        groups = [members for members in title_groups if toc_value.id in members]
+        if groups:
+            return any(own_value.id in members for members in groups)
+        return toc_value.id == _values(record.element, toc)[0].id
+
     for own, toc in (("title", "titleTocPage"), ("subTitle", "subTitleTocPage"),
                      ("partNumber", "partNumberTocPage"), ("abstract", "abstractTocPage"),
                      *((toc.removesuffix("TocPage"), toc) for toc in TOC_AGENT_FIELDS
-                       if toc not in _AFFILIATION_FIELDS)):
+                       if toc not in _NAME_DETAIL_FIELDS)):
         own_values = _values(record.element, own)
-        toc_values = _values(record.element, toc)
+        toc_values = [value for value in _values(record.element, toc)
+                      if own_values and backs(own_values[0], value, toc)]
         if own_values and toc_values:
             record.supplementary.setdefault(own_values[0].id, []).extend(
                 (value, toc) for value in toc_values
             )
-    # A TOC affiliation goes with the name it describes.
+    # A TOC affiliation or title of address goes with the name it describes.
     for group in record.element.groups or []:
         if group.type != GroupType.AGENT.value:
             continue
@@ -251,8 +285,8 @@ def _mark_toc_readings(record: _Record) -> None:
                        if any(value.id in group.members for value, _ in readings)), None)
         if backed is not None:
             record.supplementary[backed].extend(
-                (value, "affiliationTocPage") for value in _values(record.element, "affiliationTocPage")
-                if value.id in group.members
+                (value, toc) for toc in ("termsOfAddressTocPage", "affiliationTocPage")
+                for value in _values(record.element, toc) if value.id in group.members
             )
 
 
@@ -263,12 +297,16 @@ def _names(record: _Record) -> None:
         container, target = record.container(record.root, "name", **({"type": types.pop()} if len(types) == 1 else {}))
         roles = []
         for value, field_name in members:
-            if field_name in _AFFILIATION_FIELDS:
+            if field_name in _NAME_DETAIL_FIELDS:
                 continue
             record.leaf(container, "namePart", value.text)
             record.value(target, container, "namePart", value, field_name)
             if ROLE_CODES[field_name] not in roles:
                 roles.append(ROLE_CODES[field_name])
+        for value, field_name in members:
+            if field_name in _TERMS_FIELDS:
+                record.leaf(container, "namePart", value.text, type="termsOfAddress")
+                record.value(target, container, "namePart", value, field_name)
         for code in roles:
             role = ET.SubElement(container, _m("role"))
             record.leaf(role, "roleTerm", code, type="code", authority="marcrelator")
@@ -276,6 +314,13 @@ def _names(record: _Record) -> None:
             if field_name in _AFFILIATION_FIELDS:
                 record.leaf(container, "affiliation", value.text)
                 record.value(target, container, "affiliation", value, field_name)
+    # There are more agents than named: a <name> holding only <etal> (DMF).
+    demoted = _demoted_ids(record)
+    for value in _values(record.element, "etal"):
+        if value.id not in demoted:
+            container, target = record.container(record.root, "name")
+            etal = record.leaf(container, "etal", value.text)
+            record.value(target, container, "etal", value, "etal", leaf=etal)
 
 
 def _origin_info(record: _Record, group_type: Optional[str], event_type: str, role: Optional[str],
@@ -311,7 +356,10 @@ def _related_items(record: _Record, group_type: str, item_type: str, fields: dic
                 record.leaf(title_info, fields[field_name], value.text)
                 record.value(target, container, fields[field_name], value, field_name)
         for value, field_name in members:
-            if fields[field_name] == "name":
+            if fields[field_name] == "identifier":
+                identifier = record.leaf(container, "identifier", value.text, type="issn")
+                record.value(target, container, "identifier", value, field_name, leaf=identifier)
+            elif fields[field_name] == "name":
                 name = ET.SubElement(container, _m("name"))
                 record.leaf(name, "namePart", value.text)
                 role = ET.SubElement(name, _m("role"))
@@ -393,7 +441,7 @@ def _classified(record: _Record, target: str, prop: str, field_name: str,
 _COMMON_SECTIONS = {
     "type": None, "id": None, "parent_id": None, "groups": None, "email": None,
     "title": "titleInfo", "subTitle": "titleInfo", "partNumber": "titleInfo",
-    **{field_name: "name" for field_name in AGENT_FIELDS},
+    **{field_name: "name" for field_name in AGENT_FIELDS}, "etal": "name",
     "language": "language",
 }
 _BIBLIOGRAPHIC_SECTIONS = {
@@ -403,13 +451,18 @@ _BIBLIOGRAPHIC_SECTIONS = {
     "placeTerm": "originInfo:publication", "publisher": "originInfo:publication",
     "dateIssued": "originInfo:publication", "edition": "originInfo:publication",
     "frequency": "originInfo:publication",
+    "distributionPlaceTerm": "originInfo:distribution", "distributor": "originInfo:distribution",
+    "distributionDate": "originInfo:distribution",
     "manufacturePlaceTerm": "originInfo:manufacture", "manufacturePublisher": "originInfo:manufacture",
     "manufactureDate": "originInfo:manufacture",
     "copyrightDate": "originInfo:copyright",
-    "form": "physicalDescription",
+    "originalLanguage": "language",
+    "form": "physicalDescription", "illustrativeContent": "physicalDescription",
     "statementOfResponsibility": "note",
     "seriesName": "relatedItem:series", "seriesPartNumber": "relatedItem:series",
-    "seriesPartName": "relatedItem:series",
+    "seriesPartName": "relatedItem:series", "seriesIssn": "relatedItem:series",
+    "seriesEditor": "relatedItem:series",
+    "isbn": "identifier", "issn": "identifier",
 }
 _INTERNAL_PART_SECTIONS = {
     **_COMMON_SECTIONS,
@@ -449,8 +502,9 @@ def section_order(model: type) -> list[str]:
             order.append(section)
     if "genre" not in order:
         order.insert(order.index("name") + 1, "genre")
-    parts = [index for index, section in enumerate(order) if section.startswith("part:")]
-    order.insert(parts[0] if parts else len(order), "identifier")
+    if "identifier" not in order:
+        parts = [index for index, section in enumerate(order) if section.startswith("part:")]
+        order.insert(parts[0] if parts else len(order), "identifier")
     return [*order, "recordInfo"]
 
 
@@ -464,19 +518,30 @@ def _genre(record: _Record) -> None:
 
 
 def _languages(record: _Record) -> None:
-    for value in record.element.language or []:
-        code, confidence = value.text, value.confidence
-        language, target = record.container(record.root, "language")
-        record.leaf(language, "languageTerm", code, type="code", authority="iso639-2b")
-        _classified(record, target, "languageTerm", "language", code, confidence)
+    # The languages of the text, then those it was translated from (DMF:
+    # objectPart "translation", MARC 041 $h).
+    for field_name, attributes in (("language", {}), ("originalLanguage", {"objectPart": "translation"})):
+        for value in getattr(record.element, field_name, None) or []:
+            code, confidence = value.text, value.confidence
+            language, target = record.container(record.root, "language", **attributes)
+            record.leaf(language, "languageTerm", code, type="code", authority="iso639-2b")
+            _classified(record, target, "languageTerm", field_name, code, confidence)
 
 
-def _form(record: _Record) -> None:
+def _physical_description(record: _Record) -> None:
+    # One <physicalDescription>: the form, and each printed statement of the
+    # illustrations as a note of the type MARC 300 details map to.
     form = getattr(record.element, "form", None)
+    notes = _values(record.element, "illustrativeContent")
+    if form is None and not notes:
+        return
+    description, target = record.container(record.root, "physicalDescription")
     if form is not None:
-        description, target = record.container(record.root, "physicalDescription")
         record.leaf(description, "form", form.text, authority="marcform")
         _classified(record, target, "form", "form", form.text, form.confidence)
+    for value in notes:
+        record.leaf(description, "note", value.text, type="physical details")
+        record.value(target, description, "note", value, "illustrativeContent")
 
 
 def _provenance_only_dates(record: _Record) -> None:
@@ -499,6 +564,11 @@ _SECTION_WRITERS = {
             "placeTerm": ("place",), "publisher": ("agent",),
             "dateIssued": ("dateIssued", {}), "edition": ("edition", {}), "frequency": ("frequency", {}),
         }),
+    "originInfo:distribution": lambda record: _origin_info(
+        record, GroupType.ORIGIN_INFO_DISTRIBUTION.value, "distribution", "distributor", {
+            "distributionPlaceTerm": ("place",), "distributor": ("agent",),
+            "distributionDate": ("dateOther", {"type": "distribution"}),
+        }),
     "originInfo:manufacture": lambda record: _origin_info(
         record, GroupType.ORIGIN_INFO_MANUFACTURE.value, "manufacture", "manufacturer", {
             "manufacturePlaceTerm": ("place",), "manufacturePublisher": ("agent",),
@@ -509,7 +579,7 @@ _SECTION_WRITERS = {
         record, None, "copyright", None, {"copyrightDate": ("copyrightDate", {})}),
     "provenance:dateIssued": _provenance_only_dates,
     "language": _languages,
-    "physicalDescription": _form,
+    "physicalDescription": _physical_description,
     "abstract": lambda record: [_simple(record, field_name, "abstract", lang=True)
                                 for field_name in ("abstract", "abstractTocPage")
                                 if field_name in type(record.element).model_fields],
@@ -518,6 +588,7 @@ _SECTION_WRITERS = {
     "subject": lambda record: _simple(record, "keywords", "subject", child=("topic", {}), lang=True),
     "relatedItem:series": lambda record: _related_items(record, GroupType.SERIES.value, "series", {
         "seriesName": "title", "seriesPartNumber": "partNumber", "seriesPartName": "partName",
+        "seriesIssn": "identifier", "seriesEditor": "name",
     }),
     "relatedItem:reviewOf": lambda record: _related_items(record, GroupType.REVIEWED_WORK.value, "reviewOf", {
         "reviewedWorkTitle": "title", "reviewedWorkAuthor": "name", "reviewedWorkImprint": "imprint",
@@ -565,8 +636,12 @@ def _page_record(record: _Record) -> None:
 
 
 def _identifier(record: _Record) -> None:
+    # The unit's own uuid, then the ISBNs and ISSNs printed in it.
     identifier, _ = record.container(record.root, "identifier", type="uuid")
     identifier.text = str(record.element.id)
+    for field_name in ("isbn", "issn"):
+        if field_name in type(record.element).model_fields:
+            _simple(record, field_name, "identifier", type=field_name)
 
 
 # ---------------------------------------------------------------- provenance

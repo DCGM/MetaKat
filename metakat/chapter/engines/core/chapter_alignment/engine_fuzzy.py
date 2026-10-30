@@ -427,6 +427,7 @@ class ChapterAlignmentEngineFuzzy:
                 subtitle_toc_page=entry.subtitle_toc_page,
                 description_toc_page=entry.description_toc_page,
                 agents_toc_page=entry.agents_toc_page,
+                parallel_titles_toc_page=entry.parallel_titles_toc_page,
                 part_number_toc_page=entry.part_number_toc_page,
                 page_number_toc_page=entry.page_number_toc_page,
                 title=(

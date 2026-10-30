@@ -187,6 +187,63 @@ def test_the_parts_of_a_title_keep_the_printed_order_of_their_group(batch, tmp_p
         ("partNumber", "I"), ("partNumber", "4"), ("partName", "Čechy")]
 
 
+def test_identifiers_series_details_names_distribution_languages_and_illustrations_go_where_the_dmf_puts_them(
+        batch, tmp_path, mods_schema):
+    v = batch.volume
+    v.isbn = [batch.v("80-7004-015-2", 0.9, 0)]
+    v.issn = [batch.v("0862-5832", 0.9, 0)]
+    v.seriesIssn = [batch.v("1211-3298", 0.9, 0)]
+    v.seriesEditor = [batch.v("Josef Tůma", 0.9, 0)]
+    v.termsOfAddress = [batch.v("Dr.", 0.9, 0)]
+    v.etal = [batch.v("a kol.", 0.9, 0)]
+    v.distributor = [batch.v("Fr. Řivnáče", 0.9, 0)]
+    v.distributionPlaceTerm = [batch.v("v Praze", 0.9, 0)]
+    v.originalLanguage = [("rus", 0.9)]
+    v.illustrativeContent = [batch.v("Se 14 vyobrazeními", 0.9, 0)]
+    v.title.append(batch.v("Bouquet", 0.9, 0, lang="fre"))
+    v.groups += [
+        MetakatGroup(type=GroupType.SERIES, members=[v.seriesName[0].id, v.seriesIssn[0].id, v.seriesEditor[0].id]),
+        MetakatGroup(type=GroupType.AGENT, members=[v.author[0].id, v.termsOfAddress[0].id]),
+        MetakatGroup(type=GroupType.ORIGIN_INFO_DISTRIBUTION,
+                     members=[v.distributionPlaceTerm[0].id, v.distributor[0].id]),
+    ]
+    volume = _export(batch, tmp_path)[str(v.id)]
+
+    assert mods_schema.validate(volume), mods_schema.error_log.last_error
+    assert _texts(volume, "/mods:mods/mods:identifier[@type='isbn']") == ["80-7004-015-2"]
+    assert _texts(volume, "/mods:mods/mods:identifier[@type='issn']") == ["0862-5832"]
+    series = "/mods:mods/mods:relatedItem[@type='series']"
+    assert _texts(volume, f"{series}/mods:identifier[@type='issn']") == ["1211-3298"]
+    assert _texts(volume, f"{series}/mods:name[mods:role/mods:roleTerm='edt']/mods:namePart") == ["Josef Tůma"]
+    author = "/mods:mods/mods:name[mods:namePart='Karel Jaromír Erben']"
+    assert _texts(volume, f"{author}/mods:namePart[@type='termsOfAddress']") == ["Dr."]
+    # etal is a <name> of its own, holding nothing else (DMF).
+    assert _texts(volume, "/mods:mods/mods:name[mods:etal]/*") == ["a kol."]
+    distribution = "/mods:mods/mods:originInfo[@eventType='distribution']"
+    assert _texts(volume, f"{distribution}/mods:place/mods:placeTerm") == ["v Praze"]
+    assert _texts(volume, f"{distribution}/mods:agent[mods:role/mods:roleTerm='distributor']/mods:namePart") == [
+        "Fr. Řivnáče"]
+    assert _texts(volume, "/mods:mods/mods:language[@objectPart='translation']/mods:languageTerm") == ["rus"]
+    assert _texts(volume, "/mods:mods/mods:physicalDescription/mods:note[@type='physical details']") == [
+        "Se 14 vyobrazeními"]
+    # A title in another language than the first is a parallel title.
+    assert [(node.get("type"), node.get("lang")) for node in volume.xpath("/mods:mods/mods:titleInfo",
+                                                                          namespaces=NS)] == [
+        (None, "cze"), ("translated", "fre")]
+
+
+def test_a_chapters_parallel_toc_title_is_written_as_translated_not_demoted(batch, tmp_path, mods_schema):
+    c = batch.chapter
+    c.titleTocPage[0].lang = "cze"
+    c.titleTocPage.append(batch.v("Preface", 0.9, 2, lang="eng"))
+    chapter = _export(batch, tmp_path)[str(c.id)]
+
+    assert mods_schema.validate(chapter), mods_schema.error_log.last_error
+    assert [(node.get("type"), [child.text for child in node]) for node in chapter.xpath(
+        "/mods:mods/mods:titleInfo", namespaces=NS)] == [
+        (None, ["PŘEDMLUVA", "k druhému vydání"]), ("translated", ["Preface"])]
+
+
 def test_a_redaktor_is_coded_as_an_editor_and_keeps_its_field_in_provenance(batch, tmp_path):
     volume = _export(batch, tmp_path)[str(batch.volume.id)]
 
@@ -356,7 +413,7 @@ DMF_ORDER = ("titleInfo", "name", "typeOfResource", "genre", "originInfo", "lang
              "relatedItem", "identifier", "location", "part", "recordInfo")
 # Several events or kinds of one element: originInfo in MARC 264 order, the
 # two parts as the internal-part table lists them.
-DMF_SUBORDER = {"originInfo": ("publication", "manufacture", "copyright"),
+DMF_SUBORDER = {"originInfo": ("publication", "distribution", "manufacture", "copyright"),
                 "part": ("pageNumber", "pageIndex")}
 DMF_LEAVES = {
     "titleInfo": ("title", "subTitle", "partNumber", "partName"),
@@ -365,9 +422,10 @@ DMF_LEAVES = {
 LEAF_OF_FIELD = {
     "title": "title", "titleTocPage": "title", "subTitle": "subTitle", "subTitleTocPage": "subTitle",
     "partNumber": "partNumber", "partNumberTocPage": "partNumber", "partName": "partName",
-    "placeTerm": "place", "manufacturePlaceTerm": "place",
-    "publisher": "agent", "manufacturePublisher": "agent",
-    "dateIssued": "dateIssued", "manufactureDate": "dateOther", "copyrightDate": "copyrightDate",
+    "placeTerm": "place", "manufacturePlaceTerm": "place", "distributionPlaceTerm": "place",
+    "publisher": "agent", "manufacturePublisher": "agent", "distributor": "agent",
+    "dateIssued": "dateIssued", "manufactureDate": "dateOther", "distributionDate": "dateOther",
+    "copyrightDate": "copyrightDate",
     "edition": "edition", "frequency": "frequency",
 }
 

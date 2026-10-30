@@ -171,10 +171,14 @@ container, so one `MetakatGroup` type:
 | `BiblioTitleInfo` | `<titleInfo>` / `titleInfo` | `title` → `title`, `sub_title` → `subTitle`, `higher_parts` (`BiblioPart`: `number` → `partNumber`, `name` → `partName`, the parts the volume's part belongs to, highest first), `part_number` → `partNumber`, `part_name` → `partName` |
 | `BiblioPublication` | `<originInfo eventType="publication">` / `originInfoPublication` | `places` → `placeTerm`, `publishers` → `publisher`, `date_issued` → `dateIssued`, `edition` → `edition`, `frequency` → `frequency` |
 | `BiblioManufacture` | `<originInfo eventType="manufacture">` / `originInfoManufacture` | `places` → `manufacturePlaceTerm`, `manufacturers` → `manufacturePublisher`, `date` → `manufactureDate` |
-| `BiblioSeries` | `<relatedItem type="series">` / `series` | `name` → `seriesName`, `part_number` → `seriesPartNumber`, `part_name` → `seriesPartName` |
-| `BiblioAgent` | `<name>` / `agent` | `name` → the field named by `role` (`AgentRole`: `author`, `illustrator`, `photographer`, `translator`, `editor`, `redaktor`, `composer`, `reviewer`, `issuingBody`, `contributor`, `other`), as an `AgentValue` whose `type` is the agent's `type` (`NameType`: personal, corporate, conference, family; `None` when unknown), `affiliations` → `affiliation`, `emails` → `email` |
+| `BiblioDistribution` | `<originInfo eventType="distribution">` / `originInfoDistribution` | `places` → `distributionPlaceTerm`, `distributors` → `distributor`, `date` → `distributionDate` |
+| `BiblioSeries` | `<relatedItem type="series">` / `series` | `name` → `seriesName`, `part_number` → `seriesPartNumber`, `part_name` → `seriesPartName`, `issn` → `seriesIssn`, `editors` → `seriesEditor` |
+| `BiblioAgent` | `<name>` / `agent` | `name` → the field named by `role` (`AgentRole`: `author`, `illustrator`, `photographer`, `translator`, `editor`, `redaktor`, `composer`, `reviewer`, `issuingBody`, `contributor`, `other`), as an `AgentValue` whose `type` is the agent's `type` (`NameType`: personal, corporate, conference, family; `None` when unknown), `terms_of_address` → `termsOfAddress`, `affiliations` → `affiliation`, `emails` → `email` |
 | `BiblioResponsibility` | `<note type="statement of responsibility">`, one per statement / no group | `statements` → `statementOfResponsibility` |
 | `BiblioCopyright` | `<originInfo eventType="copyright">` / no group | `date` → `copyrightDate` |
+| `BiblioEtal` | `<name><etal>` / no group | `phrase` → `etal` |
+| `BiblioIllustrations` | `<physicalDescription><note type="physical details">`, one per statement / no group | `statements` → `illustrativeContent` |
+| `BiblioIdentifiers` | `<identifier>`, one per value / no group | `isbns` → `isbn`, `issns` → `issn` |
 
 `languages` are not a container: they are labels the core chose, not text on
 the page, so their evidence has no box. The binder writes them as classified
@@ -647,12 +651,14 @@ is not read:
 | parts | of `titleInfo[].parts`, the first of the deepest `level` (a `část` within a `díl`) as `part_number`, `part_name`, and for each level above it the nearest part of that level printed before it as `higher_parts`; the other parts of a level are other volumes and not kept | - |
 | volume, issue | - | `volume` (`volumePartNumber`, `volumeDateIssued`) as `periodical_volume`, `issue` (`issuePartNumber`, `issuePartName`, `issueDateIssued`) as `periodical_issue`: the number and name as a `BiblioTitleInfo`, the date as a `BiblioPublication`, as the YOLO engine reads them |
 | imprint | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`, `edition` | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`; `frequency` in the first one |
+| distributor | `distribution[]`: one `BiblioDistribution` each | the same |
 | printer | `manufacture[]`: one `BiblioManufacture` each | the same |
 | series | `series[]` - `seriesName`, `seriesPartNumber`, `seriesPartName`, every value in its `lang` | - |
-| statements | `statementOfResponsibility[]` as one `BiblioResponsibility`; `copyrightDate` as a `BiblioCopyright` | the same |
-| languages | `language[]` as `languages` | the same |
-| names | `agents[]`, each in its role, with its `type`; `description[]` as affiliations | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`; `description[]` as affiliations |
-| not read | `etal`, `distribution`, `isbn`, `illustrativeContent`, `seriesIssn`, `seriesEditor`, `termsOfAddress`, `publisherInferred`, `originalLanguage` | `supplement`, `etal`, `distribution`, `issn`, `isbn`, `termsOfAddress`, `publisherInferred`, `originalLanguage` |
+| statements | `statementOfResponsibility[]` as one `BiblioResponsibility`; `copyrightDate` as a `BiblioCopyright`; `illustrativeContent[]` as one `BiblioIllustrations` | `statementOfResponsibility[]`, `copyrightDate` as for books |
+| identifiers | `isbn[]` as one `BiblioIdentifiers` (`seriesIssn` is the series') | `isbn[]` and `issn[]` as one `BiblioIdentifiers` |
+| languages | `language[]` as `languages`, `originalLanguage[]` as `original_languages` | the same |
+| names | `agents[]`, each in its role, with its `type`, `termsOfAddress[]` and `description[]` as affiliations; `etal` as a `BiblioEtal` | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`, `termsOfAddress[]` and `description[]` as affiliations; `etal` |
+| not read | `publisherInferred` | `supplement`, `publisherInferred` |
 
 Both schemas, and the TOC schema of the VLM chapter extraction, ask for the
 agents alike: one object per person, family or body, with the same roles
@@ -812,12 +818,13 @@ Which record a value goes to is the binder's decision, made per reading:
 
 | Reading | `MetakatVolume` takes | `MetakatIssue` takes |
 |---|---|---|
-| `reading` | everything except `redaktor` | `title`, `subTitle`, `publisher`, `placeTerm`, `manufacturePublisher`, `manufacturePlaceTerm`, every agent role (`redaktor` included) with `affiliation`, `statementOfResponsibility`, `copyrightDate`, the languages - what an issue repeats from its title page |
+| `reading` | everything except `redaktor` | `title`, `subTitle`, `publisher`, `placeTerm`, `manufacturePublisher`, `manufacturePlaceTerm`, the distribution fields, every agent role (`redaktor` included) with `termsOfAddress` and `affiliation`, `etal`, `statementOfResponsibility`, `copyrightDate`, `isbn`, the languages and original languages - what an issue repeats from its title page |
 | `periodical_volume` | all of it | — |
 | `periodical_issue` | — | all of it |
 
 A title made above the volumes (`title_from`, and the periodical's title)
-takes the languages of the volume whose title it takes.
+takes the languages of the volume whose title it takes; the periodical's title
+also its ISSN, which the DMF gives the title of a periodical.
 
 Each container becomes one group on each record it reaches, holding the
 values of it that reached that record. When two readings of one page give a

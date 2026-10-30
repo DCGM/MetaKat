@@ -1,9 +1,17 @@
+import dataclasses
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
 
-from metakat.biblio.engines.core.models import BiblioCoreResult, merge_span
+from metakat.biblio.engines.core.models import (
+    AgentRole,
+    BiblioAgent,
+    BiblioCoreResult,
+    BiblioEtal,
+    BiblioIdentifiers,
+    merge_span,
+)
 from metakat.common.vlm import VLMCallReport
 from metakat.biblio.engines.bind.biblio_bind_engine_periodical import (
     BiblioBindEnginePeriodical,
@@ -120,6 +128,30 @@ def test_the_periodical_title_is_the_one_the_issues_agree_on_not_the_most_confid
     # Each issue keeps the title printed on it.
     assert [i.title[0].text for i in _of(io, MetakatIssue)] == ['Zlatá Praha', 'ZLATÁ PRAHA.', 'Obsah čísla',
                                                                  'Zlata Praha']
+
+
+def test_the_issn_is_the_periodical_titles_and_the_isbn_and_names_the_issues():
+    pages = _scan({4}, {0: .99})
+    reading = _read(0, 'Ročenka', issue='1')
+    ev = reading.reading.title_infos[0].title
+    reading = dataclasses.replace(reading, reading=dataclasses.replace(
+        reading.reading,
+        identifiers=(BiblioIdentifiers(isbns=(dataclasses.replace(ev, text='80-7004-015-2'),),
+                                       issns=(dataclasses.replace(ev, text='0862-5832'),)),),
+        agents=(BiblioAgent(role=AgentRole.ISSUING_BODY, name=dataclasses.replace(ev, text='Spolek'),
+                            terms_of_address=()),
+                BiblioAgent(role=AgentRole.REDAKTOR, name=dataclasses.replace(ev, text='Jan Novák'),
+                            terms_of_address=(dataclasses.replace(ev, text='Dr.'),))),
+        etals=(BiblioEtal(phrase=dataclasses.replace(ev, text='a kol.')),),
+    ))
+    io, _ = _bound(pages, reading)
+
+    [title] = _of(io, MetakatTitle)
+    issue = _of(io, MetakatIssue)[0]
+    assert [value.text for value in title.issn] == ['0862-5832'] and issue.issn is None
+    assert [value.text for value in issue.isbn] == ['80-7004-015-2'] and title.isbn is None
+    assert ([v.text for v in issue.issuingBody], [v.text for v in issue.termsOfAddress],
+            [v.text for v in issue.etal]) == (['Spolek'], ['Dr.'], ['a kol.'])
 
 
 def test_the_periodical_is_named_by_its_issues_without_any_volume_number():

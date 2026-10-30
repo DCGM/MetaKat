@@ -13,7 +13,7 @@ from metakat.chapter.engines.bind.chapter_bind_engine_base import (
 from metakat.chapter.engines.core.chapter_page_number_parsers import (
     ArabicRomanChapterPageNumberParser,
 )
-from metakat.chapter.engines.core.models import ChapterAgent, ChapterResult, TocResult
+from metakat.chapter.engines.core.models import ChapterAgent, ChapterResult, ChapterTitleVersion, TocResult
 from metakat.common.models import AgentRole, AltoRefs, BoundingBox, PageDimensions
 from metakat.common.vlm import VLMCallReport
 from metakat.chapter.engines.core.physical_page_numbers.parsers import (
@@ -597,7 +597,13 @@ def test_recursive_result_binds_schema_and_detection_provenance(
                 agents_toc_page=(
                     ChapterAgent(AgentRole.AUTHOR, evidence("Anna Nová", "toc", y=90), NameType.PERSONAL),
                     ChapterAgent(AgentRole.TRANSLATOR, evidence("Jan Novák", "toc", y=120), NameType.PERSONAL,
-                                 affiliations=(evidence("Praha", "toc", y=150),)),
+                                 affiliations=(evidence("Praha", "toc", y=150),),
+                                 terms_of_address=(evidence("Dr.", "toc", y=170),)),
+                ),
+                parallel_titles_toc_page=(
+                    ChapterTitleVersion(title=evidence("Kapitel", "toc", y=180),
+                                        subtitle=evidence("Untertitel", "toc", y=190)),
+                    ChapterTitleVersion(title=evidence("Chapitre", "toc", y=200)),
                 ),
                 page_number_toc_page=ArabicRomanChapterPageNumberParser.create(
                     evidence("10", "toc", x=500)
@@ -651,8 +657,16 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     assert [(value.text, value.type) for value in root.authorTocPage] == [("Anna Nová", "personal")]
     [translator] = root.translatorTocPage
     [affiliation] = root.affiliationTocPage
-    assert (translator.text, affiliation.text) == ("Jan Novák", "Praha")
-    assert ("agent", [translator.id, affiliation.id]) in [(group.type, group.members) for group in root.groups]
+    [term] = root.termsOfAddressTocPage
+    assert (translator.text, term.text, affiliation.text) == ("Jan Novák", "Dr.", "Praha")
+    groups = [(group.type, group.members) for group in root.groups]
+    assert ("agent", [translator.id, term.id, affiliation.id]) in groups
+    # Each parallel version follows the first in its field, a titleInfo of
+    # its own when it has more than a title.
+    assert [value.text for value in root.titleTocPage] == ["Chapter", "Kapitel", "Chapitre"]
+    assert [value.text for value in root.subTitleTocPage] == ["Subtitle", "Untertitel"]
+    assert ("titleInfo", [root.titleTocPage[1].id, root.subTitleTocPage[1].id]) in groups
+    assert not any(root.titleTocPage[2].id in members for _, members in groups)
     # The core calls the TOC reading `title`; the schema keeps the heading
     # read on the chapter's own page in `title` and the TOC's in titleTocPage.
     assert root.title[0].text == "CHAPTER"
@@ -660,7 +674,7 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     assert root.id not in bbox_by_id
     assert page_by_detection[root.titleTocPage[0].id] == pages[0].id
     assert page_by_detection[root.title[0].id] == pages[1].id
-    assert len(bbox_by_id) == 9
+    assert len(bbox_by_id) == 13
 
 
 def test_explicit_container_parents_all_chapter_roots(bind_engine, evidence):

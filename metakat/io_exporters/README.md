@@ -27,16 +27,21 @@ one against the Library of Congress schema.
 | MetaKat | MODS |
 |---|---|
 | element type | `<genre>`; an article's `articleGenre` as `genre@type` |
-| `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>`; the parts in the order of their titleInfo group, each number before its name, the highest level first (MODS has no level, MARC 245 repeats `$n` `$p`) |
+| `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>`; the parts in the order of their titleInfo group, each number before its name, the highest level first (MODS has no level, MARC 245 repeats `$n` `$p`); a titleInfo whose title is in another language than the first title's is `type="translated"` (a parallel title, MARC 246 second indicator 1) |
 | agents | `<name><namePart>` whole, with `role/roleTerm` marcrelator code: `aut`, `ill`, `pht`, `trl`, `edt`, `cmp` (composer), `rev` (reviewer), `isb` (issuingBody), `ctb` (contributor), `oth` (other) - a redaktor is `edt`, as in Czech records; the name's `type` (personal, corporate, conference, family) as `name@type` when its values agree on one |
-| `affiliation` | `<name><affiliation>` |
-| internal part `authorTocPage`, `translatorTocPage`, … (every role but redaktor) and `affiliationTocPage` | `<name>` as the agents, unless the part's own page has a name in the same role; an affiliation follows its name |
+| `termsOfAddress`, `affiliation` | `<name><namePart type="termsOfAddress">`, `<name><affiliation>` of the name they are grouped with |
+| `etal` | a `<name>` of its own holding only `<etal>` (DMF) |
+| internal part `authorTocPage`, `translatorTocPage`, … (every role but redaktor), `termsOfAddressTocPage` and `affiliationTocPage` | `<name>` as the agents, unless the part's own page has a name in the same role; a term of address and an affiliation follow their name |
+| internal part `titleTocPage`, `subTitleTocPage` after the first value | parallel versions of the TOC title: a `<titleInfo type="translated">` each, never demoted to provenance |
 | `publisher`, `placeTerm`, `dateIssued`, `edition`, `frequency` | `<originInfo eventType="publication">`, publisher as `agent/namePart` with role `publisher` |
+| distribution fields | `<originInfo eventType="distribution">`, distributor as `agent` with role `distributor`, date as `dateOther type="distribution"` |
 | `copyrightDate` | `<originInfo eventType="copyright">` |
 | manufacture fields | `<originInfo eventType="manufacture">`, printer as `agent` with role `manufacturer`, date as `dateOther type="manufacture"` |
-| series fields | `<relatedItem type="series"><titleInfo>` |
+| series fields | `<relatedItem type="series">`: `<titleInfo>`, `seriesIssn` as `<identifier type="issn">`, `seriesEditor` as `<name>` with role `edt` |
 | `statementOfResponsibility` | `<note type="statement of responsibility">` |
-| `language`, `form` | `<language><languageTerm authority="iso639-2b">`, `<physicalDescription><form authority="marcform">` |
+| `language`, `originalLanguage` | `<language><languageTerm authority="iso639-2b">`; an original language with `objectPart="translation"` (DMF, MARC 041 `$h`) |
+| `form`, `illustrativeContent` | one `<physicalDescription>`: `<form authority="marcform">`, each statement of illustrations as `<note type="physical details">` (the LoC note type for MARC 300 details) |
+| `isbn`, `issn` | `<identifier type="isbn">`, `<identifier type="issn">` after the uuid |
 | internal part `abstract`, else `abstractTocPage` (the TOC synopsis), `keywords` | `<abstract>`, `<subject><topic>` |
 | reviewed work | `<relatedItem type="reviewOf">` |
 | page runs | `<part type="pageIndex">` and `<part type="pageNumber">` with `extent/start`, `end` |

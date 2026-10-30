@@ -31,10 +31,11 @@ def _line(block, line, *words):
 _FIRST = _ALTO.format(blocks=_line("A", 1, ("OBSAH", 400, 120))
                       + _line("B", 2, ("I.", 100, 30), ("Úvod", 140, 100), ("5", 800, 20))
                       + _line("C", 3, ("II.", 100, 30), ("Les", 140, 60), ("a", 210, 20), ("voda", 240, 90),
-                              ("12—30", 800, 80)))
+                              ("12—30", 800, 80))
+                      + _line("E", 4, ("Wald", 140, 60), ("und", 210, 40), ("Wasser", 260, 90)))
 _SECOND = _ALTO.format(blocks=_line("D", 1, ("Jan", 100, 40), ("Novák:", 150, 60), ("Pramen", 220, 120),
                                        ("u", 350, 15), ("cesty", 370, 60), ("Petr", 440, 40), ("Malý", 485, 50),
-                                       ("(Brno)", 540, 60), ("14", 800, 30)))
+                                       ("(Brno)", 540, 60), ("14", 800, 30), ("Dr.", 900, 30)))
 
 _REPLY = {"entries": [
     {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "I", "designation": "I.",
@@ -103,6 +104,11 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     # Both are in the language of their version; a number has none.
     assert (second.title_toc_page.lang, second.description_toc_page.lang) == ("cze", "cze")
     assert first.part_number_toc_page.lang is None
+    # The title in another language is a parallel version, in its language, located on its own.
+    [version] = second.parallel_titles_toc_page
+    assert (version.title.text, version.title.lang, version.title.alto.words) == (
+        "Wald und Wasser", "ger", ("E4W0", "E4W1", "E4W2"))
+    assert (version.subtitle, version.description, first.parallel_titles_toc_page) == (None, None, ())
     assert second.page_number_toc_page.kind is ChapterPageNumberKind.RANGE
     assert (second.page_number_toc_page.normalized_start(), second.page_number_toc_page.normalized_end()) == (
         "12", "30")
@@ -119,6 +125,8 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     assert (translator.role, translator.name.text) == (AgentRole.TRANSLATOR, "Petr Malý")
     [affiliation] = translator.affiliations
     assert (affiliation.text, affiliation.alto.words) == ("Brno", ("D1W7",))
+    [term] = translator.terms_of_address
+    assert (term.text, term.alto.words, author.terms_of_address) == ("Dr.", ("D1W9",), ())
     assert (first.subtitle_toc_page, first.agents_toc_page) == (None, ())
     # A title the OCR does not hold keeps its page, without a box.
     assert (appendix.title_toc_page.page_key, appendix.title_toc_page.bbox) == ("0008", None)

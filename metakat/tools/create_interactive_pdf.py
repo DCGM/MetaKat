@@ -86,6 +86,15 @@ _BIBLIO_FIELD_NAMES = (
     "issuingBody",
     "contributor",
     "other",
+    "termsOfAddress",
+    "etal",
+    "distributor",
+    "distributionPlaceTerm",
+    "seriesIssn",
+    "seriesEditor",
+    "illustrativeContent",
+    "isbn",
+    "issn",
 )
 
 

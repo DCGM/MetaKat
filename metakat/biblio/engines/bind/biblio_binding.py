@@ -66,14 +66,17 @@ logger = logging.getLogger(__name__)
 Anchors = Dict[UUID, UUID]
 
 # What an issue takes from its title page's reading besides its own number
-# and date: what each issue repeats - the periodical's title and imprint, its
-# redaktor and the other persons and bodies named with their affiliations,
-# the statements of responsibility and a copyright date - and its languages
-# (span_candidates).
+# and date: what each issue repeats - the periodical's title, imprint and
+# distributor, its redaktor and the other persons and bodies named with their
+# terms of address and affiliations, the statements of responsibility, a
+# copyright date and the ISBN the DMF gives an issue - and its languages
+# (span_candidates). The ISSN is the periodical title's (periodical_title).
 # Everything else a title page says describes the volume.
 _ISSUE_FIELDS = frozenset((
     "title", "subTitle", "publisher", "placeTerm", "manufacturePublisher", "manufacturePlaceTerm",
-    *(role.value for role in AgentRole), "affiliation", "statementOfResponsibility", "copyrightDate",
+    "distributionPlaceTerm", "distributor", "distributionDate",
+    *(role.value for role in AgentRole), "termsOfAddress", "affiliation", "etal",
+    "statementOfResponsibility", "copyrightDate", "isbn",
 ))
 # The statements a record has one of per event: when several readings of the
 # same record are combined, their groups of these types are united (see
@@ -336,8 +339,9 @@ def span_candidates(
         _restrict(reading, lambda field_name: field_name in _ISSUE_FIELDS),
         periodical_issue,
     ])
-    metakat_volume.language = _languages(page_result.reading, page_result.periodical_volume)
-    metakat_issue.language = _languages(page_result.reading, page_result.periodical_issue)
+    for field_name, name in (("language", "languages"), ("originalLanguage", "original_languages")):
+        setattr(metakat_volume, field_name, _languages(name, page_result.reading, page_result.periodical_volume))
+        setattr(metakat_issue, field_name, _languages(name, page_result.reading, page_result.periodical_issue))
 
     elements = []
     if metakat_volume.title is not None:
@@ -349,11 +353,11 @@ def span_candidates(
 
     return elements, detection_id_to_detection_bbox, detection_id_to_alto
 
-def _languages(*readings: Optional[BiblioReading]) -> Optional[List[ClassifiedValue[str]]]:
+def _languages(name: str, *readings: Optional[BiblioReading]) -> Optional[List[ClassifiedValue[str]]]:
     # A language is a label the core chose, not a value read in a region:
     # a classified value, with no detection behind it.
     return [ClassifiedValue[str](text=language.text, confidence=language.confidence)
-            for language in merge_languages(readings)] or None
+            for language in merge_languages(readings, name)] or None
 
 
 def span_hierarchy(page_result: BiblioSpanResult) -> HierarchyType:

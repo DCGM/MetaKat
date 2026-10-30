@@ -72,6 +72,17 @@ class BiblioPublication:
 
 
 @dataclass(frozen=True)
+class BiblioDistribution:
+    """One distributor statement: <originInfo eventType="distribution">."""
+
+    GROUP_TYPE = GroupType.ORIGIN_INFO_DISTRIBUTION
+
+    places: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("distributionPlaceTerm"))
+    distributors: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("distributor"))
+    date: Optional[DetectionEvidence] = field(default=None, metadata=_to("distributionDate"))
+
+
+@dataclass(frozen=True)
 class BiblioManufacture:
     """One manufacture statement: <originInfo eventType="manufacture">."""
 
@@ -84,24 +95,28 @@ class BiblioManufacture:
 
 @dataclass(frozen=True)
 class BiblioSeries:
-    """One series statement: <relatedItem type="series">."""
+    """One series statement: <relatedItem type="series">, with its ISSN and editors."""
 
     GROUP_TYPE = GroupType.SERIES
 
     name: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesName"))
     part_number: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesPartNumber"))
     part_name: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesPartName"))
+    issn: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesIssn"))
+    editors: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("seriesEditor"))
 
 
 @dataclass(frozen=True)
 class BiblioAgent:
-    """One <name>: a person or body in one role, what it is when known, with their affiliations."""
+    """One <name>: a person or body in one role, what it is when known, with their
+    terms of address (academic titles, ranks) and affiliations."""
 
     GROUP_TYPE = GroupType.AGENT
 
     role: AgentRole
     name: DetectionEvidence
     type: Optional[NameType] = None
+    terms_of_address: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("termsOfAddress"))
     affiliations: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("affiliation"))
     emails: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("email"))
 
@@ -126,39 +141,78 @@ class BiblioCopyright:
     date: Optional[DetectionEvidence] = field(default=None, metadata=_to("copyrightDate"))
 
 
-BiblioContainer = (BiblioTitleInfo | BiblioPublication | BiblioManufacture | BiblioSeries | BiblioAgent
-                   | BiblioResponsibility | BiblioCopyright)
+@dataclass(frozen=True)
+class BiblioEtal:
+    """The phrase saying there are more agents than named ("a kol."): a <name> holding only <etal>."""
+
+    GROUP_TYPE = None
+
+    phrase: Optional[DetectionEvidence] = field(default=None, metadata=_to("etal"))
+
+
+@dataclass(frozen=True)
+class BiblioIdentifiers:
+    """The ISBNs and ISSNs printed, each an <identifier> of its own."""
+
+    GROUP_TYPE = None
+
+    isbns: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("isbn"))
+    issns: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("issn"))
+
+
+@dataclass(frozen=True)
+class BiblioIllustrations:
+    """The printed statements of illustrations: a <physicalDescription><note type="physical details"> each."""
+
+    GROUP_TYPE = None
+
+    statements: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("illustrativeContent"))
+
+
+BiblioContainer = (BiblioTitleInfo | BiblioPublication | BiblioDistribution | BiblioManufacture | BiblioSeries
+                   | BiblioAgent | BiblioResponsibility | BiblioCopyright | BiblioEtal | BiblioIdentifiers
+                   | BiblioIllustrations)
 
 
 @dataclass(frozen=True)
 class BiblioReading:
     """Everything read about one bibliographic record, as its containers.
 
-    `languages` are the languages of the text, as ISO 639-2/B codes: labels
-    the reader chose, not text on the page, so their evidence has no box. They
-    are written as classified values (MetakatBibliographic.language), not as
-    a container."""
+    `languages` are the languages of the text and `original_languages` those
+    it was translated from, as ISO 639-2/B codes: labels the reader chose, not
+    text on the page, so their evidence has no box. They are written as
+    classified values (MetakatBibliographic.language, originalLanguage), not
+    as a container."""
 
     title_infos: tuple[BiblioTitleInfo, ...] = ()
     publications: tuple[BiblioPublication, ...] = ()
+    distributions: tuple[BiblioDistribution, ...] = ()
     manufactures: tuple[BiblioManufacture, ...] = ()
     series: tuple[BiblioSeries, ...] = ()
     agents: tuple[BiblioAgent, ...] = ()
+    etals: tuple[BiblioEtal, ...] = ()
     responsibilities: tuple[BiblioResponsibility, ...] = ()
     copyrights: tuple[BiblioCopyright, ...] = ()
+    illustrations: tuple[BiblioIllustrations, ...] = ()
+    identifiers: tuple[BiblioIdentifiers, ...] = ()
     languages: tuple[DetectionEvidence, ...] = ()
+    original_languages: tuple[DetectionEvidence, ...] = ()
 
     def containers(self) -> Iterator[BiblioContainer]:
         yield from self.title_infos
         yield from self.publications
+        yield from self.distributions
         yield from self.manufactures
         yield from self.series
         yield from self.agents
+        yield from self.etals
         yield from self.responsibilities
         yield from self.copyrights
+        yield from self.illustrations
+        yield from self.identifiers
 
     def is_empty(self) -> bool:
-        return not self.languages and next(self.containers(), None) is None
+        return not self.languages and not self.original_languages and next(self.containers(), None) is None
 
 
 @dataclass(frozen=True)
@@ -268,17 +322,24 @@ def merge_readings(readings: Sequence[BiblioReading]) -> BiblioReading:
         manufactures=united("manufactures"),
         series=tuple(container for reading in readings for container in reading.series),
         agents=tuple(container for reading in readings for container in reading.agents),
+        distributions=united("distributions"),
+        etals=united("etals"),
         responsibilities=united("responsibilities"),
         copyrights=united("copyrights"),
+        illustrations=united("illustrations"),
+        identifiers=united("identifiers"),
         languages=merge_languages(readings),
+        original_languages=merge_languages(readings, "original_languages"),
     )
 
 
-def merge_languages(readings: Sequence[Optional[BiblioReading]]) -> tuple[DetectionEvidence, ...]:
-    """Every language of the readings once, in the order first read, as its most confident reading gives it."""
+def merge_languages(readings: Sequence[Optional[BiblioReading]],
+                    name: str = "languages") -> tuple[DetectionEvidence, ...]:
+    """Every language of the readings under `name` once, in the order first read, as its
+    most confident reading gives it."""
     best: dict[str, DetectionEvidence] = {}
     for reading in readings:
-        for language in (reading.languages if reading is not None else ()):
+        for language in (getattr(reading, name) if reading is not None else ()):
             if language.text not in best or best[language.text].confidence < language.confidence:
                 best[language.text] = language
     return tuple(best.values())
