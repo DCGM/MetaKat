@@ -139,9 +139,9 @@ def test_the_output_compares_json_and_mods_and_counts_pages_types_and_fields(tmp
             " mods     1 title, 2 volumes, 3 issues,\n"
             "          0 supplements, 8 pages\n"
             " numbered 4 pages\n"
-            " types    titlePage 3, blank 1, map 1\n"
-            " fields   title 2, volume 2, issue 3,\n"
-            "          supplement 1\n\n") in body
+            " types    3 titlePage, 1 blank, 1 map\n"
+            " fields   2 title, 2 volume, 3 issue,\n"
+            "          1 supplement\n\n") in body
 
 
 def test_a_job_without_mods_says_so(tmp_path):
@@ -189,7 +189,7 @@ def test_the_vlm_total_and_each_engine_have_calls_images_and_time(tmp_path):
             "biblio/biblio_core_engine_vlm_periodical\n"
             " api      https://openrouter.ai/api/v1\n"
             " model    openai/gpt-6-luna medium\n"
-            " provider Azure 3, Novita 1, ZDR 2 of 3\n"
+            " provider 3 Azure, 1 Novita, 2 of 3 ZDR\n"
             " calls    3, 1 failed, 1 retry\n") in body
 
 

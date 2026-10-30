@@ -350,7 +350,7 @@ def _rows(label: str, items: Sequence[str], indent: str = "", one_per_line: bool
 
 
 def _counts(counts: Sequence[Tuple[str, int]], plural: bool = True) -> List[str]:
-    return [_plural(n, kind) if plural else f"{kind} {n}" for kind, n in counts]
+    return [_plural(n, kind) if plural else f"{n} {kind}" for kind, n in counts]
 
 
 def _page_types(summary: JobSummary) -> List[str]:
@@ -359,9 +359,9 @@ def _page_types(summary: JobSummary) -> List[str]:
     types = leading + sorted((item for item in types if item[0] not in _LEADING_PAGE_TYPES),
                              key=lambda item: -item[1])
     named, rest = types[:_NAMED_PAGE_TYPES], types[_NAMED_PAGE_TYPES:]
-    items = [f"{kind} {n}" for kind, n in named]
+    items = [f"{n} {kind}" for kind, n in named]
     if rest:
-        items.append(f"other {sum(n for _, n in rest)}")
+        items.append(f"{sum(n for _, n in rest)} other")
     return items or ["normalPage only"]
 
 
@@ -428,11 +428,11 @@ def _providers(vlm: VLMSummary) -> str:
     if len(vlm.providers) == 1:
         text = vlm.providers[0][0]
     else:
-        text = ", ".join(f"{provider} {n}" for provider, n in vlm.providers) or "unknown"
+        text = ", ".join(f"{n} {provider}" for provider, n in vlm.providers) or "unknown"
     if vlm.zdr_calls == vlm.calls:
         text += ", ZDR"
     elif vlm.zdr_calls:
-        text += f", ZDR {vlm.zdr_calls} of {vlm.calls}"
+        text += f", {vlm.zdr_calls} of {vlm.calls} ZDR"
     return text
 
 
