@@ -608,12 +608,14 @@ def isbn_key(text: str) -> str:
     return re.sub(r"[\s-]", "", match.group(0)).upper() if match else normalize_text(text)
 
 
-def move_set_isbns(volumes: List[MetakatVolume], title: MetakatTitle, set_isbn_ids: set) -> None:
+def move_set_isbns(volumes: List[MetakatVolume], title: Optional[MetakatTitle], set_isbn_ids: set) -> None:
     """Give the title above the volumes the ISBNs of the whole work its volumes read.
 
     The DMF gives a multipart monograph's set ISBN to its title. Every
     volume prints it, so each distinct one is kept once, as its most
-    confident reading; the volumes keep only their own ISBNs."""
+    confident reading; the volumes keep only their own ISBNs. Without a
+    title - a monograph that is not multipart - a set ISBN describes no unit
+    bound and is dropped."""
     best: Dict[str, Value] = {}
     for volume in volumes:
         own = []
@@ -625,7 +627,10 @@ def move_set_isbns(volumes: List[MetakatVolume], title: MetakatTitle, set_isbn_i
             if key not in best or best[key].confidence < value.confidence:
                 best[key] = value
         volume.isbn = own or None
-    if best:
+    if best and title is None:
+        logger.warning("Dropping the set ISBN(s) %s of a monograph that is not multipart",
+                       ", ".join(value.text for value in best.values()))
+    elif best:
         title.isbn = list(best.values())
 
 

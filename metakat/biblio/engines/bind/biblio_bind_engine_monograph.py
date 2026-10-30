@@ -256,8 +256,8 @@ class BiblioBindEngineMonograph(BiblioBindEngine):
         (split_documents). Every page of a document goes to its volume; a
         document no span names gets an unnamed one. Returns the title, when
         there is one, then the volumes in document order. The title takes the
-        ISBNs of the whole work; a volume of a monograph that is not multipart
-        keeps them as printed, as there is no title to take them."""
+        ISBNs of the whole work; a monograph that is not multipart has no unit
+        they describe, so they are dropped."""
         multipart = self.is_multipart(scan)
         hierarchy = HierarchyType.MULTIPART if multipart else HierarchyType.MONOGRAPH
         documents = scan.documents
@@ -271,13 +271,13 @@ class BiblioBindEngineMonograph(BiblioBindEngine):
             for page in document:
                 page.parent_id = volume.id
             volumes.append(volume)
-        if not multipart:
-            return list(volumes)
-        title = title_from(volumes, HierarchyType.MULTIPART)
+        title = title_from(volumes, HierarchyType.MULTIPART) if multipart else None
         # Every title page may print the set's ISBN, not only the one naming its volume.
         read = [span.volume for span in scan.spans if span.volume is not None]
         move_set_isbns([*volumes, *(volume for volume in read if all(volume is not v for v in volumes))],
                        title, scan.set_isbn_ids)
+        if title is None:
+            return list(volumes)
         for volume in volumes:
             volume.parent_id = title.id
         return [title, *volumes]

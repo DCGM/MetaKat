@@ -178,7 +178,7 @@ container, so one `MetakatGroup` type:
 | `BiblioCopyright` | `<originInfo eventType="copyright">` / no group | `date` → `copyrightDate` |
 | `BiblioEtal` | `<name><etal>` / no group | `phrase` → `etal` |
 | `BiblioIllustrations` | `<physicalDescription><note type="physical details">`, one per statement / no group | `statements` → `illustrativeContent` |
-| `BiblioIdentifiers` | `<identifier>`, one per value / no group | `isbns` → `isbn`, `set_isbns` → `isbn` of the title above the volumes (the volume's until the binder makes one), `issns` → `issn` |
+| `BiblioIdentifiers` | `<identifier>`, one per value / no group | `isbns` → `isbn`, `set_isbns` → `isbn` of the title above the volumes, dropped when there is none, `issns` → `issn` |
 
 `languages` are not a container: they are labels the core chose, not text on
 the page, so their evidence has no box. The binder writes them as classified
@@ -827,7 +827,7 @@ takes the languages of the volume whose title it takes.
 The title of a multipart monograph takes the ISBNs of the whole set read on
 any of its title pages (`move_set_isbns`), each distinct one once, as its most
 confident reading; the volumes keep their own. A monograph that is not
-multipart keeps a set ISBN, having no title to give it to. The periodical's title
+multipart has no unit a set ISBN describes, so it is dropped (with a warning). The periodical's title
 also takes the ISSN, which the DMF gives the title of a periodical, from all
 its title pages (`periodical_issn`): an ISSN whose check digit (ISO 3297,
 modulus 11) agrees is preferred, then the one read on most title pages, then

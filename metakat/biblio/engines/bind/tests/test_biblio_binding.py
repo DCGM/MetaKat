@@ -193,11 +193,17 @@ def test_the_isbn_of_the_whole_set_goes_to_the_title_of_a_multipart_monograph():
         ['80-7004-057-2 /tento svazek/'], ['80-7004-058-0'])
 
 
-def test_a_set_isbn_stays_on_a_monograph_with_no_title_above_it():
-    ev = _ev("Kytice", 0.9)
-    page = _page_result(_titled(identifiers=(BiblioIdentifiers(set_isbns=(dataclasses.replace(ev, text="80-1"),)),)))
-    volume, _ = span_candidates(page)[0]
-    assert [value.text for value in volume.isbn] == ["80-1"]
+def test_a_monograph_that_is_not_multipart_keeps_only_its_own_isbn():
+    reading = _read(0, 'Kytice')
+    ev = reading.reading.title_infos[0].title
+    reading = dataclasses.replace(reading, reading=dataclasses.replace(reading.reading, identifiers=(
+        BiblioIdentifiers(isbns=(dataclasses.replace(ev, text='80-7004-057-2'),),
+                          set_isbns=(dataclasses.replace(ev, text='80-7004-015 /celý soubor/'),)),)))
+    io, _ = _process(_scan(titles={0: .99}), reading)
+
+    [volume] = _of(io, MetakatVolume)
+    assert _of(io, MetakatTitle) == []
+    assert [value.text for value in volume.isbn] == ['80-7004-057-2']
 
 
 def test_readings_without_a_title_are_not_referenced(metakat_page):
