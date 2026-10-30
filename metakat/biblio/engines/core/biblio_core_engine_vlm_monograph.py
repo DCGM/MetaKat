@@ -26,8 +26,9 @@ in it is not read. Of the reply this engine reads:
 - the `lang` of a titleInfo or of a series' titleInfo, as the language of each
   of its values;
 - the `pageKind`, what the span is (TitlePageKind);
-- `supplement`, as the span result's `supplement`: the page belongs to a
-  supplement of a book.
+- `supplement`, an object on a page of a supplement of a book, null
+  otherwise: the span result's `supplement`, and the supplement's own number
+  and name as its `supplement_numbering`.
 """
 from __future__ import annotations
 
@@ -165,9 +166,18 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
     if reading.is_empty():
         return None
     kind = reply.get("pageKind")
+    own = reply.get("supplement")
+    numbering = None
+    if isinstance(own, Mapping):
+        numbering = BiblioReading(title_infos=kept_containers((BiblioTitleInfo(
+            part_number=values.one(("supplement", "supplementPartNumber"), own.get("supplementPartNumber")),
+            part_name=values.one(("supplement", "supplementPartName"), own.get("supplementPartName")),
+        ),)))
     return BiblioSpanResult(page_keys=tuple(page_keys), reading=reading,
                             kind=TitlePageKind(kind) if kind in TitlePageKind._value2member_map_ else None,
-                            supplement=reply.get("supplement") is True)
+                            # A supplement printing no number or name of its own is still one.
+                            supplement=isinstance(own, Mapping),
+                            supplement_numbering=None if numbering is None or numbering.is_empty() else numbering)
 
 
 def _parts(values: ReplyValues, path: tuple, item: Mapping[str, Any], lang: Any) -> tuple[BiblioPart, ...]:

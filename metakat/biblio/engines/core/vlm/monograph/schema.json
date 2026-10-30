@@ -413,7 +413,33 @@
       ]
     },
     "supplement": {
-      "type": "boolean"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "supplementPartNumber": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "supplementPartName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "supplementPartNumber",
+            "supplementPartName"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [

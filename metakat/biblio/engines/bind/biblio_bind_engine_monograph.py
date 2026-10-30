@@ -316,10 +316,6 @@ def resumed_page(volume_pages: List[MetakatPage], pages: List[MetakatPage],
     return None
 
 
-def supplement_of(volume: MetakatVolume) -> MetakatSupplement:
-    """The supplement a volume candidate read on a supplement's title page describes: everything it read."""
-    return MetakatSupplement(**{name: getattr(volume, name) for name in MetakatVolume.model_fields
-                                if name not in ("type", "hierarchy")})
 
 
 def own_documents(scan: Scan) -> List[List[MetakatPage]]:
@@ -444,7 +440,8 @@ class BiblioBindEngineMonograph(BiblioBindEngine):
         units: List[MetakatElement] = []
         for document, winner, supplement in zip(documents, winners, supplied):
             if supplement:
-                unit = supplement_of(winner.volume)
+                # Everything read on its title page but the parts, with its own number and name.
+                unit = winner.supplement_unit
             else:
                 unit = winner.volume if winner is not None else MetakatVolume(id=uuid4())
                 unit.hierarchy = hierarchy

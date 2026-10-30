@@ -8,7 +8,7 @@ from metakat.biblio.engines.bind.biblio_bind_engine_monograph import (
     MultipartBoundaries,
     _text_similarity,
 )
-from metakat.biblio.engines.core.models import TitlePageKind
+from metakat.biblio.engines.core.models import BiblioReading, BiblioTitleInfo, TitlePageKind
 from metakat.biblio.engines.bind.biblio_binding import finalize_groups
 from metakat.biblio.engines.bind.tests.test_biblio_binding import (
     _anchor, _of, _parents, _process, _read, _scan, _v,
@@ -870,8 +870,42 @@ def test_a_monograph_scan_is_never_split():
 # --- supplements -------------------------------------------------------------
 
 
-def _supplement(*args, **kwargs):
-    return dataclasses.replace(_read(*args, **kwargs), supplement=True)
+def _supplement(*args, number=None, name=None, **kwargs):
+    """A supplement's span read on page args[0]; `number` and `name` are the supplement's own."""
+    result = _read(*args, **kwargs)
+    own = None
+    if number or name:
+        title = result.reading.title_infos[0].title
+        own = BiblioReading(title_infos=(BiblioTitleInfo(
+            part_number=dataclasses.replace(title, text=number) if number else None,
+            part_name=dataclasses.replace(title, text=name) if name else None),))
+    return dataclasses.replace(result, supplement=True, supplement_numbering=own)
+
+
+def test_a_supplement_has_its_own_number_and_name_not_the_part_it_belongs_to():
+    pages = _scan({5}, {1: .99, 5: .99})
+    io, _ = _process(pages, _read(1, 'Dějiny české', part='II'),
+                     _supplement(5, 'Mapy k Dějinám českým', part='II', number='3', name='Čechy v 15. století'))
+    [book] = _of(io, MetakatVolume)
+    [supplement] = _of(io, MetakatSupplement)
+    assert supplement.parent_id == book.id and supplement.hierarchy is None
+    assert [v.text for v in supplement.partNumber] == ['3']
+    assert [v.text for v in supplement.partName] == ['Čechy v 15. století']
+
+
+def test_a_supplement_without_a_number_of_its_own_has_none():
+    pages = _scan({5}, {1: .99, 5: .99})
+    io, _ = _process(pages, _read(1, 'Dějiny české'), _supplement(5, 'Atlas k II. dílu', part='II'))
+    [supplement] = _of(io, MetakatSupplement)
+    assert supplement.partNumber is None and supplement.partName is None
+
+
+@pytest.mark.parametrize("second, supplements", [('2', 2), ('1', 1), (None, 1)])
+def test_two_supplements_with_one_title_are_two_when_their_own_numbers_differ(second, supplements):
+    pages = _scan((), {1: .99, 20: .99, 24: .99}, count=30)
+    io, _ = _process(pages, _read(1, 'Zeměpis'), _supplement(20, 'Mapa', number='1'),
+                     _supplement(24, 'Mapa', number=second))
+    assert len(_of(io, MetakatSupplement)) == supplements
 
 
 def test_a_supplement_stands_under_the_book_before_it_with_pages_of_its_own():

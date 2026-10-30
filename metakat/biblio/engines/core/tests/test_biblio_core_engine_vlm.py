@@ -617,12 +617,25 @@ def test_the_names_of_a_series_in_several_languages_are_one_series_and_the_paral
     assert [issn.text for issn in series.issns] == ["ISSN 1211-3298"]
 
 
-@pytest.mark.parametrize("supplement", [True, False])
+@pytest.mark.parametrize("supplement", [{"supplementPartNumber": None, "supplementPartName": None}, None])
 def test_the_monograph_engine_tells_a_supplement(page, supplement):
     reply = {**_REPLY, "supplement": supplement}
     engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(reply).client())
 
-    assert engine.process(_span(page)).spans[0].supplement is supplement
+    result = engine.process(_span(page)).spans[0]
+
+    # A supplement printing nothing of its own is still one.
+    assert result.supplement is (supplement is not None) and result.supplement_numbering is None
+
+
+def test_the_monograph_engine_reads_a_supplements_own_number_and_name(page):
+    reply = {**_REPLY, "supplement": {"supplementPartNumber": "3", "supplementPartName": "Čechy v 15. století"}}
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(reply).client())
+
+    result = engine.process(_span(page)).spans[0]
+
+    [own] = result.supplement_numbering.title_infos
+    assert result.supplement and (own.part_number.text, own.part_name.text) == ("3", "Čechy v 15. století")
 
 
 # --- the periodical engine ----------------------------------------------------
@@ -695,7 +708,7 @@ def test_the_periodical_engine_tells_a_supplement_with_the_issue_it_belongs_to(p
     result = engine.process(_span(page)).spans[0]
 
     # A supplement printing nothing of its own is still one.
-    assert result.supplement is (supplement is not None) and result.periodical_supplement is None
+    assert result.supplement is (supplement is not None) and result.supplement_numbering is None
     assert result.periodical_issue.title_infos[0].part_number.text == "9"
 
 
@@ -707,9 +720,9 @@ def test_the_periodical_engine_reads_a_supplements_own_number_date_and_name_apar
     result = engine.process(_span(page)).spans[0]
 
     assert result.supplement
-    [own] = result.periodical_supplement.title_infos
+    [own] = result.supplement_numbering.title_infos
     assert (own.part_number.text, own.part_name.text) == ("3", "Vánoční")
-    [own_date] = result.periodical_supplement.publications
+    [own_date] = result.supplement_numbering.publications
     assert own_date.date_issued.text == "15. března 1910"
     [issue] = result.periodical_issue.title_infos
     assert (issue.part_number.text, issue.part_name.text) == ("9", "Vánoční číslo")

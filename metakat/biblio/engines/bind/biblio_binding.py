@@ -223,8 +223,8 @@ class TitleSpan:
     # The core tells the span belongs to a supplement of a periodical issue
     # or volume.
     supplement: bool = False
-    # Then the candidate supplement: what an issue takes from the span, with
-    # the supplement's own number, date and name (span_candidates).
+    # Then the candidate supplement: what the span read but the parts, with
+    # the supplement's own number, name and date (span_candidates).
     supplement_unit: Optional[MetakatSupplement] = None
 
     @property
@@ -443,9 +443,11 @@ def _compose(record: Union[MetakatVolume, MetakatIssue, MetakatSupplement], sour
 #   * `periodical_volume` / `periodical_issue` - that record only.
 #
 # A span the core tells is a supplement's also gives a candidate supplement:
-# what the issue takes from `reading`, with `periodical_supplement` - the
-# supplement's own number, date and name - in place of `periodical_issue`,
-# the numbering of the issue it belongs to.
+# all of `reading` but the parts - a part number or name read on it is the
+# volume's it belongs to, never its own - and `supplement_numbering`, the
+# supplement's own number, name and (periodical) date. `periodical_volume`
+# and `periodical_issue` are the numbering of the volume and issue it
+# belongs to, which place it but do not describe it.
 #
 # Each container becomes one group on each record it reaches, holding the
 # values that reached it. When the span's readings give one record the
@@ -514,7 +516,7 @@ def span_candidates(
     reading = list(containers(page_result.reading))
     periodical_volume = list(containers(page_result.periodical_volume))
     periodical_issue = list(containers(page_result.periodical_issue))
-    periodical_supplement = list(containers(page_result.periodical_supplement))
+    supplement_numbering = list(containers(page_result.supplement_numbering))
 
     # Anchored by the caller, on the page its title was read from.
     metakat_volume = MetakatVolume(id=uuid4(), hierarchy=span_hierarchy(page_result))
@@ -529,14 +531,14 @@ def span_candidates(
     ])
     metakat_supplement = MetakatSupplement(id=uuid4())
     _compose(metakat_supplement, [
-        _restrict(reading, lambda field_name: field_name in _ISSUE_FIELDS),
-        periodical_supplement,
+        _restrict(reading, lambda field_name: field_name not in ("partNumber", "partName")),
+        supplement_numbering,
     ])
     for field_name, name in (("language", "languages"), ("originalLanguage", "original_languages")):
         setattr(metakat_volume, field_name, _languages(name, page_result.reading, page_result.periodical_volume))
         setattr(metakat_issue, field_name, _languages(name, page_result.reading, page_result.periodical_issue))
         setattr(metakat_supplement, field_name,
-                _languages(name, page_result.reading, page_result.periodical_supplement))
+                _languages(name, page_result.reading, page_result.supplement_numbering))
 
     elements = []
     if metakat_volume.title is not None:
@@ -545,8 +547,8 @@ def span_candidates(
             # parent_id is left unset: the issue's volume is decided by
             # the periodical binder once every span has been read.
             elements.append(metakat_issue)
-            if page_result.supplement:
-                elements.append(metakat_supplement)
+        if page_result.supplement:
+            elements.append(metakat_supplement)
 
     return elements, detection_id_to_detection_bbox, detection_id_to_alto
 
@@ -560,8 +562,7 @@ def _languages(name: str, *readings: Optional[BiblioReading]) -> Optional[List[C
 def span_hierarchy(page_result: BiblioSpanResult) -> HierarchyType:
     # A printed volume number or date marks a periodical; a part number
     # or name alone, one part of a multipart monograph.
-    if (page_result.periodical_volume is not None or page_result.periodical_issue is not None
-            or page_result.periodical_supplement is not None):
+    if page_result.periodical_volume is not None or page_result.periodical_issue is not None:
         return HierarchyType.PERIODICAL
     if any(title_info.parts or title_info.part_number is not None or title_info.part_name is not None
            for title_info in page_result.reading.title_infos):

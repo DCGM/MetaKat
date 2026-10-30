@@ -25,7 +25,7 @@ is not read. Of the reply this engine reads:
   `isbn` and the `language` and `originalLanguage` codes;
 - `supplement`, an object on a page of a supplement, null otherwise: the
   span result's `supplement`, and the supplement's own number, date and name
-  as its `periodical_supplement`; `volume` and `issue` are then the
+  as its `supplement_numbering`; `volume` and `issue` are then the
   numbering of the volume and the issue it belongs to.
 """
 from __future__ import annotations
@@ -162,7 +162,7 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         reading=reading,
         periodical_volume=level("volume", "volumePartNumber", "volumeDateIssued"),
         periodical_issue=level("issue", "issuePartNumber", "issueDateIssued", "issuePartName"),
-        periodical_supplement=level("supplement", "supplementPartNumber", "supplementDateIssued",
+        supplement_numbering=level("supplement", "supplementPartNumber", "supplementDateIssued",
                                     "supplementPartName"),
         # A supplement printing no number, date or name of its own is still one.
         supplement=isinstance(reply.get("supplement"), Mapping),

@@ -155,7 +155,7 @@ def _supplement(*args, number=None, date=None, issue_date=None, **kwargs):
     return dataclasses.replace(
         result, supplement=True,
         periodical_issue=_numbering(index, issue, issue_date) if issue or issue_date else None,
-        periodical_supplement=_numbering(index, number, date) if number or date else None)
+        supplement_numbering=_numbering(index, number, date) if number or date else None)
 
 
 def test_a_supplement_of_an_issue_stands_under_the_issue_it_reads_the_number_of():
