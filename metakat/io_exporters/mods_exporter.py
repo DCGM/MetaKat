@@ -132,6 +132,8 @@ class _Record:
     classifications: list = field(default_factory=list)
     # TOC readings kept only in provenance, by the id of the value they back.
     supplementary: dict = field(default_factory=dict)
+    # Notes other sections give the <note> section: (text, value, field).
+    notes: list = field(default_factory=list)
 
     def position(self, field_name: str) -> int:
         """Where a field sits in its model - the order values are written in."""
@@ -324,11 +326,18 @@ def _names(record: _Record) -> None:
             record.value(target, container, "etal", value, "etal", leaf=etal)
 
 
+# The note naming the actual publisher a phrase printed instead of its name
+# stands for, as NK ČR's RDA practice adds it (MARC 500 "Skutečný nakladatel",
+# beside the national field 928).
+REAL_NAME_NOTES = {"publisher": "Skutečný nakladatel"}
+
+
 def _origin_info(record: _Record, group_type: Optional[str], event_type: str, role: Optional[str],
                  fields: dict[str, tuple]) -> None:
     # A phrase printed instead of a name ("nákladem vlastním") is the agent,
-    # as the Czech RDA practice transcribes it (MARC 264 $b); the name it
-    # stands for stays in MetaKat only.
+    # as the Czech RDA practice transcribes it (MARC 264 $b); the publisher
+    # it stands for is a note (REAL_NAME_NOTES), any other name stays in
+    # MetaKat only.
     stands_for = {field_name: path[1] for field_name, path in fields.items() if path[0] == "statement"}
     for members in _consume_groups(record, group_type, tuple(fields)):
         container, target = record.container(record.root, "originInfo", eventType=event_type)
@@ -336,6 +345,8 @@ def _origin_info(record: _Record, group_type: Optional[str], event_type: str, ro
         for value, field_name in members:
             path = fields[field_name]
             if field_name in replaced:
+                if field_name in REAL_NAME_NOTES:
+                    record.notes.append((f"{REAL_NAME_NOTES[field_name]}: {value.text}", value, field_name))
                 continue
             if path[0] == "place":
                 place = ET.SubElement(container, _m("place"))
@@ -387,6 +398,15 @@ def _related_items(record: _Record, group_type: str, item_type: str, fields: dic
                 origin = ET.SubElement(container, _m("originInfo"))
                 record.leaf(origin, "publisher", value.text)
                 record.value(target, container, "publisher", value, field_name)
+
+
+def _notes(record: _Record) -> None:
+    # The statements of responsibility, then the notes other sections gave.
+    _simple(record, "statementOfResponsibility", "note", prop="note", type="statement of responsibility")
+    for text, value, field_name in record.notes:
+        container, target = record.container(record.root, "note")
+        container.text = text
+        record.value(target, container, "note", value, field_name, leaf=container)
 
 
 def _flat_members(members: list) -> list:
@@ -620,8 +640,7 @@ _SECTION_WRITERS = {
     "abstract": lambda record: [_simple(record, field_name, "abstract", lang=True)
                                 for field_name in ("abstract", "abstractTocPage")
                                 if field_name in type(record.element).model_fields],
-    "note": lambda record: _simple(record, "statementOfResponsibility", "note", prop="note",
-                                   type="statement of responsibility"),
+    "note": lambda record: _notes(record),
     "subject": lambda record: _simple(record, "keywords", "subject", child=("topic", {}), lang=True),
     "relatedItem:series": lambda record: _related_items(record, GroupType.SERIES.value, "series", {
         "seriesName": "title", "seriesPartNumber": "partNumber", "seriesPartName": "partName",

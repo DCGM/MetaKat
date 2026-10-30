@@ -686,7 +686,9 @@ publisher's own printing house ("Tiskem vlastní tiskárny") is the same:
 MetaKat keeps both; MODS gives the phrase as the publisher or printer, as the
 Czech RDA practice transcribes it in MARC 264 $b, the name it stands for
 being the national field 928 (NK ČR, *Katalogizace podle RDA ve formátu
-MARC 21*). Only text values are
+MARC 21*). MODS has no such field: the publisher a phrase stands for is the
+note the practice optionally adds, MARC 500 "Skutečný nakladatel: …"
+(`REAL_NAME_NOTES`); the printer one stands for stays in MetaKat. Only text values are
 located in the ALTO: the labels in `LABEL_KEYS` (roles, agent types, language
 codes) and the flags and levels are not.
 
