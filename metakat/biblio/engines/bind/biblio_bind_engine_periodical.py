@@ -161,7 +161,7 @@ def periodical_title(spans: List[TitleSpan], located: Container = ()) -> Metakat
     similarity to the most similar half of the others (title_similarity),
     so a minority of outliers does not lower the score of a good reading.
     The highest score wins, the more confident reading on a tie. The title
-    takes that span's title, subtitle, titleInfo group and languages.
+    takes that span's title, subtitle, titleInfo group, languages and original languages.
 
     Of what the DMF gives the title of a periodical (DMF periodika 7.4.1) it
     takes the ISSN (periodical_issn) and the place, publisher and frequency

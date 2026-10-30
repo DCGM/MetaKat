@@ -855,10 +855,10 @@ def title_from(volumes: List[MetakatVolume], hierarchy: HierarchyType) -> Metaka
     """The title of a multipart monograph above its volumes; unnamed when none has a title.
 
     It takes the most confidently read title among them with its subtitle,
-    titleInfo group and languages, and what the DMF gives the title of the
-    whole work (DMF monografie 7.4.1) that most of the volumes agree on: the
-    names (<name> MA), each with its terms of address and affiliations
-    (agreed_agents), and the publication, distribution and manufacture
+    titleInfo group, languages and original languages, and what the DMF gives
+    the title of the whole work (DMF monografie 7.4.1) that most of the
+    volumes agree on: the names (<name> MA), each with its terms of address,
+    life dates, descriptions and affiliations (agreed_agents), and the publication, distribution and manufacture
     statements (<originInfo> M), field by field (agreed_events). A name, a
     publisher or a date read on fewer volumes describes those volumes only.
     The table has no <relatedItem>, so a series stays with the volumes, as
@@ -877,7 +877,7 @@ def title_from(volumes: List[MetakatVolume], hierarchy: HierarchyType) -> Metaka
     own_groups = [group for group in best.groups or () if group.type == GroupType.TITLE_INFO.value
                   or group.type == GroupType.PART.value]
     return MetakatTitle(id=uuid4(), hierarchy=hierarchy, title=best.title, subTitle=best.subTitle,
-                        language=best.language, **agents, **events,
+                        language=best.language, originalLanguage=best.originalLanguage, **agents, **events,
                         groups=[*own_groups, *agent_groups, *event_groups] or None)
 
 

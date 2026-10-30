@@ -872,7 +872,7 @@ then the numbering of what it belongs to: they place it, they do not describe
 it.
 
 A title made above the volumes (`title_from`, and the periodical's title)
-takes the languages of the volume whose title it takes.
+takes the languages and original languages of the volume whose title it takes.
 The title of a multipart monograph takes the ISBNs of the whole set read on
 any of its title pages (`move_set_isbns`), each distinct one once, as its most
 confident reading; the volumes keep their own. A monograph that is not

@@ -132,6 +132,7 @@ def test_statements_copyright_languages_and_the_language_of_a_title_are_bound(me
         responsibilities=(BiblioResponsibility(statements=(_ev("napsal K. J. Erben", 0.8),)),),
         copyrights=(BiblioCopyright(date=_ev("© 1853", 0.8)),),
         languages=(_ev("cze", 0.9), _ev("ger", 0.9)),
+        original_languages=(_ev("rus", 0.9),),
     ), periodical_issue=BiblioReading(title_infos=(BiblioTitleInfo(part_number=_ev("Číslo 3", 0.8)),)))
 
     volume, issue = span_candidates(page)[0]
@@ -148,7 +149,8 @@ def test_statements_copyright_languages_and_the_language_of_a_title_are_bound(me
     assert [language.text for language in issue.language] == ["cze", "ger"]
     # A language is a label, with no detection behind it.
     assert volume.language[0].id not in referenced_detection_ids([volume])
-    assert title_from([volume], HierarchyType.MULTIPART).language == volume.language
+    multipart = title_from([volume], HierarchyType.MULTIPART)
+    assert multipart.language == volume.language and [l.text for l in multipart.originalLanguage] == ["rus"]
 
 
 def _part(number, name=None, *parts):
