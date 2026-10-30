@@ -1247,27 +1247,39 @@ another paper of the city. Each reading is scored by its mean
 `title_similarity` (`difflib` ratio of the normalized texts) to the most
 similar half of the other readings, so a minority of outliers does not lower a
 good reading's score. The highest score wins, the more confident reading on a
-tie, and the title takes that span's `title`, `subTitle` and groups, and the
-`frequency` most of the title pages read (as normalized text, in its most
-confident reading; a supplement's only when nothing else is read), which the
-DMF gives the title of a periodical. With no reading the title is unnamed.
+tie, and the title takes that span's `title`, `subTitle` and `titleInfo`
+group, and the place, publisher and frequency described below. With no
+reading the title is unnamed.
 
-A multipart monograph's title is made by `title_from` (shared), which takes
-the volume with the highest-confidence `title` among the parts and builds:
+A multipart monograph's title is made by `title_from`, which takes the
+volume with the highest-confidence `title` among the parts for its `title`,
+`subTitle`, `titleInfo` group and languages. Of what the DMF gives the title
+of the whole work (DMF monografie 7.4.1), it takes what more than half of the
+volumes agree on, compared as normalized text:
 
-```python
-MetakatTitle(
-    id=uuid4(),
-    hierarchy=hierarchy,        # multipart or periodical, as the binder says
-    title=volume.title,
-    subTitle=volume.subTitle,
-    groups=volume.groups,
-)
-```
+- the names (`<name>` MA), each in its role with the terms of address,
+  affiliations and emails of its group (`agreed_agents`): a translator or an
+  editor of one volume of three stays with that volume;
+- the publication, distribution and manufacture statements (`<originInfo>`
+  M), field by field among the volumes reading the field, each event one
+  group (`agreed_events`): a place, publisher, edition or date the volumes
+  differ on stays with them. A set published over several years therefore
+  has no `dateIssued` on its title: the DMF takes its form ("1885-1892")
+  from the catalogue, and forming it is a normalization (issue #11).
 
-The `Value`s are shared with the source volume, so the title reuses that
-volume's detection UUIDs rather than creating new ones; of the volume's
-groups, finalizing keeps what holds the title's own values - its `titleInfo`.
+The DMF title table has no `<relatedItem>`, so a series stays with the
+volumes, as does a copyright date, which each volume has of its own. A
+title above a single volume takes all of these from it.
+
+The periodical's title (`periodical_title`, above) takes the place,
+publisher and frequency its title pages agree on the same way, as one
+`<originInfo>` (DMF periodika 7.4.1), but no `dateIssued` - the years the
+periodical ran, which a scan of some of its volumes does not give - and no
+names, which the DMF takes from the catalogue (MARC 1XX/7XX); the issues
+keep theirs.
+
+The `Value`s are shared with the volumes and title readings they come from,
+so the title reuses their detection UUIDs rather than creating new ones.
 `MetakatTitle.hierarchy`
 rejects `monograph` at the schema level; a scan of monographs has no title. When no candidate has a title, the title is unnamed
 (`MetakatTitle(hierarchy=...)` without fields), since the scan's kind says one

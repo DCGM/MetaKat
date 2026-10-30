@@ -29,6 +29,7 @@ from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
 from metakat.biblio.engines.bind.biblio_binding import (
     Scan,
     TitleSpan,
+    agreed_events,
     authoritative_spans,
     different_issue,
     different_supplements,
@@ -42,6 +43,7 @@ from metakat.biblio.engines.bind.biblio_binding import (
     write_scan,
 )
 from metakat.schemas.base_objects import (
+    GroupType,
     HierarchyType,
     MetakatElement,
     MetakatIO,
@@ -156,10 +158,16 @@ def periodical_title(spans: List[TitleSpan], located: Container = ()) -> Metakat
     similarity to the most similar half of the others (title_similarity),
     so a minority of outliers does not lower the score of a good reading.
     The highest score wins, the more confident reading on a tie. The title
-    takes that span's title, subtitle, groups and languages, and the ISSN
-    (periodical_issn) and the frequency its title pages agree on, which the
-    DMF gives the title of a periodical. The frequency is the one most of
-    them read, compared as normalized text, in its most confident reading."""
+    takes that span's title, subtitle, titleInfo group and languages.
+
+    Of what the DMF gives the title of a periodical (DMF periodika 7.4.1) it
+    takes the ISSN (periodical_issn) and the place, publisher and frequency
+    more than half of the title pages reading them agree on (agreed_events),
+    as one <originInfo>. A scan holds some volumes of a periodical, not its
+    whole run, so it takes nothing that changes over the run unless the
+    title pages agree on it, and never <dateIssued>, which is the years the
+    periodical ran ("1900-1939"). Its <name> is the catalogue's (MARC
+    1XX/7XX), so the names read stay with the issues."""
     # A supplement's title is its own, not the periodical's, unless only supplements are read.
     candidates = ([span.volume for span in spans if span.volume is not None and span.volume.title
                    and not span.supplement]
@@ -167,8 +175,7 @@ def periodical_title(spans: List[TitleSpan], located: Container = ()) -> Metakat
     if not candidates:
         return MetakatTitle(id=uuid4(), hierarchy=HierarchyType.PERIODICAL)
     issn = periodical_issn(candidates)
-    frequency = _consensus([value for candidate in candidates for value in candidate.frequency or ()],
-                           normalize_text)
+    imprint, imprint_groups = agreed_events(candidates, _PERIODICAL_TITLE_EVENTS)
     candidates =[candidate for candidate in candidates if kept(candidate.title).id in located] or candidates
     texts = [kept(candidate.title).text for candidate in candidates]
 
@@ -183,10 +190,17 @@ def periodical_title(spans: List[TitleSpan], located: Container = ()) -> Metakat
     best = max(range(len(candidates)), key=lambda index: (score(index), kept(candidates[index].title).confidence))
     winner = candidates[best]
     logger.info("Periodical title %r chosen from %d title reading(s)", texts[best], len(candidates))
+    own_groups = [group for group in winner.groups or () if group.type == GroupType.TITLE_INFO.value]
     return MetakatTitle(id=uuid4(), hierarchy=HierarchyType.PERIODICAL, title=winner.title,
                         subTitle=winner.subTitle, language=winner.language,
-                        originalLanguage=winner.originalLanguage, issn=issn,
-                        frequency=[frequency] if frequency is not None else None, groups=winner.groups)
+                        originalLanguage=winner.originalLanguage, issn=issn, **imprint,
+                        groups=[*own_groups, *imprint_groups] or None)
+
+
+# What the periodical's title takes of its title pages' imprint (agreed_events).
+_PERIODICAL_TITLE_EVENTS = {
+    GroupType.ORIGIN_INFO_PUBLICATION.value: ("placeTerm", "publisher", "publisherStatement", "frequency"),
+}
 
 
 _ISSN = re.compile(r"(?<![\dXx])(\d{4})\s*[-‐‑–—]?\s*(\d{3}[\dXx])(?![\dXx])")

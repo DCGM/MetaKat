@@ -549,6 +549,56 @@ def test_the_title_takes_its_volumes_title_info_group():
     ]
 
 
+def _volume_of_set(year, publisher="Otto", place="Praha", translator=None, terms=None):
+    """A volume of a multipart monograph as bound: K. J. Erben's, with its imprint and names grouped."""
+    author, title = _v("K. J. Erben", 0.9), _v("Spisy", 0.9)
+    imprint = [_v(place, 0.8), _v(publisher, 0.8), _v(year, 0.8)]
+    volume = MetakatVolume(
+        id=uuid4(), hierarchy=HierarchyType.MULTIPART, title=[title], author=[author],
+        placeTerm=[imprint[0]], publisher=[imprint[1]], dateIssued=[imprint[2]],
+        seriesName=[_v("Knihovna klasiků", 0.8)], copyrightDate=[_v(year, 0.8)],
+        groups=[MetakatGroup(type=GroupType.TITLE_INFO, members=[title.id]),
+                MetakatGroup(type=GroupType.ORIGIN_INFO_PUBLICATION, members=[value.id for value in imprint])])
+    agent = MetakatGroup(type=GroupType.AGENT, members=[author.id])
+    if terms:
+        volume.termsOfAddress = [_v(terms, 0.8)]
+        agent.members.append(volume.termsOfAddress[0].id)
+    volume.groups.append(agent)
+    if translator:
+        volume.translator = [_v(translator, 0.8)]
+    return volume
+
+
+def test_a_multipart_title_takes_the_names_and_imprint_most_of_its_volumes_agree_on():
+    # DMF monografie 7.4.1: the title of the whole work has <name> (MA) and
+    # <originInfo> (M), and no <relatedItem>.
+    volumes = [_volume_of_set("1885", terms="PhDr."), _volume_of_set("1886", translator="J. Vrchlický"),
+               _volume_of_set("1887", publisher="J. Otto", place="v Praze")]
+
+    title = title_from(volumes, HierarchyType.MULTIPART)
+    finalize_groups(title)
+
+    texts = {field: [value.text for value in getattr(title, field) or ()]
+             for field in ("author", "termsOfAddress", "translator", "placeTerm", "publisher", "dateIssued",
+                           "seriesName", "copyrightDate")}
+    # A name or a statement read on fewer than half of the volumes - one
+    # volume's translator, years that differ - describes those volumes only.
+    assert texts == {"author": ["K. J. Erben"], "termsOfAddress": ["PhDr."], "translator": [],
+                     "placeTerm": ["Praha"], "publisher": ["Otto"], "dateIssued": [],
+                     "seriesName": [], "copyrightDate": []}
+    groups = {group.type: group.members for group in title.groups}
+    assert groups["agent"] == [title.author[0].id, title.termsOfAddress[0].id]
+    assert groups["originInfoPublication"] == [title.placeTerm[0].id, title.publisher[0].id]
+
+
+def test_a_multipart_title_of_one_volume_takes_its_names_and_imprint():
+    [volume] = volumes = [_volume_of_set("1885")]
+
+    title = title_from(volumes, HierarchyType.MULTIPART)
+
+    assert (title.author, title.publisher, title.dateIssued) == (volume.author, volume.publisher, volume.dateIssued)
+
+
 def test_the_alto_ids_of_evidence_are_returned_next_to_its_box(metakat_page):
     title = DetectionEvidence(
         text="Kytice", confidence=0.9, bbox=CoreBoundingBox(10, 10, 100, 20), page_key="page-1",

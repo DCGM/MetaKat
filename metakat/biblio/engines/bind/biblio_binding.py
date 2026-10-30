@@ -822,18 +822,111 @@ def move_set_isbns(volumes: List[MetakatVolume], title: Optional[MetakatTitle], 
 
 
 def title_from(volumes: List[MetakatVolume], hierarchy: HierarchyType) -> MetakatTitle:
-    """The title above the volumes, from the most confidently read title among them; unnamed when none has one.
+    """The title of a multipart monograph above its volumes; unnamed when none has a title.
 
-    The title shares the volume's Values and languages, so reuses its detection
-    UUIDs; of the volume's groups, finalizing keeps its titleInfo."""
+    It takes the most confidently read title among them with its subtitle,
+    titleInfo group and languages, and what the DMF gives the title of the
+    whole work (DMF monografie 7.4.1) that most of the volumes agree on: the
+    names (<name> MA), each with its terms of address and affiliations
+    (agreed_agents), and the publication, distribution and manufacture
+    statements (<originInfo> M), field by field (agreed_events). A name, a
+    publisher or a date read on fewer volumes describes those volumes only.
+    The table has no <relatedItem>, so a series stays with the volumes, as
+    does a copyright date, which each volume has of its own.
+
+    The title shares the volumes' Values, so reuses their detection UUIDs."""
     best = None
     for volume in volumes:
         if volume.title and (best is None or kept(volume.title).confidence > kept(best.title).confidence):
             best = volume
     if best is None:
         return MetakatTitle(id=uuid4(), hierarchy=hierarchy)
+    read = [volume for volume in volumes if volume.title]
+    agents, agent_groups = agreed_agents(read)
+    events, event_groups = agreed_events(read, _TITLE_EVENTS)
+    own_groups = [group for group in best.groups or () if group.type == GroupType.TITLE_INFO.value
+                  or group.type == GroupType.PART.value]
     return MetakatTitle(id=uuid4(), hierarchy=hierarchy, title=best.title, subTitle=best.subTitle,
-                        language=best.language, groups=best.groups)
+                        language=best.language, **agents, **events,
+                        groups=[*own_groups, *agent_groups, *event_groups] or None)
+
+
+# The statements of the events of a work's origin a title above its volumes
+# takes (agreed_events): each <originInfo> by its group type, with its fields.
+_TITLE_EVENTS = {
+    GroupType.ORIGIN_INFO_PUBLICATION.value: ("placeTerm", "publisher", "publisherStatement", "dateIssued",
+                                              "edition"),
+    GroupType.ORIGIN_INFO_DISTRIBUTION.value: ("distributionPlaceTerm", "distributor", "distributionDate"),
+    GroupType.ORIGIN_INFO_MANUFACTURE.value: ("manufacturePlaceTerm", "manufacturePublisher",
+                                              "manufacturePublisherStatement", "manufactureDate"),
+}
+# What a name carries beside it in its <name> group.
+_NAME_DETAILS = ("termsOfAddress", "affiliation", "email")
+
+
+def agreed_field(records: List[MetakatElement], field_name: str) -> Optional[List[Value]]:
+    """A field as more than half of the records reading it read it; None when they do not agree so.
+
+    A field is compared as the normalized texts of all its values, so two
+    places of one imprint agree only with the same two. Of the agreeing
+    records, the one with the most confident value gives the values."""
+    readings = [values for values in (getattr(record, field_name, None) for record in records) if values]
+    keys = [tuple(normalize_text(value.text) for value in values) for values in readings]
+    for key in dict.fromkeys(keys):
+        if 2 * keys.count(key) > len(readings):
+            return max((values for values, other in zip(readings, keys) if other == key),
+                       key=lambda values: max(value.confidence for value in values))
+    return None
+
+
+def agreed_events(records: List[MetakatElement],
+                  events: Dict[str, Tuple[str, ...]]) -> Tuple[Dict[str, List[Value]], List[MetakatGroup]]:
+    """The fields of each event the records agree on (agreed_field), and one group per event holding them.
+
+    The values of one event may come from different records: each field is
+    the one most of them read, and together they are the event's
+    statement."""
+    fields: Dict[str, List[Value]] = {}
+    groups = []
+    for group_type, field_names in events.items():
+        members = []
+        for field_name in field_names:
+            values = agreed_field(records, field_name)
+            if values is not None:
+                fields[field_name] = values
+                members += [value.id for value in values]
+        if members:
+            groups.append(MetakatGroup(type=group_type, members=members))
+    return fields, groups
+
+
+def agreed_agents(records: List[MetakatElement]) -> Tuple[Dict[str, List[Value]], List[MetakatGroup]]:
+    """The names read in one role on more than half of the records, with their <name> groups.
+
+    A name is compared as normalized text. Its most confident reading is
+    taken, with the terms of address, affiliations and emails of its group on
+    the record it was read on."""
+    fields: Dict[str, List[Value]] = {}
+    groups = []
+    for role in AgentRole:
+        readings: Dict[str, List[Tuple[Value, MetakatElement]]] = {}
+        for record in records:
+            for value in {normalize_text(value.text): value for value in getattr(record, role.value) or ()}.values():
+                readings.setdefault(normalize_text(value.text), []).append((value, record))
+        for agreeing in readings.values():
+            if 2 * len(agreeing) <= len(records):
+                continue
+            value, record = max(agreeing, key=lambda reading: reading[0].confidence)
+            fields.setdefault(role.value, []).append(value)
+            group = next((group for group in record.groups or ()
+                          if group.type == GroupType.AGENT.value and value.id in group.members), None)
+            if group is None:
+                continue
+            groups.append(group)
+            for detail in _NAME_DETAILS:
+                fields.setdefault(detail, []).extend(
+                    detail_value for detail_value in getattr(record, detail) or () if detail_value.id in group.members)
+    return {field_name: values for field_name, values in fields.items() if values}, groups
 
 
 def finalize_groups(element: MetakatElement) -> None:

@@ -435,3 +435,39 @@ def test_the_volume_year_is_the_one_printed_as_such_not_the_imprint_date():
 
     [volume] = _of(io, MetakatVolume)
     assert [v.text for v in volume.dateIssued] == ['1893']
+
+
+def _with_publisher(reading, place, publisher, date='1909'):
+    ev = reading.reading.title_infos[0].title
+    publication = BiblioPublication(places=(dataclasses.replace(ev, text=place),),
+                                    publishers=(dataclasses.replace(ev, text=publisher),),
+                                    date_issued=dataclasses.replace(ev, text=date))
+    agents = (BiblioAgent(role=AgentRole.REDAKTOR, name=dataclasses.replace(ev, text='Jan Novák')),)
+    return dataclasses.replace(reading, reading=dataclasses.replace(reading.reading, publications=(publication,),
+                                                                     agents=agents))
+
+
+def test_the_periodical_title_takes_the_place_and_publisher_its_title_pages_agree_on_and_no_date_or_name():
+    # DMF periodika 7.4.1: the title's <dateIssued> is the years the periodical
+    # ran and its <name> the catalogue's; a scan of some issues gives neither.
+    pages = _scan({3, 5}, {0: .99, 3: .99, 5: .99})
+    io, _ = _bound(pages,
+                   _with_publisher(_read(0, 'Zlatá Praha', volume='Ročník I', issue='1'), 'Praha', 'Otto'),
+                   _with_publisher(_read(3, 'Zlatá Praha', volume='Ročník I', issue='2'), 'Praha', 'Otto'),
+                   _with_publisher(_read(5, 'Zlatá Praha', volume='Ročník I', issue='3'), 'Praha', 'Vilímek'))
+
+    [title] = _of(io, MetakatTitle)
+    assert ([v.text for v in title.placeTerm], [v.text for v in title.publisher]) == (['Praha'], ['Otto'])
+    assert (title.dateIssued, title.redaktor) == (None, None)
+    [publication] = [group for group in title.groups if group.type == GroupType.ORIGIN_INFO_PUBLICATION]
+    assert publication.members == [title.placeTerm[0].id, title.publisher[0].id]
+    assert [v.text for issue in _of(io, MetakatIssue) for v in issue.publisher] == ['Otto', 'Otto', 'Vilímek']
+
+
+def test_the_periodical_title_takes_no_publisher_its_title_pages_split_on():
+    pages = _scan({4}, {0: .99, 4: .99})
+    io, _ = _bound(pages, _with_publisher(_read(0, 'Zlatá Praha', issue='1'), 'Praha', 'Otto'),
+                   _with_publisher(_read(4, 'Zlatá Praha', issue='2'), 'Praha', 'Vilímek'))
+
+    [title] = _of(io, MetakatTitle)
+    assert ([v.text for v in title.placeTerm], title.publisher) == (['Praha'], None)
