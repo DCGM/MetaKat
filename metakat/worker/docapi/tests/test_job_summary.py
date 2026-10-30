@@ -164,3 +164,31 @@ def test_without_a_mail_sender_the_worker_only_logs(tmp_path, caplog):
         worker.on_job_finished(_job(), WorkerResponse.fail("Failed to upload results to server"), None, 1.0, None)
 
     assert "Job summary: job 3f2a9c1e-7d4b-4c1a-9e2f-0a6b5c8d9e10 FAILED" in caplog.text
+
+
+def test_the_api_gets_the_same_summary_in_both_logs_of_a_processed_job(tmp_path):
+    result = tmp_path / "result"
+    result.mkdir()
+    (result / "metakat.json").write_text(json.dumps(_periodical()))
+    worker = object.__new__(MetakatWorker)
+
+    log, log_user = worker.job_api_logs(_job(), WorkerResponse.ok(), str(tmp_path), 10.0)
+
+    assert log == log_user
+    assert log.startswith("job       3f2a9c1e-7d4b-4c1a-9e2f-0a6b5c8d9e10\n")
+    assert " 3 issue < volume 2 < title 1  p. 5-6\n" in log
+
+
+def test_the_user_log_of_a_failed_job_leaves_out_its_error(tmp_path):
+    try:
+        raise ValueError("broken")
+    except ValueError as error:
+        response = WorkerResponse.fail("MetakatWorker processing failed", exception=error)
+    worker = object.__new__(MetakatWorker)
+
+    log, log_user = worker.job_api_logs(_job(), response, str(tmp_path), 10.0)
+
+    assert "status    FAILED\n" in log and "status    FAILED\n" in log_user
+    assert "error\nMetakatWorker processing failed\nValueError: broken" in log
+    assert "Traceback (most recent call last):" in log
+    assert "error" not in log_user and "Traceback" not in log_user and "broken" not in log_user

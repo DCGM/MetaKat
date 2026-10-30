@@ -275,7 +275,12 @@ def render_mail(summary: JobSummary) -> Tuple[str, str]:
     subject = f"[MetaKat] {status} job {summary.job_id[:8]}"
     if summary.succeeded:
         subject += f", {_plural(summary.pages, 'page')}, {_plural(len(summary.documents), 'document')}"
+    return subject, render_text(summary)
 
+
+def render_text(summary: JobSummary, with_error: bool = True) -> str:
+    """The summary as plain text, narrow enough for a phone; with_error=False leaves out a failure's error."""
+    status = "OK" if summary.succeeded else "FAILED"
     lines = [
         _row("job", summary.job_id),
         _row("engine", f"{summary.engine_name} {summary.engine_version}"),
@@ -306,11 +311,11 @@ def render_mail(summary: JobSummary) -> Tuple[str, str]:
                           _row("calls", f"{vlm.calls}, {vlm.failed} failed, {_plural(vlm.retries, 'retry')}", " "),
                           _row("images", _images(vlm), " "),
                           _row("time", f"{vlm.duration_s:.1f} s, {_cost(vlm.costs)}", " ")]
-    if summary.error:
+    if with_error and summary.error:
         lines += ["", "error", summary.error]
-    if summary.traceback:
+    if with_error and summary.traceback:
         lines += ["", summary.traceback]
-    return subject, "\n".join(lines) + "\n"
+    return "\n".join(lines) + "\n"
 
 
 def render_log(summary: JobSummary) -> str:

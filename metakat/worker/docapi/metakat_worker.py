@@ -18,7 +18,7 @@ from doc_api.tools.mail.mail_sender import MailSender
 from metakat.process_batch import process_batch
 from metakat.engine_config import prepare_engine_config, require_config_mapping
 from metakat.common.vlm.local_server import local_model_locations
-from metakat.worker.docapi.job_summary import render_log, render_mail, summarize_job
+from metakat.worker.docapi.job_summary import JobSummary, render_log, render_mail, render_text, summarize_job
 
 
 logger = logging.getLogger(__name__)
@@ -162,18 +162,31 @@ class MetakatWorker(DocWorkerWrapper):
         if job_log_file_handler is not None:
             root_logger.addHandler(job_log_file_handler)
         try:
-            definition = job.engine_definition if isinstance(job.engine_definition, dict) else {}
-            summary = summarize_job(
-                job, response, duration_s,
-                metakat_json=Path(job_dir) / "result" / "metakat.json" if job_dir else None,
-                has_chapter_stage="chapter" in definition,
-            )
+            summary = self._summarize(job, response, job_dir, duration_s)
             logger.info(render_log(summary))
             if self.mail_sender is not None:
                 self.send_mail(*render_mail(summary))
         finally:
             if job_log_file_handler is not None:
                 root_logger.removeHandler(job_log_file_handler)
+
+    def job_api_logs(self,
+                     job: Job,
+                     response: WorkerResponse,
+                     job_dir: Optional[str],
+                     duration_s: float) -> tuple:
+        """The job's summary for the API: the same in both logs, a failure's error in the technical log only."""
+        summary = self._summarize(job, response, job_dir, duration_s)
+        return render_text(summary), render_text(summary, with_error=False)
+
+    @staticmethod
+    def _summarize(job: Job, response: WorkerResponse, job_dir: Optional[str], duration_s: float) -> JobSummary:
+        definition = job.engine_definition if isinstance(job.engine_definition, dict) else {}
+        return summarize_job(
+            job, response, duration_s,
+            metakat_json=Path(job_dir) / "result" / "metakat.json" if job_dir else None,
+            has_chapter_stage="chapter" in definition,
+        )
 
     @staticmethod
     def _load_metadata_envelope(meta_file: Optional[str]) -> dict:
