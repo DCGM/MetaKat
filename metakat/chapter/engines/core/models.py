@@ -147,6 +147,8 @@ class ChapterBase:
     description_toc_page: DetectionEvidence | None = field(default=None, kw_only=True)
     # The persons and bodies printed with the entry, in printed order.
     agents_toc_page: tuple[ChapterAgent, ...] = field(default=(), kw_only=True)
+    # The phrase printed with them saying there are more than named ("a kol.").
+    etal_toc_page: DetectionEvidence | None = field(default=None, kw_only=True)
     # The entry's title in other languages, after the version above.
     parallel_titles_toc_page: tuple[ChapterTitleVersion, ...] = field(default=(), kw_only=True)
     # Whether the title and subtitle above are a parallel version: false when

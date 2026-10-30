@@ -719,6 +719,9 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     otherTocPage: Optional[List[AgentValue]] = None
     termsOfAddressTocPage: Optional[List[Value]] = None
     affiliationTocPage: Optional[List[Value]] = None
+    # The phrase printed with them saying there are more than named ("a kol."),
+    # a <name><etal> of its own, as `etal` (MetakatAgents).
+    etalTocPage: Optional[List[Value]] = None
 
     # <genre type="...">. A typed classifier value; in practice only articles
     # carry a meaningful genre

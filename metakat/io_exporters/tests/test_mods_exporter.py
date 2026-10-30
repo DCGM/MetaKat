@@ -377,6 +377,21 @@ def test_a_chapters_toc_authors_are_names_unless_its_own_page_names_some(batch, 
     assert events == ["author", "authorTocPage", "authorTocPage"]
 
 
+def test_a_chapters_toc_etal_is_a_name_of_its_own_unless_its_own_page_reads_one(batch, tmp_path):
+    batch.chapter.etalTocPage = [batch.v("a kol.", 0.9, 2)]
+    chapter = _export(batch, tmp_path)[str(batch.chapter.id)]
+
+    assert _texts(chapter, "/mods:mods/mods:name/mods:etal") == ["a kol."]
+
+    # The chapter's own phrase wins; the TOC's backs it in provenance.
+    batch.chapter.etal = [batch.v("et al.", 0.9, 1)]
+    chapter = _export(batch, tmp_path / "own")[str(batch.chapter.id)]
+
+    assert _texts(chapter, "/mods:mods/mods:name/mods:etal") == ["et al."]
+    events = chapter.xpath("//mkp:assertion[@property='etal']/mkp:event/@field", namespaces=NS)
+    assert events == ["etal", "etalTocPage"]
+
+
 def test_a_chapters_toc_agent_is_one_name_with_its_affiliation_unless_its_own_page_has_the_role(batch, tmp_path):
     translator, affiliation = batch.agent("Petr Malý", "personal", 2), batch.v("Brno", 0.9, 2)
     batch.chapter.translatorTocPage = [translator]

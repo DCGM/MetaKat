@@ -45,20 +45,20 @@ _SECOND = _ALTO.format(blocks=_line("D", 1, ("Jan", 100, 40), ("Novák:", 150, 6
 _REPLY = {"entries": [
     {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "I", "designation": "I.",
      "titleInfo": [{"title": "Úvod", "subTitle": None, "description": None, "lang": "cze", "translated": False}], "agents": [],
-     "pageReference": "5", "pages": ["5"]},
+     "etal": None, "pageReference": "5", "pages": ["5"]},
     {"tocPage": 0, "level": 1, "kind": "heading", "partNumber": "II", "designation": "II.",
      "titleInfo": [{"title": "Les a voda", "subTitle": None, "description": "O lesích", "lang": "cze", "translated": False},
                    {"title": "Wald und Wasser", "subTitle": None, "description": None, "lang": "ger", "translated": True}],
-     "agents": [], "pageReference": "12—30", "pages": [{"start": "12", "end": "30"}]},
+     "agents": [], "etal": None, "pageReference": "12—30", "pages": [{"start": "12", "end": "30"}]},
     {"tocPage": 1, "level": 2, "kind": "item", "partNumber": None, "designation": None,
      "titleInfo": [{"title": "Pramen", "subTitle": "u cesty", "description": None, "lang": "cze", "translated": False}],
      "agents": [{"role": "author", "type": "personal", "name": "Jan Novák", "termsOfAddress": [],
                  "description": []},
                 {"role": "translator", "type": "personal", "name": "Petr Malý", "termsOfAddress": ["Dr."],
-                 "description": ["Brno"]}], "pageReference": "14", "pages": ["14"]},
+                 "description": ["Brno"]}], "etal": "a kol.", "pageReference": "14", "pages": ["14"]},
     {"tocPage": 1, "level": 1, "kind": "item", "partNumber": None, "designation": None,
      "titleInfo": [{"title": "Dodatek", "subTitle": None, "description": None, "lang": "cze", "translated": False}], "agents": [],
-     "pageReference": "40", "pages": ["40"]},
+     "etal": None, "pageReference": "40", "pages": ["40"]},
 ]}
 
 
@@ -139,6 +139,8 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     [term] = translator.terms_of_address
     assert (term.text, term.alto.words, author.terms_of_address) == ("Dr.", ("D1W9",), ())
     assert (first.subtitle_toc_page, first.agents_toc_page) == (None, ())
+    # The phrase saying there are more agents than named is read with them.
+    assert (section.etal_toc_page.text, first.etal_toc_page) == ("a kol.", None)
     # A title the OCR does not hold keeps its page, without a box.
     assert (appendix.title_toc_page.page_key, appendix.title_toc_page.bbox) == ("0008", None)
     assert {evidence.confidence for evidence in (first.title_toc_page, section.title_toc_page)} == {0.95}
@@ -206,7 +208,7 @@ def test_an_entry_printed_with_only_its_designation_is_titled_by_it(tmp_path):
         _ALTO.format(blocks=_line("A", 1, ("Kapitola", 100, 150), ("3", 260, 20), ("40", 800, 30))), encoding="utf-8")
     page = ChapterPageInput("0009", 8, tmp_path / "0009.jpg", tmp_path / "0009.xml")
     reply = {"entries": [{"tocPage": 0, "level": 1, "kind": "item", "partNumber": "3", "designation": "Kapitola 3",
-                          "titleInfo": [], "agents": [], "pageReference": "40", "pages": ["40"]}]}
+                          "titleInfo": [], "agents": [], "etal": None, "pageReference": "40", "pages": ["40"]}]}
 
     [chapter] = ChapterExtractionEngineVLM(_config(), client=_Endpoint(reply).client()).process([page]).chapters
 

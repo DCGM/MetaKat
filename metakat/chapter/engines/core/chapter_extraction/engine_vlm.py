@@ -34,6 +34,8 @@ Of an entry the stage reads:
 - its `agents`, as `agents_toc_page`, each in its role, with its type, its
   terms of address and its `description` as its affiliations, every name,
   term of address and affiliation located as a value of its own;
+- its `etal`, the phrase saying there are more agents than named ("a kol."),
+  as `etal_toc_page`;
 - its `partNumber`, the printed numbering without its words, as
   `part_number_toc_page`;
 - its `pageReference`, the reference as printed, as
@@ -297,6 +299,7 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
                 subtitle_toc_page=evidence(index, "subTitle", title_info.get("subTitle"), lang=lang),
                 description_toc_page=evidence(index, "description", title_info.get("description"), lang=lang),
                 agents_toc_page=_toc_agents(index, entry, evidence),
+                etal_toc_page=evidence(index, "etal", entry.get("etal")),
                 parallel_titles_toc_page=_parallel_titles(index, entry, evidence),
                 title_translated_toc_page=(title_info.get("translated")
                                            if isinstance(title_info.get("translated"), bool) else None),
@@ -482,6 +485,7 @@ def _entry_texts(entry: Mapping[str, Any]) -> dict:
         "agents": [agent["name"] for agent in _agents(entry)],
         "termsOfAddress": [text for agent in _agents(entry) for text in _terms(agent)],
         "affiliations": [text for agent in _agents(entry) for text in _descriptions(agent)],
+        "etal": entry.get("etal"),
         "partNumber": entry.get("partNumber"),
         "pageReference": entry.get("pageReference"),
     }

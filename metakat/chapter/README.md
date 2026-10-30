@@ -91,6 +91,7 @@ ChapterResult(
     subtitle_toc_page: DetectionEvidence | None = None,
     description_toc_page: DetectionEvidence | None = None,
     agents_toc_page: tuple[ChapterAgent, ...] = (),
+    etal_toc_page: DetectionEvidence | None = None,
     part_number_toc_page: DetectionEvidence | None = None,
     page_number_toc_page: ChapterPageNumberEvidence | None = None,
     title: DetectionEvidence | None = None,
@@ -106,6 +107,7 @@ ChapterResult(
 | `title_toc_page` | Title evidence from the TOC page, when available. |
 | `subtitle_toc_page` | Optional subtitle completing the entry's title on the TOC page. |
 | `agents_toc_page` | The persons and bodies printed with the TOC entry, in printed order; empty when none. |
+| `etal_toc_page` | Optional phrase printed with them saying there are more than named ("a kol."). |
 | `description_toc_page` | Optional synopsis printed with the TOC entry: what the chapter covers, often with the page numbers of its topics. It is not a subtitle. |
 | `part_number_toc_page` | Optional chapter or section-number evidence from the TOC page. |
 | `page_number_toc_page` | Optional parsed destination-page reference from the TOC page. It retains the original OCR evidence as well as the normalized values supplied by the TOC-producing engine. It is not the physical number detected on the destination page. |
@@ -426,6 +428,7 @@ ChapterBase(
     subtitle_toc_page: DetectionEvidence | None = None,
     description_toc_page: DetectionEvidence | None = None,
     agents_toc_page: tuple[ChapterAgent, ...] = (),
+    etal_toc_page: DetectionEvidence | None = None,
     part_number_toc_page: DetectionEvidence | None = None,
     page_number_toc_page: ChapterPageNumberEvidence | None = None,
     page_reference_toc_page: DetectionEvidence | None = None,
@@ -441,6 +444,7 @@ ChapterBase(
 | `title_toc_page` | Chapter title detected on the TOC page. This remains distinct from a title later found on the destination page, which `ChapterResult` holds as `title`. |
 | `subtitle_toc_page` | Optional subtitle completing the entry's title on the TOC page; the VLM engine reads it, the YOLO engine has none. |
 | `agents_toc_page` | The persons and bodies printed with the entry - a byline before or after the title - in printed order, each a `ChapterAgent`: its `role` (`AgentRole`, the MetaKat field it goes to), its `name` evidence, its `type` (`NameType`, `None` when unknown) and its `affiliations` evidence. The VLM engine reads them, the YOLO engine none. |
+| `etal_toc_page` | Optional phrase printed with the agents saying there are more than named ("a kol.", "et al."); bound to `etalTocPage`, a `<name><etal>` of its own in MODS unless the chapter's own page reads one. The VLM engine reads it, the YOLO engine none. |
 | `description_toc_page` | Optional synopsis printed with the entry: what the chapter covers, often with the page numbers of its topics. The YOLO engine fills it from its `Subtitle` class (`podnadpis`), which the annotators put on the synopsis, the VLM engine from `titleInfo[].description`. A description never creates an entry by itself. |
 | `part_number_toc_page` | Optional chapter/section number printed as part of the TOC entry, such as `2.3`. It is not the destination page number. |
 | `page_number_toc_page` | Optional parsed `PageNumber` printed in the TOC entry. It denotes the destination page number and retains the complete source evidence together with normalized semantic values for alignment. |
@@ -1634,6 +1638,7 @@ Of each entry the engine reads:
 | the main version's `lang` | the `lang` of the title, subtitle and synopsis evidence, so of their values (`<titleInfo lang>`, `<abstract lang>`) |
 | the other `titleInfo[]` objects, the parallel versions flagged `translated`, each with its title, subtitle, synopsis and `lang` | `parallel_titles_toc_page` (`ChapterTitleVersion`); bound after the main version in `titleTocPage`, `subTitleTocPage` (flagged `translated`) and `abstractTocPage`, a titleInfo group each |
 | `agents[]`, each in its `role` (never `redaktor`), with its `type`, its `termsOfAddress[]` and its `description[]` as affiliations; each name, term of address and affiliation is located on its own | `agents_toc_page`; terms bound to `termsOfAddressTocPage`, in the agent's group |
+| `etal`, the phrase saying there are more agents than named | `etal_toc_page`, bound to `etalTocPage` |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |
 | `pageReference`, the reference as printed | `page_reference_toc_page` |
 | `kind`, heading or item | `kind_toc_page`, with the configured `confidence` |

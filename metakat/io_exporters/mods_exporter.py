@@ -270,7 +270,7 @@ def _mark_toc_readings(record: _Record) -> None:
         return getattr(toc_value, "translated", None) is not True
 
     for own, toc in (("title", "titleTocPage"), ("subTitle", "subTitleTocPage"),
-                     ("partNumber", "partNumberTocPage"), ("abstract", "abstractTocPage"),
+                     ("partNumber", "partNumberTocPage"), ("abstract", "abstractTocPage"), ("etal", "etalTocPage"),
                      *((toc.removesuffix("TocPage"), toc) for toc in TOC_AGENT_FIELDS
                        if toc not in _NAME_DETAIL_FIELDS)):
         own_values = _values(record.element, own)
@@ -317,13 +317,15 @@ def _names(record: _Record) -> None:
             if field_name in _AFFILIATION_FIELDS:
                 record.leaf(container, "affiliation", value.text)
                 record.value(target, container, "affiliation", value, field_name)
-    # There are more agents than named: a <name> holding only <etal> (DMF).
+    # There are more agents than named: a <name> holding only <etal> (DMF),
+    # read on the part's own page or, failing that, in its TOC entry.
     demoted = _demoted_ids(record)
-    for value in _values(record.element, "etal"):
-        if value.id not in demoted:
-            container, target = record.container(record.root, "name")
-            etal = record.leaf(container, "etal", value.text)
-            record.value(target, container, "etal", value, "etal", leaf=etal)
+    for field_name in ("etal", "etalTocPage"):
+        for value in _values(record.element, field_name):
+            if value.id not in demoted:
+                container, target = record.container(record.root, "name")
+                etal = record.leaf(container, "etal", value.text)
+                record.value(target, container, "etal", value, field_name, leaf=etal)
 
 
 # The note naming the actual publisher or printer a phrase printed instead of
@@ -513,7 +515,7 @@ _BIBLIOGRAPHIC_SECTIONS = {
 _INTERNAL_PART_SECTIONS = {
     **_COMMON_SECTIONS,
     "titleTocPage": "titleInfo", "subTitleTocPage": "titleInfo", "partNumberTocPage": "titleInfo",
-    **{field_name: "name" for field_name in TOC_AGENT_FIELDS},
+    **{field_name: "name" for field_name in TOC_AGENT_FIELDS}, "etalTocPage": "name",
     "articleGenre": "genre",
     # An internal part has no <originInfo>; its date is written to provenance only.
     "dateIssued": "provenance:dateIssued",
