@@ -1289,7 +1289,15 @@ opens another unit when:
   a divisional title page or a series title page (`TitlePageKind`), which
   describe the unit they stand in;
 - at least `SPLIT_MINIMUM_GAP` (`10`) pages lie between it and the open unit's
-  last span that may open one - a half-title and a title page do not;
+  last span that may open one - a half-title and a title page do not. In a
+  periodical a closer span opens another unit too when it reads a different
+  one than each of those spans (`different_unit`): a volume level or the issue
+  number both read disagrees (`different_issue`), it is a supplement and they
+  an issue or the other way round, or both are supplements whose titles do
+  not agree (`different_supplements`). Issues and supplements are often only
+  a few pages long, while a cover, a second sheet or a repeated masthead of
+  one issue reads the same numbering or none - a cover reading only the
+  title stays in the issue whose title page follows;
 - it or a span of the open unit reads a part number or name (an issue number
   or date, or a `periodical` volume, in a periodical);
 - it is not the same unit as any span of the open unit that may open one (all
@@ -1309,7 +1317,10 @@ opens another unit when:
     "číslo 1" alone stays in "Ročník 5, číslo 1"; with nothing read by both,
     the spans are not the same issue. A supplement and an issue are never
     the same unit, so a supplement left in its issue's document is split
-    off (`same_unit`);
+    off, and two supplements are one only when their titles agree too
+    (`title_similarity` at least `SUPPLEMENT_TITLE_SIMILARITY`, 0.8): both
+    print the numbering of the issue they belong to, not their own
+    (`same_unit`);
 - the start page's `startsDocument` is not annotated.
 
 Where the new document starts differs by binder:

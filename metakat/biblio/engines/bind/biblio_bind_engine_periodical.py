@@ -31,6 +31,7 @@ from metakat.biblio.engines.bind.biblio_binding import (
     Scan,
     TitleSpan,
     authoritative_spans,
+    different_issue,
     kept,
     normalize_text,
     read_scan,
@@ -53,15 +54,41 @@ from metakat.schemas.base_objects import (
 
 logger = logging.getLogger(__name__)
 
+# How alike two supplements' titles must be (title_similarity) to be one
+# supplement's.
+SUPPLEMENT_TITLE_SIMILARITY = 0.8
+
 def reads_issue(span: TitleSpan) -> bool:
     """Whether a span reads what makes an issue its own: an issue number or date, a volume number or year,
     or that it is a supplement."""
     return span.periodical or span.supplement
 
 
+def different_supplements(first: TitleSpan, second: TitleSpan) -> bool:
+    """Whether two spans are an issue's and a supplement's, or two supplements' with titles that do not agree.
+
+    A supplement prints the numbering of the issue it belongs to, not its own:
+    two supplements of one issue read the same numbering and differ in their
+    titles. A supplement without a title read agrees with any."""
+    if first.supplement != second.supplement:
+        return True
+    if not first.supplement:
+        return False
+    titles = [kept(span.volume.title) if span.volume is not None else None for span in (first, second)]
+    return all(title is not None for title in titles) and \
+        title_similarity(titles[0].text, titles[1].text) < SUPPLEMENT_TITLE_SIMILARITY
+
+
 def same_unit(first: TitleSpan, second: TitleSpan) -> bool:
-    """Whether two spans read the same unit: an issue and a supplement never are (same_issue otherwise)."""
-    return first.supplement == second.supplement and same_issue(first, second)
+    """Whether two spans read the same issue or supplement: not different_supplements, and same_issue."""
+    return not different_supplements(first, second) and same_issue(first, second)
+
+
+def different_unit(first: TitleSpan, second: TitleSpan) -> bool:
+    """Whether two spans read different issues or supplements, which splits however close they are: a cover,
+    a second sheet or a repeated masthead of one issue reads the same numbering or none, and issues and
+    supplements are often only a few pages long."""
+    return different_supplements(first, second) or different_issue(first, second)
 
 
 def belongs_to(supplement: TitleSpan, issue: TitleSpan) -> bool:
@@ -95,7 +122,8 @@ class BiblioBindEnginePeriodical(BiblioBindEngine):
         page of a document goes to its issue; a document no span names gets an
         unnamed issue. Returns the title, the volumes, then the issues in
         document order."""
-        documents = split_documents(scan.documents, scan.spans, reads_issue, same_unit, "issue")
+        documents = split_documents(scan.documents, scan.spans, reads_issue, same_unit, "issue",
+                                    different_unit=different_unit)
         logger.info(f"Binding {len(documents)} issue(s)")
         winners = authoritative_spans(documents, scan.spans)
         for index, winner in enumerate(winners):

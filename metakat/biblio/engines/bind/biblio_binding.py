@@ -98,7 +98,8 @@ _UNITED_GROUP_TYPES = frozenset((
 # score is the page-type confidence of its most confident title page times the
 # confidence of the title read on it. Two spans of one document scoring at least
 # SPLIT_MINIMUM_SCORE and at least SPLIT_MINIMUM_GAP pages apart can split it
-# into two parts or issues (split_documents).
+# into two parts or issues (split_documents); closer spans only when the
+# binder tells they read different units.
 SPLIT_MINIMUM_SCORE = 0.5
 SPLIT_MINIMUM_GAP = 10
 # The kinds of span that never open a unit (TitleSpan.opens).
@@ -326,6 +327,17 @@ def same_issue(first: TitleSpan, second: TitleSpan) -> bool:
     if all(issue is not None for issue in issues):
         return texts_match(*issues)
     return bool(common)
+
+
+def different_issue(first: TitleSpan, second: TitleSpan) -> bool:
+    """Whether two spans read different periodical units: a volume level both read, aligned from the lowest,
+    or the issue number both read disagrees. Unlike not being the same_issue, nothing read by both is not
+    different."""
+    chains = [(part_paths(span.volume) or [()])[0] for span in (first, second)]
+    if not all(_agrees(a, b) for a, b in zip(reversed(chains[0]), reversed(chains[1]))):
+        return True
+    issues = [span.issue.partNumber if span.issue is not None else None for span in (first, second)]
+    return all(issue is not None for issue in issues) and not texts_match(*issues)
 
 
 def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceContainers]) -> None:
@@ -654,6 +666,7 @@ def split_documents(
     same_unit: Callable[[TitleSpan, TitleSpan], bool],
     unit: str,
     start_page: Optional[Callable[[List[MetakatPage], TitleSpan, List[TitleSpan]], MetakatPage]] = None,
+    different_unit: Optional[Callable[[TitleSpan, TitleSpan], bool]] = None,
 ) -> List[List[MetakatPage]]:
     """The documents with a start added where one holds two units - two parts, two issues.
 
@@ -661,7 +674,9 @@ def split_documents(
     page order, each describing the unit open or opening another. A span
     opens another unit when it may open one (TitleSpan.opens: no half-title,
     divisional or series title page), starts at least SPLIT_MINIMUM_GAP pages
-    after the open unit's last span that may open one, it or one of the open
+    after the open unit's last span that may open one - or closer, when the
+    binder tells it reads a different unit than each of them
+    (`different_unit`) - it or one of the open
     unit's spans reads what makes a unit (`reads_unit`: a part number or
     name, an issue number or date), and it reads the same unit as none of
     the open unit's spans that may open one - all of them when none may
@@ -677,7 +692,9 @@ def split_documents(
         opened = strong[:1]
         for span in strong[1:]:
             opening = [s for s in opened if s.opens] or opened
-            if not (span.opens and span.start - opening[-1].end - 1 >= SPLIT_MINIMUM_GAP
+            far = span.start - opening[-1].end - 1 >= SPLIT_MINIMUM_GAP
+            if not (span.opens and (far or different_unit is not None
+                                    and all(different_unit(s, span) for s in opening))
                     and (reads_unit(span) or any(reads_unit(s) for s in opened))
                     and not any(same_unit(s, span) for s in opening)):
                 opened.append(span)

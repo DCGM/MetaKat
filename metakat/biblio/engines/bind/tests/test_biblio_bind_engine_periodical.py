@@ -171,6 +171,39 @@ def test_a_supplement_is_split_from_the_issue_whose_document_it_is_in():
     assert supplement.parent_id == issue.id and _parents(io) == [issue.id] * 12 + [supplement.id] * 12
 
 
+@pytest.mark.parametrize("second, supplements", [
+    ('Literární příloha', 2),
+    ('Zábavná příloha Národních listu', 1),
+])
+def test_two_supplements_of_one_issue_are_two_unless_their_titles_agree(second, supplements):
+    pages = _scan({8}, {0: .99, 8: .99, 20: .99}, count=32)
+    io, _ = _bound(pages, _read(0, 'Národní listy', issue='45'),
+                   _supplement(8, 'Zábavná příloha Národních listů', issue='45'),
+                   _supplement(20, second, issue='45'))
+    [issue] = _of(io, MetakatIssue)
+    assert len(_of(io, MetakatSupplement)) == supplements
+    assert {s.parent_id for s in _of(io, MetakatSupplement)} == {issue.id}
+
+
+def test_short_issues_and_supplements_in_one_document_split_on_their_title_pages():
+    pages = _scan((), {0: .99, 4: .99, 6: .99, 8: .99}, count=12)
+    io, _ = _bound(pages, _read(0, 'Národní listy', issue='45'),
+                   _supplement(4, 'Zábavná příloha', issue='45'),
+                   _supplement(6, 'Literární příloha', issue='45'),
+                   _read(8, 'Národní listy', issue='46'))
+    first, second = _of(io, MetakatIssue)
+    entertaining, literary = _of(io, MetakatSupplement)
+    assert _parents(io) == [first.id] * 4 + [entertaining.id] * 2 + [literary.id] * 2 + [second.id] * 4
+    assert {entertaining.parent_id, literary.parent_id} == {first.id}
+
+
+def test_a_close_title_page_reading_nothing_the_open_issue_reads_stays_in_it():
+    # A cover with the masthead only, then the title page with the number.
+    pages = _scan((), {0: .99, 2: .99}, count=8)
+    io, _ = _bound(pages, _read(0, 'Národní listy'), _read(2, 'Národní listy', issue='45'))
+    assert len(_of(io, MetakatIssue)) == 1
+
+
 def test_the_periodical_title_is_not_a_supplements():
     pages = _scan({4}, {0: .99, 4: .99})
     io, _ = _bound(pages, _read(0, 'Národní listy', .6, issue='1'),
