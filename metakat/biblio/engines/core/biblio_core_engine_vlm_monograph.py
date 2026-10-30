@@ -22,7 +22,9 @@ in it is not read. Of the reply this engine reads:
   `language` and `originalLanguage` codes;
 - the `lang` of a titleInfo or of a series' titleInfo, as the language of each
   of its values;
-- the `pageKind`, what the span is (TitlePageKind).
+- the `pageKind`, what the span is (TitlePageKind);
+- `supplement`, as the span result's `supplement`: the page belongs to a
+  supplement of a book.
 """
 from __future__ import annotations
 
@@ -148,7 +150,8 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         return None
     kind = reply.get("pageKind")
     return BiblioSpanResult(page_keys=tuple(page_keys), reading=reading,
-                            kind=TitlePageKind(kind) if kind in TitlePageKind._value2member_map_ else None)
+                            kind=TitlePageKind(kind) if kind in TitlePageKind._value2member_map_ else None,
+                            supplement=reply.get("supplement") is True)
 
 
 def _parts(values: ReplyValues, path: tuple, item: Mapping[str, Any], lang: Any) -> tuple[BiblioPart, ...]:

@@ -350,6 +350,9 @@
         "seriesTitle",
         "other"
       ]
+    },
+    "supplement": {
+      "type": "boolean"
     }
   },
   "required": [
@@ -367,7 +370,8 @@
     "illustrativeContent",
     "language",
     "originalLanguage",
-    "pageKind"
+    "pageKind",
+    "supplement"
   ],
   "additionalProperties": false,
   "$defs": {

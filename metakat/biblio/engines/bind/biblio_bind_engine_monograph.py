@@ -7,7 +7,10 @@ Every bottom-level document becomes one volume: a `monograph` volume without a
 parent, or a part, a `multipart` volume under the one title of the work. Where
 a document of a multipart scan holds two parts, each with its title page, it is
 split on the later one. Who decides where the parts begin is configured
-(`multipart_boundaries`, MultipartBoundaries). A ProArc record with a single
+(`multipart_boundaries`, MultipartBoundaries). A document the core tells is a
+supplement's - a map, an atlas, plates issued with a volume - is a supplement
+under the volume before it, split off the volume's document in any scan (NDK
+monograph DMF). A ProArc record with a single
 volume object names the volume of a scan of one document. Reading the scan and
 writing the result are shared with the periodical binder (biblio_binding).
 """
@@ -25,6 +28,7 @@ from metakat.biblio.engines.bind.biblio_binding import (
     Scan,
     TitleSpan,
     authoritative_spans,
+    different_supplements,
     kept,
     normalize_text,
     move_set_isbns,
@@ -42,6 +46,7 @@ from metakat.schemas.base_objects import (
     MetakatElement,
     MetakatIO,
     MetakatPage,
+    MetakatSupplement,
     MetakatVolume,
     PageType,
     is_annotated,
@@ -245,6 +250,18 @@ def opening_start(document: List[MetakatPage], span: TitleSpan, opened: List[Tit
     return start
 
 
+def same_unit(first: TitleSpan, second: TitleSpan) -> bool:
+    """Whether two spans read the same part (same_part), neither being a supplement's that the other's is not
+    (different_supplements)."""
+    return not different_supplements(first, second) and same_part(first, second)
+
+
+def supplement_of(volume: MetakatVolume) -> MetakatSupplement:
+    """The supplement a volume candidate read on a supplement's title page describes: everything it read."""
+    return MetakatSupplement(**{name: getattr(volume, name) for name in MetakatVolume.model_fields
+                                if name not in ("type", "hierarchy")})
+
+
 def own_documents(scan: Scan) -> List[List[MetakatPage]]:
     """The scan's documents as the binder alone decides them, before any part is found inside one.
 
@@ -319,7 +336,9 @@ class BiblioBindEngineMonograph(BiblioBindEngine):
         def volume_of_a_set(span: TitleSpan) -> bool:
             return span.part or any(value.id in scan.set_isbn_ids for value in span.volume.isbn or ())
 
-        named = [[s for s in scan.spans if s.document == index and s.names] for index in range(len(scan.documents))]
+        # A supplement is no part of the work, so neither counts nor is counted.
+        named = [[s for s in scan.spans if s.document == index and s.names and not s.supplement]
+                 for index in range(len(scan.documents))]
         named = [document for document in named if document]
         if not named:
             return False
@@ -327,13 +346,20 @@ class BiblioBindEngineMonograph(BiblioBindEngine):
         return parts / len(named) >= PART_MINIMUM_SHARE
 
     def bind(self, scan: Scan) -> List[MetakatElement]:
-        """One volume per document, named by its authoritative span; the parts of a multipart scan under one title.
+        """One volume or supplement per document, named by its authoritative span; the parts of a multipart scan
+        under one title.
 
         In a multipart scan a document holding two parts is first split
         (split_documents); with `multipart_boundaries` `binder`, the documents
-        split are the binder's own (own_documents). Every page of a document goes to its volume; a
-        document no span names gets an unnamed one. Returns the title, when
-        there is one, then the volumes in document order. The title takes the
+        split are the binder's own (own_documents). In any scan a supplement
+        left in the document of its volume is split off, starting at the
+        opening before its title page (opening_start), and so are two
+        supplements with titles that do not agree, however close. Every page of
+        a document goes to its unit; a document no span names gets an unnamed
+        volume. A supplement stands under the volume before it, or after it
+        when it comes first; a scan without a volume has none to belong to,
+        so its supplements are volumes. Returns the title, when there is one,
+        then the volumes and supplements in document order. The title takes the
         ISBNs of the whole work; a monograph that is not multipart has no unit
         they describe, so they are dropped."""
         multipart = self.is_multipart(scan)
@@ -342,28 +368,46 @@ class BiblioBindEngineMonograph(BiblioBindEngine):
         if multipart:
             if self.multipart_boundaries is MultipartBoundaries.BINDER:
                 documents = own_documents(scan)
-            documents = split_documents(documents, scan.spans, lambda span: span.part, same_part, "part",
-                                        opening_start)
+            documents = split_documents(documents, scan.spans, lambda span: span.part or span.supplement, same_unit,
+                                        "part", opening_start, different_unit=different_supplements)
             if self.multipart_boundaries is MultipartBoundaries.BINDER:
                 _drop_page_type_starts(documents, scan.spans)
-        logger.info(f"Binding {len(documents)} {hierarchy.value} volume(s)")
-        volumes: List[MetakatVolume] = []
-        for document, winner in zip(documents, authoritative_spans(documents, scan.spans)):
-            volume = winner.volume if winner is not None else MetakatVolume(id=uuid4())
-            volume.hierarchy = hierarchy
+        else:
+            documents = split_documents(documents, scan.spans, lambda span: span.supplement,
+                                        lambda first, second: not different_supplements(first, second),
+                                        "supplement", opening_start, different_unit=different_supplements)
+        winners = authoritative_spans(documents, scan.spans)
+        supplied = [winner is not None and winner.supplement for winner in winners]
+        if all(supplied):
+            supplied = [False] * len(winners)
+        logger.info(f"Binding {supplied.count(False)} {hierarchy.value} volume(s) and {sum(supplied)} supplement(s)")
+        units: List[MetakatElement] = []
+        for document, winner, supplement in zip(documents, winners, supplied):
+            if supplement:
+                unit = supplement_of(winner.volume)
+            else:
+                unit = winner.volume if winner is not None else MetakatVolume(id=uuid4())
+                unit.hierarchy = hierarchy
             for page in document:
-                page.parent_id = volume.id
-            volumes.append(volume)
+                page.parent_id = unit.id
+            units.append(unit)
+        volumes = [unit for unit in units if isinstance(unit, MetakatVolume)]
+        for index, unit in enumerate(units):
+            if isinstance(unit, MetakatSupplement):
+                # DMF: a supplement scanned with a volume belongs to that volume.
+                host = next((other for other in reversed(units[:index]) if isinstance(other, MetakatVolume)), None) \
+                    or next(other for other in units[index:] if isinstance(other, MetakatVolume))
+                unit.parent_id = host.id
         title = title_from(volumes, HierarchyType.MULTIPART) if multipart else None
         # Every title page may print the set's ISBN, not only the one naming its volume.
-        read = [span.volume for span in scan.spans if span.volume is not None]
+        read = [span.volume for span in scan.spans if span.volume is not None and not span.supplement]
         move_set_isbns([*volumes, *(volume for volume in read if all(volume is not v for v in volumes))],
                        title, scan.set_isbn_ids)
         if title is None:
-            return list(volumes)
+            return units
         for volume in volumes:
             volume.parent_id = title.id
-        return [title, *volumes]
+        return [title, *units]
 
     @staticmethod
     def _single_proarc_volume(proarc_io: Optional[ProarcIO]) -> Optional[ObjectItem]:

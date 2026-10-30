@@ -422,13 +422,16 @@ def test_a_supplement_tells_whether_it_is_an_issues_or_a_volumes(tmp_path):
     issue = MetakatIssue(id=uuid4(), parent_id=volume.id)
     of_issue = MetakatSupplement(id=uuid4(), parent_id=issue.id)
     of_volume = MetakatSupplement(id=uuid4(), parent_id=volume.id)
-    io = MetakatIO(batch_id=uuid4(), elements=[volume, issue, of_issue, of_volume])
+    book = MetakatVolume(id=uuid4(), hierarchy=HierarchyType.MONOGRAPH)
+    of_book = MetakatSupplement(id=uuid4(), parent_id=book.id)
+    io = MetakatIO(batch_id=uuid4(), elements=[volume, issue, of_issue, of_volume, book, of_book])
     export_mods(io, tmp_path, created=CREATED)
     genre = [etree.parse(str(tmp_path / f"{element.id}.xml")).xpath("/mods:mods/mods:genre", namespaces=NS)
-             for element in (of_issue, of_volume)]
+             for element in (of_issue, of_volume, of_book)]
 
+    # The monograph DMF gives a supplement no genre type.
     assert [[(g.get("type"), g.text) for g in record] for record in genre] == [
-        [("issue_supplement", "supplement")], [("volume_supplement", "supplement")]]
+        [("issue_supplement", "supplement")], [("volume_supplement", "supplement")], [(None, "supplement")]]
 
 
 def test_a_printed_reference_of_pages_and_ranges_is_a_part_each_in_printed_order(batch, tmp_path):

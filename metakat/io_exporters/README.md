@@ -26,7 +26,7 @@ one against the Library of Congress schema.
 
 | MetaKat | MODS |
 |---|---|
-| element type | `<genre>`; an article's `articleGenre` as `genre@type`; a supplement's `genre@type` is `issue_supplement` under an issue, otherwise `volume_supplement` (DMF) |
+| element type | `<genre>`; an article's `articleGenre` as `genre@type`; a supplement's `genre@type` is `issue_supplement` under an issue, `volume_supplement` under a periodical volume (periodical DMF), none under a monograph volume (monograph DMF) |
 | `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>`; the parts in the order of their titleInfo group - a `part` group per part, its number before its name, then the `part` groups of its divisions (MODS has no tree of parts, MARC 245 repeats `$n` `$p`, so a tree is written in the printed order); a titleInfo whose `title` or `subTitle` is a `TitleValue` flagged `translated` is `type="translated"` (a parallel title, MARC 246 second indicator 1) |
 | agents | `<name><namePart>` whole, with `role/roleTerm` marcrelator code: `aut`, `ill`, `pht`, `trl`, `edt`, `cmp` (composer), `rev` (reviewer), `isb` (issuingBody), `ctb` (contributor), `oth` (other) - a redaktor is `edt`, as in Czech records; the name's `type` (personal, corporate, conference, family) as `name@type` when its values agree on one |
 | `termsOfAddress`, `affiliation` | `<name><namePart type="termsOfAddress">`, `<name><affiliation>` of the name they are grouped with |

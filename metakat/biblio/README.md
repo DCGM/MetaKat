@@ -665,7 +665,7 @@ is not read:
 | identifiers | `isbn[]` and `isbnSet[]` (the whole set's, `set_isbns`) as one `BiblioIdentifiers` (`seriesIssn` is the series') | `isbn[]` and `issn[]` as one `BiblioIdentifiers` |
 | languages | `language[]` as `languages`, `originalLanguage[]` as `original_languages` | the same |
 | names | `agents[]`, each in its role, with its `type`, `termsOfAddress[]` and `description[]` as affiliations; `etal` as a `BiblioEtal` | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`, `termsOfAddress[]` and `description[]` as affiliations; `etal` |
-| supplement | - | `supplement` as the span result's `supplement`; its `issue` is the numbering of the issue it belongs to |
+| supplement | `supplement` as the span result's `supplement`: a map, an atlas, plates or a key issued with a volume | `supplement` as the span result's `supplement`; its `issue` is the numbering of the issue it belongs to |
 
 Both schemas, and the TOC schema of the VLM chapter extraction, ask for the
 agents alike: one object per person, family or body, with the same roles
@@ -798,7 +798,9 @@ monographs with a multipart monograph, monographs with issues. The kind of the
 scan is therefore one decision for every document: in the periodical binder
 every bottom-level document is an issue or a supplement; in the monograph binder, once the
 scan [reads as parts](#multipart-or-monographs), every document is a part of
-the one multipart monograph, and otherwise every document is a monograph.
+the one multipart monograph, and otherwise every document is a monograph -
+except, in either binder, a document whose title page belongs to a supplement
+([periodical](#periodical-supplements), [monograph](#monograph-supplements)).
 
 ### Documents
 
@@ -1100,6 +1102,35 @@ in this order: the group member with the highest-confidence title; otherwise
 the first member of the group; otherwise the first title page; otherwise the
 first page; otherwise none.
 
+### Monograph supplements
+
+The monograph DMF has a supplement level for a supplement scanned with its
+volume - a map, an atlas, plates, a key, a workbook issued with the book
+(Pravidla pro popis monografií 3, the second kind). A document whose
+authoritative span the core tells belongs to a supplement (the VLM's
+`supplement`) is a `MetakatSupplement` with everything read on its title page:
+its own title as printed ("Mapa k Dějinám českým"), its imprint and names.
+
+- **Split off.** A supplement left in the document of its volume is split
+  off in any scan - in a scan of monographs, where nothing else splits, too -
+  at the opening before its title page (`opening_start`): a front cover of
+  the atlas starts it. Two supplements whose titles do not agree are two,
+  however close (`different_supplements`).
+- **Where it stands.** Under the volume before it: the monograph, or in a
+  multipart scan the part. A supplement scanned before any volume stands
+  under the volume after it. A scan holding no volume has nothing for a
+  supplement to belong to, so its supplements are volumes.
+- **No part of the work.** A supplement does not count in the decision
+  whether the scan is multipart ([Multipart or monographs](#multipart-or-monographs)),
+  does not give the work its title and gives no set ISBN to it.
+- **Pages.** A supplement is a bottom-level unit, numbered from 1; its volume
+  keeps its own pages.
+- **MODS.** `<genre>supplement</genre>`: unlike the periodical DMF, the
+  monograph DMF types no supplement.
+
+The single ProArc volume route ([ProArc](#proarc-single-volume-resolution)) binds
+a scan of one document as one volume and splits off no supplement.
+
 ### Periodical supplements
 
 A document whose authoritative span the core tells belongs to a supplement
@@ -1279,8 +1310,9 @@ needs only every other part to show its number.
 The page-type stage finds the boundary between two parts of one multipart work
 much less often than other boundaries: consecutive parts look like one book.
 `split_documents` (shared) adds the missed start where a document clearly holds
-two units. The monograph binder runs it in a **multipart** scan, the
-periodical binder always. The spans of a document scoring at least
+two units. The monograph binder runs it in a **multipart** scan, and in a
+scan of monographs only to split off a [supplement](#monograph-supplements);
+the periodical binder always. The spans of a document scoring at least
 `SPLIT_MINIMUM_SCORE` (`0.5`) - a weak or unread title page never splits - are
 taken in page order, each describing the unit open or opening another. A span
 opens another unit when:
@@ -1367,8 +1399,8 @@ pages rather than being merged into a neighbour.
 
 | Scan | Hierarchy |
 |---|---|
-| monographs (monograph binder) | none: every leaf is a `monograph` volume without a parent |
-| multipart (monograph binder) | one title (see [Title creation](#title-creation)), parent of every part |
+| monographs (monograph binder) | none: every leaf is a `monograph` volume without a parent; a [supplement](#monograph-supplements) under its volume |
+| multipart (monograph binder) | one title (see [Title creation](#title-creation)), parent of every part; a [supplement](#monograph-supplements) under its part |
 | periodical (periodical binder) | the [volumes](#periodical-volume-consolidation), each the parent of its run of issues, under one title; a [supplement](#periodical-supplements) under its issue or its volume |
 
 Pages are then numbered 1..n within each leaf by `assign_page_indices()`, and

@@ -570,6 +570,14 @@ def test_the_names_of_a_series_in_several_languages_are_one_series_and_the_paral
     assert series.issn.text == "1211-3298"
 
 
+@pytest.mark.parametrize("supplement", [True, False])
+def test_the_monograph_engine_tells_a_supplement(page, supplement):
+    reply = {**_REPLY, "supplement": supplement}
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(reply).client())
+
+    assert engine.process(_span(page)).spans[0].supplement is supplement
+
+
 # --- the periodical engine ----------------------------------------------------
 
 

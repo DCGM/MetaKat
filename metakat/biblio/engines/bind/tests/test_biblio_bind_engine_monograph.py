@@ -1,3 +1,4 @@
+import dataclasses
 from uuid import UUID, uuid4
 
 import pytest
@@ -20,6 +21,7 @@ from metakat.schemas.base_objects import (
     MetakatGroup,
     MetakatIssue,
     MetakatPage,
+    MetakatSupplement,
     MetakatTitle,
     MetakatVolume,
     ObjectItem,
@@ -852,6 +854,68 @@ def test_a_monograph_scan_is_never_split():
     pages = _scan((), {1: .99, 16: .99}, count=30)
     io, _ = _process(pages, _read(1, 'Kytice'), _read(16, 'Babička'))
     assert len(_of(io, MetakatVolume)) == 1
+
+
+# --- supplements -------------------------------------------------------------
+
+
+def _supplement(*args, **kwargs):
+    return dataclasses.replace(_read(*args, **kwargs), supplement=True)
+
+
+def test_a_supplement_stands_under_the_book_before_it_with_pages_of_its_own():
+    pages = _scan({5}, {1: .99, 5: .99})
+    io, _ = _process(pages, _read(1, 'Dějiny české'), _supplement(5, 'Mapa k Dějinám českým'))
+    [book] = _of(io, MetakatVolume)
+    [supplement] = _of(io, MetakatSupplement)
+    assert book.hierarchy == HierarchyType.MONOGRAPH and book.title[0].text == 'Dějiny české'
+    assert supplement.parent_id == book.id and supplement.title[0].text == 'Mapa k Dějinám českým'
+    assert _parents(io) == [book.id] * 5 + [supplement.id] * 3
+    assert [p.pageIndex for p in _of(io, MetakatPage)] == [1, 2, 3, 4, 5, 1, 2, 3]
+
+
+def test_a_supplement_left_in_its_books_document_is_split_off_at_its_opening():
+    pages = _scan((), {1: .99, 20: .99}, count=30)
+    pages[19].pageType = (PageType.FRONT_COVER, .9)
+    io, _ = _process(pages, _read(1, 'Zeměpis'), _supplement(20, 'Atlas k Zeměpisu'))
+    [book] = _of(io, MetakatVolume)
+    [supplement] = _of(io, MetakatSupplement)
+    assert _parents(io) == [book.id] * 19 + [supplement.id] * 11
+
+
+def test_two_supplements_with_different_titles_are_two_however_close():
+    pages = _scan((), {1: .99, 20: .99, 24: .99}, count=30)
+    io, _ = _process(pages, _read(1, 'Zeměpis'), _supplement(20, 'Mapa Čech'), _supplement(24, 'Mapa Moravy'))
+    [book] = _of(io, MetakatVolume)
+    bohemia, moravia = _of(io, MetakatSupplement)
+    assert _parents(io) == [book.id] * 20 + [bohemia.id] * 4 + [moravia.id] * 6
+    assert {bohemia.parent_id, moravia.parent_id} == {book.id}
+
+
+def test_a_supplement_of_a_part_stands_under_the_part_and_is_no_part_of_the_work():
+    pages = _scan({4, 6}, {1: .99, 4: .99, 7: .99}, count=10)
+    io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1'), _supplement(4, 'Mapy k dílu prvnímu'),
+                     _read(7, 'Dějiny', part='Díl 2'))
+    [title] = _of(io, MetakatTitle)
+    first, second = _of(io, MetakatVolume)
+    [supplement] = _of(io, MetakatSupplement)
+    assert [first.hierarchy, second.hierarchy] == [HierarchyType.MULTIPART] * 2
+    assert {first.parent_id, second.parent_id} == {title.id} and supplement.parent_id == first.id
+    assert title.title[0].text == 'Dějiny'
+
+
+def test_a_supplement_scanned_before_its_book_stands_under_the_book_after_it():
+    pages = _scan({3}, {0: .99, 3: .99})
+    io, _ = _process(pages, _supplement(0, 'Obrazová příloha'), _read(3, 'Kytice'))
+    [book] = _of(io, MetakatVolume)
+    [supplement] = _of(io, MetakatSupplement)
+    assert supplement.parent_id == book.id
+
+
+def test_a_scan_of_only_a_supplement_has_no_book_for_it_and_is_a_volume():
+    io, _ = _process(_scan((), {1: .99}), _supplement(1, 'Atlas'))
+    [volume] = _of(io, MetakatVolume)
+    assert volume.title[0].text == 'Atlas' and not _of(io, MetakatSupplement)
 
 
 @pytest.mark.parametrize('starts, volumes', [(set(), 1), ({4}, 2)])

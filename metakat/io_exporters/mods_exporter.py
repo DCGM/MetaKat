@@ -39,6 +39,7 @@ from uuid import UUID
 from metakat.schemas.base_objects import (
     DocumentType,
     GroupType,
+    HierarchyType,
     MetakatElement,
     MetakatIO,
     MetakatPage,
@@ -539,10 +540,13 @@ def _genre(record: _Record) -> None:
     genre_type = getattr(element, "articleGenre", None) if element.type == DocumentType.ARTICLE.value else None
     attributes = {"type": genre_type.text} if genre_type else {}
     if element.type == DocumentType.SUPPLEMENT.value:
-        # DMF: a supplement of an issue stands under it, one of a volume in place of an issue.
+        # Periodical DMF: a supplement of an issue stands under it, one of a
+        # volume in place of an issue. The monograph DMF types no supplement.
         parent = next((other for other in record.metakat_io.elements if other.id == element.parent_id), None)
-        attributes = {"type": "issue_supplement" if parent is not None and parent.type == DocumentType.ISSUE.value
-                      else "volume_supplement"}
+        if parent is not None and parent.type == DocumentType.ISSUE.value:
+            attributes = {"type": "issue_supplement"}
+        elif parent is not None and getattr(parent, "hierarchy", None) == HierarchyType.PERIODICAL.value:
+            attributes = {"type": "volume_supplement"}
     genre, genre_id = record.container(record.root, "genre", **attributes)
     genre.text = element.type
     if genre_type:

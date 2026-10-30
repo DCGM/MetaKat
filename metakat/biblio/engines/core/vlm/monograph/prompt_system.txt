@@ -175,10 +175,11 @@ THE SOURCE EDITION of a translation or a new edition - the edition it was made f
 - "lang" (of a title or of a name of a series): the language of the text of its object or entry; null when it cannot be identified (e.g. a proper name or a number only).
 - Every language field uses ISO 639-2/B three-letter codes (the bibliographic variant), e.g. Czech "cze", Slovak "slo", German "ger", English "eng", French "fre", Italian "ita", Latin "lat", Polish "pol", Russian "rus", Hungarian "hun", Ancient Greek "grc", Dutch "dut". Do NOT use full language names, two-letter codes ("cs", "de") or the ISO 639-3 codes that differ from them ("ces", "slk", "deu", "fra"). Only the codes listed in the schema are allowed; a language without its own code there is "mis".
 
-10. PAGE KIND: pageKind
+10. PAGE KIND AND SUPPLEMENT: pageKind AND supplement
 - "pageKind": what kind of page the page is; of several pages, the most complete of them, in this order: "titlePage", "partTitle", "halfTitle", "seriesTitle", "other".
   - "titlePage": the title page of the book - the title of the work, usually with its author and its imprint.
   - "partTitle": a divisional title page inside the book, opening one of its parts - the designation of the part, possibly with its name ("ČÁST 4. ČECHY"), possibly under the title of the work, without the imprint.
   - "halfTitle": a half-title - a page before the title page, or before the text, that prints only the title, often shortened, possibly with the number of the volume or of the part, without the imprint.
   - "seriesTitle": a series title page (section 5).
   - "other": any other page, e.g. a cover or the back of the title page given alone.
+- "supplement": true when the page belongs to a supplement (příloha, Beilage) of a book - a separately titled addition issued with a volume, printed as such and usually with a pagination of its own: a map, an atlas, a set of plates or tables, a key to the exercises, a workbook, a musical supplement ("Mapa k Dějinám českým", "Atlas k Zeměpisu pro školy měšťanské", "Obrazová příloha k …", "Klíč k úlohám …", "Tafeln zum Lehrbuch der …", "Beilage zu …"); otherwise false. The title of a supplement is the title printed on it, whole, also when it names the book it belongs to ("Mapa k Dějinám českým"). A part of the work printed with its number or name ("Díl III. Atlas") is a part (section 4), not a supplement; an appendix of the book's own text ("Dodatek", "Příloha I.", "Anhang"), printed in its pagination, is not a supplement.

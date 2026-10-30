@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import difflib
 import logging
 import os
 import re
@@ -338,6 +339,32 @@ def different_issue(first: TitleSpan, second: TitleSpan) -> bool:
         return True
     issues = [span.issue.partNumber if span.issue is not None else None for span in (first, second)]
     return all(issue is not None for issue in issues) and not texts_match(*issues)
+
+
+def title_similarity(first: str, second: str) -> float:
+    """How alike two readings of a title are, from 0 to 1, after normalizing case, accents and punctuation."""
+    return difflib.SequenceMatcher(None, normalize_text(first), normalize_text(second)).ratio()
+
+
+# How alike two supplements' titles must be (title_similarity) to be one
+# supplement's.
+SUPPLEMENT_TITLE_SIMILARITY = 0.8
+
+
+def different_supplements(first: TitleSpan, second: TitleSpan) -> bool:
+    """Whether two spans are a supplement's and another unit's, or two supplements' with titles that do not agree.
+
+    A supplement may print what names the unit it belongs to - a periodical
+    supplement the numbering of its issue - not its own: two supplements of
+    one unit differ in their titles. A supplement without a title read agrees
+    with any."""
+    if first.supplement != second.supplement:
+        return True
+    if not first.supplement:
+        return False
+    titles = [kept(span.volume.title) if span.volume is not None else None for span in (first, second)]
+    return all(title is not None for title in titles) and \
+        title_similarity(titles[0].text, titles[1].text) < SUPPLEMENT_TITLE_SIMILARITY
 
 
 def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceContainers]) -> None:
@@ -725,10 +752,14 @@ def split_documents(
 
 def authoritative_spans(documents: List[List[MetakatPage]], spans: List[TitleSpan]) -> List[Optional[TitleSpan]]:
     """Per document, the span that names it: of its spans that name something, the one with the
-    highest score (the first on a tie); None when none does. The others are ignored."""
-    return [max((span for span in spans if span.document == index and span.names),
-                key=lambda span: span.score, default=None)
-            for index in range(len(documents))]
+    highest score (the first on a tie); None when none does. The others are ignored. A supplement's
+    span names a document only when no other span does: a supplement left in the document of the
+    unit it belongs to (split_documents) is part of that unit."""
+    def naming(index: int) -> List[TitleSpan]:
+        named = [span for span in spans if span.document == index and span.names]
+        return [span for span in named if not span.supplement] or named
+
+    return [max(naming(index), key=lambda span: span.score, default=None) for index in range(len(documents))]
 
 
 _ISBN = re.compile(r"\d(?:[\s-]?[\dXx]){7,12}")

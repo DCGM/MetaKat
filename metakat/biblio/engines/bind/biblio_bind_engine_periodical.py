@@ -18,7 +18,6 @@ rare and cannot be told apart from it.
 from __future__ import annotations
 
 import dataclasses
-import difflib
 import logging
 import math
 import re
@@ -32,12 +31,14 @@ from metakat.biblio.engines.bind.biblio_binding import (
     TitleSpan,
     authoritative_spans,
     different_issue,
+    different_supplements,
     kept,
     normalize_text,
     read_scan,
     same_issue,
     split_documents,
     texts_match,
+    title_similarity,
     write_scan,
 )
 from metakat.schemas.base_objects import (
@@ -54,29 +55,12 @@ from metakat.schemas.base_objects import (
 
 logger = logging.getLogger(__name__)
 
-# How alike two supplements' titles must be (title_similarity) to be one
-# supplement's.
-SUPPLEMENT_TITLE_SIMILARITY = 0.8
+
 
 def reads_issue(span: TitleSpan) -> bool:
     """Whether a span reads what makes an issue its own: an issue number or date, a volume number or year,
     or that it is a supplement."""
     return span.periodical or span.supplement
-
-
-def different_supplements(first: TitleSpan, second: TitleSpan) -> bool:
-    """Whether two spans are an issue's and a supplement's, or two supplements' with titles that do not agree.
-
-    A supplement prints the numbering of the issue it belongs to, not its own:
-    two supplements of one issue read the same numbering and differ in their
-    titles. A supplement without a title read agrees with any."""
-    if first.supplement != second.supplement:
-        return True
-    if not first.supplement:
-        return False
-    titles = [kept(span.volume.title) if span.volume is not None else None for span in (first, second)]
-    return all(title is not None for title in titles) and \
-        title_similarity(titles[0].text, titles[1].text) < SUPPLEMENT_TITLE_SIMILARITY
 
 
 def same_unit(first: TitleSpan, second: TitleSpan) -> bool:
@@ -126,12 +110,6 @@ class BiblioBindEnginePeriodical(BiblioBindEngine):
                                     different_unit=different_unit)
         logger.info(f"Binding {len(documents)} issue(s)")
         winners = authoritative_spans(documents, scan.spans)
-        for index, winner in enumerate(winners):
-            # A supplement left in its issue's document: the issue names it.
-            if winner is not None and winner.supplement:
-                issue_spans = [s for s in scan.spans if s.document == index and s.names and not s.supplement]
-                if issue_spans:
-                    winners[index] = max(issue_spans, key=lambda span: span.score)
         issues: List[MetakatElement] = []
         for document, winner in zip(documents, winners):
             issue = unit_of(winner)
@@ -160,11 +138,6 @@ class BiblioBindEnginePeriodical(BiblioBindEngine):
 
 
 # --- the periodical's title ---------------------------------------------------
-
-
-def title_similarity(first: str, second: str) -> float:
-    """How alike two readings of a title are, from 0 to 1, after normalizing case, accents and punctuation."""
-    return difflib.SequenceMatcher(None, normalize_text(first), normalize_text(second)).ratio()
 
 
 def periodical_title(spans: List[TitleSpan]) -> MetakatTitle:
