@@ -236,6 +236,33 @@ def test_identifiers_series_details_names_distribution_languages_and_illustratio
         (None, "cze"), ("translated", "fre")]
 
 
+def test_a_parallel_series_name_is_a_translated_title_info_in_the_related_item_of_its_series(
+        batch, tmp_path, mods_schema):
+    v = batch.volume
+    v.seriesName += [batch.v("Řada zábavná", 0.9, 0), batch.parallel_title("Bibliothek der Klassiker", 0, "ger")]
+    v.seriesPartNumber = [batch.v("3", 0.9, 0), batch.v("12", 0.9, 0), batch.v("3", 0.9, 0)]
+    v.seriesIssn = [batch.v("1211-3298", 0.9, 0), batch.v("1211-3298", 0.8, 0)]
+    main, other, parallel = zip(v.seriesName, v.seriesPartNumber)
+    v.groups += [
+        MetakatGroup(type=GroupType.SERIES, members=[main[0].id, main[1].id, v.seriesIssn[0].id]),
+        MetakatGroup(type=GroupType.SERIES, members=[other[0].id, other[1].id]),
+        MetakatGroup(type=GroupType.SERIES, members=[parallel[0].id, parallel[1].id, v.seriesIssn[1].id]),
+    ]
+    volume = _export(batch, tmp_path, provenance=True)[str(v.id)]
+
+    assert mods_schema.validate(volume), mods_schema.error_log.last_error
+    items = volume.xpath("/mods:mods/mods:relatedItem[@type='series']", namespaces=NS)
+    # The parallel name joins the series with its number, not the one before it.
+    assert [[(title_info.get("type"), [child.text for child in title_info])
+             for title_info in item.findall(f"{{{NS['mods']}}}titleInfo")] for item in items] == [
+        [(None, ["Knihovna klasiků", "3"]), ("translated", ["Bibliothek der Klassiker", "3"])],
+        [(None, ["Řada zábavná", "12"])],
+    ]
+    # The repeated ISSN is written once and backs it in provenance.
+    assert _texts(volume, "/mods:mods/mods:relatedItem/mods:identifier") == ["1211-3298"]
+    assert len(volume.xpath("//mkp:event[mkp:observedValue='1211-3298']", namespaces=NS)) == 2
+
+
 def test_a_chapters_parallel_toc_title_is_written_as_translated_not_demoted(batch, tmp_path, mods_schema):
     c = batch.chapter
     c.titleTocPage.append(batch.parallel_title("Preface", 2, "eng"))

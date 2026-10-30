@@ -28,6 +28,7 @@ from metakat.biblio.engines.core.models import (
     BiblioPublication,
     BiblioReading,
     BiblioResponsibility,
+    BiblioSeries,
     BiblioSpanResult,
     BiblioTitleInfo,
     merge_span,
@@ -232,6 +233,18 @@ def test_a_title_and_its_subtitle_carry_whether_the_title_is_parallel(metakat_pa
 
     assert [(value.text, value.translated) for value in volume.title] == [("Kytice", False), ("Bouquet", True)]
     assert [(value.text, value.translated) for value in volume.subTitle] == [("de légendes", True)]
+
+
+def test_a_series_name_carries_whether_it_is_parallel(metakat_page):
+    page = _page_result(_titled(series=(
+        BiblioSeries(name=_ev("Knihovna klasiků", 0.9), part_number=_ev("3", 0.9), translated=False),
+        BiblioSeries(name=_ev("Bibliothek der Klassiker", 0.9), part_number=_ev("3", 0.9), translated=True),
+    )))
+
+    volume, _ = span_candidates(page)[0]
+
+    assert [(value.text, value.translated) for value in volume.seriesName] == [
+        ("Knihovna klasiků", False), ("Bibliothek der Klassiker", True)]
 
 
 def test_readings_without_a_title_are_not_referenced(metakat_page):

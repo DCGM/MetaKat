@@ -120,6 +120,9 @@
                 "type": "null"
               }
             ]
+          },
+          "translated": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -128,7 +131,8 @@
           "seriesPartName",
           "seriesIssn",
           "seriesEditor",
-          "lang"
+          "lang",
+          "translated"
         ],
         "additionalProperties": false
       }

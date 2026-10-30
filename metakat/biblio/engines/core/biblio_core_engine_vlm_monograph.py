@@ -13,7 +13,8 @@ in it is not read. Of the reply this engine reads:
 - every `publication`, without its `publisherInferred` flag: a publisher the
   model derived from the page - the author of a book published "nákladem
   vlastním" - is read as the publisher;
-- every `distribution`, `manufacture` and `series`, with its ISSN and editors;
+- every `distribution` and `manufacture`, and every `series` with its ISSN
+  and editors, flagged `translated` when it is a parallel name of a series;
 - the `agents`, each in the field of its role, with its type, its terms of
   address and its `description` as its affiliations, and `etal`;
 - the statements of responsibility, the `copyrightDate`, the `isbn` and
@@ -114,6 +115,7 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
             part_name=values.one(path + ("seriesPartName",), item.get("seriesPartName"), item.get("lang")),
             issn=values.one(path + ("seriesIssn",), item.get("seriesIssn")),
             editors=values.many(path + ("seriesEditor",), item.get("seriesEditor")),
+            translated=item.get("translated") if isinstance(item.get("translated"), bool) else None,
         )
         for path, item in values.items(reply, "series")
     ]

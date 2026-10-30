@@ -99,9 +99,14 @@ class BiblioManufacture:
 
 @dataclass(frozen=True)
 class BiblioSeries:
-    """One series statement: <relatedItem type="series">, with its ISSN and editors."""
+    """One series statement: <relatedItem type="series">, with its ISSN and editors.
+
+    `translated` is true for a parallel name of a series in another language,
+    false for its main name, None when the reader cannot tell (TitleValue)."""
 
     GROUP_TYPE = GroupType.SERIES
+
+    translated: Optional[bool] = None
 
     name: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesName"))
     part_number: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesPartNumber"))

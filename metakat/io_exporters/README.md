@@ -37,7 +37,7 @@ one against the Library of Congress schema.
 | distribution fields | `<originInfo eventType="distribution">`, distributor as `agent` with role `distributor`, date as `dateOther type="distribution"` |
 | `copyrightDate` | `<originInfo eventType="copyright">` |
 | manufacture fields | `<originInfo eventType="manufacture">`, printer as `agent` with role `manufacturer`, date as `dateOther type="manufacture"` |
-| series fields | `<relatedItem type="series">`: `<titleInfo>`, `seriesIssn` as `<identifier type="issn">`, `seriesEditor` as `<name>` with role `edt` |
+| series fields | `<relatedItem type="series">`: `<titleInfo>`, `seriesIssn` as `<identifier type="issn">`, `seriesEditor` as `<name>` with role `edt`; a series group whose `seriesName` is flagged `translated` (a parallel name) is a `<titleInfo type="translated">` in the relatedItem of its series - the main name with the same number, else the nearest main name before it, else the first (DMF: one titleInfo per field under a common relatedItem) - and an ISSN or editor it repeats is written once, backing the written one in provenance |
 | `statementOfResponsibility` | `<note type="statement of responsibility">` |
 | `language`, `originalLanguage` | `<language><languageTerm authority="iso639-2b">`; an original language with `objectPart="translation"` (DMF, MARC 041 `$h`) |
 | `form`, `illustrativeContent` | one `<physicalDescription>`: `<form authority="marcform">`, each statement of illustrations as `<note type="physical details">` (the LoC note type for MARC 300 details) |

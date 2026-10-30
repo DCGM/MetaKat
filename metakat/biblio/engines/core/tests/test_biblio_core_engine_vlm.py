@@ -484,7 +484,7 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_ro
                  {"level": 2, "partNumber": "4", "partName": "ČECHY"},
                  {"level": 2, "partNumber": "5", "partName": "MORAVA"}]}],
              "series": [{"seriesName": "SVĚTOVÁ KNIHOVNA", "seriesPartNumber": "sv. 312", "seriesPartName": None,
-                         "seriesIssn": "1211-3298", "seriesEditor": ["JOSEF TŮMA"], "lang": "cze"}],
+                         "seriesIssn": "1211-3298", "seriesEditor": ["JOSEF TŮMA"], "lang": "cze", "translated": False}],
              "agents": [_agent("translator", "J. V. NOVÁK", termsOfAddress=["Dr."],
                                description=["c. k. professor v Praze"]),
                         _agent("composer", "B. SMETANA"), _agent("issuingBody", "UNIVERZITA KARLOVA", type="corporate")],
@@ -543,6 +543,19 @@ def test_a_parallel_title_is_flagged_translated_and_the_main_one_not(page):
     parallel, main = engine.process(_span(page)).spans[0].reading.title_infos
 
     assert [(t.title.text, t.translated) for t in (parallel, main)] == [("BOUQUET", True), ("KYTICE", False)]
+
+
+def test_a_parallel_series_name_is_flagged_translated_and_the_main_one_not(page):
+    series = {"seriesPartNumber": "3", "seriesPartName": None, "seriesIssn": None, "seriesEditor": []}
+    reply = {**_REPLY, "series": [
+        {**series, "seriesName": "KNIHOVNA KLASIKŮ", "lang": "cze", "translated": False},
+        {**series, "seriesName": "BIBLIOTHEK DER KLASSIKER", "lang": "ger", "translated": True}]}
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(reply).client())
+
+    main, parallel = engine.process(_span(page)).spans[0].reading.series
+
+    assert [(s.name.text, s.translated) for s in (main, parallel)] == [
+        ("KNIHOVNA KLASIKŮ", False), ("BIBLIOTHEK DER KLASSIKER", True)]
 
 
 # --- the periodical engine ----------------------------------------------------

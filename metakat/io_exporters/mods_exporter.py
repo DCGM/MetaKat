@@ -331,16 +331,49 @@ def _origin_info(record: _Record, group_type: Optional[str], event_type: str, ro
 
 
 def _related_items(record: _Record, group_type: str, item_type: str, fields: dict[str, str]) -> None:
-    for members in _consume_groups(record, group_type, tuple(fields)):
-        container, target = record.container(record.root, "relatedItem", type=item_type)
+    # A parallel name of a series - flagged translated - is a <titleInfo
+    # type="translated"> in the relatedItem of its series (DMF: one titleInfo
+    # per field under a common relatedItem): the main name with the same
+    # number, else the nearest main name before it, else the first one. What
+    # it repeats of its series - the ISSN, an editor - is written once.
+    groups = list(_consume_groups(record, group_type, tuple(fields)))
+    parallel = [any(getattr(v, "translated", None) is True for v, _ in members) for members in groups]
+    main = [index for index, flag in enumerate(parallel) if not flag]
+
+    def number(members) -> Optional[str]:
+        return next((v.text for v, f in members if fields[f] == "partNumber"), None)
+
+    def series_of(index: int) -> Optional[int]:
+        same = [m for m in main if number(groups[m]) is not None and number(groups[m]) == number(groups[index])]
+        before = [m for m in main if m < index]
+        return (same or before[-1:] or main[:1] or [None])[0]
+
+    items = {}
+    for index in main + [index for index, flag in enumerate(parallel) if flag]:
+        members = groups[index]
+        owner = series_of(index) if parallel[index] else index
+        if owner in items:
+            container, target = items[owner]
+        else:
+            container, target = items[index] = record.container(record.root, "relatedItem", type=item_type)
         title_members = [(v, f) for v, f in members if fields[f] in ("title", "partNumber", "partName")]
         if title_members:
-            title_info = ET.SubElement(container, _m("titleInfo"), _common_lang(v for v, _ in title_members))
+            attributes = _common_lang(v for v, _ in title_members)
+            if parallel[index]:
+                attributes["type"] = "translated"
+            title_info = ET.SubElement(container, _m("titleInfo"), attributes)
             for value, field_name in title_members:
                 record.leaf(title_info, fields[field_name], value.text)
                 record.value(target, container, fields[field_name], value, field_name)
         for value, field_name in members:
-            if fields[field_name] == "identifier":
+            # A repeated ISSN or editor backs the one written in provenance.
+            repeated = next((assertion for assertion in record.assertions
+                             if assertion.target == target and fields[field_name] in ("identifier", "name")
+                             and assertion.values[0][1] == field_name
+                             and assertion.values[0][0].text.strip() == value.text.strip()), None)
+            if repeated is not None:
+                repeated.values.append((value, field_name))
+            elif fields[field_name] == "identifier":
                 identifier = record.leaf(container, "identifier", value.text, type="issn")
                 record.value(target, container, "identifier", value, field_name, leaf=identifier)
             elif fields[field_name] == "name":

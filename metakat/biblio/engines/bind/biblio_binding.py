@@ -29,6 +29,7 @@ from metakat.biblio.engines.core.models import (
     BiblioCoreResult,
     BiblioPage,
     BiblioReading,
+    BiblioSeries,
     BiblioSpanResult,
     BiblioTitleInfo,
     container_values,
@@ -314,8 +315,9 @@ def span_candidates(
                     # The name, with what the agent is.
                     value = AgentValue(text=evidence.text, confidence=evidence.confidence, id=uuid4(),
                                        lang=evidence.lang, type=container.type)
-                elif isinstance(container, BiblioTitleInfo) and field_name in ("title", "subTitle"):
-                    # A title, main or parallel.
+                elif (isinstance(container, BiblioTitleInfo) and field_name in ("title", "subTitle")
+                      or isinstance(container, BiblioSeries) and field_name == "seriesName"):
+                    # A title or a series name, main or parallel.
                     value = TitleValue(text=evidence.text, confidence=evidence.confidence, id=uuid4(),
                                        lang=evidence.lang, translated=container.translated)
                 else:

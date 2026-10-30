@@ -276,12 +276,13 @@ class AgentValue(Value):
 
 
 class TitleValue(Value):
-    """A title or subtitle: a Value with whether its title is a parallel one.
+    """A title, subtitle or series name: a Value with whether it is a parallel one.
 
     `translated` is true for a title in another language printed beside the
     main one - a parallel title, which MODS writes as <titleInfo
     type="translated"> - false for the main title, and None when the
-    producer cannot tell. A subtitle carries the flag of its title.
+    producer cannot tell. A subtitle carries the flag of its title. A series
+    name is flagged the same way among the names of its series.
     """
 
     translated: Optional[StrictBool] = None
@@ -514,7 +515,10 @@ class _MetakatBibliographicFields(MetakatBaseModel):
 
     # <relatedItem type="series">: its title, its ISSN as
     # <identifier type="issn"> and its editors as <name> with the role edt.
-    seriesName: Optional[List[Value]] = None
+    # A parallel name of a series is flagged translated and written in the
+    # relatedItem of its series as <titleInfo type="translated"> (DMF: one
+    # <titleInfo> per field under a common relatedItem).
+    seriesName: Optional[List[TitleValue]] = None
     seriesPartNumber: Optional[List[Value]] = None
     seriesPartName: Optional[List[Value]] = None
     seriesIssn: Optional[List[Value]] = None
