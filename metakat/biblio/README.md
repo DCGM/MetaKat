@@ -1116,6 +1116,19 @@ its own title as printed ("Mapa k Dějinám českým"), its imprint and names.
   at the opening before its title page (`opening_start`): a front cover of
   the atlas starts it. Two supplements whose titles do not agree are two,
   however close (`different_supplements`).
+- **Bound in.** A supplement can be bound into its volume, the book going on
+  after it (a folded map after page 64, the text again on page 65; the old
+  prints' "vevázaná příloha", STT). The supplement then ends where the
+  volume's printed numbering resumes (`resumed_page`): the first page after
+  its title page printing a number of the volume's numeral system higher
+  than the volume's last number before it, by at most the scans between
+  them - the supplement's leaves do not advance the volume's numbering. Only
+  numbers found on the page count (`printed_page_number`: with geometry in
+  `detection_to_bbox`); a label the NDK pagination supplied, a suffixed or
+  bracketed number, does not. From that page on, the document's pages are
+  the volume's again. A supplement paginated on its own (1, 2, ...) never
+  continues the volume, and without a printed number on both sides the
+  supplement keeps every page after it.
 - **Where it stands.** Under the volume before it: the monograph, or in a
   multipart scan the part. A supplement scanned before any volume stands
   under the volume after it. A scan holding no volume has nothing for a

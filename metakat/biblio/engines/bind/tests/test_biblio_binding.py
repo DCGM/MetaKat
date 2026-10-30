@@ -580,14 +580,16 @@ class _Core:
             for span in spans))
 
 
-def _process(pages, *readings, proarc_io=None, binder=BiblioBindEngineMonograph, **attributes):
+def _process(pages, *readings, proarc_io=None, binder=BiblioBindEngineMonograph, detection_to_bbox=None,
+             **attributes):
     binder = object.__new__(binder)
     binder.core_engine = _Core({result.page_keys[0]: result for result in readings})
     for name, value in attributes.items():
         setattr(binder, name, value)
     io = MetakatIO(batch_id=pages[0].batch_id, elements=pages,
                    page_to_image_mapping={page.id: f'p{page.batch_index}.jpg' for page in pages},
-                   page_to_alto_mapping={page.id: f'p{page.batch_index}.xml' for page in pages})
+                   page_to_alto_mapping={page.id: f'p{page.batch_index}.xml' for page in pages},
+                   detection_to_bbox=detection_to_bbox or {})
     return binder.process('/b', io, proarc_io), binder.core_engine
 
 

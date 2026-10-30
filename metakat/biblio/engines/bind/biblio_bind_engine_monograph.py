@@ -17,9 +17,10 @@ writing the result are shared with the periodical binder (biblio_binding).
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Mapping
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
@@ -256,6 +257,56 @@ def same_unit(first: TitleSpan, second: TitleSpan) -> bool:
     return not different_supplements(first, second) and same_part(first, second)
 
 
+_ROMAN = re.compile(r"M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})")
+_ROMAN_DIGITS = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
+
+
+def printed_page_number(page: MetakatPage, observed: Mapping) -> Optional[Tuple[str, int]]:
+    """The number printed on a page, as (numeral system, value); None when none was read on it.
+
+    Only a number found on the page counts - one with geometry in `observed`
+    (detection_to_bbox); a label the NDK pagination supplied has none. A
+    number with a letter suffix or brackets is not a plain page of the
+    sequence."""
+    value = page.pageNumber
+    if value is None or value.id not in observed:
+        return None
+    text = value.text.strip()
+    if text.isdigit():
+        return "arabic", int(text)
+    if text and _ROMAN.fullmatch(text.upper()):
+        total, previous = 0, 0
+        for character in reversed(text.upper()):
+            digit = _ROMAN_DIGITS[character]
+            total, previous = (total - digit, previous) if digit < previous else (total + digit, digit)
+        return "roman", total
+    return None
+
+
+def resumed_page(volume_pages: List[MetakatPage], pages: List[MetakatPage],
+                 observed: Mapping) -> Optional[MetakatPage]:
+    """The first of `pages` - those after a supplement's title page - where the numbering of the volume
+    before it resumes: the volume enveloping a supplement bound into it.
+
+    The volume's last printed number before the supplement is continued by a
+    page printing a higher number of the same numeral system, higher by at
+    most the scans between them: the supplement's leaves do not advance the
+    volume's numbering, so a supplement paginated on its own (1, 2, ...) or
+    a page beyond reach does not continue it. None when the volume printed no
+    number before the supplement, or nothing continues it."""
+    last = next(((page, number) for page in reversed(volume_pages)
+                 if (number := printed_page_number(page, observed)) is not None), None)
+    if last is None:
+        return None
+    (last_page, (system, value)) = last
+    for page in pages:
+        number = printed_page_number(page, observed)
+        if number is not None and number[0] == system and \
+                value < number[1] <= value + page.batch_index - last_page.batch_index:
+            return page
+    return None
+
+
 def supplement_of(volume: MetakatVolume) -> MetakatSupplement:
     """The supplement a volume candidate read on a supplement's title page describes: everything it read."""
     return MetakatSupplement(**{name: getattr(volume, name) for name in MetakatVolume.model_fields
@@ -392,12 +443,30 @@ class BiblioBindEngineMonograph(BiblioBindEngine):
                 page.parent_id = unit.id
             units.append(unit)
         volumes = [unit for unit in units if isinstance(unit, MetakatVolume)]
+        observed = scan.metakat_io.detection_to_bbox or {}
         for index, unit in enumerate(units):
-            if isinstance(unit, MetakatSupplement):
-                # DMF: a supplement scanned with a volume belongs to that volume.
-                host = next((other for other in reversed(units[:index]) if isinstance(other, MetakatVolume)), None) \
-                    or next(other for other in units[index:] if isinstance(other, MetakatVolume))
-                unit.parent_id = host.id
+            if not isinstance(unit, MetakatSupplement):
+                continue
+            # DMF: a supplement scanned with a volume belongs to that volume.
+            before = next((other for other in reversed(range(index)) if isinstance(units[other], MetakatVolume)), None)
+            if before is None:
+                unit.parent_id = next(other for other in units[index:] if isinstance(other, MetakatVolume)).id
+                continue
+            host = units[before]
+            unit.parent_id = host.id
+            # A supplement bound into its volume: the volume's pages after it
+            # are the volume's again.
+            title_end = max(span.end for span in scan.spans if span.document == index and span.supplement)
+            after = [page for page in documents[index] if page.batch_index > title_end]
+            # The volume's pages so far, those it resumed after an earlier supplement included.
+            host_pages = [page for page in scan.pages
+                          if page.parent_id == host.id and page.batch_index < documents[index][0].batch_index]
+            resumed = resumed_page(host_pages, after, observed)
+            if resumed is not None:
+                logger.info("Volume %s resumes on page %s after supplement %s bound into it",
+                            host.id, resumed.id, unit.id)
+                for page in after[after.index(resumed):]:
+                    page.parent_id = host.id
         title = title_from(volumes, HierarchyType.MULTIPART) if multipart else None
         # Every title page may print the set's ISBN, not only the one naming its volume.
         read = [span.volume for span in scan.spans if span.volume is not None and not span.supplement]

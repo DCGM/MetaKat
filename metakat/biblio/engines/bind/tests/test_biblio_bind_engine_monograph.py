@@ -912,6 +912,48 @@ def test_a_supplement_scanned_before_its_book_stands_under_the_book_after_it():
     assert supplement.parent_id == book.id
 
 
+def _numbered(pages, numbers, supplied=()):
+    """Print `numbers` {batch index: text} on the pages; the `supplied` ones as NDK labels, without geometry."""
+    boxes = {}
+    for index, text in numbers.items():
+        pages[index].pageNumber = _v(text, .9)
+        if index not in supplied:
+            boxes[pages[index].pageNumber.id] = (1., 1., 10., 10.)
+    return boxes
+
+
+def _bound_in_map(numbers, supplied=()):
+    # A book of 30 scans numbered from scan 2, a map bound in at scans 20-23.
+    pages = _scan((), {1: .99, 20: .99}, count=30)
+    boxes = _numbered(pages, numbers, supplied)
+    io, _ = _process(pages, _read(1, 'Dějiny okresu'), _supplement(20, 'Mapa okresu'), detection_to_bbox=boxes)
+    [book] = _of(io, MetakatVolume)
+    [supplement] = _of(io, MetakatSupplement)
+    return io, book, supplement
+
+
+def test_a_supplement_bound_into_its_book_ends_where_the_books_numbering_resumes():
+    io, book, supplement = _bound_in_map({**{i: str(i - 1) for i in range(2, 20)},
+                                          **{i: str(i - 5) for i in range(24, 30)}})
+    assert _parents(io) == [book.id] * 20 + [supplement.id] * 4 + [book.id] * 6
+    assert [p.pageIndex for p in _of(io, MetakatPage)] == [*range(1, 21), 1, 2, 3, 4, *range(21, 27)]
+
+
+@pytest.mark.parametrize("numbers, supplied", [
+    # The supplement's own pagination does not continue the book's.
+    ({**{i: str(i - 1) for i in range(2, 20)}, **{i: str(i - 20) for i in range(21, 30)}}, ()),
+    # A label the NDK pagination supplied is no number printed.
+    ({**{i: str(i - 1) for i in range(2, 20)}, 24: "19"}, (24,)),
+    # Beyond reach: more pages than scans since the book's last number.
+    ({**{i: str(i - 1) for i in range(2, 20)}, 24: "40"}, ()),
+    # In another numeral system.
+    ({**{i: str(i - 1) for i in range(2, 20)}, 24: "xix"}, ()),
+])
+def test_a_supplement_keeps_the_pages_after_it_unless_the_books_printed_numbering_resumes(numbers, supplied):
+    io, book, supplement = _bound_in_map(numbers, supplied)
+    assert _parents(io) == [book.id] * 20 + [supplement.id] * 10
+
+
 def test_a_scan_of_only_a_supplement_has_no_book_for_it_and_is_a_volume():
     io, _ = _process(_scan((), {1: .99}), _supplement(1, 'Atlas'))
     [volume] = _of(io, MetakatVolume)
