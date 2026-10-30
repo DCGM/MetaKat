@@ -30,6 +30,7 @@ from metakat.biblio.engines.core.models import (
     BiblioReading,
     BiblioResponsibility,
     BiblioSeries,
+    BiblioSeriesEditor,
     BiblioSeriesTitle,
     BiblioTitleInfo,
     container_values,
@@ -253,7 +254,7 @@ def test_every_result_field_maps_to_a_bibliographic_field_in_its_containers_mods
 def test_every_grouped_bibliographic_field_is_covered_by_a_container():
     covered = {
         f.metadata["metakat"]
-        for container in (*CONTAINERS, BiblioPart, BiblioSeriesTitle)
+        for container in (*CONTAINERS, BiblioPart, BiblioSeriesTitle, BiblioSeriesEditor)
         for f in dataclasses.fields(container)
         if "metakat" in f.metadata
     } | {role.value for role in AgentRole}

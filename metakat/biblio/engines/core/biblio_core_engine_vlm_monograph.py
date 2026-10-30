@@ -12,9 +12,11 @@ in it is not read. Of the reply this engine reads:
   publisher it stands for (the author) as its publisher;
 - every `distribution` and `manufacture`, a printer printed as the
   publisher's own printing house with its `manufacturePublisherStatement`;
-- every `series` with its ISSN and editors and its `titleInfo`: the names of
-  the series, one per language, each with its number and part name, flagged
-  `translated` when it is a parallel name;
+- every `series` with its ISSNs and editors and its `titleInfo`: the names
+  of the series, one per language, each with its number and part name,
+  flagged `translated` when it is a parallel name; each editor, read as an
+  agent is, with its type, its terms of address and its `description` as its
+  affiliations;
 - the `agents`, each in the field of its role, with its type, its terms of
   address and its `description` as its affiliations, and `etal`;
 - the statements of responsibility, the `copyrightDate`, the `isbn` and
@@ -50,11 +52,13 @@ from metakat.biblio.engines.core.models import (
     BiblioReading,
     BiblioResponsibility,
     BiblioSeries,
+    BiblioSeriesEditor,
     BiblioSeriesTitle,
     BiblioSpanResult,
     BiblioTitleInfo,
     TitlePageKind,
 )
+from metakat.schemas.base_objects import NameType
 
 logger = logging.getLogger(__name__)
 
@@ -121,8 +125,17 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
                 )
                 for title_path, title in values.items(item, "titleInfo")
             ),
-            issn=values.one(path + ("seriesIssn",), item.get("seriesIssn")),
-            editors=values.many(path + ("seriesEditor",), item.get("seriesEditor")),
+            issns=values.many(path + ("seriesIssn",), item.get("seriesIssn")),
+            editors=tuple(
+                BiblioSeriesEditor(
+                    name=name,
+                    type=_name_type(editor.get("type")),
+                    terms_of_address=values.many(path + editor_path + ("termsOfAddress",), editor.get("termsOfAddress")),
+                    affiliations=values.many(path + editor_path + ("description",), editor.get("description")),
+                )
+                for editor_path, editor in values.items(item, "seriesEditor")
+                if (name := values.one(path + editor_path + ("name",), editor.get("name"))) is not None
+            ),
         )
         for path, item in values.items(reply, "series")
     ]
@@ -162,3 +175,8 @@ def _parts(values: ReplyValues, path: tuple, item: Mapping[str, Any], lang: Any)
                    parts=_parts(values, path + part_path, part, lang))
         for part_path, part in values.items(item, "parts")
     )
+
+
+def _name_type(label: Any) -> Optional[NameType]:
+    # What an agent is, when the reply names one of the types.
+    return NameType(label) if isinstance(label, str) and label in NameType._value2member_map_ else None

@@ -271,7 +271,7 @@ def test_a_series_name_carries_whether_it_is_parallel(metakat_page):
     page = _page_result(_titled(series=(BiblioSeries(titles=(
         BiblioSeriesTitle(name=_ev("Knihovna klasiků", 0.9), part_number=_ev("sv. 3", 0.9), translated=False),
         BiblioSeriesTitle(name=_ev("Bibliothek der Klassiker", 0.9), part_number=_ev("Bd. 3", 0.9), translated=True),
-    ), issn=_ev("1211-3298", 0.9)),)))
+    ), issns=(_ev("1211-3298", 0.9),)),)))
 
     volume, _ = span_candidates(page)[0]
     finalize_groups(volume)

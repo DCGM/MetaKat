@@ -543,8 +543,12 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     # <note type="statement of responsibility">
     statementOfResponsibility: Optional[List[Value]] = None
 
-    # <relatedItem type="series">: its title, its ISSN as
+    # <relatedItem type="series">: its title, its ISSNs as
     # <identifier type="issn"> and its editors as <name> with the role edt.
+    # An editor is read as any agent is, with what it is (AgentValue), its
+    # terms of address and its affiliations, in an AGENT group nested in the
+    # series' group; the DMF maps no more of a series than its titles (MARC
+    # 490/830), so those two are MetaKat's only.
     # A parallel name of a series is flagged translated and written in the
     # relatedItem of its series as <titleInfo type="translated"> (DMF: one
     # <titleInfo> per field under a common relatedItem).
@@ -552,7 +556,9 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     seriesPartNumber: Optional[List[Value]] = None
     seriesPartName: Optional[List[Value]] = None
     seriesIssn: Optional[List[Value]] = None
-    seriesEditor: Optional[List[Value]] = None
+    seriesEditor: Optional[List[AgentValue]] = None
+    seriesEditorTermsOfAddress: Optional[List[Value]] = None
+    seriesEditorAffiliation: Optional[List[Value]] = None
 
     # <identifier type="isbn"> and <identifier type="issn">, as printed. The
     # DMF gives an ISSN to the title of a periodical (a series' ISSN is the

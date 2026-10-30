@@ -304,6 +304,26 @@ def test_a_series_is_one_related_item_with_a_title_info_per_name_and_the_paralle
     assert [_texts(item, "mods:identifier") for item in items] == [["1211-3298"], []]
 
 
+def test_a_series_editor_is_a_name_of_the_series_and_its_details_stay_in_metakat(batch, tmp_path, mods_schema):
+    # The DMF maps no more of a series than its titles: its editor is a
+    # <name> of its relatedItem, as before it was read as an agent.
+    v = batch.volume
+    editor, terms, affiliation = batch.agent("JOSEF TŮMA", "personal", 0), batch.v("Dr.", 0.9, 0), \
+        batch.v("ředitel", 0.9, 0)
+    v.seriesEditor, v.seriesEditorTermsOfAddress, v.seriesEditorAffiliation = [editor], [terms], [affiliation]
+    title_info = MetakatGroup(type=GroupType.SERIES_TITLE_INFO, members=[v.seriesName[0].id])
+    agent = MetakatGroup(type=GroupType.AGENT, members=[editor.id, terms.id, affiliation.id])
+    v.groups += [MetakatGroup(type=GroupType.SERIES, members=[title_info.id, agent.id]), title_info, agent]
+    volume = _export(batch, tmp_path)[str(v.id)]
+
+    assert mods_schema.validate(volume), mods_schema.error_log.last_error
+    [item] = volume.xpath("/mods:mods/mods:relatedItem[@type='series']", namespaces=NS)
+    assert len(item.findall(f"{{{NS['mods']}}}titleInfo")) == 1
+    assert (_texts(item, "mods:name/mods:namePart"), _texts(item, "mods:name/mods:role/mods:roleTerm")) == (
+        ["JOSEF TŮMA"], ["edt"])
+    assert not {"Dr.", "ředitel"} & set(_texts(volume, "//mods:namePart | //mods:affiliation"))
+
+
 def test_a_chapters_parallel_toc_title_is_written_as_translated_not_demoted(batch, tmp_path, mods_schema):
     c = batch.chapter
     c.titleTocPage.append(batch.parallel_title("Preface", 2, "eng"))

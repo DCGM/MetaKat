@@ -490,7 +490,7 @@ def test_the_monograph_engine_keeps_every_part_as_nested_and_every_agent_with_it
                      {"partNumber": "5", "partName": "MORAVA", "parts": []}]}]}],
              "series": [{"titleInfo": [{"seriesName": "SVĚTOVÁ KNIHOVNA", "seriesPartNumber": "sv. 312",
                                         "seriesPartName": None, "lang": "cze", "translated": False}],
-                         "seriesIssn": "1211-3298", "seriesEditor": ["JOSEF TŮMA"]}],
+                         "seriesIssn": ["ISSN 1211-3298"], "seriesEditor": [{"type": "personal", "name": "JOSEF TŮMA", "termsOfAddress": ["Dr."], "description": ["ředitel"]}]}],
              "agents": [_agent("translator", "J. V. NOVÁK", termsOfAddress=["Dr."],
                                description=["c. k. professor v Praze"]),
                         _agent("composer", "B. SMETANA"), _agent("issuingBody", "UNIVERZITA KARLOVA", type="corporate")],
@@ -530,7 +530,11 @@ def test_the_monograph_engine_keeps_every_part_as_nested_and_every_agent_with_it
     # A language is a label: given once, located nowhere.
     assert [(language.text, language.bbox) for language in result.reading.languages] == [("cze", None), ("ger", None)]
     assert [language.text for language in result.reading.original_languages] == ["rus"]
-    assert (series.issn.text, [editor.text for editor in series.editors]) == ("1211-3298", ["JOSEF TŮMA"])
+    [issn], [editor] = series.issns, series.editors
+    assert (issn.text, editor.name.text, editor.type) == ("ISSN 1211-3298", "JOSEF TŮMA", NameType.PERSONAL)
+    # A series editor is read as any agent is, with its terms of address and description.
+    assert ([term.text for term in editor.terms_of_address], [a.text for a in editor.affiliations]) == (
+        ["Dr."], ["ředitel"])
     assert [term.text for term in translator.terms_of_address] == ["Dr."]
     [etal] = result.reading.etals
     assert etal.phrase.text == "a kol."
@@ -560,14 +564,14 @@ def test_the_names_of_a_series_in_several_languages_are_one_series_and_the_paral
         {"seriesName": "KNIHOVNA KLASIKŮ", "seriesPartNumber": "sv. 3", "seriesPartName": None, "lang": "cze",
          "translated": False},
         {"seriesName": "BIBLIOTHEK DER KLASSIKER", "seriesPartNumber": "Bd. 3", "seriesPartName": None, "lang": "ger",
-         "translated": True}], "seriesIssn": "1211-3298", "seriesEditor": []}]}
+         "translated": True}], "seriesIssn": ["ISSN 1211-3298"], "seriesEditor": []}]}
     engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(reply).client())
 
     [series] = engine.process(_span(page)).spans[0].reading.series
 
     assert [(t.name.text, t.part_number.text, t.name.lang, t.translated) for t in series.titles] == [
         ("KNIHOVNA KLASIKŮ", "sv. 3", "cze", False), ("BIBLIOTHEK DER KLASSIKER", "Bd. 3", "ger", True)]
-    assert series.issn.text == "1211-3298"
+    assert [issn.text for issn in series.issns] == ["ISSN 1211-3298"]
 
 
 @pytest.mark.parametrize("supplement", [True, False])

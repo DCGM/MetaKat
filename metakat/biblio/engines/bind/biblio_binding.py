@@ -30,6 +30,7 @@ from metakat.biblio.engines.core.models import (
     BiblioCoreResult,
     BiblioPage,
     BiblioReading,
+    BiblioSeriesEditor,
     BiblioSeriesTitle,
     BiblioSpanResult,
     BiblioTitleInfo,
@@ -151,7 +152,7 @@ _SourceContainers = List[Tuple[Optional[str], List[Tuple[str, Value, bool]], _No
 
 
 def _is_single(container: BiblioContainer, field_name: str) -> bool:
-    if isinstance(container, BiblioAgent):
+    if isinstance(container, (BiblioAgent, BiblioSeriesEditor)):
         return False
     return any(
         container_field.metadata.get("metakat") == field_name
@@ -463,7 +464,8 @@ def span_candidates(
                 return _Node(group_type, members)
 
             def value_of(field_name, evidence, owner) -> Value:
-                if isinstance(owner, BiblioAgent) and field_name == owner.role.value:
+                if (isinstance(owner, BiblioAgent) and field_name == owner.role.value
+                        or isinstance(owner, BiblioSeriesEditor) and field_name == "seriesEditor"):
                     # The name, with what the agent is.
                     value = AgentValue(text=evidence.text, confidence=evidence.confidence, id=uuid4(),
                                        lang=evidence.lang, type=owner.type)

@@ -95,6 +95,8 @@ _BIBLIO_FIELD_NAMES = (
     "distributionPlaceTerm",
     "seriesIssn",
     "seriesEditor",
+    "seriesEditorTermsOfAddress",
+    "seriesEditorAffiliation",
     "illustrativeContent",
     "isbn",
     "issn",

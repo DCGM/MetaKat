@@ -379,6 +379,9 @@ def _related_items(record: _Record, group_type: str, item_type: str, fields: dic
         for title_members in ([direct] if direct else []) + [m for m in members if isinstance(m, list)]:
             title_members = [(v, f) for v, f in _flat_members(title_members)
                              if fields[f] in ("title", "partNumber", "partName")]
+            # A nested group of no title - an editor's - is no <titleInfo>.
+            if not title_members:
+                continue
             attributes = _common_lang(v for v, _ in title_members)
             if any(getattr(value, "translated", None) is True for value, _ in title_members):
                 attributes["type"] = "translated"
@@ -510,6 +513,8 @@ _BIBLIOGRAPHIC_SECTIONS = {
     "seriesName": "relatedItem:series", "seriesPartNumber": "relatedItem:series",
     "seriesPartName": "relatedItem:series", "seriesIssn": "relatedItem:series",
     "seriesEditor": "relatedItem:series",
+    # The DMF maps no more of a series than its titles: MetaKat's only.
+    "seriesEditorTermsOfAddress": None, "seriesEditorAffiliation": None,
     "isbn": "identifier", "issn": "identifier",
 }
 _INTERNAL_PART_SECTIONS = {

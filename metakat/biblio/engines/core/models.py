@@ -144,17 +144,34 @@ class BiblioSeriesTitle:
 
 
 @dataclass(frozen=True)
+class BiblioSeriesEditor:
+    """One editor of a series, read as any agent is: the name, what the agent is, with
+    its terms of address and affiliations; an AGENT group nested in its series' group.
+
+    MODS writes the name in the series' <relatedItem>; the terms of address and
+    affiliations have fields of their own, so no <name> of the record takes them."""
+
+    GROUP_TYPE = GroupType.AGENT
+
+    name: DetectionEvidence = field(metadata=_to("seriesEditor"))
+    type: Optional[NameType] = None
+    terms_of_address: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("seriesEditorTermsOfAddress"))
+    affiliations: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("seriesEditorAffiliation"))
+
+
+@dataclass(frozen=True)
 class BiblioSeries:
-    """One series: <relatedItem type="series">, with its names, ISSN and editors.
+    """One series: <relatedItem type="series">, with its names, ISSNs and editors.
 
     `titles` are its names, one per language, the main one first as printed;
-    each is a SERIES_TITLE_INFO group in the series group."""
+    each is a SERIES_TITLE_INFO group in the series group, as each editor is
+    an AGENT group in it (BiblioSeriesEditor)."""
 
     GROUP_TYPE = GroupType.SERIES
 
     titles: tuple[BiblioSeriesTitle, ...] = field(default=(), metadata=_NESTED)
-    issn: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesIssn"))
-    editors: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("seriesEditor"))
+    issns: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("seriesIssn"))
+    editors: tuple[BiblioSeriesEditor, ...] = field(default=(), metadata=_NESTED)
 
 
 @dataclass(frozen=True)
@@ -348,10 +365,10 @@ class Nested:
 
     group_type: GroupType
     items: tuple
-    container: Optional[BiblioPart | BiblioSeriesTitle] = None
+    container: Optional[BiblioPart | BiblioSeriesTitle | BiblioSeriesEditor] = None
 
 
-BiblioNestable = BiblioContainer | BiblioPart | BiblioSeriesTitle
+BiblioNestable = BiblioContainer | BiblioPart | BiblioSeriesTitle | BiblioSeriesEditor
 
 
 def container_items(container: BiblioNestable) -> Iterator[tuple[str, DetectionEvidence] | Nested]:
@@ -360,7 +377,7 @@ def container_items(container: BiblioNestable) -> Iterator[tuple[str, DetectionE
 
     The parts of a title come in the printed order, each a PART (MetakatGroup)
     holding the parts it is divided into, a part read alone last; the names
-    of a series each a SERIES_TITLE_INFO."""
+    of a series each a SERIES_TITLE_INFO, its editors each an AGENT."""
     if isinstance(container, BiblioAgent):
         yield container.role.value, container.name
     own_part = []
