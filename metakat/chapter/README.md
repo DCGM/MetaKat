@@ -1799,6 +1799,14 @@ previously matched at `1.0`. Extraction keeps chapter numbers in
 `ChapterBase.part_number_toc_page` rather than in the title, so this affects entries
 whose number leaked into the title text rather than well-formed ones.
 
+An entry with a subtitle read apart from its title (`subtitle_toc_page`, which
+the VLM extraction reads) is the reference twice: the title followed by the
+subtitle, joined by a space - the whole entry, as it was matched while the
+subtitle stayed in the title - and the title alone, and the better score
+counts. A heading may print both or only the title: `INTRODUCTION` against
+the entry `Introduction` with the subtitle `Background` scores `1.0` by the
+title alone, where the joined `Introduction Background` scores `0.522`.
+
 ##### Anchor candidates
 
 When `use_anchors` is `false`, the engine skips this entire section and sends

@@ -1399,9 +1399,9 @@ class ChapterAlignmentEngineFuzzy:
                             continue
                         if entry.title_toc_page is None:
                             continue
-                        title_score = title_similarity(
+                        title_score = _title_score(
                             destinations[destination_index].title.text,
-                            entry.title_toc_page.text,
+                            entry,
                         )
                         if (
                             title_score
@@ -1459,9 +1459,9 @@ class ChapterAlignmentEngineFuzzy:
                     ):
                         diagnostics["outside_anchor_bounds"] += 1
                         continue
-                    title_score = title_similarity(
+                    title_score = _title_score(
                         destination.title.text,
-                        entry.title_toc_page.text,
+                        entry,
                     )
                     if title_score < self.minimum_title_substring_similarity:
                         diagnostics["below_title_similarity"] += 1
@@ -2237,9 +2237,9 @@ class ChapterAlignmentEngineFuzzy:
             if destination_index in used:
                 continue
             destination = destinations[destination_index]
-            score = title_similarity(
+            score = _title_score(
                 destination.title.text,
-                entry.title_toc_page.text,
+                entry,
             )
             if score >= self.minimum_title_substring_similarity:
                 matches.append((destination_index, score))
@@ -2271,7 +2271,19 @@ def _solver_float(value: float, label: str) -> int:
 
 
 def _entry_title(entry: ChapterBase) -> str | None:
-    return None if entry.title_toc_page is None else entry.title_toc_page.text
+    # The whole printed title: a subtitle read apart from the title follows it.
+    if entry.title_toc_page is None:
+        return None
+    if entry.subtitle_toc_page is None:
+        return entry.title_toc_page.text
+    return f"{entry.title_toc_page.text} {entry.subtitle_toc_page.text}"
+
+
+def _title_score(candidate: str, entry: ChapterBase) -> float:
+    # A destination heading may print the title with its subtitle or the title
+    # alone, so an entry with a subtitle is matched by the better of the two.
+    titles = {_entry_title(entry), entry.title_toc_page.text}
+    return max(title_similarity(candidate, title) for title in titles)
 
 
 def _entry_page_number(entry: ChapterBase) -> str | None:

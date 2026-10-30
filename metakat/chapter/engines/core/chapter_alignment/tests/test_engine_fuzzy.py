@@ -6,6 +6,8 @@ import pytest
 
 from metakat.chapter.engines.core.chapter_alignment.engine_fuzzy import (
     ChapterAlignmentEngineFuzzy,
+    _entry_title,
+    _title_score,
     _toc_monotonicity_score,
     title_similarity,
 )
@@ -681,6 +683,22 @@ def test_alignment_preserves_raw_toc_evidence(
     assert chapter.page_number_toc_page.text == "XIV"
     assert chapter.page_start_key == "page-15"
     assert chapter.title.page_key == "page-15"
+
+
+def test_an_entry_with_a_subtitle_matches_a_heading_with_or_without_it(evidence):
+    # A subtitle read apart from the title still belongs to the entry's
+    # printed title: the heading may print it, or only the title.
+    entry = ChapterBase(
+        toc_page_key="page-0",
+        title_toc_page=evidence("Introduction", "page-0"),
+        subtitle_toc_page=evidence("Background", "page-0", y=30),
+    )
+
+    assert _entry_title(entry) == "Introduction Background"
+    assert _title_score("INTRODUCTION", entry) == title_similarity("INTRODUCTION", "Introduction") == 1.0
+    assert _title_score("INTR. BACKGROUND", entry) == pytest.approx(
+        title_similarity("INTR. BACKGROUND", "Introduction Background"))
+    assert _title_score("INTR. BACKGROUND", entry) > title_similarity("INTR. BACKGROUND", "Introduction")
 
 
 def test_alignment_preserves_normalized_toc_page_number_evidence(
