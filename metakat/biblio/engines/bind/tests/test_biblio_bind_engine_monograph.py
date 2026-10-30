@@ -4,8 +4,10 @@ import pytest
 
 from metakat.biblio.engines.bind.biblio_bind_engine_monograph import (
     BiblioBindEngineMonograph,
+    MultipartBoundaries,
     _text_similarity,
 )
+from metakat.biblio.engines.core.models import TitlePageKind
 from metakat.biblio.engines.bind.biblio_binding import finalize_groups
 from metakat.biblio.engines.bind.tests.test_biblio_binding import (
     _anchor, _of, _parents, _process, _read, _scan, _v,
@@ -771,6 +773,69 @@ def test_an_annotated_start_is_not_overridden():
     pages[16].startsDocument = BooleanValue(val=False, confidence=1., annotated=True)
     io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1'), _read(16, 'Dějiny', part='Díl 2'))
     assert len(_of(io, MetakatVolume)) == 1
+
+
+@pytest.mark.parametrize('later', [
+    dict(),                                              # a half-title printing no part
+    dict(part='Část 2', kind=TitlePageKind.PART_TITLE),  # a divisional title page
+    dict(part='Díl 1', kind=TitlePageKind.HALF_TITLE),   # a half-title printing the part again
+])
+def test_a_page_describing_the_part_it_stands_in_never_splits_it(later):
+    pages = _scan((), {1: .99, 16: .99}, count=30)
+    io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1'), _read(16, 'Dějiny', **later))
+    assert len(_of(io, MetakatVolume)) == 1
+
+
+def test_a_title_page_printing_another_part_splits_whatever_part_title_pages_stand_between():
+    # Not told a divisional title page, the binder reads "Část 2" as another part.
+    pages = _scan((), {1: .99, 16: .99}, count=30)
+    io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1'), _read(16, 'Dějiny', part='Část 2'))
+    assert len(_of(io, MetakatVolume)) == 2
+
+
+def test_the_half_title_of_the_next_part_begins_it():
+    pages = _scan((), {1: .99, 14: .99, 16: .99}, count=30)
+    pages[15].pageType = (PageType.BLANK, .9)
+    io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1', kind=TitlePageKind.TITLE_PAGE),
+                     _read(14, 'Dějiny', part='Díl 2', kind=TitlePageKind.HALF_TITLE),
+                     _read(16, 'Dějiny', part='Díl 2', kind=TitlePageKind.TITLE_PAGE))
+    parts = _of(io, MetakatVolume)
+    assert len(parts) == 2 and _parents(io) == [parts[0].id] * 14 + [parts[1].id] * 16
+
+
+@pytest.mark.parametrize('boundaries, sizes, page_4_starts', [
+    # The page-type stage's start inside part 1 stays, and part 2 is then a
+    # document's only title page: nothing to add.
+    (MultipartBoundaries.PAGE_TYPE, [4, 26], True),
+    # The binder decides alone: a start where no title page opens a part is none.
+    (MultipartBoundaries.BINDER, [16, 14], False),
+])
+def test_who_decides_where_the_parts_begin_is_configured(boundaries, sizes, page_4_starts):
+    pages = _scan({4}, {1: .99, 16: .99}, count=30)
+    io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1'), _read(16, 'Dějiny', part='Díl 2'),
+                     multipart_boundaries=boundaries)
+    parts = _of(io, MetakatVolume)
+    assert [_parents(io).count(part.id) for part in parts] == sizes
+    page_4 = next(p for p in _of(io, MetakatPage) if p.batch_index == 4)
+    assert page_4.startsDocument.val is page_4_starts
+    if not page_4_starts:
+        assert page_4.startsDocument.confidence == pytest.approx(.99 * .9)
+
+
+def test_the_binder_deciding_alone_keeps_an_annotated_start():
+    pages = _scan((), {1: .99, 16: .99}, count=30)
+    pages[4].startsDocument = BooleanValue(val=True, confidence=1., annotated=True)
+    io, _ = _process(pages, _read(1, 'Dějiny', part='Díl 1'), _read(16, 'Dějiny', part='Díl 2'),
+                     multipart_boundaries=MultipartBoundaries.BINDER)
+    assert [_parents(io).count(part.id) for part in _of(io, MetakatVolume)] == [4, 26]
+
+
+def test_an_unknown_boundary_mode_is_refused(monkeypatch):
+    monkeypatch.setattr("metakat.biblio.engines.bind.bilbio_bind_engine.load_biblio_core_engine",
+                        lambda config: None)
+    with pytest.raises(ValueError, match="multipart_boundaries"):
+        BiblioBindEngineMonograph({"name": "biblio_bind_engine_monograph", "multipart_boundaries": "vlm"},
+                                  {"name": "biblio_core_engine_yolo_monograph"})
 
 
 def test_a_monograph_scan_is_never_split():

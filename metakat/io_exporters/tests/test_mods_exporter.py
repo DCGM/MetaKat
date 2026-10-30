@@ -174,23 +174,30 @@ def test_a_group_is_one_container_and_ungrouped_values_get_their_own(batch, tmp_
     assert _texts(volume, "//mods:note[@type='statement of responsibility']") == ["sepsal K. J. Erben"]
 
 
-def test_the_parts_of_a_title_keep_the_printed_order_of_their_group(batch, tmp_path, mods_schema):
+def test_the_parts_of_a_title_keep_the_printed_order_of_their_groups(batch, tmp_path, mods_schema):
     v = batch.volume
-    v.partNumber = [batch.v("I", 0.9, 0), batch.v("4", 0.9, 0)]
-    v.partName = [batch.v("Čechy", 0.9, 0)]
-    # "Díl I. – Část 4. Čechy": a part group per level, the name with the lower part's number.
-    higher = MetakatGroup(type=GroupType.PART, members=[v.partNumber[0].id])
-    own = MetakatGroup(type=GroupType.PART, members=[v.partNumber[1].id, v.partName[0].id])
-    v.groups = [MetakatGroup(type=GroupType.TITLE_INFO, members=[v.title[0].id, v.subTitle[0].id, higher.id, own.id]),
-                higher, own]
+    n = {text: batch.v(text, 0.9, 0) for text in ("II", "12", "4", "13", "1")}
+    m = {text: batch.v(text, 0.9, 0) for text in ("Místopis", "Kroměřížský okres", "Holešovský okres")}
+    v.partNumber, v.partName = list(n.values()), list(m.values())
+    # "Díl II. Místopis. Svazek 12. … Sešit 4. Svazek 13. … Sešit 1.": a part
+    # group per part, its divisions nested in it.
+    sesit_4, sesit_1 = (MetakatGroup(type=GroupType.PART, members=[n[number].id]) for number in ("4", "1"))
+    svazek_12 = MetakatGroup(type=GroupType.PART, members=[n["12"].id, m["Kroměřížský okres"].id, sesit_4.id])
+    svazek_13 = MetakatGroup(type=GroupType.PART, members=[n["13"].id, m["Holešovský okres"].id, sesit_1.id])
+    dil = MetakatGroup(type=GroupType.PART, members=[n["II"].id, m["Místopis"].id, svazek_12.id, svazek_13.id])
+    v.groups = [MetakatGroup(type=GroupType.TITLE_INFO, members=[v.title[0].id, v.subTitle[0].id, dil.id]),
+                dil, svazek_12, svazek_13, sesit_4, sesit_1]
     records = _export(batch, tmp_path)
 
     volume = records[str(v.id)]
     assert mods_schema.validate(volume), mods_schema.error_log.last_error
+    # The DMF has no tree of parts: one titleInfo, the parts in the printed order.
     assert [(etree.QName(node).localname, node.text) for node in volume.xpath("/mods:mods/mods:titleInfo/*",
                                                                                 namespaces=NS)] == [
         ("title", "Kytice"), ("subTitle", "z pověstí národních"),
-        ("partNumber", "I"), ("partNumber", "4"), ("partName", "Čechy")]
+        ("partNumber", "II"), ("partName", "Místopis"),
+        ("partNumber", "12"), ("partName", "Kroměřížský okres"), ("partNumber", "4"),
+        ("partNumber", "13"), ("partName", "Holešovský okres"), ("partNumber", "1")]
 
 
 def test_identifiers_series_details_names_distribution_languages_and_illustrations_go_where_the_dmf_puts_them(

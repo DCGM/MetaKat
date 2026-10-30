@@ -12,8 +12,9 @@ import pytest
 from metakat.biblio.engines.bind.biblio_bind_engine_monograph import BiblioBindEngineMonograph
 from metakat.biblio.engines.bind.biblio_binding import (
     finalize_groups,
+    part_paths,
     referenced_detection_ids,
-    same_unit,
+    same_part,
     span_candidates,
     title_from,
 )
@@ -148,34 +149,59 @@ def test_statements_copyright_languages_and_the_language_of_a_title_are_bound(me
     assert title_from([volume], HierarchyType.MULTIPART).language == volume.language
 
 
-def test_a_part_of_several_levels_keeps_its_printed_order_and_is_told_apart_by_every_level(metakat_page):
-    def candidate(*levels):
-        *higher, own = levels
-        title_info = BiblioTitleInfo(title=_ev("Země", 0.9), higher_parts=tuple(
-            BiblioPart(number=_ev(number, 0.9), name=_ev(name, 0.9) if name else None) for number, name in higher),
-            part_number=_ev(own[0], 0.9), part_name=_ev(own[1], 0.9) if own[1] else None)
-        volume, _ = span_candidates(_page_result(_titled(title_infos=(title_info,))))[0]
-        return volume
+def _part(number, name=None, *parts):
+    return BiblioPart(number=_ev(number, 0.9) if number else None, name=_ev(name, 0.9) if name else None,
+                      parts=parts)
 
-    volume = candidate(("I", None), ("4", "Čechy"))
-    [group] = _group(volume, "titleInfo")
-    # Each level is a part group in the titleInfo, the highest first.
-    higher, own = _group(volume, "part")
-    assert group.members == [volume.title[0].id, higher.id, own.id]
-    assert (higher.members, own.members) == ([volume.partNumber[0].id],
-                                             [volume.partNumber[1].id, volume.partName[0].id])
-    assert [value.text for value in volume.partNumber] == ["I", "4"]
 
+def _with_parts(*parts):
+    """The candidate volume of a span reading the title "Země" with these parts."""
+    title_info = BiblioTitleInfo(title=_ev("Země", 0.9), parts=parts)
+    volume, _ = span_candidates(_page_result(_titled(title_infos=(title_info,))))[0]
+    return volume
+
+
+def test_the_parts_of_a_volume_are_nested_part_groups_in_the_printed_order(metakat_page):
+    # Vlastivěda: díl II holds svazek 12 (with sešit 4) and svazek 13 (with sešit 1).
+    volume = _with_parts(_part("II", "Místopis", _part("12", "Kroměřížský okres", _part("4")),
+                               _part("13", "Holešovský okres", _part("1"))))
+    assert [value.text for value in volume.partNumber] == ["II", "12", "4", "13", "1"]
+    numbers = {value.text: value.id for value in volume.partNumber}
+    names = {value.text: value.id for value in volume.partName}
+    [title_info] = _group(volume, "titleInfo")
+    parts = {group.id: group for group in _group(volume, "part")}
+    [top] = [parts[member] for member in title_info.members if member in parts]
+    assert title_info.members == [volume.title[0].id, top.id]
+    svazek_12, svazek_13 = (parts[member] for member in top.members if member in parts)
+    assert top.members[:2] == [numbers["II"], names["Místopis"]]
+    assert svazek_12.members[:2] == [numbers["12"], names["Kroměřížský okres"]]
+    assert parts[svazek_12.members[2]].members == [numbers["4"]]
+    assert parts[svazek_13.members[2]].members == [numbers["1"]]
+    # Finalizing keeps a nested part of one number: it is a part of its own.
+    finalize_groups(volume)
+    assert len(_group(volume, "part")) == 5
+    assert part_paths(volume) == [(("ii", "mistopis"), ("12", "kromerizsky okres"), ("4", None)),
+                                  (("ii", "mistopis"), ("13", "holesovsky okres"), ("1", None))]
+
+
+def test_two_spans_read_the_same_part_when_the_parts_of_one_are_among_the_others(metakat_page):
     def spans(*volumes):
         return [SimpleNamespace(volume=v, issue=None) for v in volumes]
 
-    same, other_volume, half_title = (candidate(("I", None), ("4", "Čechy")), candidate(("II", None), ("4", "Čechy")),
-                                      candidate(("4", "Čechy")))
-    assert same_unit(*spans(volume, same))
-    # Another díl with a část of the same number is another volume.
-    assert not same_unit(*spans(volume, other_volume))
-    # A half-title printing only the lowest level reads the same volume.
-    assert same_unit(*spans(half_title, volume))
+    volume = _with_parts(_part("I", None, _part("4", "Čechy")))
+    assert same_part(*spans(volume, _with_parts(_part("I", None, _part("4", "Čechy")))))
+    # A half-title printing only the lower or only the higher part, or none.
+    assert same_part(*spans(_with_parts(_part("4", "Čechy")), volume))
+    assert same_part(*spans(volume, _with_parts(_part("I"))))
+    assert same_part(*spans(volume, _with_parts()))
+    # Another díl with a část of the same number, another část of the díl.
+    assert not same_part(*spans(volume, _with_parts(_part("II", None, _part("4", "Čechy")))))
+    assert not same_part(*spans(volume, _with_parts(_part("I", None, _part("5")))))
+    # A volume holding two parts: a half-title of one of them is the volume's,
+    # the next volume is not.
+    two = _with_parts(_part("II", "Místopis", _part("12", None, _part("4")), _part("13", None, _part("1"))))
+    assert same_part(*spans(_with_parts(_part("13", None, _part("1"))), two))
+    assert not same_part(*spans(two, _with_parts(_part("II", "Místopis", _part("14", None, _part("2"))))))
 
 
 def test_the_isbn_of_the_whole_set_goes_to_the_title_of_a_multipart_monograph():
@@ -494,7 +520,7 @@ def _scan(starts=(), titles=None, count=8):
             for i in range(count)]
 
 
-def _read(index, title, confidence=.9, part=None, part_name=None, volume=None, year=None, issue=None):
+def _read(index, title, confidence=.9, part=None, part_name=None, volume=None, year=None, issue=None, kind=None):
     """What the core reads on page `index`, as a one-page span result."""
     key = f'p{index}'
 
@@ -514,6 +540,7 @@ def _read(index, title, confidence=.9, part=None, part_name=None, volume=None, y
             part_name=ev(part_name) if part_name else None),)),
         periodical_volume=periodical_volume,
         periodical_issue=BiblioReading(title_infos=(BiblioTitleInfo(part_number=ev(issue)),)) if issue else None,
+        kind=kind,
     )
 
 
@@ -531,9 +558,11 @@ class _Core:
             for span in spans))
 
 
-def _process(pages, *readings, proarc_io=None, binder=BiblioBindEngineMonograph):
+def _process(pages, *readings, proarc_io=None, binder=BiblioBindEngineMonograph, **attributes):
     binder = object.__new__(binder)
     binder.core_engine = _Core({result.page_keys[0]: result for result in readings})
+    for name, value in attributes.items():
+        setattr(binder, name, value)
     io = MetakatIO(batch_id=pages[0].batch_id, elements=pages,
                    page_to_image_mapping={page.id: f'p{page.batch_index}.jpg' for page in pages},
                    page_to_alto_mapping={page.id: f'p{page.batch_index}.xml' for page in pages})

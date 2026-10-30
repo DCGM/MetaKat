@@ -191,7 +191,7 @@ class GroupType(str, enum.Enum):
     # takes a suffix because one element serves several events and the
     # eventType attribute is what tells them apart.
     TITLE_INFO = "titleInfo"                          # title, subTitle, its PART groups
-    PART = "part"                    # one level of a part in a titleInfo: partNumber, partName
+    PART = "part"                    # one part in a titleInfo: partNumber, partName, the PART groups it is divided into
     ORIGIN_INFO_PUBLICATION = "originInfoPublication"  # placeTerm, publisher, dateIssued, edition
     ORIGIN_INFO_DISTRIBUTION = "originInfoDistribution"  # the distribution trio
     ORIGIN_INFO_MANUFACTURE = "originInfoManufacture"  # the manufacture trio
@@ -362,12 +362,14 @@ class MetakatGroup(MetakatBaseModel):
 
     Nesting says which values of a statement belong together inside it,
     where MODS nests containers: a titleInfo group holds its title and
-    subtitle and a PART group per level of the part - each with that
-    level's partNumber and partName, the highest level first; a SERIES
-    group holds a SERIES_TITLE_INFO group per name of the series - each
-    with that name's number and part name, one per language - and the
-    series' ISSN and editors. A member that is not nested sits in the
-    statement directly: a partNumber printed alone is a level of its own.
+    subtitle and a PART group per part the volume is or contains - each with
+    that part's partNumber and partName and a PART group per part it is
+    divided into (a díl holding its část), in the printed order, so the
+    depth of a PART group is the level of its part; a SERIES group holds a
+    SERIES_TITLE_INFO group per name of the series - each with that name's
+    number and part name, one per language - and the series' ISSN and
+    editors. A member that is not nested sits in the statement directly: a
+    partNumber printed alone is a part of its own.
 
     That holds for values no detector produced: `id` is mandatory on every
     Value, so catalogue-derived or hand-entered values are grouped on the

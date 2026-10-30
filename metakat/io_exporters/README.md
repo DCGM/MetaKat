@@ -27,7 +27,7 @@ one against the Library of Congress schema.
 | MetaKat | MODS |
 |---|---|
 | element type | `<genre>`; an article's `articleGenre` as `genre@type` |
-| `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>`; the parts in the order of their titleInfo group - a `part` group per level, its number before its name, the highest level first (MODS has no level, MARC 245 repeats `$n` `$p`); a titleInfo whose `title` or `subTitle` is a `TitleValue` flagged `translated` is `type="translated"` (a parallel title, MARC 246 second indicator 1) |
+| `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>`; the parts in the order of their titleInfo group - a `part` group per part, its number before its name, then the `part` groups of its divisions (MODS has no tree of parts, MARC 245 repeats `$n` `$p`, so a tree is written in the printed order); a titleInfo whose `title` or `subTitle` is a `TitleValue` flagged `translated` is `type="translated"` (a parallel title, MARC 246 second indicator 1) |
 | agents | `<name><namePart>` whole, with `role/roleTerm` marcrelator code: `aut`, `ill`, `pht`, `trl`, `edt`, `cmp` (composer), `rev` (reviewer), `isb` (issuingBody), `ctb` (contributor), `oth` (other) - a redaktor is `edt`, as in Czech records; the name's `type` (personal, corporate, conference, family) as `name@type` when its values agree on one |
 | `termsOfAddress`, `affiliation` | `<name><namePart type="termsOfAddress">`, `<name><affiliation>` of the name they are grouped with |
 | `etal` | a `<name>` of its own holding only `<etal>` (DMF) |
@@ -76,7 +76,7 @@ without deciding where it goes.
 
 The code that creates values groups what it knows belongs together. A group
 becomes one container, a group nested in it (`part`, `seriesTitleInfo`) the
-values of one part level or one inner `<titleInfo>`; every ungrouped value
+values of one part or one inner `<titleInfo>`; every ungrouped value
 gets its own. The exporter never
 pairs or merges anything itself: a page run is written with an end only when a
 `pageRange` group pairs them, so an ungrouped start stands alone and an

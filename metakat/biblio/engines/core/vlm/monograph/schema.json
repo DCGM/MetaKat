@@ -21,35 +21,7 @@
           "parts": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "level": {
-                  "type": "integer",
-                  "enum": [
-                    1,
-                    2,
-                    3
-                  ]
-                },
-                "partNumber": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "partName": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                }
-              },
-              "required": [
-                "level",
-                "partNumber",
-                "partName"
-              ],
-              "additionalProperties": false
+              "$ref": "#/$defs/partLevel1"
             }
           },
           "lang": {
@@ -358,6 +330,16 @@
       "items": {
         "$ref": "#/$defs/languageCode"
       }
+    },
+    "pageKind": {
+      "type": "string",
+      "enum": [
+        "titlePage",
+        "halfTitle",
+        "partTitle",
+        "seriesTitle",
+        "other"
+      ]
     }
   },
   "required": [
@@ -374,10 +356,91 @@
     "isbnSet",
     "illustrativeContent",
     "language",
-    "originalLanguage"
+    "originalLanguage",
+    "pageKind"
   ],
   "additionalProperties": false,
   "$defs": {
+    "partLevel1": {
+      "type": "object",
+      "properties": {
+        "partNumber": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "partName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/partLevel2"
+          }
+        }
+      },
+      "required": [
+        "partNumber",
+        "partName",
+        "parts"
+      ],
+      "additionalProperties": false
+    },
+    "partLevel2": {
+      "type": "object",
+      "properties": {
+        "partNumber": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "partName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/partLevel3"
+          }
+        }
+      },
+      "required": [
+        "partNumber",
+        "partName",
+        "parts"
+      ],
+      "additionalProperties": false
+    },
+    "partLevel3": {
+      "type": "object",
+      "properties": {
+        "partNumber": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "partName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "partNumber",
+        "partName"
+      ],
+      "additionalProperties": false
+    },
     "languageCode": {
       "type": "string",
       "enum": [

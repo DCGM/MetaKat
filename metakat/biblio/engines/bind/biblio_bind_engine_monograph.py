@@ -6,14 +6,17 @@ multipart monograph is one decision for all of its documents (is_multipart).
 Every bottom-level document becomes one volume: a `monograph` volume without a
 parent, or a part, a `multipart` volume under the one title of the work. Where
 a document of a multipart scan holds two parts, each with its title page, it is
-split on the later one. A ProArc record with a single volume object names the
-volume of a scan of one document. Reading the scan and writing the result are
-shared with the periodical binder (biblio_binding).
+split on the later one. Who decides where the parts begin is configured
+(`multipart_boundaries`, MultipartBoundaries). A ProArc record with a single
+volume object names the volume of a scan of one document. Reading the scan and
+writing the result are shared with the periodical binder (biblio_binding).
 """
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
+from collections.abc import Mapping
+from enum import Enum
+from typing import Any, List, Optional
 from uuid import UUID, uuid4
 
 from metakat.biblio.engines.bind.bilbio_bind_engine import BiblioBindEngine
@@ -26,7 +29,9 @@ from metakat.biblio.engines.bind.biblio_binding import (
     normalize_text,
     move_set_isbns,
     read_scan,
+    same_part,
     split_documents,
+    SPLIT_MINIMUM_SCORE,
     title_from,
     union_groups,
     write_scan,
@@ -39,6 +44,7 @@ from metakat.schemas.base_objects import (
     MetakatPage,
     MetakatVolume,
     PageType,
+    is_annotated,
     ObjectItem,
     ObjectModel,
     ProarcIO,
@@ -187,25 +193,51 @@ def _proarc_values(proarc_volume: ObjectItem, field_name: str) -> Optional[List[
     return getattr(proarc_volume, _PROARC_FIELD_NAMES.get(field_name, field_name))
 
 
-def opening_start(document: List[MetakatPage], span: TitleSpan, previous: TitleSpan) -> MetakatPage:
+class MultipartBoundaries(str, Enum):
+    """Who decides where the parts of a multipart monograph begin: the `multipart_boundaries`
+    of the binder's configuration.
+
+    - `page_type` (the default): the page-type stage's document starts are
+      right; the binder only adds the start of a part it finds inside a
+      document (split_documents).
+    - `binder`: the binder decides alone, from the title pages read: the
+      page-type stage's starts are ignored, except annotated ones, and the
+      scan is split where a title page opens another part (own_documents).
+    """
+
+    PAGE_TYPE = "page_type"
+    BINDER = "binder"
+
+
+def opening_start(document: List[MetakatPage], span: TitleSpan, opened: List[TitleSpan]) -> MetakatPage:
     """The first page of the opening run before a title page: where a book whose title page it is begins.
 
-    A volume is scanned front cover, end papers, frontispiece, title page, so
-    the pages right before its title page belong to it. Walking back from the
-    title page over pages of opening types (front cover, end papers, front
-    jacket, frontispiece) and of neutral ones (blank, cover, fly leaf, ...),
+    A volume is scanned front cover, end papers, frontispiece, half-title,
+    title page, so the pages right before its title page belong to it.
+    Walking back from the title page over pages of opening types (front
+    cover, end papers, front jacket, frontispiece), over the pages of the
+    spans that describe this part without opening one - its half-title,
+    series title page - and over neutral pages (blank, cover, fly leaf, ...),
     the start is the earliest opening page reached; a neutral page before it
     may close the previous volume, so stays there. Without an opening page the
     title page itself starts. The walk stops at a page of any other type - a
-    back cover closes the previous volume - and never reaches the previous
-    span."""
+    back cover closes the previous volume - and never reaches the open part's
+    other spans (`opened`)."""
+    leading = []
+    for earlier in reversed(opened):
+        if earlier.opens or not same_part(earlier, span):
+            break
+        leading.append(earlier)
+    rest = opened[:len(opened) - len(leading)]
+    limit = rest[-1].end if rest else document[0].batch_index - 1
+    leading_pages = {page.id for earlier in leading for page in earlier.pages}
     by_index = {page.batch_index: page for page in document}
     start = span.pages[0]
     index = span.start - 1
-    while index > previous.end and index in by_index:
+    while index > limit and index in by_index:
         page = by_index[index]
         kind = page.pageType.text if page.pageType is not None else None
-        if kind in OPENING_PAGE_TYPES:
+        if kind in OPENING_PAGE_TYPES or page.id in leading_pages:
             start = page
         elif kind not in NEUTRAL_PAGE_TYPES:
             break
@@ -213,7 +245,46 @@ def opening_start(document: List[MetakatPage], span: TitleSpan, previous: TitleS
     return start
 
 
+def own_documents(scan: Scan) -> List[List[MetakatPage]]:
+    """The scan's documents as the binder alone decides them, before any part is found inside one.
+
+    The page-type stage's starts are dropped, except annotated ones and the
+    first page's, so the scan is one document between annotated starts;
+    split_documents then starts a part where a title page opens one. The
+    spans are renumbered to these documents."""
+    documents: List[List[MetakatPage]] = []
+    for page in scan.pages:
+        if not documents or (is_annotated(page.startsDocument) and page.startsDocument.val):
+            documents.append([])
+        documents[-1].append(page)
+    document_of_page = {page.id: index for index, document in enumerate(documents) for page in document}
+    for span in scan.spans:
+        span.document = document_of_page[span.pages[0].id]
+    return documents
+
+
+def _drop_page_type_starts(documents: List[List[MetakatPage]], spans: List[TitleSpan]) -> None:
+    # The binder decided the documents alone: a page-type start inside one is
+    # no start, with the confidence of the span naming the document, or
+    # SPLIT_MINIMUM_SCORE when none does.
+    for document, winner in zip(documents, authoritative_spans(documents, spans)):
+        confidence = winner.score if winner is not None else SPLIT_MINIMUM_SCORE
+        for page in document[1:]:
+            if page.startsDocument is not None and page.startsDocument.val and not is_annotated(page.startsDocument):
+                page.startsDocument = (False, confidence)
+
+
 class BiblioBindEngineMonograph(BiblioBindEngine):
+    multipart_boundaries = MultipartBoundaries.PAGE_TYPE
+
+    def __init__(self, config: Mapping[str, Any], core_config: Mapping[str, Any]):
+        super().__init__(config, core_config)
+        boundaries = self.config.get("multipart_boundaries", MultipartBoundaries.PAGE_TYPE.value)
+        if boundaries not in MultipartBoundaries._value2member_map_:
+            raise ValueError(f"Biblio bind config multipart_boundaries must be one of "
+                             f"{', '.join(MultipartBoundaries._value2member_map_)}, not {boundaries!r}")
+        self.multipart_boundaries = MultipartBoundaries(boundaries)
+
     def process(self, batch_dir: str, metakat_io: MetakatIO, proarc_io: ProarcIO = None) -> MetakatIO:
         scan = read_scan(self.core_engine, batch_dir, metakat_io)
         proarc_volume = self._single_proarc_volume(proarc_io)
@@ -259,7 +330,8 @@ class BiblioBindEngineMonograph(BiblioBindEngine):
         """One volume per document, named by its authoritative span; the parts of a multipart scan under one title.
 
         In a multipart scan a document holding two parts is first split
-        (split_documents). Every page of a document goes to its volume; a
+        (split_documents); with `multipart_boundaries` `binder`, the documents
+        split are the binder's own (own_documents). Every page of a document goes to its volume; a
         document no span names gets an unnamed one. Returns the title, when
         there is one, then the volumes in document order. The title takes the
         ISBNs of the whole work; a monograph that is not multipart has no unit
@@ -268,7 +340,12 @@ class BiblioBindEngineMonograph(BiblioBindEngine):
         hierarchy = HierarchyType.MULTIPART if multipart else HierarchyType.MONOGRAPH
         documents = scan.documents
         if multipart:
-            documents = split_documents(documents, scan.spans, lambda span: span.part, "part", opening_start)
+            if self.multipart_boundaries is MultipartBoundaries.BINDER:
+                documents = own_documents(scan)
+            documents = split_documents(documents, scan.spans, lambda span: span.part, same_part, "part",
+                                        opening_start)
+            if self.multipart_boundaries is MultipartBoundaries.BINDER:
+                _drop_page_type_starts(documents, scan.spans)
         logger.info(f"Binding {len(documents)} {hierarchy.value} volume(s)")
         volumes: List[MetakatVolume] = []
         for document, winner in zip(documents, authoritative_spans(documents, scan.spans)):

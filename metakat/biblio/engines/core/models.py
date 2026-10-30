@@ -5,7 +5,7 @@ bottom-level document (a half-title and a title page, say), in page order. It
 reads the bibliographic information printed on a span as one record and
 returns it grouped as MODS groups it: every container class below is one MODS
 container, and so one MetakatGroup type; a container nested in another - a
-level of a part in a title, a name of a series - is a group nested in the
+part in a title or in a part, a name of a series - is a group nested in the
 other's (MetakatGroup). Values inside one container were read
 as one statement - one imprint, one title, one series - and do not claim which
 of them pairs with which; the DMF allows parallel places or publishers of one
@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Iterator, Optional, Sequence
 
@@ -41,22 +42,27 @@ _NESTED = {"nested": True}
 
 @dataclass(frozen=True)
 class BiblioPart:
-    """One level of the part a volume is: its number and name (a `díl` above a `část`)."""
+    """One part of a work: its number and name, and the parts it is divided into that the
+    volume is or contains (a `díl` holding its `část`), each a PART group nested in its own."""
 
     GROUP_TYPE = GroupType.PART
 
     number: Optional[DetectionEvidence] = field(default=None, metadata=_to("partNumber"))
     name: Optional[DetectionEvidence] = field(default=None, metadata=_to("partName"))
+    parts: tuple[BiblioPart, ...] = field(default=(), metadata=_NESTED)
 
 
 @dataclass(frozen=True)
 class BiblioTitleInfo:
     """One <titleInfo>: a title and the subtitle, number and name read with it.
 
-    `part_number` and `part_name` are the part this volume is; `higher_parts`
-    the parts it belongs to, the highest first, which MODS gives before it in
-    the same <titleInfo> (a part of several levels, MARC 245 $n $p). Each
-    level is a PART group in the titleInfo group, this volume's last.
+    `parts` are the parts of the work this volume is or contains, as printed:
+    the highest ones, each with the parts it is divided into (BiblioPart), a
+    PART group in the titleInfo group, those of a divided part nested in its
+    own. MODS gives them in the same <titleInfo>, in the printed order (a
+    part of several levels, MARC 245 $n $p). `part_number` and `part_name`
+    are a part read without its place among them - a detected part number or
+    name, a periodical volume or issue - one more PART group, after `parts`.
     `translated` is true for a parallel title in another language, false for
     the main title, None when the reader cannot tell (TitleValue)."""
 
@@ -66,7 +72,7 @@ class BiblioTitleInfo:
 
     title: Optional[DetectionEvidence] = field(default=None, metadata=_to("title"))
     sub_title: Optional[DetectionEvidence] = field(default=None, metadata=_to("subTitle"))
-    higher_parts: tuple[BiblioPart, ...] = field(default=(), metadata=_NESTED)
+    parts: tuple[BiblioPart, ...] = field(default=(), metadata=_NESTED)
     part_number: Optional[DetectionEvidence] = field(default=None, metadata=_to("partNumber", own_part=True))
     part_name: Optional[DetectionEvidence] = field(default=None, metadata=_to("partName", own_part=True))
 
@@ -270,6 +276,20 @@ class BiblioPage:
 BiblioSpan = Sequence[BiblioPage]
 
 
+class TitlePageKind(str, Enum):
+    """What a span is, as the core tells it from the page: of several pages, the most complete.
+
+    A half-title, a divisional title page and a series title page describe
+    the volume they stand in, never open another one (split_documents)."""
+
+    # From the most complete.
+    TITLE_PAGE = "titlePage"
+    PART_TITLE = "partTitle"
+    HALF_TITLE = "halfTitle"
+    SERIES_TITLE = "seriesTitle"
+    OTHER = "other"
+
+
 @dataclass(frozen=True)
 class BiblioSpanResult:
     """What one span says, as one record.
@@ -278,13 +298,15 @@ class BiblioSpanResult:
     page, most of it. `periodical_volume` and `periodical_issue` hold what the
     core read as explicitly describing a periodical volume or issue, such as a
     printed volume number or issue date. Every value names the page it was
-    read on in its evidence's `page_key`.
+    read on in its evidence's `page_key`. `kind` is what the span is, when the
+    core tells it (TitlePageKind).
     """
 
     page_keys: tuple[str, ...]
     reading: BiblioReading = BiblioReading()
     periodical_volume: Optional[BiblioReading] = None
     periodical_issue: Optional[BiblioReading] = None
+    kind: Optional[TitlePageKind] = None
 
     def is_empty(self) -> bool:
         return self.reading.is_empty() and self.periodical_volume is None and self.periodical_issue is None
@@ -319,9 +341,9 @@ def container_items(container: BiblioNestable) -> Iterator[tuple[str, DetectionE
     """The readings of a container in field order, as (MetakatBibliographic field, evidence),
     and the containers nested in it, each as a Nested of its own items.
 
-    The parts of a title come in the printed order, the highest level first,
-    this volume's own part last, each a PART (MetakatGroup); the names of a
-    series each a SERIES_TITLE_INFO."""
+    The parts of a title come in the printed order, each a PART (MetakatGroup)
+    holding the parts it is divided into, a part read alone last; the names
+    of a series each a SERIES_TITLE_INFO."""
     if isinstance(container, BiblioAgent):
         yield container.role.value, container.name
     own_part = []
@@ -425,10 +447,13 @@ def merge_span(page_keys: Sequence[str], results: Sequence[BiblioSpanResult]) ->
         reading = merge_readings(readings)
         return None if reading.is_empty() else reading
 
+    # The span is what its most complete page is (TitlePageKind, in its order).
+    kinds = list(TitlePageKind)
     result = BiblioSpanResult(
         page_keys=tuple(page_keys),
         reading=merged("reading") or BiblioReading(),
         periodical_volume=merged("periodical_volume"),
         periodical_issue=merged("periodical_issue"),
+        kind=min((result.kind for result in results if result.kind is not None), key=kinds.index, default=None),
     )
     return None if result.is_empty() else result

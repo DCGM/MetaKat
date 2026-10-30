@@ -165,12 +165,12 @@ describe, never by a hierarchy decision:
 
 A `BiblioReading` holds **containers**. Each container class is one MODS
 container, so one `MetakatGroup` type. A container nested in another - a
-level of a part in a title, a name of a series - is a group nested in the
+part in a title, a division of a part, a name of a series - is a group nested in the
 other's (`MetakatGroup` members can be group ids):
 
 | Container | MODS container / `GroupType` | Fields → MetaKat field |
 |---|---|---|
-| `BiblioTitleInfo` | `<titleInfo>` / `titleInfo` | `title` → `title`, `sub_title` → `subTitle`, `higher_parts` (`BiblioPart`, a `part` group each: `number` → `partNumber`, `name` → `partName`, the parts the volume's part belongs to, highest first), `part_number` → `partNumber`, `part_name` → `partName` (together the last `part` group) |
+| `BiblioTitleInfo` | `<titleInfo>` / `titleInfo` | `title` → `title`, `sub_title` → `subTitle`, `parts` (`BiblioPart`, a `part` group each: `number` → `partNumber`, `name` → `partName`, its `parts` - the parts it is divided into - `part` groups nested in it), `part_number` → `partNumber`, `part_name` → `partName` (a part read without its place among them - a detected part, a periodical volume or issue - together one more `part` group) |
 | `BiblioPublication` | `<originInfo eventType="publication">` / `originInfoPublication` | `places` → `placeTerm`, `publishers` → `publisher`, `date_issued` → `dateIssued`, `edition` → `edition`, `frequency` → `frequency` |
 | `BiblioManufacture` | `<originInfo eventType="manufacture">` / `originInfoManufacture` | `places` → `manufacturePlaceTerm`, `manufacturers` → `manufacturePublisher`, `date` → `manufactureDate` |
 | `BiblioDistribution` | `<originInfo eventType="distribution">` / `originInfoDistribution` | `places` → `distributionPlaceTerm`, `distributors` → `distributor`, `date` → `distributionDate` |
@@ -652,7 +652,8 @@ is not read:
 | Reply | Monograph engine | Periodical engine |
 |---|---|---|
 | title | `titleInfo[]` - `title`, `subTitle`: one `BiblioTitleInfo` each, every value in its `lang`, `translated` (a parallel title) as its flag | `periodical[]` - `periodicalTitle`, `periodicalSubTitle`: one `BiblioTitleInfo` each, every value in its `lang`, `translated` as its flag |
-| parts | of `titleInfo[].parts`, the first of the deepest `level` (a `část` within a `díl`) as `part_number`, `part_name`, and for each level above it the nearest part of that level printed before it as `higher_parts`; the other parts of a level are other volumes and not kept | - |
+| parts | `titleInfo[].parts` - every part the volume is or contains, each with the parts nested in it (a `část` within its `díl`, up to three levels), as `parts`, nested as the model nested them | - |
+| page kind | `pageKind` - what the span is (`titlePage`, `partTitle`, `halfTitle`, `seriesTitle`, `other`) as the result's `kind` (`TitlePageKind`); the binder never starts a part on a half-title, divisional or series title page | - |
 | volume, issue | - | `volume` (`volumePartNumber`, `volumeDateIssued`) as `periodical_volume`, `issue` (`issuePartNumber`, `issuePartName`, `issueDateIssued`) as `periodical_issue`: the number and name as a `BiblioTitleInfo`, the date as a `BiblioPublication`, as the YOLO engine reads them |
 | imprint | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`, `edition` | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`; `frequency` in the first one |
 | distributor | `distribution[]`: one `BiblioDistribution` each | the same |
@@ -708,9 +709,23 @@ the modified copy.
 
 ```json
 {
-  "name": "biblio_bind_engine_monograph"
+  "name": "biblio_bind_engine_monograph",
+  "multipart_boundaries": "page_type"
 }
 ```
+
+`multipart_boundaries` (monograph binder only) says who decides where the
+parts of a multipart monograph begin (`MultipartBoundaries`):
+
+- `page_type` (the default) - the page-type stage's document starts are
+  right; the binder only adds the start of a part it finds inside a document
+  ([Parts and issues inside one document](#parts-and-issues-inside-one-document)).
+- `binder` - the binder decides alone, from the title pages read: the
+  page-type stage's starts are ignored, except annotated ones and the first
+  page's (`own_documents`), and the scan is split wherever a title page opens
+  another part. A page-type start left inside a part is set to false, with
+  the score of the span naming the part as confidence (`0.5` when none
+  does). A scan of monographs keeps the page-type documents either way.
 
 The binders have no configurable thresholds. Every decision rule described
 below is fixed in the implementation.
@@ -728,7 +743,7 @@ flowchart TD
     E{One document and one ProArc volume?}
     F[resolve_single_proarc_volume: group, match, merge to exactly one MetakatVolume holding every page]
     K1[is_multipart: monographs or one multipart monograph]
-    P[split_documents: a start on the title page of a second part]
+    P[split_documents: a start on the title page of a second part; with multipart_boundaries binder, of the binder's own documents]
     G[bind: one volume per document named by its strongest span; the title of a multipart work]
     Q[Periodical binder: split_documents on a second issue; one issue per document; volume runs; title]
     I[Finalize groups; page indices; representative pages]
@@ -780,8 +795,10 @@ in `batch_index` order, into documents: one starts at every page whose
 on every page, the first one included, as `(true, 1.0)`. Without a
 `startsDocument` on every page - the page-type stage did not run, or left some
 out - the scan is one document; a partial set is logged as a warning. The page-number stage reads the documents by the same
-rule. The binder never moves or removes a boundary; the only one it adds is a
-[second part or issue](#parts-and-issues-inside-one-document) inside a document.
+rule. The binder never moves a boundary; the only one it adds is a
+[second part or issue](#parts-and-issues-inside-one-document) inside a document,
+and it removes one only when configured to decide the parts of a multipart
+monograph alone (`multipart_boundaries` `binder`).
 
 ### Title-page spans and core invocation
 
@@ -1202,7 +1219,7 @@ carries the groups through its decisions about records.
   from each group the values its record no longer holds - the less confident
   of two readings, a field a merge does not keep - and groups left empty from
   the groups holding them. A nested group keeps even one member (a part
-  number alone is a level of its own); a group nested in nothing left with
+  number alone is a part of its own: "sešit 4" under "svazek 12"); a group nested in nothing left with
   one value is dropped.
 
 ### Multipart or monographs
@@ -1223,28 +1240,41 @@ The page-type stage finds the boundary between two parts of one multipart work
 much less often than other boundaries: consecutive parts look like one book.
 `split_documents` (shared) adds the missed start where a document clearly holds
 two units. The monograph binder runs it in a **multipart** scan, the
-periodical binder always. A later span starts a new document when, against the
-previous strong span of the same document:
+periodical binder always. The spans of a document scoring at least
+`SPLIT_MINIMUM_SCORE` (`0.5`) - a weak or unread title page never splits - are
+taken in page order, each describing the unit open or opening another. A span
+opens another unit when:
 
-- both score at least `SPLIT_MINIMUM_SCORE` (`0.5`) - a weak or unread title
-  page never splits;
-- at least `SPLIT_MINIMUM_GAP` (`10`) pages lie between them - a half-title
-  and a title page do not;
-- at least one of them reads a part number or name (an issue number or date,
-  or a `periodical` volume, in a periodical);
-- they are not the same unit twice: the same part - every level both read
-  agreeing in its number or name, aligned from the lowest, so a half-title
-  with "část 4" is "díl I, část 4" but "díl II, část 4" is not - or the same
-  issue number;
+- it may open one (`TitleSpan.opens`): the core did not tell it a half-title,
+  a divisional title page or a series title page (`TitlePageKind`), which
+  describe the unit they stand in;
+- at least `SPLIT_MINIMUM_GAP` (`10`) pages lie between it and the open unit's
+  last span that may open one - a half-title and a title page do not;
+- it or a span of the open unit reads a part number or name (an issue number
+  or date, or a `periodical` volume, in a periodical);
+- it is not the same unit as any span of the open unit that may open one (all
+  of them when none may) - a half-title before the next part's title page
+  stands in the open part but names the next one:
+  - **monograph** (`same_part`): the parts of one span are among the other's
+    (`part_paths`, the paths from a highest part down through its divisions):
+    every path of one is a run of consecutive parts of a path of the other,
+    parts above or below it left out, each part agreeing in its number or its
+    name. A half-title with "část 4", or with "díl I" alone, is "díl I,
+    část 4"; "díl II, část 4" and "díl I, část 5" are not; a span reading no
+    part is among any;
+  - **periodical** (`same_issue`): every volume level both read agreeing,
+    aligned from the lowest, or the same issue number;
 - the start page's `startsDocument` is not annotated.
 
 Where the new document starts differs by binder:
 
 - **monograph:** on the first page of the opening before the later span's
   title page (`opening_start`). A volume is scanned front cover, end papers,
-  frontispiece, title page, so those pages belong to the new part. Walking back
-  from the title page over pages of opening types (front cover, end papers,
-  front jacket, frontispiece) and neutral ones (blank, cover, fly leaf, ...),
+  frontispiece, half-title, title page, so those pages belong to the new part.
+  Walking back from the title page over pages of opening types (front cover,
+  end papers, front jacket, frontispiece), over the pages of the spans just
+  before it that describe the new part without opening one - its half-title,
+  its series title page - and over neutral ones (blank, cover, fly leaf, ...),
   the start is the earliest opening page reached; a neutral page before it may
   close the previous part, so stays there. The walk stops at any other type - a
   back cover closes the previous part - and without an opening page the title

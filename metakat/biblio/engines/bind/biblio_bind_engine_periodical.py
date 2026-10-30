@@ -32,6 +32,7 @@ from metakat.biblio.engines.bind.biblio_binding import (
     kept,
     normalize_text,
     read_scan,
+    same_issue,
     split_documents,
     write_scan,
 )
@@ -65,7 +66,7 @@ class BiblioBindEnginePeriodical(BiblioBindEngine):
         page of a document goes to its issue; a document no span names gets an
         unnamed issue. Returns the title, the volumes, then the issues in
         document order."""
-        documents = split_documents(scan.documents, scan.spans, reads_issue, "issue")
+        documents = split_documents(scan.documents, scan.spans, reads_issue, same_issue, "issue")
         logger.info(f"Binding {len(documents)} issue(s)")
         winners = authoritative_spans(documents, scan.spans)
         issues: List[MetakatIssue] = []

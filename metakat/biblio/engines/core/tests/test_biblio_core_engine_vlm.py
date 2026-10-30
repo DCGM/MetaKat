@@ -20,6 +20,7 @@ from metakat.biblio.engines.core.models import (
     BiblioSpanResult,
     BiblioReading,
     BiblioTitleInfo,
+    TitlePageKind,
     container_values,
 )
 from metakat.common.models import AltoRefs, BoundingBox
@@ -73,6 +74,8 @@ def _empty(schema, definitions=None):
         return []
     if "boolean" in kinds:
         return False
+    if "enum" in schema and "null" not in kinds:
+        return schema["enum"][0]
     return None
 
 
@@ -386,7 +389,7 @@ def second_page(tmp_path):
 
 def test_a_span_is_read_in_one_request_and_each_value_keeps_the_page_it_is_on(page, second_page):
     reply = {**_REPLY, "titleInfo": [{"title": "KYTICE", "subTitle": None, "lang": None, "translated": False,
-                                      "parts": [{"level": 1, "partNumber": "DÍL DRUHÝ", "partName": None}]}]}
+                                      "parts": [{"partNumber": "DÍL DRUHÝ", "partName": None, "parts": []}]}]}
     endpoint = _Endpoint(reply)
     engine = BiblioCoreEngineVLMMonograph(_config(), client=endpoint.client())
 
@@ -477,12 +480,12 @@ def test_a_page_in_two_spans_is_rejected(page):
 # --- the monograph engine -----------------------------------------------------
 
 
-def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_role_and_type(page):
-    reply = {**_REPLY,
+def test_the_monograph_engine_keeps_every_part_as_nested_and_every_agent_with_its_role_and_type(page):
+    reply = {**_REPLY, "pageKind": "halfTitle",
              "titleInfo": [{"title": "KYTICE", "subTitle": None, "lang": "cze", "translated": False, "parts": [
-                 {"level": 1, "partNumber": "I", "partName": "PŮDA"},
-                 {"level": 2, "partNumber": "4", "partName": "ČECHY"},
-                 {"level": 2, "partNumber": "5", "partName": "MORAVA"}]}],
+                 {"partNumber": "I", "partName": "PŮDA", "parts": [
+                     {"partNumber": "4", "partName": "ČECHY", "parts": []},
+                     {"partNumber": "5", "partName": "MORAVA", "parts": []}]}]}],
              "series": [{"titleInfo": [{"seriesName": "SVĚTOVÁ KNIHOVNA", "seriesPartNumber": "sv. 312",
                                         "seriesPartName": None, "lang": "cze", "translated": False}],
                          "seriesIssn": "1211-3298", "seriesEditor": ["JOSEF TŮMA"]}],
@@ -498,13 +501,16 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_ro
 
     result = engine.process(_span(page)).spans[0]
 
+    assert result.kind is TitlePageKind.HALF_TITLE
     [title_info] = result.reading.title_infos
-    assert (title_info.part_number.text, title_info.part_name.text) == ("4", "ČECHY")
-    # The part it belongs to comes before it; the part of the same level after it is another volume.
-    [higher] = title_info.higher_parts
-    assert (higher.number.text, higher.name.text) == ("I", "PŮDA")
+    # Every part, each holding the parts the model nested in it.
+    [top] = title_info.parts
+    assert (top.number.text, top.name.text) == ("I", "PŮDA")
+    assert [(part.number.text, part.name.text, part.parts) for part in top.parts] == [
+        ("4", "ČECHY", ()), ("5", "MORAVA", ())]
     assert [(field, evidence.text) for field, evidence in container_values(title_info)][1:] == [
-        ("partNumber", "I"), ("partName", "PŮDA"), ("partNumber", "4"), ("partName", "ČECHY")]
+        ("partNumber", "I"), ("partName", "PŮDA"), ("partNumber", "4"), ("partName", "ČECHY"),
+        ("partNumber", "5"), ("partName", "MORAVA")]
     [series] = result.reading.series
     [series_title] = series.titles
     assert (series_title.name.text, series_title.part_number.text) == ("SVĚTOVÁ KNIHOVNA", "sv. 312")
@@ -514,7 +520,7 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_ro
     assert (composer.role, composer.name.text) == (AgentRole.COMPOSER, "B. SMETANA")
     assert (body.role, body.type) == (AgentRole.ISSUING_BODY, NameType.CORPORATE)
     # A titleInfo's and a series' language is the language of each of their values.
-    assert (title_info.title.lang, title_info.part_name.lang, series_title.name.lang) == ("cze", "cze", "cze")
+    assert (title_info.title.lang, top.parts[0].name.lang, series_title.name.lang) == ("cze", "cze", "cze")
     [responsibility] = result.reading.responsibilities
     assert [s.text for s in responsibility.statements] == ["Přeložil Dr. J. V. NOVÁK"]
     [copyright_] = result.reading.copyrights

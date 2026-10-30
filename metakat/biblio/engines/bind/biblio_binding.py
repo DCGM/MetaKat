@@ -33,6 +33,7 @@ from metakat.biblio.engines.core.models import (
     BiblioSpanResult,
     BiblioTitleInfo,
     Nested,
+    TitlePageKind,
     container_items,
     merge_languages,
 )
@@ -99,6 +100,8 @@ _UNITED_GROUP_TYPES = frozenset((
 # into two parts or issues (split_documents).
 SPLIT_MINIMUM_SCORE = 0.5
 SPLIT_MINIMUM_GAP = 10
+# The kinds of span that never open a unit (TitleSpan.opens).
+_DESCRIBING_KINDS = frozenset((TitlePageKind.HALF_TITLE, TitlePageKind.PART_TITLE, TitlePageKind.SERIES_TITLE))
 
 
 def normalize_text(text: str) -> str:
@@ -182,7 +185,7 @@ def union_groups(sources: List[List[MetakatGroup]]) -> List[MetakatGroup]:
     imprint - is one statement of the record, so those groups are united.
     Anything else stays as read: a reading that split a statement did so on
     purpose, and series and names are separate entities. A group nested in
-    another - a level of a part, a name of a series - keeps its id, so the
+    another - a part, a name of a series - keeps its id, so the
     united group still holds it.
     """
     result: List[MetakatGroup] = []
@@ -208,6 +211,8 @@ class TitleSpan:
     volume: Optional[MetakatVolume] = None
     issue: Optional[MetakatIssue] = None
     score: float = 0.
+    # What the span is, when the core tells it (TitlePageKind).
+    kind: Optional[TitlePageKind] = None
 
     @property
     def start(self) -> int:
@@ -227,6 +232,12 @@ class TitleSpan:
         return self.volume is not None and self.volume.hierarchy == HierarchyType.MULTIPART
 
     @property
+    def opens(self) -> bool:
+        # A half-title, a divisional title page or a series title page
+        # describes the unit it stands in; any other span may open one.
+        return self.kind not in _DESCRIBING_KINDS
+
+    @property
     def periodical(self) -> bool:
         # A periodical volume read, or an issue number or date.
         return self.volume is not None and (
@@ -234,41 +245,77 @@ class TitleSpan:
             or (self.issue is not None and (self.issue.partNumber is not None or self.issue.dateIssued is not None)))
 
 
-def volume_parts(volume: MetakatVolume) -> List[Tuple[Optional[str], Optional[str]]]:
-    """The levels of the part a volume is, the highest first, as normalized (number, name).
+# A part as compared: its normalized (number, name).
+_Level = Tuple[Optional[str], Optional[str]]
 
-    Read from its titleInfo group (MetakatGroup): each PART group is a level,
-    and so is a number or name in the titleInfo directly. Without a group,
-    numbers and names pair from the lowest level."""
+
+def part_paths(volume: MetakatVolume) -> List[Tuple[_Level, ...]]:
+    """The parts a volume is or contains, as paths from a highest part down to a part not divided further.
+
+    Read from its titleInfo group (MetakatGroup): each PART group is a part,
+    those nested in it its divisions; a number or name in the titleInfo
+    directly is a part of its own. Without a group, numbers and names pair
+    from the lowest level into one path."""
     numbers = {value.id: normalize_text(value.text) for value in volume.partNumber or ()}
     names = {value.id: normalize_text(value.text) for value in volume.partName or ()}
     groups = {group.id: group for group in volume.groups or ()}
     title_info = next((group for group in groups.values() if group.type == GroupType.TITLE_INFO.value
                        and any(member in numbers or member in names or member in groups
                                for member in group.members)), None)
+
+    def paths(member, above: Tuple[_Level, ...]) -> List[Tuple[_Level, ...]]:
+        if member not in groups:
+            level = (numbers.get(member), names.get(member))
+            return [above + (level,)] if level != (None, None) else []
+        group = groups[member]
+        level = (next((numbers[m] for m in group.members if m in numbers), None),
+                 next((names[m] for m in group.members if m in names), None))
+        here = above + (level,) if level != (None, None) else above
+        below = [path for m in group.members if m in groups for path in paths(m, here)]
+        return below or ([here] if here else [])
+
     if title_info is not None:
-        levels = [groups[member].members if member in groups else [member] for member in title_info.members]
-        parts = [(next((numbers[m] for m in level if m in numbers), None),
-                  next((names[m] for m in level if m in names), None)) for level in levels]
-        return [part for part in parts if part != (None, None)]
-    parts: List[List[Optional[str]]] = [[number, None] for number in numbers.values()]
+        return [path for member in title_info.members for path in paths(member, ())]
+    chain: List[List[Optional[str]]] = [[number, None] for number in numbers.values()]
     for name in names.values():
-        if parts and parts[-1][1] is None:
-            parts[-1][1] = name
+        if chain and chain[-1][1] is None:
+            chain[-1][1] = name
         else:
-            parts.append([None, name])
-    return [(number, name) for number, name in parts]
+            chain.append([None, name])
+    return [tuple((number, name) for number, name in chain)] if chain else []
 
 
-def same_unit(first: TitleSpan, second: TitleSpan) -> bool:
-    # Two spans reading the same part, or the same issue number, describe one
-    # unit twice - a half-title far from its title page. A part is the same
-    # when every level both read agrees in its number or its name, aligned
-    # from the lowest: a half-title printing only "část 4" is "díl I, část 4",
-    # "díl II, část 4" is not.
-    common = list(zip(reversed(volume_parts(first.volume)), reversed(volume_parts(second.volume))))
-    if common and all((a_number is not None and a_number == b_number) or (a_name is not None and a_name == b_name)
-                      for (a_number, a_name), (b_number, b_name) in common):
+def _agrees(first: _Level, second: _Level) -> bool:
+    # One part read twice: the same number, or the same name.
+    return any(a is not None and a == b for a, b in zip(first, second))
+
+
+def _contained(paths: List[Tuple[_Level, ...]], others: List[Tuple[_Level, ...]]) -> bool:
+    # Every path is a run of consecutive parts of one of the others: parts
+    # above or below it may be left out, none between.
+    return all(any(all(_agrees(a, b) for a, b in zip(path, other[start:start + len(path)]))
+                   for other in others for start in range(len(other) - len(path) + 1))
+               for path in paths)
+
+
+def same_part(first: TitleSpan, second: TitleSpan) -> bool:
+    """Whether two spans read the same part of a multipart monograph: the parts of one
+    are among the other's (part_paths).
+
+    A half-title or a divisional title page prints some of its volume's
+    parts, often without the higher or the lower ones: "část 4" and "díl I"
+    are both among "díl I, část 4", "díl II, část 4" is not. A span that
+    reads no part is among any."""
+    paths, others = part_paths(first.volume), part_paths(second.volume)
+    return _contained(paths, others) or _contained(others, paths)
+
+
+def same_issue(first: TitleSpan, second: TitleSpan) -> bool:
+    """Whether two spans read the same periodical unit: every level of the volume both read
+    agrees, aligned from the lowest, or else the same issue number."""
+    chains = [(part_paths(span.volume) or [()])[0] for span in (first, second)]
+    common = list(zip(reversed(chains[0]), reversed(chains[1])))
+    if common and all(_agrees(a, b) for a, b in common):
         return True
     if first.issue is not None and second.issue is not None and first.issue.partNumber is not None:
         return texts_match(first.issue.partNumber, second.issue.partNumber)
@@ -420,7 +467,7 @@ def span_hierarchy(page_result: BiblioSpanResult) -> HierarchyType:
     # or name alone, one part of a multipart monograph.
     if page_result.periodical_volume is not None or page_result.periodical_issue is not None:
         return HierarchyType.PERIODICAL
-    if any(title_info.part_number is not None or title_info.part_name is not None
+    if any(title_info.parts or title_info.part_number is not None or title_info.part_name is not None
            for title_info in page_result.reading.title_infos):
         return HierarchyType.MULTIPART
     return HierarchyType.MONOGRAPH
@@ -449,7 +496,9 @@ def read_scan(core_engine, batch_dir: str, metakat_io: MetakatIO) -> Scan:
     """A copy of the scan cut into its documents and title-page spans, with every span read by the core.
 
     The bottom-level documents are the page-type stage's decision
-    (bottom_documents); the binders never move or remove a boundary."""
+    (bottom_documents); a binder adds a boundary where it finds a second unit
+    in a document, and removes one only when configured to decide alone
+    (the monograph binder's `multipart_boundaries`)."""
     metakat_io = copy.deepcopy(metakat_io)
     pages = sorted((el for el in metakat_io.elements if el.type == DocumentType.PAGE.value),
                    key=lambda page: page.batch_index)
@@ -578,6 +627,7 @@ def read_spans(
             detection_id_to_page_id[detection_id] = page.id
         detection_id_to_detection_bbox.update(bboxes)
         detection_id_to_alto.update(alto)
+        span.kind = result.kind
         span.volume = next((e for e in elements if isinstance(e, MetakatVolume)), None)
         span.issue = next((e for e in elements if isinstance(e, MetakatIssue)), None)
         if span.volume is None:
@@ -594,36 +644,46 @@ def split_documents(
     documents: List[List[MetakatPage]],
     spans: List[TitleSpan],
     reads_unit: Callable[[TitleSpan], bool],
+    same_unit: Callable[[TitleSpan, TitleSpan], bool],
     unit: str,
-    start_page: Optional[Callable[[List[MetakatPage], TitleSpan, TitleSpan], MetakatPage]] = None,
+    start_page: Optional[Callable[[List[MetakatPage], TitleSpan, List[TitleSpan]], MetakatPage]] = None,
 ) -> List[List[MetakatPage]]:
     """The documents with a start added where one holds two units - two parts, two issues.
 
-    A document whose title-page spans name two units is two documents: two
-    spans scoring at least SPLIT_MINIMUM_SCORE, at least SPLIT_MINIMUM_GAP
-    pages apart, at least one of them reading what makes a unit
-    (`reads_unit`: a part number or name, an issue number or date), and not
-    the same unit twice. The new document starts on the later span's first
-    title page, or on the page `start_page(document, span, previous)` gives -
-    the binder's choice; that page's startsDocument is set with the span's
-    score.
-    An annotated start is never overridden. The spans are renumbered to the
-    new documents."""
+    The spans of a document scoring at least SPLIT_MINIMUM_SCORE are taken in
+    page order, each describing the unit open or opening another. A span
+    opens another unit when it may open one (TitleSpan.opens: no half-title,
+    divisional or series title page), starts at least SPLIT_MINIMUM_GAP pages
+    after the open unit's last span that may open one, it or one of the open
+    unit's spans reads what makes a unit (`reads_unit`: a part number or
+    name, an issue number or date), and it reads the same unit as none of
+    the open unit's spans that may open one - all of them when none may
+    (`same_unit`): a half-title before the next unit's title page stands in
+    the open unit but names the next one. The new document starts on the
+    span's first page, or on the page `start_page(document, span, opened)`
+    gives - the binder's choice, `opened` being the open unit's spans; that
+    page's startsDocument is set with the span's score. An annotated start
+    is never overridden. The spans are renumbered to the new documents."""
     starts = set()
     for index, document in enumerate(documents):
         strong = [s for s in spans if s.document == index and s.score >= SPLIT_MINIMUM_SCORE]
-        for previous, span in zip(strong, strong[1:]):
-            if not (span.start - previous.end - 1 >= SPLIT_MINIMUM_GAP
-                    and (reads_unit(span) or reads_unit(previous))
-                    and not same_unit(previous, span)):
+        opened = strong[:1]
+        for span in strong[1:]:
+            opening = [s for s in opened if s.opens] or opened
+            if not (span.opens and span.start - opening[-1].end - 1 >= SPLIT_MINIMUM_GAP
+                    and (reads_unit(span) or any(reads_unit(s) for s in opened))
+                    and not any(same_unit(s, span) for s in opening)):
+                opened.append(span)
                 continue
-            start = start_page(document, span, previous) if start_page is not None else span.pages[0]
+            start = start_page(document, span, opened) if start_page is not None else span.pages[0]
             if is_annotated(start.startsDocument):
+                opened.append(span)
                 continue
             starts.add(start.id)
             start.startsDocument = (True, span.score)
             logger.info("Page %s starts another %s inside a document, %d page(s) before its title page "
                         "(span score %.2f)", start.id, unit, span.start - start.batch_index, span.score)
+            opened = [s for s in opened if s.start >= start.batch_index] + [span]
     if not starts:
         return documents
     result: List[List[MetakatPage]] = []
@@ -704,7 +764,7 @@ def finalize_groups(element: MetakatElement) -> None:
     # field the record does not keep - is dropped from its group here, and
     # a group left with no member from the group holding it. A group nested
     # in another keeps even one member: it says where that member sits (a
-    # part number alone is a level of the part). A group holding nothing
+    # part number alone is a part of its own). A group holding nothing
     # else left with one value pairs nothing.
     present = referenced_detection_ids([element])
     groups = {group.id: group for group in element.groups or []}
