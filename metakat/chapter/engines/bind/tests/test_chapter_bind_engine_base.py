@@ -603,6 +603,7 @@ def test_recursive_result_binds_schema_and_detection_provenance(
                                  terms_of_address=(evidence("Dr.", "toc", y=170),)),
                 ),
                 etal_toc_page=evidence("a kol.", "toc", y=175),
+                designation_toc_page=evidence("Kapitola 3.", "toc", y=5),
                 parallel_titles_toc_page=(
                     ChapterTitleVersion(title=evidence("Kapitel", "toc", y=180),
                                         subtitle=evidence("Untertitel", "toc", y=190)),
@@ -666,6 +667,8 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     assert ("agent", [translator.id, term.id, affiliation.id]) in groups
     # A phrase saying there are more agents than named is a value of its own.
     assert [value.text for value in root.etalTocPage] == ["a kol."]
+    # The entry's marker as printed, for the normalization to title by.
+    assert [value.text for value in root.designationTocPage] == ["Kapitola 3."]
     # Each parallel version follows the first in its field, a titleInfo of
     # its own when it has more than a title.
     assert [value.text for value in root.titleTocPage] == ["Chapter", "Kapitel", "Chapitre"]
@@ -683,7 +686,7 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     assert page_by_detection[root.title[0].id] == pages[1].id
     # The printed reference is a value of its own beside the number it parses into.
     assert root.pageReferenceTocPage[0].text == "10"
-    assert len(bbox_by_id) == 15
+    assert len(bbox_by_id) == 16
 
 
 def test_explicit_container_parents_all_chapter_roots(bind_engine, evidence):

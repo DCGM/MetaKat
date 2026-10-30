@@ -1632,27 +1632,30 @@ Of each entry the engine reads:
 | Reply | `ChapterBase` |
 |---|---|
 | `tocPage`, the index of the image the entry starts on | `toc_page_key` |
-| `titleInfo[].title` of the main version - the one not flagged `translated`, the first if all are; else `designation` | `title_toc_page`; its `translated` as `title_translated_toc_page` |
+| `titleInfo[].title` of the main version - the one not flagged `translated`, the first if all are | `title_toc_page`; its `translated` as `title_translated_toc_page` |
 | the main version's `subTitle` | `subtitle_toc_page` |
 | the main version's `description`, its synopsis | `description_toc_page` |
 | the main version's `lang` | the `lang` of the title, subtitle and synopsis evidence, so of their values (`<titleInfo lang>`, `<abstract lang>`) |
 | the other `titleInfo[]` objects, the parallel versions flagged `translated`, each with its title, subtitle, synopsis and `lang` | `parallel_titles_toc_page` (`ChapterTitleVersion`); bound after the main version in `titleTocPage`, `subTitleTocPage` (flagged `translated`) and `abstractTocPage`, a titleInfo group each |
 | `agents[]`, each in its `role` (never `redaktor`), with its `type`, its `termsOfAddress[]` and its `description[]` as affiliations; each name, term of address and affiliation is located on its own | `agents_toc_page`; terms bound to `termsOfAddressTocPage`, in the agent's group |
 | `etal`, the phrase saying there are more agents than named | `etal_toc_page`, bound to `etalTocPage` |
+| `designation`, the whole printed entry marker with its words and punctuation | `designation_toc_page`, bound to `designationTocPage` |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |
 | `pageReference`, the reference as printed | `page_reference_toc_page` |
 | `kind`, heading or item | `kind_toc_page`, with the configured `confidence` |
 | `pages`, the reference split into its pages (strings) and ranges (`start`, `end`) | `page_runs_toc_page`, bound as the page numbers; and `page_number_toc_page`, its pages parsed by `ArabicRomanChapterPageNumberParser.parse_page`, for the alignment: one page a single number, one range a range (its start alone when the end is lower or in another numeral system), several runs a list of their first pages, and no number when a page is not one (`12a`) or there are none (`mapa za titulem`) |
 
-An entry printed with only its designation ("Kapitola 3") has the designation
-as its title: the NDK gives a chapter's title as printed in the book, its
-example being "Kapitola 3" (Pravidla pro popis monografií 2.1). Its part
-number is printed in the same words, and a word goes to one value only, so
-the part number takes its words from the title.
+An entry printed with only its designation ("Kapitola 3") has no title. The
+NDK titles such a chapter by it, its example being "Kapitola 3" (Pravidla pro
+popis monografií 2.1), but that title is made from `designationTocPage` by the
+normalization, which also settles its punctuation ("Kapitola 3." as printed);
+`designationTocPage` itself is not exported to MODS. The part number is
+printed in the designation's words, and a word goes to one value only, so the
+part number takes its words from the designation.
 
 A grouping heading is an entry like any other: a heading and an item are
 both chapters, placed in the hierarchy by their `level`, and the `kind` is
-kept beside it. Not read: `designation` when the entry has a title.
+kept beside it.
 The model's split of the reference is used rather than parsing
 `pageReference` again, which fails on a range inside a list (`58, 69, 81—83`),
 on `125., 138., 286` and on a page like `12a`. Parallel title versions are inspected only to decide whether

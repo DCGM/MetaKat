@@ -521,6 +521,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 titleTocPage=with_versions(title_toc_page, 0),
                 subTitleTocPage=with_versions(subtitle_toc_page, 1),
                 partNumberTocPage=part_number_toc_page,
+                designationTocPage=bind_evidence(resolved.designation_toc_page),
                 **agents_toc_page,
                 etalTocPage=bind_evidence(resolved.etal_toc_page),
                 pageReferenceTocPage=page_reference_toc_page,

@@ -695,6 +695,11 @@ class _MetakatInternalPartHead(MetakatBaseModel):
     # already `title`, so a partName would have nothing left to hold.
     partNumber: Optional[List[Value]] = None
     partNumberTocPage: Optional[List[Value]] = None
+    # The TOC entry's whole marker as printed, its words and punctuation
+    # ("Kapitola 3."), which partNumberTocPage is read from. MODS has no place
+    # for it: the normalization makes from it the title of a part printed
+    # with no other ("Kapitola 3").
+    designationTocPage: Optional[List[Value]] = None
 
 
 class _MetakatInternalPartFields(MetakatBaseModel):

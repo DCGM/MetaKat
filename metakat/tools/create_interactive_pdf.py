@@ -1067,6 +1067,7 @@ def _chapter_annotation_text(
     level: int,
 ) -> str:
     fields = (
+        ("designationTocPage", chapter.designationTocPage),
         ("partNumberTocPage", chapter.partNumberTocPage),
         ("titleTocPage", chapter.titleTocPage),
         ("title", chapter.title),

@@ -202,7 +202,7 @@ def test_the_call_is_reported_with_its_pages_whether_it_succeeds_or_not(toc_page
     assert (report.status, len(report.attempts)) == ("failed", 2)
 
 
-def test_an_entry_printed_with_only_its_designation_is_titled_by_it(tmp_path):
+def test_an_entry_printed_with_only_its_designation_is_not_titled_by_it(tmp_path):
     Image.new("RGB", (1000, 1500), "white").save(tmp_path / "0009.jpg")
     (tmp_path / "0009.xml").write_text(
         _ALTO.format(blocks=_line("A", 1, ("Kapitola", 100, 150), ("3", 260, 20), ("40", 800, 30))), encoding="utf-8")
@@ -212,9 +212,11 @@ def test_an_entry_printed_with_only_its_designation_is_titled_by_it(tmp_path):
 
     [chapter] = ChapterExtractionEngineVLM(_config(), client=_Endpoint(reply).client()).process([page]).chapters
 
-    assert (chapter.title_toc_page.text, chapter.part_number_toc_page.text) == ("Kapitola 3", "3")
-    assert chapter.title_toc_page.alto.words == ("A1W0", "A1W1")
-    # The number is printed in the title's words and takes them from it.
+    # The normalization makes its title from the designation.
+    assert chapter.title_toc_page is None
+    assert (chapter.designation_toc_page.text, chapter.part_number_toc_page.text) == ("Kapitola 3", "3")
+    assert chapter.designation_toc_page.alto.words == ("A1W0", "A1W1")
+    # The number is printed in the designation's words and takes them from it.
     assert chapter.part_number_toc_page.alto.words == ("A1W1",)
     assert chapter.part_number_toc_page.bbox == BoundingBox(260, 100, 20, 30)
 

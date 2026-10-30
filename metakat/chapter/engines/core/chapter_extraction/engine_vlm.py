@@ -21,10 +21,9 @@ the configured `confidence` (0.95 unless set).
 Of an entry the stage reads:
 
 - the title of its main `titleInfo` object - the one not flagged
-  `translated` - as `title_toc_page`; an entry
-  printed with only its designation ("Kapitola 3") has the designation as
-  its title, as the NDK gives such a chapter's title, and its part number
-  takes its words from it;
+  `translated` - as `title_toc_page`; an entry printed with only its
+  designation ("Kapitola 3") has no title: the title the NDK gives such a
+  chapter is made from the designation by the normalization, not read;
 - the subtitle and the synopsis of its main `titleInfo` object, as
   `subtitle_toc_page` and `description_toc_page`; the title, subtitle and
   synopsis are in the `lang` of that object;
@@ -36,8 +35,11 @@ Of an entry the stage reads:
   term of address and affiliation located as a value of its own;
 - its `etal`, the phrase saying there are more agents than named ("a kol."),
   as `etal_toc_page`;
+- its `designation`, the whole printed entry marker with its words and
+  punctuation ("Kapitola VIII."), as `designation_toc_page`;
 - its `partNumber`, the printed numbering without its words, as
-  `part_number_toc_page`;
+  `part_number_toc_page`; it is printed in the designation's words, and a
+  word goes to one value only, so it takes its words from the designation;
 - its `pageReference`, the reference as printed, as
   `page_reference_toc_page`, located in the ALTO;
 - its `pages`, the reference split by the model into its pages and ranges,
@@ -51,8 +53,6 @@ Of an entry the stage reads:
 - its `kind`, heading or item, as `kind_toc_page` with the configured
   confidence; a heading is an entry as an item is, the parent of the
   entries of a higher level after it.
-
-`designation` of an entry with a title is not read.
 
 The model is either behind an API (`vlm.api_url`) or a local one that vLLM
 serves only while `process()` runs (`local`, metakat.common.vlm.local_server),
@@ -263,17 +263,16 @@ class ChapterExtractionEngineVLM:
                         if path is None or region.alto_geometry is None:
                             continue
                         located.setdefault(tuple(path[1:]), (page_index, region))
-        # An entry titled by its designation ("Kapitola 3") prints its part
-        # number in the title's words, and a word goes to one value only, so
-        # the part number takes its words from the title.
+        # The part number is printed in the designation's words ("Kapitola 3"),
+        # and a word goes to one value only, so the part number takes its
+        # words from the designation.
         for index, entry in enumerate(entries):
             number = entry.get("partNumber")
-            if ((index, "partNumber") in located or (index, "title") not in located
-                    or not isinstance(number, str) or _own_title(entry) is not None):
+            if (index, "designation") not in located or not isinstance(number, str):
                 continue
-            page_index, title = located[index, "title"]
+            page_index, designation = located[index, "designation"]
             tokens = {_bare(token) for token in number.split()} - {""}
-            words = [word for word in title.words if _bare(word.text) in tokens]
+            words = [word for word in designation.words if _bare(word.text) in tokens]
             if words:
                 located[index, "partNumber"] = (page_index, _words_region(words))
         return located
@@ -295,7 +294,7 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
         node = {
             "chapter": dict(
                 toc_page_key=page_keys[_page_index(entry, len(page_keys))],
-                title_toc_page=evidence(index, "title", _title_text(entry), lang=lang),
+                title_toc_page=evidence(index, "title", _own_title(entry), lang=lang),
                 subtitle_toc_page=evidence(index, "subTitle", title_info.get("subTitle"), lang=lang),
                 description_toc_page=evidence(index, "description", title_info.get("description"), lang=lang),
                 agents_toc_page=_toc_agents(index, entry, evidence),
@@ -303,6 +302,7 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
                 parallel_titles_toc_page=_parallel_titles(index, entry, evidence),
                 title_translated_toc_page=(title_info.get("translated")
                                            if isinstance(title_info.get("translated"), bool) else None),
+                designation_toc_page=evidence(index, "designation", entry.get("designation")),
                 part_number_toc_page=evidence(index, "partNumber", entry.get("partNumber")),
                 page_number_toc_page=None if reference is None else page_number(reference, runs),
                 page_reference_toc_page=reference,
@@ -392,13 +392,6 @@ def _own_title(entry: Mapping[str, Any]) -> Optional[str]:
     return title if isinstance(title, str) and title.strip() else None
 
 
-def _title_text(entry: Mapping[str, Any]) -> Any:
-    # An entry printed with only its designation ("Kapitola 3") is titled by
-    # it: the NDK gives a chapter's title as printed in the book, "Kapitola 3"
-    # for one without a title of its own.
-    return _own_title(entry) or entry.get("designation")
-
-
 def _agents(entry: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     # The entry's agents with a name, in a role the stage knows.
     return [agent for agent in entry.get("agents") or ()
@@ -476,7 +469,7 @@ def _entry_texts(entry: Mapping[str, Any]) -> dict:
     # The values of an entry the stage reads, by field: only they are
     # looked for in the ALTO, so no other text takes their words.
     texts = {
-        "title": _title_text(entry),
+        "title": _own_title(entry),
         "subTitle": _first_title_info(entry).get("subTitle"),
         "description": _first_title_info(entry).get("description"),
         **{f"{field}.{number}": item.get(field)
@@ -486,11 +479,16 @@ def _entry_texts(entry: Mapping[str, Any]) -> dict:
         "termsOfAddress": [text for agent in _agents(entry) for text in _terms(agent)],
         "affiliations": [text for agent in _agents(entry) for text in _descriptions(agent)],
         "etal": entry.get("etal"),
-        "partNumber": entry.get("partNumber"),
+        "designation": entry.get("designation"),
+        # Printed in the designation's words, which it takes when there is one.
+        "partNumber": None if _has_text(entry.get("designation")) else entry.get("partNumber"),
         "pageReference": entry.get("pageReference"),
     }
-    return {field: text for field, text in texts.items()
-            if (isinstance(text, str) and text.strip()) or (isinstance(text, list) and text)}
+    return {field: text for field, text in texts.items() if _has_text(text) or (isinstance(text, list) and text)}
+
+
+def _has_text(text: Any) -> bool:
+    return isinstance(text, str) and bool(text.strip())
 
 
 def alto_text(words) -> str:

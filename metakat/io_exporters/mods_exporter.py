@@ -520,6 +520,8 @@ _BIBLIOGRAPHIC_SECTIONS = {
 _INTERNAL_PART_SECTIONS = {
     **_COMMON_SECTIONS,
     "titleTocPage": "titleInfo", "subTitleTocPage": "titleInfo", "partNumberTocPage": "titleInfo",
+    # The normalization makes a title of it; MODS has no place for the marker itself.
+    "designationTocPage": None,
     **{field_name: "name" for field_name in TOC_AGENT_FIELDS}, "etalTocPage": "name",
     "articleGenre": "genre",
     # An internal part has no <originInfo>; its date is written to provenance only.

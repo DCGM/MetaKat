@@ -155,6 +155,10 @@ class ChapterBase:
     # the reader says they are the main one, None when it cannot tell.
     title_translated_toc_page: bool | None = field(default=None, kw_only=True)
     part_number_toc_page: DetectionEvidence | None = None
+    # The whole printed entry marker, its words and punctuation ("Kapitola 3."),
+    # which the part number above is read from. Not a title: the normalization
+    # makes the title of a chapter printed with only it.
+    designation_toc_page: DetectionEvidence | None = field(default=None, kw_only=True)
     # The entry's page reference parsed into numbers, which the alignment
     # anchors the chapter by.
     page_number_toc_page: ChapterPageNumberEvidence | None = None

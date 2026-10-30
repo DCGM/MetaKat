@@ -412,6 +412,14 @@ def test_a_chapters_toc_etal_is_a_name_of_its_own_unless_its_own_page_reads_one(
     assert events == ["etal", "etalTocPage"]
 
 
+def test_a_chapters_toc_designation_is_not_exported(batch, tmp_path):
+    # The normalization makes a title of it; MODS has no place for the marker.
+    batch.chapter.designationTocPage = [batch.v("Kapitola 3.", 0.9, 2)]
+    chapter = _export(batch, tmp_path)[str(batch.chapter.id)]
+
+    assert "Kapitola 3." not in etree.tostring(chapter, encoding="unicode")
+
+
 def test_a_chapters_toc_agent_is_one_name_with_its_affiliation_unless_its_own_page_has_the_role(batch, tmp_path):
     translator, affiliation = batch.agent("Petr Malý", "personal", 2), batch.v("Brno", 0.9, 2)
     batch.chapter.translatorTocPage = [translator]
