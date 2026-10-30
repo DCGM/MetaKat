@@ -326,18 +326,18 @@ def _names(record: _Record) -> None:
             record.value(target, container, "etal", value, "etal", leaf=etal)
 
 
-# The note naming the actual publisher a phrase printed instead of its name
-# stands for, as NK ČR's RDA practice adds it (MARC 500 "Skutečný nakladatel",
-# beside the national field 928).
-REAL_NAME_NOTES = {"publisher": "Skutečný nakladatel"}
+# The note naming the actual publisher or printer a phrase printed instead of
+# its name stands for, as NK ČR's RDA practice adds it for the publisher (MARC
+# 500 "Skutečný nakladatel", beside the national field 928); the printer's
+# note follows it.
+REAL_NAME_NOTES = {"publisher": "Skutečný nakladatel", "manufacturePublisher": "Skutečný tiskař"}
 
 
 def _origin_info(record: _Record, group_type: Optional[str], event_type: str, role: Optional[str],
                  fields: dict[str, tuple]) -> None:
     # A phrase printed instead of a name ("nákladem vlastním") is the agent,
-    # as the Czech RDA practice transcribes it (MARC 264 $b); the publisher
-    # it stands for is a note (REAL_NAME_NOTES), any other name stays in
-    # MetaKat only.
+    # as the Czech RDA practice transcribes it (MARC 264 $b); the publisher or
+    # printer it stands for is a note (REAL_NAME_NOTES).
     stands_for = {field_name: path[1] for field_name, path in fields.items() if path[0] == "statement"}
     for members in _consume_groups(record, group_type, tuple(fields)):
         container, target = record.container(record.root, "originInfo", eventType=event_type)

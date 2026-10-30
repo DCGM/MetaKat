@@ -247,10 +247,10 @@ def test_identifiers_series_details_names_distribution_languages_and_illustratio
         (None, "cze"), ("translated", "fre")]
 
 
-def test_a_publisher_and_a_printer_printed_only_as_a_phrase_are_the_phrase_in_mods(batch, tmp_path, mods_schema):
+def test_a_publisher_and_a_printer_printed_only_as_a_phrase_are_the_phrase_with_a_note_naming_them(batch, tmp_path, mods_schema):
     # The Czech RDA practice transcribes "nákladem vlastním" as the publisher
     # (MARC 264 $b) and names the actual publisher in a note (MARC 500); the
-    # printer it stands for stays in MetaKat.
+    # printer a phrase stands for gets a note of its own.
     v = batch.volume
     v.publisher = [batch.v("K. J. Erben", 0.9, 0)]
     v.publisherStatement = [batch.v("Nákladem vlastním", 0.9, 0)]
@@ -272,11 +272,12 @@ def test_a_publisher_and_a_printer_printed_only_as_a_phrase_are_the_phrase_in_mo
     assert _texts(volume, f"{manufacture}/mods:agent[mods:role/mods:roleTerm='manufacturer']/mods:namePart") == [
         "Tiskem vlastní tiskárny"]
     assert "K. J. Erben" not in _texts(volume, "//mods:originInfo/mods:agent/mods:namePart")
-    assert _texts(volume, "/mods:mods/mods:note") == ["sepsal K. J. Erben", "Skutečný nakladatel: K. J. Erben"]
-    [note] = volume.xpath("/mods:mods/mods:note[2]", namespaces=NS)
-    # Its provenance is the publisher it names.
-    assert volume.xpath(f"//mkp:assertion[@target='#{note.get('ID')}']/mkp:event/@field", namespaces=NS) == [
-        "publisher"]
+    assert _texts(volume, "/mods:mods/mods:note") == [
+        "sepsal K. J. Erben", "Skutečný nakladatel: K. J. Erben", "Skutečný tiskař: K. J. Erben"]
+    # The provenance of each is the name it gives.
+    notes = volume.xpath("/mods:mods/mods:note[position() > 1]", namespaces=NS)
+    assert [volume.xpath(f"//mkp:assertion[@target='#{note.get('ID')}']/mkp:event/@field", namespaces=NS)
+            for note in notes] == [["publisher"], ["manufacturePublisher"]]
 
 
 def test_a_series_is_one_related_item_with_a_title_info_per_name_and_the_parallel_one_translated(
