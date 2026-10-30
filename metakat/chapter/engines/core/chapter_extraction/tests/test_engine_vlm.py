@@ -107,6 +107,7 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     words = " ".join(text.split())
     # The system prompt is the same for any pages, so it can be cached.
     assert "{{" not in system["content"][0]["text"] and "OCR (optional support)" not in system["content"][0]["text"]
+    assert "NEVER TAKE THE LETTER CASE FROM THE OCR" in system["content"][0]["text"]
     assert "The 2 input page images follow" in text
     # Each page's OCR under its image index, its lines and blocks kept.
     assert "OBSAH\n\nI. Úvod 5\n\nII. Les a voda 12—30" in text
@@ -139,7 +140,8 @@ def test_the_call_is_reported_with_its_pages_whether_it_succeeds_or_not(toc_page
     [report] = read.reports
     assert (report.status, report.page_keys, report.core_engine) == (
         "ok", ("0007", "0008"), "chapter_extraction_engine_vlm")
-    assert [ref.role for ref in report.prompts] == ["developer", "user", "schema"]
+    assert [ref.role for ref in report.prompts] == ["developer", "developer", "user", "schema"]
+    assert report.prompts[1].path.endswith("common/vlm/prompts/ocr_rules.txt")
     [report] = failed.reports
     assert (report.status, len(report.attempts)) == ("failed", 2)
 

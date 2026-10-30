@@ -425,6 +425,7 @@ def test_the_system_prompt_is_the_same_for_every_span_so_it_can_be_cached(page, 
 
     first, second = (request["messages"][0]["content"][0]["text"] for request in endpoint.requests)
     assert first == second and "PAGE DATA" not in first
+    assert "NEVER TAKE THE LETTER CASE FROM THE OCR" in first and "{{" not in first
 
 
 def test_every_span_gets_its_own_result_in_order(page, second_page):
@@ -446,8 +447,9 @@ def test_every_call_is_reported_with_its_pages_and_prompts_a_failed_one_too(page
     assert (failed.status, failed.page_keys, len(failed.attempts)) == ("failed", ("0001_page",), 2)
     assert (read.status, read.page_keys) == ("ok", ("0002_page",))
     assert read.core_engine == "biblio_core_engine_vlm_monograph"
-    assert [ref.role for ref in read.prompts] == ["developer", "user", "schema"]
-    assert read.prompts[2].path.endswith("monograph/schema.json")
+    assert [ref.role for ref in read.prompts] == ["developer", "developer", "user", "schema"]
+    assert read.prompts[1].path.endswith("common/vlm/prompts/ocr_rules.txt")
+    assert read.prompts[3].path.endswith("monograph/schema.json")
     assert read.images[0].original == (1000, 1500)
 
 

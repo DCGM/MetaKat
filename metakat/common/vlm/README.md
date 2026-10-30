@@ -71,7 +71,17 @@ before they surface.
 
 `load_prompts()` reads prompt templates with their roles (`system`,
 `developer`, `user`) and `render_prompts()` fills their `{{ variables }}` with
-Jinja; a variable a template uses but is not given is an error. With Chat
+Jinja; a variable a template uses but is not given is an error.
+
+Every template may also insert the shared prompts in `prompts/` by name:
+`{{ ocr_rules }}` is how to read the OCR given with the page images - that
+the images decide, how the OCR is laid out and where it errs - so that every
+VLM engine treats the OCR alike. It holds nothing about what an engine
+extracts or how it writes the values, punctuation included: those rules
+differ by task and field and stay in the engines' own prompts, as do an
+engine's own remarks on its OCR (the periodical's cut body text, a TOC's
+column of page numbers). `prompt_sources()` lists the prompt files with the
+shared ones each inserts, for the reports. With Chat
 Completions a `developer` prompt is sent as `system`. Images are attached to
 the last prompt as data URLs: JPEG, PNG and WebP as they are, anything else
 (TIFF, JPEG 2000) re-encoded as JPEG, and any image scaled down as
@@ -105,7 +115,8 @@ Every call is reported (`report.py`): each attempt, an invalid reply included
 since it is paid too, with the endpoint's generation id, the model and
 provider that served it, its tokens and its cost. The engines add the pages
 they sent, with each image's size before and after `image_preprocessing`,
-their name and the prompt and schema files with their sha256. The bind
+their name and the prompt and schema files with their sha256, the shared
+prompts a prompt inserts included. The bind
 engines write the reports to the MetakatIO as `vlm_processing_reports`, one
 per call, with the ids of the elements it concerned: the pages sent and the
 unit their reading went into (the issue or volume of biblio title pages, the
@@ -186,11 +197,12 @@ worker rejects a job override that sets a `local` key anywhere
 
 1. Put the prompt templates and the JSON schema next to the engine, shaped
    like that stage's core result, and list them in `pyproject.toml`'s
-   package data.
+   package data. A system prompt given OCR inserts `{{ ocr_rules }}`.
 2. Build a `VLMClient` from the engine's `vlm` config - inside
    `local_server.serve()` for a local model, entered in `process()` so the
    model holds the GPU only while the stage runs - render the prompts per
-   page and call `request_json()`.
+   page and call `request()`, whose reply carries the report of the call;
+   the report names the prompt files, `prompt_refs(prompt_sources(...))`.
 3. Map the reply onto the stage's core result; locate values in the ALTO with
    the text aligner as the biblio engine does when the result needs boxes.
    `BiblioCoreEngineVLMBase` shows the split: everything but the mapping in a

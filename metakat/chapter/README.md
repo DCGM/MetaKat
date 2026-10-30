@@ -1569,7 +1569,9 @@ there used v2). The prompt is written for N images. MetaKat moved the page
 data - the OCR of each image under its index - to the user prompt, so that
 the system prompt is the same in every request and can be cached
 (`vlm.prompt_cache`), and left out the rules for human annotations and the
-TOC drafts made from them, since MetaKat has neither. The prompts receive
+TOC drafts made from them, since MetaKat has neither. How to read the OCR is
+the VLM engines' shared `{{ ocr_rules }}` (metakat.common.vlm), followed by
+the TOC's own remarks on it. The prompts receive
 `images` (the page keys) and `ocr` (a line per `TextLine`, a blank line
 between `TextBlock`s, None for a page without text). The client, the API or
 local endpoint and its configuration are those of `metakat.common.vlm`, as

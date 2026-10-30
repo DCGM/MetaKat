@@ -23,6 +23,11 @@ raised at once rather than retried.
 Every call is reported (metakat.common.vlm.report): its attempts, their
 tokens and their cost.
 
+Shared prompts (`SHARED_PROMPTS`, in prompts/): a template inserts one by its
+name, `{{ ocr_rules }}` - how to read the OCR given with the page images -
+so that every engine treats the OCR alike; what an engine extracts and how
+it writes the values stays in its own prompts.
+
 Prompt caching (`prompt_cache`, OpenAI models and OpenRouter): the leading
 system/developer prompts are meant to be the same in every request of an
 engine and the user prompt to hold what differs - the page data and the
@@ -60,6 +65,9 @@ _APIS = ("completions", "responses")
 _RESPONSE_FORMATS = ("schema", "json", "raw")
 _ROLES = ("system", "developer", "user")
 _PROMPT_CACHE_MODES = ("explicit", "off")
+# Texts every prompt template may insert by name: the rules for reading the
+# OCR given with the page images are the same for every engine.
+SHARED_PROMPTS = {"ocr_rules": Path(__file__).parent / "prompts" / "ocr_rules.txt"}
 # Image types every OpenAI-compatible vision endpoint accepts as a data URL;
 # anything else (TIFF, JPEG 2000) is re-encoded as JPEG.
 _SENT_AS_IS = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}
@@ -236,10 +244,24 @@ def load_prompts(prompt_files: Sequence[Mapping[str, str]]) -> list[VLMPrompt]:
     return prompts
 
 
+def prompt_sources(prompt_files: Sequence[Mapping[str, str]]) -> list[tuple[str, str]]:
+    """The (role, path) of each prompt file, each followed by the shared prompts it inserts, under its role."""
+    from jinja2 import Environment, meta
+
+    sources = []
+    for entry in prompt_files:
+        sources.append((entry["role"], entry["path"]))
+        used = meta.find_undeclared_variables(Environment().parse(Path(entry["path"]).read_text(encoding="utf-8")))
+        sources.extend((entry["role"], str(path)) for name, path in SHARED_PROMPTS.items() if name in used)
+    return sources
+
+
 def render_prompts(templates: Sequence[VLMPrompt], variables: Mapping[str, Any]) -> list[VLMPrompt]:
-    """Fill each template's {{ variables }}; an unknown variable is an error."""
+    """Fill each template's {{ variables }} and shared prompts; an unknown variable is an error."""
     from jinja2 import StrictUndefined, Template
 
+    variables = {**{name: path.read_text(encoding="utf-8").rstrip("\n") for name, path in SHARED_PROMPTS.items()},
+                 **variables}
     return [
         VLMPrompt(role=template.role,
                   text=Template(template.text, undefined=StrictUndefined).render(**variables))

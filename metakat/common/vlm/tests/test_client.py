@@ -6,8 +6,17 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-from metakat.common.vlm import ImagePreprocessing, VLMClient, VLMConfig, VLMImage, VLMPrompt, VLMResponseError, render_prompts
-from metakat.common.vlm.client import parse_reply
+from metakat.common.vlm import (
+    ImagePreprocessing,
+    VLMClient,
+    VLMConfig,
+    VLMImage,
+    VLMPrompt,
+    VLMResponseError,
+    prompt_sources,
+    render_prompts,
+)
+from metakat.common.vlm.client import SHARED_PROMPTS, parse_reply
 
 SCHEMA = {
     "type": "object",
@@ -197,6 +206,24 @@ def test_prompts_are_filled_and_an_unknown_variable_is_an_error():
     assert prompt.text == "OCR: Kytice"
     with pytest.raises(Exception, match="ocr"):
         render_prompts([VLMPrompt("developer", "OCR: {{ ocr }}")], {})
+
+
+def test_a_prompt_inserts_the_shared_ocr_rules_and_reports_their_file(tmp_path):
+    (tmp_path / "system.txt").write_text("Rules.\n\n{{ ocr_rules }}\n\nMore rules.")
+    (tmp_path / "user.txt").write_text("OCR: {{ ocr }}")
+    files = [{"role": "developer", "path": str(tmp_path / "system.txt")},
+             {"role": "user", "path": str(tmp_path / "user.txt")}]
+
+    system, user = render_prompts([VLMPrompt("developer", "Rules.\n\n{{ ocr_rules }}\n\nMore rules."),
+                                   VLMPrompt("user", "OCR: {{ ocr }}")], {"ocr": "Kytice"})
+
+    rules = SHARED_PROMPTS["ocr_rules"].read_text(encoding="utf-8").rstrip("\n")
+    assert system.text == f"Rules.\n\n{rules}\n\nMore rules." and "THE OCR" in rules
+    assert user.text == "OCR: Kytice"
+    # The shared file follows the prompt that inserts it, under its role.
+    assert prompt_sources(files) == [("developer", str(tmp_path / "system.txt")),
+                                     ("developer", str(SHARED_PROMPTS["ocr_rules"])),
+                                     ("user", str(tmp_path / "user.txt"))]
 
 
 def _decoded(image: VLMImage) -> Image.Image:

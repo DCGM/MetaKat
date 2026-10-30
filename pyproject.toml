@@ -116,6 +116,7 @@ namespaces = false
 [tool.setuptools.package-data]
 "metakat.biblio.engines.core" = ["vlm/*/*.txt", "vlm/*/*.json"]
 "metakat.chapter.engines.core.chapter_extraction" = ["vlm/*.txt", "vlm/*.json"]
+"metakat.common.vlm" = ["prompts/*.txt"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

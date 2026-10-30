@@ -6,6 +6,7 @@ from metakat.common.vlm.client import (
     VLMReply,
     VLMResponseError,
     load_prompts,
+    prompt_sources,
     render_prompts,
 )
 from metakat.common.vlm.image_preprocessing import ImagePreprocessing
@@ -23,5 +24,6 @@ __all__ = [
     "VLMResponseError",
     "load_prompts",
     "prompt_refs",
+    "prompt_sources",
     "render_prompts",
 ]

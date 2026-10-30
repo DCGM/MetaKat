@@ -69,6 +69,7 @@ from metakat.common.vlm import (
     VLMResponseError,
     load_prompts,
     prompt_refs,
+    prompt_sources,
     render_prompts,
 )
 from metakat.common.vlm.local_server import LocalModelConfig, serve
@@ -117,8 +118,7 @@ class ChapterExtractionEngineVLM:
         ]
         self.prompts = load_prompts(prompt_files)
         self.schema = json.loads((_RESOURCES / "schema.json").read_text(encoding="utf-8"))
-        self.prompt_refs = prompt_refs([*((entry["role"], entry["path"]) for entry in prompt_files),
-                                        ("schema", _RESOURCES / "schema.json")])
+        self.prompt_refs = prompt_refs([*prompt_sources(prompt_files), ("schema", _RESOURCES / "schema.json")])
         self.confidence = self.config.get("confidence", DEFAULT_CONFIDENCE)
         if (
             isinstance(self.confidence, bool)

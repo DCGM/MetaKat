@@ -612,7 +612,9 @@ and adds to it, only for a span of several pages, a paragraph telling the
 model it gets the consecutive pages of one document, each page's OCR under
 its own heading, to be read together as one record, and the plural forms of
 the OCR heading and the image line. The rules the prompts had for pages with
-human annotations are left out, since MetaKat has none. The schema is not in
+human annotations are left out, since MetaKat has none. How to read the OCR
+is the VLM engines' shared `{{ ocr_rules }}` (metakat.common.vlm); each
+prompt keeps only its own remarks on it. The schema is not in
 the prompt text; the model gets it as the response format, so a
 `response_format` of `json` leaves the model without it.
 

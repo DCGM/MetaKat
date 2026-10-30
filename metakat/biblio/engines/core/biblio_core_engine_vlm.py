@@ -72,6 +72,7 @@ from metakat.common.vlm import (
     VLMResponseError,
     load_prompts,
     prompt_refs,
+    prompt_sources,
     render_prompts,
 )
 from metakat.common.vlm.local_server import LocalModelConfig, serve
@@ -142,8 +143,7 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
             )
         schema_path = self._path("schema_path", self.DEFAULT_SCHEMA_PATH)
         self.schema = json.loads(Path(schema_path).read_text(encoding="utf-8"))
-        self.prompt_refs = prompt_refs([*((entry["role"], entry["path"]) for entry in prompt_files),
-                                        ("schema", schema_path)])
+        self.prompt_refs = prompt_refs([*prompt_sources(prompt_files), ("schema", schema_path)])
 
         self.confidence = self.config.get("confidence", DEFAULT_CONFIDENCE)
         if (
