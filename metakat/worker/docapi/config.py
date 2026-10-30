@@ -34,6 +34,22 @@ class Config:
         self.STORE_METAKAT_PDF = self._env_bool("STORE_METAKAT_PDF", False)
         self.STORE_MODS_OVERVIEW = self._env_bool("STORE_MODS_OVERVIEW", False)
 
+        # MAILING configuration, for MetakatWorker.send_mail
+        ################################################################################################################
+        # without MAIL_SERVER and MAIL_SENDER_MAIL the worker sends no emails
+        self.MAIL_SERVER = os.getenv("MAIL_SERVER", None)
+        self.MAIL_PORT = int(os.getenv("MAIL_PORT", "25"))
+        # auto (ssl with a password, none without), none, ssl or starttls
+        self.MAIL_SECURITY = os.getenv("MAIL_SECURITY", "auto")
+        self.MAIL_SENDER_MAIL = os.getenv("MAIL_SENDER_MAIL", None)
+        self.MAIL_SENDER_NAME = os.getenv("MAIL_SENDER_NAME", "MetaKat worker")
+        # login name for the server, MAIL_SENDER_MAIL by default; used only with a password
+        self.MAIL_USERNAME = os.getenv("MAIL_USERNAME", None)
+        self.MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", None)
+        # who receives emails sent without receivers of their own, comma separated
+        self.MAIL_RECEIVER_MAILS = [mail.strip() for mail in os.getenv("MAIL_RECEIVER_MAILS", "").split(",")
+                                    if mail.strip()]
+
         # LOGGING configuration
         ################################################################################################################
         self.LOGGING_CONSOLE_LEVEL = os.getenv("LOGGING_CONSOLE_LEVEL", logging.INFO)

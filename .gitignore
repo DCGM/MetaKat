@@ -7,6 +7,7 @@ metakat_worker_data
 .docapi_user_key
 .openrouter_api_key*
 .docapi_*_key
+.mail_password
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

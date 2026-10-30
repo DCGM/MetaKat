@@ -24,6 +24,21 @@ else
     echo "run_worker.sh: no OpenRouter key at $OPENROUTER_KEY_FILE; VLM engines will fail" >&2
 fi
 
+# Optional: email for MetakatWorker.send_mail (see config.py). Without
+# MAIL_SERVER and MAIL_SENDER_MAIL the worker sends no emails. The password, if
+# the server needs one, is kept in .mail_password beside this script, or in the
+# file MAIL_PASSWORD_FILE names.
+# export MAIL_SERVER=smtp.example.com
+# export MAIL_PORT=587
+# export MAIL_SECURITY=starttls
+# export MAIL_SENDER_MAIL=metakat@example.com
+# export MAIL_RECEIVER_MAILS=admin@example.com
+MAIL_PASSWORD_FILE="${MAIL_PASSWORD_FILE:-$SCRIPT_DIR/.mail_password}"
+if [ -r "$MAIL_PASSWORD_FILE" ]; then
+    export MAIL_PASSWORD="$(<"$MAIL_PASSWORD_FILE")"
+    echo "run_worker.sh: mail password from $MAIL_PASSWORD_FILE" >&2
+fi
+
 # How this machine runs local VLM models (metakat/common/vlm/local_server.py):
 # vLLM from its own environment, which pins its own torch, and the share of
 # the GPU it may take while an engine that needs it runs.

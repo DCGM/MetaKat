@@ -50,6 +50,34 @@ def test_store_metakat_pdf_defaults_false_and_reads_environment():
         assert Config().STORE_METAKAT_PDF
 
 
+def test_mailing_is_off_without_a_server():
+    with mock.patch.dict("os.environ", {"MAIL_SENDER_MAIL": "metakat@example.com"}, clear=True):
+        assert worker_module.mail_logger_from_config(Config()) is None
+
+
+def test_mailing_reads_its_settings_from_the_environment():
+    environment = {
+        "MAIL_SERVER": "smtp.example.com",
+        "MAIL_PORT": "587",
+        "MAIL_SECURITY": "starttls",
+        "MAIL_SENDER_MAIL": "metakat@example.com",
+        "MAIL_USERNAME": "login",
+        "MAIL_PASSWORD": "secret",
+        "MAIL_RECEIVER_MAILS": "admin@example.com, user@example.com",
+    }
+    with mock.patch.dict("os.environ", environment, clear=True):
+        mail_logger = worker_module.mail_logger_from_config(Config())
+
+    assert mail_logger.receiver_mails == ["admin@example.com", "user@example.com"]
+    with mock.patch("smtplib.SMTP") as smtp_class:
+        assert mail_logger.send("Job done", "body")
+    smtp_class.assert_called_once_with("smtp.example.com", 587)
+    smtp = smtp_class.return_value
+    smtp.starttls.assert_called_once_with()
+    smtp.login.assert_called_once_with("login", "secret")
+    assert smtp.sendmail.call_args.args[1] == ["admin@example.com", "user@example.com"]
+
+
 def test_process_job_prepares_final_config_and_embedded_metadata(
     tmp_path,
     worker,
