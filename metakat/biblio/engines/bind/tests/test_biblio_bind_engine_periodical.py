@@ -28,6 +28,8 @@ from metakat.schemas.base_objects import (
     MetakatEngine,
     MetakatIO,
     MetakatIssue,
+    MetakatPage,
+    MetakatSupplement,
     MetakatTitle,
     MetakatVLMAttempt,
     MetakatVolume,
@@ -127,6 +129,54 @@ def test_a_second_issue_starts_on_its_title_page():
     io, _ = _bound(pages, _read(0, 'Zlatá Praha', issue='1'), _read(12, 'Zlatá Praha', issue='2'))
     first, second = _of(io, MetakatIssue)
     assert _parents(io) == [first.id] * 12 + [second.id] * 12
+
+
+# --- supplements -------------------------------------------------------------
+
+
+def _supplement(*args, **kwargs):
+    return dataclasses.replace(_read(*args, **kwargs), supplement=True)
+
+
+def test_a_supplement_of_an_issue_stands_under_the_issue_it_reads_the_number_of():
+    pages = _scan({3, 5}, {0: .99, 3: .99, 5: .99})
+    io, _ = _bound(pages,
+                   _read(0, 'Mlynářské noviny', volume='Ročník I', issue='1'),
+                   _supplement(3, 'Příloha „Mlynářských Novin“', issue='1'),
+                   _read(5, 'Mlynářské noviny', volume='Ročník I', issue='2'))
+    first, second = _of(io, MetakatIssue)
+    [supplement] = _of(io, MetakatSupplement)
+    [volume] = _of(io, MetakatVolume)
+    assert supplement.parent_id == first.id and {first.parent_id, second.parent_id} == {volume.id}
+    assert supplement.title[0].text == 'Příloha „Mlynářských Novin“' and supplement.partNumber[0].text == '1'
+    assert _parents(io) == [first.id] * 3 + [supplement.id] * 2 + [second.id] * 3
+    assert [p.pageIndex for p in _of(io, MetakatPage)] == [1, 2, 3, 1, 2, 1, 2, 3]
+
+
+@pytest.mark.parametrize("issue", [None, '7'])
+def test_a_supplement_reading_no_issue_of_its_volume_stands_under_the_volume(issue):
+    pages = _scan({4}, {0: .99, 4: .99})
+    io, _ = _bound(pages, _read(0, 'Zlatá Praha', volume='Ročník I', issue='1'),
+                   _supplement(4, 'Obsah ročníku', issue=issue))
+    [supplement] = _of(io, MetakatSupplement)
+    [volume] = _of(io, MetakatVolume)
+    assert supplement.parent_id == volume.id
+
+
+def test_a_supplement_is_split_from_the_issue_whose_document_it_is_in():
+    pages = _scan((), {0: .99, 12: .99}, count=24)
+    io, _ = _bound(pages, _read(0, 'Zlatá Praha', issue='1'), _supplement(12, 'Literární příloha', issue='1'))
+    [issue] = _of(io, MetakatIssue)
+    [supplement] = _of(io, MetakatSupplement)
+    assert supplement.parent_id == issue.id and _parents(io) == [issue.id] * 12 + [supplement.id] * 12
+
+
+def test_the_periodical_title_is_not_a_supplements():
+    pages = _scan({4}, {0: .99, 4: .99})
+    io, _ = _bound(pages, _read(0, 'Národní listy', .6, issue='1'),
+                   _supplement(4, 'Zábavná příloha Národních listů', .99, issue='1'))
+    [title] = _of(io, MetakatTitle)
+    assert title.title[0].text == 'Národní listy'
 
 
 # --- the periodical's title ---------------------------------------------------

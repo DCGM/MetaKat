@@ -535,7 +535,13 @@ def section_order(model: type) -> list[str]:
 def _genre(record: _Record) -> None:
     element = record.element
     genre_type = getattr(element, "articleGenre", None) if element.type == DocumentType.ARTICLE.value else None
-    genre, genre_id = record.container(record.root, "genre", **({"type": genre_type.text} if genre_type else {}))
+    attributes = {"type": genre_type.text} if genre_type else {}
+    if element.type == DocumentType.SUPPLEMENT.value:
+        # DMF: a supplement of an issue stands under it, one of a volume in place of an issue.
+        parent = next((other for other in record.metakat_io.elements if other.id == element.parent_id), None)
+        attributes = {"type": "issue_supplement" if parent is not None and parent.type == DocumentType.ISSUE.value
+                      else "volume_supplement"}
+    genre, genre_id = record.container(record.root, "genre", **attributes)
     genre.text = element.type
     if genre_type:
         _classified(record, genre_id, "type", "articleGenre", genre_type.text, genre_type.confidence)

@@ -214,6 +214,9 @@ class TitleSpan:
     score: float = 0.
     # What the span is, when the core tells it (TitlePageKind).
     kind: Optional[TitlePageKind] = None
+    # The core tells the span belongs to a supplement of a periodical issue
+    # or volume.
+    supplement: bool = False
 
     @property
     def start(self) -> int:
@@ -631,6 +634,7 @@ def read_spans(
         detection_id_to_detection_bbox.update(bboxes)
         detection_id_to_alto.update(alto)
         span.kind = result.kind
+        span.supplement = result.supplement
         span.volume = next((e for e in elements if isinstance(e, MetakatVolume)), None)
         span.issue = next((e for e in elements if isinstance(e, MetakatIssue)), None)
         if span.volume is None:

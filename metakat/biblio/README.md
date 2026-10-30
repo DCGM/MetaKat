@@ -665,7 +665,7 @@ is not read:
 | identifiers | `isbn[]` and `isbnSet[]` (the whole set's, `set_isbns`) as one `BiblioIdentifiers` (`seriesIssn` is the series') | `isbn[]` and `issn[]` as one `BiblioIdentifiers` |
 | languages | `language[]` as `languages`, `originalLanguage[]` as `original_languages` | the same |
 | names | `agents[]`, each in its role, with its `type`, `termsOfAddress[]` and `description[]` as affiliations; `etal` as a `BiblioEtal` | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`, `termsOfAddress[]` and `description[]` as affiliations; `etal` |
-| not read | - | `supplement` |
+| supplement | - | `supplement` as the span result's `supplement`; its `issue` is the numbering of the issue it belongs to |
 
 Both schemas, and the TOC schema of the VLM chapter extraction, ask for the
 agents alike: one object per person, family or body, with the same roles
@@ -796,7 +796,7 @@ The binders assume what a real batch can hold, as agreed for ProArc batches:
 Never in one batch: two multipart monographs, two periodicals, or any mix -
 monographs with a multipart monograph, monographs with issues. The kind of the
 scan is therefore one decision for every document: in the periodical binder
-every bottom-level document is an issue; in the monograph binder, once the
+every bottom-level document is an issue or a supplement; in the monograph binder, once the
 scan [reads as parts](#multipart-or-monographs), every document is a part of
 the one multipart monograph, and otherwise every document is a monograph.
 
@@ -1100,6 +1100,33 @@ in this order: the group member with the highest-confidence title; otherwise
 the first member of the group; otherwise the first title page; otherwise the
 first page; otherwise none.
 
+### Periodical supplements
+
+A document whose authoritative span the core tells belongs to a supplement
+(příloha, Beilage; the VLM's `supplement`) is a `MetakatSupplement` instead of
+an issue, unless a span of the same document that is not a supplement's names
+it too: then the supplement was not split off and the document is that issue.
+The supplement keeps what an issue keeps - its own title as printed
+("Příloha „Mlynářských Novin“", "Zábavná příloha Národních listů") and the
+number and date of the issue it belongs to, as the DMF asks of a supplement
+without a number of its own. Its title is not a candidate for the
+periodical's title unless only supplements read one.
+
+Following the DMF's two kinds of scanned supplement, it stands:
+
+- under its issue (`issue_supplement`) - the nearest issue before it in the
+  same volume whose issue number agrees with the one the supplement reads,
+  or its issue date when they do not both read a number
+  (`belongs_to`): "Příloha „Mlynářských Novin“ k číslu 1." goes under
+  "Číslo 1.";
+- otherwise under the volume, in place of an issue (`volume_supplement`):
+  a supplement reading no issue ("Obsah ročníku"), or one whose issue is
+  not in the scan.
+
+A supplement is a bottom-level unit: its pages are its own, numbered from 1
+(`assign_page_indices`). The volume reading of a supplement counts in the
+volume runs like an issue's.
+
 ### Periodical volume consolidation
 
 The periodical binder follows the levels of the NDK periodical DMF: an issue
@@ -1280,7 +1307,9 @@ opens another unit when:
     "Ročník 5, číslo 1" and "Ročník 5, číslo 2" are two issues, so are
     "Ročník 5, číslo 1" and "Ročník 6, číslo 1"; "Ročník 5" alone or
     "číslo 1" alone stays in "Ročník 5, číslo 1"; with nothing read by both,
-    the spans are not the same issue;
+    the spans are not the same issue. A supplement and an issue are never
+    the same unit, so a supplement left in its issue's document is split
+    off (`same_unit`);
 - the start page's `startsDocument` is not annotated.
 
 Where the new document starts differs by binder:
@@ -1329,7 +1358,7 @@ pages rather than being merged into a neighbour.
 |---|---|
 | monographs (monograph binder) | none: every leaf is a `monograph` volume without a parent |
 | multipart (monograph binder) | one title (see [Title creation](#title-creation)), parent of every part |
-| periodical (periodical binder) | the [volumes](#periodical-volume-consolidation), each the parent of its run of issues, under one title |
+| periodical (periodical binder) | the [volumes](#periodical-volume-consolidation), each the parent of its run of issues, under one title; a [supplement](#periodical-supplements) under its issue or its volume |
 
 Pages are then numbered 1..n within each leaf by `assign_page_indices()`, and
 representative pages are marked (see [Anchor pages](#anchor-pages)).

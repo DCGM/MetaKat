@@ -22,9 +22,9 @@ is not read. Of the reply this engine reads:
   role keeps its name;
 - the terms of address of the agents and `etal`;
 - the statements of responsibility, the `copyrightDate`, the `issn` and
-  `isbn` and the `language` and `originalLanguage` codes.
-
-Not read: `supplement` (the binder binds issues only).
+  `isbn` and the `language` and `originalLanguage` codes;
+- `supplement`, as the span result's `supplement`: the page belongs to a
+  supplement, its `issue` being the numbering of the issue it belongs to.
 """
 from __future__ import annotations
 
@@ -123,8 +123,6 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         for path, item in values.items(reply, "manufacture")
     ]
     agents = values.agents(reply, _ROLES, page_keys[0])
-    if reply.get("supplement") is True:
-        logger.info("Span %s is a supplement; it is read as an issue", page_keys[0])
 
     def level(key: str, number: str, date: str, name: Optional[str] = None) -> Optional[BiblioReading]:
         # As the YOLO core does: the level's number (and name) is a titleInfo
@@ -162,6 +160,7 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         reading=reading,
         periodical_volume=level("volume", "volumePartNumber", "volumeDateIssued"),
         periodical_issue=level("issue", "issuePartNumber", "issueDateIssued", "issuePartName"),
+        supplement=reply.get("supplement") is True,
     )
     return None if result.is_empty() else result
 

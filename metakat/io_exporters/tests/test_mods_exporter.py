@@ -20,7 +20,9 @@ from metakat.schemas.base_objects import (
     MetakatGroup,
     MetakatInternalPart,
     MetakatIO,
+    MetakatIssue,
     MetakatPage,
+    MetakatSupplement,
     MetakatVolume,
     PageSideType,
     PageType,
@@ -413,6 +415,20 @@ def test_an_articles_date_lives_only_in_its_provenance(batch, tmp_path):
     assert _texts(article, "/mods:mods/mods:genre[@type='review']") == ["article"]
     assert _texts(article, "//mods:relatedItem[@type='reviewOf']/mods:titleInfo/mods:title") == ["Máj"]
     assert [a.get("lang") for a in article.xpath("/mods:mods/mods:abstract", namespaces=NS)] == ["cze", "eng"]
+
+
+def test_a_supplement_tells_whether_it_is_an_issues_or_a_volumes(tmp_path):
+    volume = MetakatVolume(id=uuid4(), hierarchy=HierarchyType.PERIODICAL)
+    issue = MetakatIssue(id=uuid4(), parent_id=volume.id)
+    of_issue = MetakatSupplement(id=uuid4(), parent_id=issue.id)
+    of_volume = MetakatSupplement(id=uuid4(), parent_id=volume.id)
+    io = MetakatIO(batch_id=uuid4(), elements=[volume, issue, of_issue, of_volume])
+    export_mods(io, tmp_path, created=CREATED)
+    genre = [etree.parse(str(tmp_path / f"{element.id}.xml")).xpath("/mods:mods/mods:genre", namespaces=NS)
+             for element in (of_issue, of_volume)]
+
+    assert [[(g.get("type"), g.text) for g in record] for record in genre] == [
+        [("issue_supplement", "supplement")], [("volume_supplement", "supplement")]]
 
 
 def test_pages_carry_type_side_index_and_the_representative_page(batch, tmp_path):

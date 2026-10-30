@@ -629,6 +629,17 @@ def test_the_periodical_engine_reads_the_volume_the_issue_and_the_editor_as_reda
     assert [language.text for language in result.reading.languages] == ["cze"]
 
 
+@pytest.mark.parametrize("supplement", [True, False])
+def test_the_periodical_engine_tells_a_supplement_with_the_issue_it_belongs_to(page, supplement):
+    reply = {**_PERIODICAL_REPLY, "supplement": supplement}
+    engine = BiblioCoreEngineVLMPeriodical(_periodical_config(), client=_Endpoint(reply).client())
+
+    result = engine.process(_span(page)).spans[0]
+
+    assert result.supplement is supplement
+    assert result.periodical_issue.title_infos[0].part_number.text == "9"
+
+
 def test_a_periodical_frequency_without_an_imprint_is_an_imprint_of_its_own(page):
     reply = {**_PERIODICAL_REPLY, "publication": []}
     engine = BiblioCoreEngineVLMPeriodical(_periodical_config(), client=_Endpoint(reply).client())

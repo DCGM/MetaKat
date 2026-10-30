@@ -5,7 +5,9 @@ volume, its issues, the next volume, its issues. Every bottom-level document
 is therefore an issue. A document holding two issues, each with its title
 page, is split on the later one. The volumes are contiguous runs of issues,
 told apart by the volume number or year read on the issues' title pages, and
-all of them go under the one title of the periodical. Reading the scan and
+all of them go under the one title of the periodical. A document the core
+tells is a supplement's is a supplement: under the issue whose number it
+reads, otherwise under its volume (NDK DMF). Reading the scan and
 writing the result are shared with the monograph binder (biblio_binding).
 
 Following the NDK periodical DMF, an issue keeps the title printed on it, the
@@ -34,6 +36,7 @@ from metakat.biblio.engines.bind.biblio_binding import (
     read_scan,
     same_issue,
     split_documents,
+    texts_match,
     write_scan,
 )
 from metakat.schemas.base_objects import (
@@ -41,6 +44,7 @@ from metakat.schemas.base_objects import (
     MetakatElement,
     MetakatIO,
     MetakatIssue,
+    MetakatSupplement,
     MetakatTitle,
     MetakatVolume,
     ProarcIO,
@@ -50,8 +54,33 @@ from metakat.schemas.base_objects import (
 logger = logging.getLogger(__name__)
 
 def reads_issue(span: TitleSpan) -> bool:
-    """Whether a span reads what makes an issue its own: an issue number or date, or a volume number or year."""
-    return span.periodical
+    """Whether a span reads what makes an issue its own: an issue number or date, a volume number or year,
+    or that it is a supplement."""
+    return span.periodical or span.supplement
+
+
+def same_unit(first: TitleSpan, second: TitleSpan) -> bool:
+    """Whether two spans read the same unit: an issue and a supplement never are (same_issue otherwise)."""
+    return first.supplement == second.supplement and same_issue(first, second)
+
+
+def belongs_to(supplement: TitleSpan, issue: TitleSpan) -> bool:
+    """Whether a supplement belongs to an issue: the issue number both read agrees, else the issue date both
+    read; with neither read by both, it does not."""
+    for field_name in ("partNumber", "dateIssued"):
+        readings = [getattr(span.issue, field_name) if span.issue is not None else None
+                    for span in (supplement, issue)]
+        if all(reading is not None for reading in readings):
+            return texts_match(*readings)
+    return False
+
+
+def unit_of(winner: Optional[TitleSpan]):
+    """The issue a document's authoritative span names, or its supplement when the span is one's."""
+    issue = winner.issue if winner is not None and winner.issue is not None else MetakatIssue(id=uuid4())
+    if winner is None or not winner.supplement:
+        return issue
+    return MetakatSupplement(**{name: getattr(issue, name) for name in MetakatIssue.model_fields if name != "type"})
 
 
 class BiblioBindEnginePeriodical(BiblioBindEngine):
@@ -60,18 +89,24 @@ class BiblioBindEnginePeriodical(BiblioBindEngine):
         return write_scan(scan, self.bind(scan))
 
     def bind(self, scan: Scan) -> List[MetakatElement]:
-        """One issue per document, named by its authoritative span; the volumes; the title.
+        """One issue or supplement per document, named by its authoritative span; the volumes; the title.
 
         A document holding two issues is first split (split_documents). Every
         page of a document goes to its issue; a document no span names gets an
         unnamed issue. Returns the title, the volumes, then the issues in
         document order."""
-        documents = split_documents(scan.documents, scan.spans, reads_issue, same_issue, "issue")
+        documents = split_documents(scan.documents, scan.spans, reads_issue, same_unit, "issue")
         logger.info(f"Binding {len(documents)} issue(s)")
         winners = authoritative_spans(documents, scan.spans)
-        issues: List[MetakatIssue] = []
+        for index, winner in enumerate(winners):
+            # A supplement left in its issue's document: the issue names it.
+            if winner is not None and winner.supplement:
+                issue_spans = [s for s in scan.spans if s.document == index and s.names and not s.supplement]
+                if issue_spans:
+                    winners[index] = max(issue_spans, key=lambda span: span.score)
+        issues: List[MetakatElement] = []
         for document, winner in zip(documents, winners):
-            issue = winner.issue if winner is not None and winner.issue is not None else MetakatIssue(id=uuid4())
+            issue = unit_of(winner)
             for page in document:
                 page.parent_id = issue.id
             issues.append(issue)
@@ -79,8 +114,15 @@ class BiblioBindEnginePeriodical(BiblioBindEngine):
         volumes = []
         for run in runs:
             volume = run.volume()
-            for index in run.issues:
+            for position, index in enumerate(run.issues):
                 issues[index].parent_id = volume.id
+                if isinstance(issues[index], MetakatSupplement):
+                    # DMF: a supplement of an issue stands under it, one of the volume replaces an issue.
+                    owner = next((other for other in reversed(run.issues[:position])
+                                  if not isinstance(issues[other], MetakatSupplement)
+                                  and winners[other] is not None and belongs_to(winners[index], winners[other])), None)
+                    if owner is not None:
+                        issues[index].parent_id = issues[owner].id
             volumes.append(volume)
         logger.info(f"Bound {len(issues)} issue(s) in {len(volumes)} volume(s)")
         title = periodical_title(scan.spans)
@@ -109,7 +151,10 @@ def periodical_title(spans: List[TitleSpan]) -> MetakatTitle:
     takes that span's title, subtitle, title group and languages, and the
     ISSN its title pages agree on (periodical_issn), which the DMF gives the
     title of a periodical."""
-    candidates = [span.volume for span in spans if span.volume is not None and span.volume.title]
+    # A supplement's title is its own, not the periodical's, unless only supplements are read.
+    candidates = ([span.volume for span in spans if span.volume is not None and span.volume.title
+                   and not span.supplement]
+                  or [span.volume for span in spans if span.volume is not None and span.volume.title])
     if not candidates:
         return MetakatTitle(id=uuid4(), hierarchy=HierarchyType.PERIODICAL)
     issn = periodical_issn(candidates)

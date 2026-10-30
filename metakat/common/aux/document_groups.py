@@ -105,7 +105,8 @@ def lowest_document_groups(
     issues = [
         element
         for element in metakat_io.elements
-        if element.type == DocumentType.ISSUE.value
+        # A supplement is a bottom-level unit like an issue (DMF).
+        if element.type in (DocumentType.ISSUE.value, DocumentType.SUPPLEMENT.value)
     ]
     volumes = [
         element

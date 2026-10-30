@@ -312,7 +312,10 @@ class BiblioSpanResult:
     core read as explicitly describing a periodical volume or issue, such as a
     printed volume number or issue date. Every value names the page it was
     read on in its evidence's `page_key`. `kind` is what the span is, when the
-    core tells it (TitlePageKind).
+    core tells it (TitlePageKind). `supplement` is set when the core tells the
+    span belongs to a supplement (příloha, Beilage) of a periodical issue or
+    volume; `periodical_issue` then holds the numbering of the issue it
+    belongs to.
     """
 
     page_keys: tuple[str, ...]
@@ -320,6 +323,7 @@ class BiblioSpanResult:
     periodical_volume: Optional[BiblioReading] = None
     periodical_issue: Optional[BiblioReading] = None
     kind: Optional[TitlePageKind] = None
+    supplement: bool = False
 
     def is_empty(self) -> bool:
         return self.reading.is_empty() and self.periodical_volume is None and self.periodical_issue is None
@@ -468,5 +472,7 @@ def merge_span(page_keys: Sequence[str], results: Sequence[BiblioSpanResult]) ->
         periodical_volume=merged("periodical_volume"),
         periodical_issue=merged("periodical_issue"),
         kind=min((result.kind for result in results if result.kind is not None), key=kinds.index, default=None),
+        # A span is one unit's pages: a supplement when any page tells so.
+        supplement=any(result.supplement for result in results),
     )
     return None if result.is_empty() else result

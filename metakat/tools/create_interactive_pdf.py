@@ -870,8 +870,8 @@ def _element_label(element: MetakatElement) -> str:
         kind, fields = "part", ("partNumber", "partName", "title")
     elif element.type == DocumentType.VOLUME.value:
         kind, fields = "monograph", ("title",)
-    elif element.type == DocumentType.ISSUE.value:
-        kind, fields = "issue", ("partNumber", "dateIssued", "title")
+    elif element.type in (DocumentType.ISSUE.value, DocumentType.SUPPLEMENT.value):
+        kind, fields = element.type, ("partNumber", "dateIssued", "title")
     else:
         kind, fields = element.type, ("partNumber", "title")
     parts = [kind, *(text for field in fields
@@ -1157,7 +1157,7 @@ def _insert_page_metadata_notes(
         element
         for element in metakat_io.elements
         if element.type
-        in {DocumentType.VOLUME.value, DocumentType.ISSUE.value}
+        in {DocumentType.VOLUME.value, DocumentType.ISSUE.value, DocumentType.SUPPLEMENT.value}
     ]
     evidence_by_detection: dict[UUID, list[tuple[str, Value]]] = defaultdict(
         list
