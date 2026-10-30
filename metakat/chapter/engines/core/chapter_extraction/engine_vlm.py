@@ -10,12 +10,14 @@ the stage contract (TocBase), the parent of an entry being the nearest
 preceding entry of a smaller level, as the YOLO stage builds it.
 
 The model names no regions, so each value is located afterwards by finding
-its text among the ALTO words of the entry's page, then of the next page for
-an entry continuing onto it. Ordered entry anchors disambiguate nearby fields;
-conservative two-column reading order is enabled unless entries contain parallel
-title versions. Every word is given to at most one value. A value found gets that
-page, the box of its words and their ALTO IDs; one that is not keeps only the
-entry's page. The model gives no per-value confidence, so every value carries
+its text among the ALTO words of all the pages, read as one text in their
+order (text-geometry-aligner's align_pages), so an entry is found wherever it
+is printed and a value running over a page break is found too. Ordered entry
+anchors disambiguate nearby fields; conservative two-column reading order is
+enabled, within each page, unless entries contain parallel title versions.
+Every word is given to at most one value. A value found gets the page it
+starts on, the box of its words there and their ALTO IDs; one that is not
+keeps only the entry's page. The model gives no per-value confidence, so every value carries
 the configured `confidence` (0.95 unless set).
 
 Of an entry the stage reads:
@@ -231,41 +233,26 @@ class ChapterExtractionEngineVLM:
         """(entry index, field[, position in its list]) -> (page index, aligned region)
         of every value found in the ALTO.
 
-        An entry's values are looked for on the page it starts on, then the
-        ones not found there on the next page, where the entry may go on."""
+        The pages are one table of contents, aligned at once as one text
+        (align_pages): an entry is found wherever it is printed, whatever
+        page the model gives it, and a value printed across a page break is
+        found too. Such a value keeps its words on the page it starts on,
+        since its evidence names one page."""
         located: dict[tuple, tuple[int, Any]] = {}
-
-        def pending(index: int, entry: Mapping[str, Any]) -> dict:
-            texts = {}
-            for field, text in _entry_texts(entry).items():
-                if isinstance(text, list):
-                    if any((index, field, item) not in located for item in range(len(text))):
-                        texts[field] = text
-                elif (index, field) not in located:
-                    texts[field] = text
-            return texts
-
         parallel_titles = any(
             sum(bool(title.get("title") or title.get("description"))
                 for title in entry.get("titleInfo") or () if isinstance(title, Mapping)) > 1
             for entry in entries
         )
         aligner = _text_aligner(reorder_columns=not parallel_titles)
-        for offset in (0, 1):
-            for page_index, alto_page in enumerate(alto_pages):
-                data = {"entries": [
-                    pending(index, entry) if _page_index(entry, len(alto_pages)) + offset == page_index else {}
-                    for index, entry in enumerate(entries)
-                ]}
-                if not any(data["entries"]):
+        if alto_pages:
+            document = aligner.align_pages(alto_pages, {"entries": [_entry_texts(entry) for entry in entries]})
+            for region in document.pages[0].regions:
+                path = region.json_text_path
+                if path is None or region.alto_geometry is None:
                     continue
-                document = aligner.align_data(alto_page, data)
-                for aligned in document.pages:
-                    for region in aligned.regions:
-                        path = region.json_text_path
-                        if path is None or region.alto_geometry is None:
-                            continue
-                        located.setdefault(tuple(path[1:]), (page_index, region))
+                words = [word for word in region.words if word.page_index == region.page_index]
+                located[tuple(path[1:])] = (region.page_index, words_region(words))
         # The part number is printed in the designation's words ("Kapitola 3"),
         # and a word goes to one value only, so the part number takes its
         # words from the designation.

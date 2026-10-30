@@ -332,6 +332,27 @@ def test_unmatched_entry_can_continue_onto_next_page(toc_pages):
     assert located[0, "title"][0] == located[0, "pageReference"][0] == 1
 
 
+def test_a_toc_over_several_pages_is_aligned_as_one_text(tmp_path):
+    (tmp_path / "1").mkdir()
+    (tmp_path / "2").mkdir()
+    first = _ocr_page(tmp_path / "1", _line("A", 1, ("Úvod", 100, 80), ("3", 800, 20))
+                      + _line("B", 2, ("Dějiny", 100, 120), ("české", 230, 100)))
+    second = _ocr_page(tmp_path / "2", _line("A", 1, ("země", 100, 80), ("15", 800, 20)))
+    entries = [{"tocPage": 0, "titleInfo": [{"title": "Úvod"}], "pageReference": "3"},
+               {"tocPage": 0, "titleInfo": [{"title": "Dějiny české země"}], "pageReference": "15"},
+               # A tocPage the model got wrong does not hide the entry.
+               {"tocPage": 1, "titleInfo": [{"title": "Úvod"}], "pageReference": "3"}]
+
+    located = ChapterExtractionEngineVLM(_config(), client=object())._locate(entries[:2], [first, second])
+
+    # The title runs over the page break: it keeps its words on the page it starts on.
+    page_index, title = located[1, "title"]
+    assert (page_index, [word.text for word in title.words]) == (0, ["Dějiny", "české"])
+    assert located[1, "pageReference"][0] == 1
+    late = ChapterExtractionEngineVLM(_config(), client=object())._locate(entries[2:], [first, second])
+    assert late[0, "title"][0] == 0
+
+
 @pytest.mark.parametrize("printed, pages, kind, numbers", [
     ("35", ["35"], ChapterPageNumberKind.SINGLE, [35]),
     ("3—98", [{"start": "3", "end": "98"}], ChapterPageNumberKind.RANGE, [3, 98]),

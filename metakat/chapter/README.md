@@ -1662,8 +1662,11 @@ on `125., 138., 286` and on a page like `12a`. Parallel title versions are inspe
 column reordering is safe.
 
 The model names no regions, so each value is located afterwards among the ALTO
-words of the entry's page, then of the next page for an entry continuing onto
-it. Text-geometry-aligner's `ordered-groups` mode locates one anchor per entry
+words of all the TOC pages, read in one pass as one text: `align_pages` stacks
+the pages one below the other, so an entry is found wherever it is printed,
+whatever `tocPage` the model gives it, and a value running over a page break
+is found too. Such a value gets the page it starts on, with the box and ALTO
+IDs of its words there, as a value's evidence names one page. Text-geometry-aligner's `ordered-groups` mode locates one anchor per entry
 in sequence, then matches the other fields nearby without imposing their JSON
 field order. Matching uses exact/fuzzy candidates with lowercase and punctuation
 normalization. Clear sequential two-column layouts can be reordered within each
