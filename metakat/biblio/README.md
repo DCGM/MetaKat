@@ -677,7 +677,10 @@ says how they are printed in its kind of document.
 A publisher printed only as a phrase that names no one ("nákladem vlastním",
 "Im Selbstverlage des Verfassers") is two values: the phrase as printed,
 `publisherStatement`, and the publisher it stands for, read elsewhere on the
-page (the author, the issuing body), `publisher`. A printer printed as the
+page (the author, the issuing body), `publisher`. So is a publisher derived
+from a statement printed in another role: a periodical's owner printed only
+as the owner ("Majitel: Jednota českých učitelů"), a body issuing the series
+of a book. A printer printed as the
 publisher's own printing house ("Tiskem vlastní tiskárny") is the same:
 `manufacturePublisherStatement` and the publisher as `manufacturePublisher`.
 MetaKat keeps both; MODS gives the phrase as the publisher or printer, as the

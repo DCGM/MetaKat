@@ -485,10 +485,11 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     # <originInfo eventType="publication">
     placeTerm: Optional[List[Value]] = None
     publisher: Optional[List[Value]] = None
-    # The phrase printed instead of the publisher's name ("nákladem
-    # vlastním", "Im Selbstverlage"); `publisher` then holds the one it
-    # stands for, read elsewhere on the page. MODS gives the phrase as the
-    # publisher, as the Czech RDA practice transcribes it in MARC 264 $b.
+    # The statement the publisher is derived from when it is not printed as
+    # the publisher: a phrase printed instead of its name ("nákladem
+    # vlastním", "Im Selbstverlage"), an owner's statement ("Majitel: …");
+    # `publisher` then holds the one it gives. MODS gives the statement as
+    # the publisher, as the Czech RDA practice transcribes it in MARC 264 $b.
     publisherStatement: Optional[List[Value]] = None
     dateIssued: Optional[List[Value]] = None
     edition: Optional[List[Value]] = None

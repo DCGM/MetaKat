@@ -81,10 +81,12 @@ class BiblioTitleInfo:
 class BiblioPublication:
     """One imprint: <originInfo eventType="publication">.
 
-    `statement` is the phrase printed instead of the publisher's name
-    ("nákladem vlastním", "Im Selbstverlage"), and `publishers` the publisher
-    it stands for, read from elsewhere on the page - the author, the issuing
-    body. MODS gives the phrase as the publisher, as catalogues transcribe it."""
+    `statement` is the statement the publisher is derived from when it is not
+    printed as the publisher - a phrase printed instead of its name
+    ("nákladem vlastním", "Im Selbstverlage"), an owner's or a series'
+    issuer's statement ("Majitel: …") - and `publishers` the publisher it
+    gives, the author, the issuing body, the owner. MODS gives the statement
+    as the publisher, as catalogues transcribe it."""
 
     GROUP_TYPE = GroupType.ORIGIN_INFO_PUBLICATION
 
