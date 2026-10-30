@@ -20,10 +20,12 @@ from metakat.biblio.engines.core.biblio_core_engine_yolo_periodical import Bibli
 from metakat.biblio.engines.core.models import (
     AgentRole,
     BiblioAgent,
+    BiblioCopyright,
     BiblioManufacture,
     BiblioPage,
     BiblioPublication,
     BiblioReading,
+    BiblioResponsibility,
     BiblioSeries,
     BiblioTitleInfo,
     container_values,
@@ -308,6 +310,23 @@ def test_a_page_that_prints_two_statements_of_a_kind_keeps_them_apart():
     one = BiblioReading(title_infos=(BiblioTitleInfo(title=_evidence("Kytice", 0.8)),))
 
     assert len(merge_readings([two, one]).title_infos) == 3
+
+
+def test_the_statements_and_the_copyright_of_a_span_are_united_and_each_language_kept_once():
+    first = BiblioReading(responsibilities=(BiblioResponsibility(statements=(_evidence("napsal Erben", 0.8, "a"),)),),
+                          copyrights=(BiblioCopyright(date=_evidence("1853", 0.6, "a")),),
+                          languages=(_evidence("cze", 0.6, "a"),))
+    second = BiblioReading(responsibilities=(BiblioResponsibility(statements=(_evidence("kreslil Aleš", 0.8, "b"),)),),
+                           copyrights=(BiblioCopyright(date=_evidence("1854", 0.9, "b")),),
+                           languages=(_evidence("ger", 0.9, "b"), _evidence("cze", 0.9, "b")))
+
+    merged = merge_readings([first, second])
+
+    [responsibility] = merged.responsibilities
+    assert _texts(responsibility.statements) == ["napsal Erben", "kreslil Aleš"]
+    [copyright_] = merged.copyrights
+    assert copyright_.date.text == "1854"
+    assert [(language.text, language.page_key) for language in merged.languages] == [("cze", "b"), ("ger", "b")]
 
 
 class _Aligned:

@@ -9,7 +9,7 @@ tokens. The prompt says so, and was developed with the same cut
 The schema asks for more than the core result holds; what has no place in it
 is not read. Of the reply this engine reads:
 
-- every `periodical` object as a title with its subtitle;
+- every `periodical` object as a title with its subtitle, both in its `lang`;
 - `volume` and `issue` as the periodical volume and issue: the volume's number
   and year, the issue's number, date and name (`issuePartName`);
 - every `publication`, without its `publisherInferred` flag, `manufacture`,
@@ -17,11 +17,12 @@ is not read. Of the reply this engine reads:
 - the `agents`, each with its type and its `description` as its
   affiliations, in the field of its role: an editor of a periodical is its
   `redaktor`, which the periodical binder gives to the issue; every other
-  role keeps its name.
+  role keeps its name;
+- the statements of responsibility and the `language` codes.
 
-Not read: `supplement` (the binder binds issues only), the statements of
-responsibility, `etal`, `distribution`, `issn`, `isbn`, the terms of address
-of the agents and the languages.
+Not read: `supplement` (the binder binds issues only), `etal`,
+`distribution`, `issn`, `isbn`, the terms of address of the agents and
+`originalLanguage`.
 """
 from __future__ import annotations
 
@@ -44,6 +45,7 @@ from metakat.biblio.engines.core.models import (
     BiblioPage,
     BiblioPublication,
     BiblioReading,
+    BiblioResponsibility,
     BiblioSpanResult,
     BiblioTitleInfo,
 )
@@ -87,8 +89,8 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
     values = ReplyValues(evidence)
     title_infos = [
         BiblioTitleInfo(
-            title=values.one(path + ("periodicalTitle",), item.get("periodicalTitle")),
-            sub_title=values.one(path + ("periodicalSubTitle",), item.get("periodicalSubTitle")),
+            title=values.one(path + ("periodicalTitle",), item.get("periodicalTitle"), item.get("lang")),
+            sub_title=values.one(path + ("periodicalSubTitle",), item.get("periodicalSubTitle"), item.get("lang")),
         )
         for path, item in values.items(reply, "periodical")
     ]
@@ -137,6 +139,9 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         publications=kept_containers(publications),
         manufactures=kept_containers(manufactures),
         agents=agents,
+        responsibilities=kept_containers((BiblioResponsibility(
+            statements=values.many(("statementOfResponsibility",), reply.get("statementOfResponsibility"))),)),
+        languages=values.languages(reply),
     )
     result = BiblioSpanResult(
         page_keys=tuple(page_keys),

@@ -296,14 +296,22 @@ class ReplyValues:
     def __init__(self, evidence: EvidenceFactory):
         self.evidence = evidence
 
-    def one(self, path: tuple, value: Any) -> Optional[DetectionEvidence]:
-        return self.evidence(path, value) if isinstance(value, str) else None
+    def one(self, path: tuple, value: Any, lang: Any = None) -> Optional[DetectionEvidence]:
+        """The value at `path`; `lang` is the language the reply gives its object."""
+        evidence = self.evidence(path, value) if isinstance(value, str) else None
+        if evidence is not None and isinstance(lang, str):
+            evidence = dataclasses.replace(evidence, lang=lang)
+        return evidence
 
     def many(self, path: tuple, values: Any) -> tuple:
         return tuple(
             item for index, value in enumerate(values if isinstance(values, list) else ())
             if (item := self.one(path + (index,), value)) is not None
         )
+
+    def languages(self, reply: Mapping[str, Any]) -> tuple[DetectionEvidence, ...]:
+        """The codes under `language`, each once."""
+        return tuple({item.text: item for item in self.many(("language",), reply.get("language"))}.values())
 
     @staticmethod
     def items(reply: Mapping[str, Any], key: str) -> Iterator[tuple[tuple, Mapping[str, Any]]]:

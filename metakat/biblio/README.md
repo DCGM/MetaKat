@@ -149,6 +149,9 @@ class BiblioReading:
     manufactures: tuple[BiblioManufacture, ...] = ()
     series: tuple[BiblioSeries, ...] = ()
     agents: tuple[BiblioAgent, ...] = ()
+    responsibilities: tuple[BiblioResponsibility, ...] = ()
+    copyrights: tuple[BiblioCopyright, ...] = ()
+    languages: tuple[DetectionEvidence, ...] = ()   # ISO 639-2/B codes
 ```
 
 A span's readings are split by what the core can tell about the record they
@@ -170,6 +173,15 @@ container, so one `MetakatGroup` type:
 | `BiblioManufacture` | `<originInfo eventType="manufacture">` / `originInfoManufacture` | `places` → `manufacturePlaceTerm`, `manufacturers` → `manufacturePublisher`, `date` → `manufactureDate` |
 | `BiblioSeries` | `<relatedItem type="series">` / `series` | `name` → `seriesName`, `part_number` → `seriesPartNumber`, `part_name` → `seriesPartName` |
 | `BiblioAgent` | `<name>` / `agent` | `name` → the field named by `role` (`AgentRole`: `author`, `illustrator`, `photographer`, `translator`, `editor`, `redaktor`, `composer`, `reviewer`, `issuingBody`, `contributor`, `other`), as an `AgentValue` whose `type` is the agent's `type` (`NameType`: personal, corporate, conference, family; `None` when unknown), `affiliations` → `affiliation`, `emails` → `email` |
+| `BiblioResponsibility` | `<note type="statement of responsibility">`, one per statement / no group | `statements` → `statementOfResponsibility` |
+| `BiblioCopyright` | `<originInfo eventType="copyright">` / no group | `date` → `copyrightDate` |
+
+`languages` are not a container: they are labels the core chose, not text on
+the page, so their evidence has no box. The binder writes them as classified
+values to `language` (`<language>`), each code once. A value's evidence also
+carries `lang`, the language of its text when the core knows it (the `lang`
+of a VLM title or series), which becomes the `lang` of its `Value`
+(`<titleInfo lang>`).
 
 A field typed `DetectionEvidence | None` holds one reading; a tuple field holds
 any number, in reading order. The mapping is declared on the dataclass fields
@@ -631,14 +643,16 @@ is not read:
 
 | Reply | Monograph engine | Periodical engine |
 |---|---|---|
-| title | `titleInfo[]` - `title`, `subTitle`: one `BiblioTitleInfo` each | `periodical[]` - `periodicalTitle`, `periodicalSubTitle`: one `BiblioTitleInfo` each |
+| title | `titleInfo[]` - `title`, `subTitle`: one `BiblioTitleInfo` each, every value in its `lang` | `periodical[]` - `periodicalTitle`, `periodicalSubTitle`: one `BiblioTitleInfo` each, every value in its `lang` |
 | parts | of `titleInfo[].parts`, the first of the deepest `level` (a `část` within a `díl`) as `part_number`, `part_name`; the others are not kept, as a title holds one part | - |
 | volume, issue | - | `volume` (`volumePartNumber`, `volumeDateIssued`) as `periodical_volume`, `issue` (`issuePartNumber`, `issuePartName`, `issueDateIssued`) as `periodical_issue`: the number and name as a `BiblioTitleInfo`, the date as a `BiblioPublication`, as the YOLO engine reads them |
 | imprint | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`, `edition` | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`; `frequency` in the first one |
 | printer | `manufacture[]`: one `BiblioManufacture` each | the same |
-| series | `series[]` - `seriesName`, `seriesPartNumber`, `seriesPartName` | - |
+| series | `series[]` - `seriesName`, `seriesPartNumber`, `seriesPartName`, every value in its `lang` | - |
+| statements | `statementOfResponsibility[]` as one `BiblioResponsibility`; `copyrightDate` as a `BiblioCopyright` | `statementOfResponsibility[]` as one `BiblioResponsibility` |
+| languages | `language[]` as `languages` | the same |
 | names | `agents[]`, each in its role, with its `type`; `description[]` as affiliations | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`; `description[]` as affiliations |
-| not read | `statementOfResponsibility`, `etal`, `distribution`, `copyrightDate`, `isbn`, `illustrativeContent`, `seriesIssn`, `seriesEditor`, `termsOfAddress`, `publisherInferred`, the languages | `supplement`, `statementOfResponsibility`, `etal`, `distribution`, `issn`, `isbn`, `termsOfAddress`, `publisherInferred`, the languages |
+| not read | `etal`, `distribution`, `isbn`, `illustrativeContent`, `seriesIssn`, `seriesEditor`, `termsOfAddress`, `publisherInferred`, `originalLanguage` | `supplement`, `etal`, `distribution`, `issn`, `isbn`, `termsOfAddress`, `publisherInferred`, `originalLanguage` |
 
 Both schemas, and the TOC schema of the VLM chapter extraction, ask for the
 agents alike: one object per person, family or body, with the same roles
@@ -788,7 +802,7 @@ Every piece of evidence becomes one `Value`, created once and shared by every
 record it reaches:
 
 ```text
-Value(text=evidence.text, confidence=evidence.confidence, id=uuid4())
+Value(text=evidence.text, confidence=evidence.confidence, id=uuid4(), lang=evidence.lang)
 ```
 
 and its `(x, y, width, height)` bbox is recorded against the new UUID, as are
@@ -798,9 +812,12 @@ Which record a value goes to is the binder's decision, made per reading:
 
 | Reading | `MetakatVolume` takes | `MetakatIssue` takes |
 |---|---|---|
-| `reading` | everything except `redaktor` | `title`, `subTitle`, `publisher`, `placeTerm`, `manufacturePublisher`, `manufacturePlaceTerm`, `redaktor` - what an issue repeats from its title page, and its redaktor |
+| `reading` | everything except `redaktor` | `title`, `subTitle`, `publisher`, `placeTerm`, `manufacturePublisher`, `manufacturePlaceTerm`, every agent role (`redaktor` included) with `affiliation`, `statementOfResponsibility`, the languages - what an issue repeats from its title page |
 | `periodical_volume` | all of it | — |
 | `periodical_issue` | — | all of it |
+
+A title made above the volumes (`title_from`, and the periodical's title)
+takes the languages of the volume whose title it takes.
 
 Each container becomes one group on each record it reaches, holding the
 values of it that reached that record. When two readings of one page give a

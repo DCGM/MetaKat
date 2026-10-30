@@ -347,7 +347,8 @@ class ChapterBindEngineBase(ChapterBindEngine):
 
         def new_value(evidence: DetectionEvidence, text: str, value_type: type[Value] = Value, **fields) -> Value:
             # Every value gets its own id; values read from one region share
-            # its geometry, page and ALTO elements.
+            # its geometry, page and ALTO elements. The value is in the
+            # language of its reading.
             source_page = page_by_key.get(evidence.page_key)
             if source_page is None:
                 raise ValueError(
@@ -369,7 +370,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                     lines=list(evidence.alto.lines),
                     words=list(evidence.alto.words),
                 )
-            return value_type(text=text, confidence=evidence.confidence, id=value_id, **fields)
+            return value_type(text=text, confidence=evidence.confidence, id=value_id, lang=evidence.lang, **fields)
 
         def bind_evidence(
             evidence: DetectionEvidence | None,

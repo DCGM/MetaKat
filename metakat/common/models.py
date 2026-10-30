@@ -96,7 +96,8 @@ class DetectionEvidence:
 
     `bbox` is None when the value is known to be on the page but not where:
     a reading that names no region and whose text could not be found in the
-    page's ALTO.
+    page's ALTO. `lang` is the language of the text (ISO 639-2/B), when the
+    reading names it.
     """
 
     text: str
@@ -104,3 +105,4 @@ class DetectionEvidence:
     bbox: BoundingBox | None
     page_key: str
     alto: AltoRefs = field(default=AltoRefs(), kw_only=True)
+    lang: str | None = field(default=None, kw_only=True)

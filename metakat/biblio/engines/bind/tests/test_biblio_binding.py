@@ -3,6 +3,7 @@
 The scan-level tests run the monograph binder; the periodical binder reads the
 scan the same way (biblio_binding).
 """
+import dataclasses
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -18,10 +19,12 @@ from metakat.biblio.engines.bind.biblio_binding import (
 from metakat.biblio.engines.core.models import (
     AgentRole,
     BiblioAgent,
+    BiblioCopyright,
     BiblioCoreResult,
     BiblioManufacture,
     BiblioPublication,
     BiblioReading,
+    BiblioResponsibility,
     BiblioSpanResult,
     BiblioTitleInfo,
     merge_span,
@@ -112,6 +115,32 @@ def test_an_agents_name_carries_what_the_agent_is(metakat_page):
     # A reader that does not tell persons from bodies leaves the type unknown.
     assert volume.author[0].type is None
     assert isinstance(volume.affiliation[0], Value) and not hasattr(volume.affiliation[0], "type")
+
+
+def test_statements_copyright_languages_and_the_language_of_a_title_are_bound(metakat_page):
+    title = dataclasses.replace(_ev("Kytice", 0.9), lang="cze")
+    page = _page_result(_titled(
+        title_infos=(BiblioTitleInfo(title=title),),
+        responsibilities=(BiblioResponsibility(statements=(_ev("napsal K. J. Erben", 0.8),)),),
+        copyrights=(BiblioCopyright(date=_ev("© 1853", 0.8)),),
+        languages=(_ev("cze", 0.9), _ev("ger", 0.9)),
+    ), periodical_issue=BiblioReading(title_infos=(BiblioTitleInfo(part_number=_ev("Číslo 3", 0.8)),)))
+
+    volume, issue = span_candidates(page)[0]
+
+    assert volume.title[0].lang == "cze"
+    assert _tc(volume.statementOfResponsibility) == ("napsal K. J. Erben", 0.8)
+    assert _tc(volume.copyrightDate) == ("© 1853", 0.8)
+    assert [(language.text, language.confidence) for language in volume.language] == [("cze", 0.9), ("ger", 0.9)]
+    # Each statement is a container of its own: none is grouped.
+    assert [group.type for group in volume.groups] == ["titleInfo"]
+    # A periodical issue repeats its statements and languages, not a copyright.
+    assert _tc(issue.statementOfResponsibility) == ("napsal K. J. Erben", 0.8)
+    assert [language.text for language in issue.language] == ["cze", "ger"]
+    assert issue.copyrightDate is None
+    # A language is a label, with no detection behind it.
+    assert volume.language[0].id not in referenced_detection_ids([volume])
+    assert title_from([volume], HierarchyType.MULTIPART).language == volume.language
 
 
 def test_readings_without_a_title_are_not_referenced(metakat_page):
@@ -214,13 +243,12 @@ def test_a_periodical_page_gives_a_volume_and_an_issue(metakat_page):
     assert volume.hierarchy == HierarchyType.PERIODICAL
     assert (_tc(volume.partNumber), _tc(volume.dateIssued)) == (("Ročník IV", 0.8), ("1887", 0.7))
     assert _tc(issue.partNumber) == ("Číslo 3", 0.8)
-    # The issue repeats its title page's title and imprint, but not the
-    # volume's date or edition; a redaktor is the issue's, other names the
-    # volume's.
+    # The issue repeats its title page's title, imprint and names, but not
+    # the volume's date or edition; a redaktor is the issue's only.
     assert issue.title == volume.title and issue.publisher == volume.publisher
-    assert (issue.dateIssued, issue.edition, volume.redaktor, issue.author) == (None, None, None, None)
+    assert (issue.dateIssued, issue.edition, volume.redaktor) == (None, None, None)
     assert _tc(issue.redaktor) == ("Novák", 0.7)
-    assert _tc(volume.author) == ("Vrchlický", 0.7)
+    assert _tc(issue.author) == _tc(volume.author) == ("Vrchlický", 0.7)
     # The title and the volume number are one titleInfo of the volume.
     finalize_groups(volume)
     [title_info] = _group(volume, "titleInfo")

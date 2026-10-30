@@ -12,11 +12,13 @@ in it is not read. Of the reply this engine reads:
   vlastním" - is read as the publisher;
 - every `manufacture` and `series` (without its ISSN and editors);
 - the `agents`, each in the field of its role, with its type and its
-  `description` as its affiliations.
+  `description` as its affiliations;
+- the statements of responsibility, the `copyrightDate` and the `language`
+  codes;
+- the `lang` of a titleInfo or series, as the language of each of its values.
 
-Not read: the statements of responsibility, `etal`, `distribution`,
-`copyrightDate`, `isbn`, `illustrativeContent`, the terms of address of the
-agents and the languages.
+Not read: `etal`, `distribution`, `isbn`, `illustrativeContent`, the terms of
+address of the agents and `originalLanguage`.
 """
 from __future__ import annotations
 
@@ -33,9 +35,11 @@ from metakat.biblio.engines.core.biblio_core_engine_vlm import (
 )
 from metakat.biblio.engines.core.models import (
     AgentRole,
+    BiblioCopyright,
     BiblioManufacture,
     BiblioPublication,
     BiblioReading,
+    BiblioResponsibility,
     BiblioSeries,
     BiblioSpanResult,
     BiblioTitleInfo,
@@ -68,11 +72,13 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
     title_infos = []
     for path, item in values.items(reply, "titleInfo"):
         part_path, part = _volume_part(path, item)
+        lang = item.get("lang")
         title_infos.append(BiblioTitleInfo(
-            title=values.one(path + ("title",), item.get("title")),
-            sub_title=values.one(path + ("subTitle",), item.get("subTitle")),
-            part_number=None if part is None else values.one(part_path + ("partNumber",), part.get("partNumber")),
-            part_name=None if part is None else values.one(part_path + ("partName",), part.get("partName")),
+            title=values.one(path + ("title",), item.get("title"), lang),
+            sub_title=values.one(path + ("subTitle",), item.get("subTitle"), lang),
+            part_number=None if part is None else values.one(
+                part_path + ("partNumber",), part.get("partNumber"), lang),
+            part_name=None if part is None else values.one(part_path + ("partName",), part.get("partName"), lang),
         ))
     publications = [
         BiblioPublication(
@@ -93,9 +99,9 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
     ]
     series = [
         BiblioSeries(
-            name=values.one(path + ("seriesName",), item.get("seriesName")),
-            part_number=values.one(path + ("seriesPartNumber",), item.get("seriesPartNumber")),
-            part_name=values.one(path + ("seriesPartName",), item.get("seriesPartName")),
+            name=values.one(path + ("seriesName",), item.get("seriesName"), item.get("lang")),
+            part_number=values.one(path + ("seriesPartNumber",), item.get("seriesPartNumber"), item.get("lang")),
+            part_name=values.one(path + ("seriesPartName",), item.get("seriesPartName"), item.get("lang")),
         )
         for path, item in values.items(reply, "series")
     ]
@@ -106,6 +112,11 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         manufactures=kept_containers(manufactures),
         series=kept_containers(series),
         agents=agents,
+        responsibilities=kept_containers((BiblioResponsibility(
+            statements=values.many(("statementOfResponsibility",), reply.get("statementOfResponsibility"))),)),
+        copyrights=kept_containers((BiblioCopyright(
+            date=values.one(("copyrightDate",), reply.get("copyrightDate"))),)),
+        languages=values.languages(reply),
     )
     if reading.is_empty():
         return None

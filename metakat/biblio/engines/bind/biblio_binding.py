@@ -31,11 +31,14 @@ from metakat.biblio.engines.core.models import (
     BiblioReading,
     BiblioSpanResult,
     container_values,
+    merge_languages,
 )
+from metakat.common.models import AgentRole
 from metakat.common.aux.document_groups import assign_page_indices, bottom_documents, lowest_document_groups
 from metakat.common.vlm.report import VLMCallReport
 from metakat.schemas.base_objects import (
     AgentValue,
+    ClassifiedValue,
     DocumentType,
     GroupType,
     HierarchyType,
@@ -63,11 +66,13 @@ logger = logging.getLogger(__name__)
 Anchors = Dict[UUID, UUID]
 
 # What an issue takes from its title page's reading besides its own number
-# and date: the periodical's title and imprint, which each issue repeats, and
-# its redaktor. Everything else a title page says describes the volume.
+# and date: what each issue repeats - the periodical's title and imprint, its
+# redaktor and the other persons and bodies named with their affiliations,
+# the statements of responsibility - and its languages (span_candidates).
+# Everything else a title page says describes the volume.
 _ISSUE_FIELDS = frozenset((
     "title", "subTitle", "publisher", "placeTerm", "manufacturePublisher", "manufacturePlaceTerm",
-    "redaktor",
+    *(role.value for role in AgentRole), "affiliation", "statementOfResponsibility",
 ))
 # The statements a record has one of per event: when several readings of the
 # same record are combined, their groups of these types are united (see
@@ -231,7 +236,8 @@ def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceCo
                     fields.setdefault(field_name, []).append(value)
                     if single and earlier is None:
                         single_source[field_name] = index
-            groups.append(MetakatGroup(type=group_type, members=[value.id for _, value, _ in values]))
+            if group_type is not None:
+                groups.append(MetakatGroup(type=group_type, members=[value.id for _, value, _ in values]))
         groups_per_source.append(groups)
     for field_name, values in fields.items():
         setattr(record, field_name, values)
@@ -268,9 +274,9 @@ def span_candidates(
                 if isinstance(container, BiblioAgent) and field_name == container.role.value:
                     # The name, with what the agent is.
                     value = AgentValue(text=evidence.text, confidence=evidence.confidence, id=uuid4(),
-                                       type=container.type)
+                                       lang=evidence.lang, type=container.type)
                 else:
-                    value = Value(text=evidence.text, confidence=evidence.confidence, id=uuid4())
+                    value = Value(text=evidence.text, confidence=evidence.confidence, id=uuid4(), lang=evidence.lang)
                 if detection_page_keys is not None:
                     detection_page_keys[value.id] = evidence.page_key
                 bbox = evidence.bbox
@@ -300,6 +306,8 @@ def span_candidates(
         _restrict(reading, lambda field_name: field_name in _ISSUE_FIELDS),
         periodical_issue,
     ])
+    metakat_volume.language = _languages(page_result.reading, page_result.periodical_volume)
+    metakat_issue.language = _languages(page_result.reading, page_result.periodical_issue)
 
     elements = []
     if metakat_volume.title is not None:
@@ -310,6 +318,13 @@ def span_candidates(
             elements.append(metakat_issue)
 
     return elements, detection_id_to_detection_bbox, detection_id_to_alto
+
+def _languages(*readings: Optional[BiblioReading]) -> Optional[List[ClassifiedValue[str]]]:
+    # A language is a label the core chose, not a value read in a region:
+    # a classified value, with no detection behind it.
+    return [ClassifiedValue[str](text=language.text, confidence=language.confidence)
+            for language in merge_languages(readings)] or None
+
 
 def span_hierarchy(page_result: BiblioSpanResult) -> HierarchyType:
     # A printed volume number or date marks a periodical; a part number
@@ -542,8 +557,8 @@ def authoritative_spans(documents: List[List[MetakatPage]], spans: List[TitleSpa
 def title_from(volumes: List[MetakatVolume], hierarchy: HierarchyType) -> MetakatTitle:
     """The title above the volumes, from the most confidently read title among them; unnamed when none has one.
 
-    The title shares the volume's Values, so reuses its detection UUIDs; of
-    the volume's groups, finalizing keeps its titleInfo."""
+    The title shares the volume's Values and languages, so reuses its detection
+    UUIDs; of the volume's groups, finalizing keeps its titleInfo."""
     best = None
     for volume in volumes:
         if volume.title and (best is None or kept(volume.title).confidence > kept(best.title).confidence):
@@ -551,7 +566,7 @@ def title_from(volumes: List[MetakatVolume], hierarchy: HierarchyType) -> Metaka
     if best is None:
         return MetakatTitle(id=uuid4(), hierarchy=hierarchy)
     return MetakatTitle(id=uuid4(), hierarchy=hierarchy, title=best.title, subTitle=best.subTitle,
-                        groups=best.groups)
+                        language=best.language, groups=best.groups)
 
 
 def finalize_groups(element: MetakatElement) -> None:

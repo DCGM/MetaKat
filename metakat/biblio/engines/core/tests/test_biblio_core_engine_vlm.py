@@ -488,7 +488,8 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_ro
              "agents": [_agent("translator", "J. V. NOVÁK", termsOfAddress=["Dr."],
                                description=["c. k. professor v Praze"]),
                         _agent("composer", "B. SMETANA"), _agent("issuingBody", "UNIVERZITA KARLOVA", type="corporate")],
-             "statementOfResponsibility": ["Přeložil Dr. J. V. NOVÁK"], "isbn": ["80-7004-015"]}
+             "statementOfResponsibility": ["Přeložil Dr. J. V. NOVÁK"], "isbn": ["80-7004-015"],
+             "copyrightDate": "© 1853", "language": ["cze", "ger", "cze"]}
     engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(reply).client())
 
     result = engine.process(_span(page)).spans[0]
@@ -502,6 +503,14 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_ro
     assert [a.text for a in translator.affiliations] == ["c. k. professor v Praze"]
     assert (composer.role, composer.name.text) == (AgentRole.COMPOSER, "B. SMETANA")
     assert (body.role, body.type) == (AgentRole.ISSUING_BODY, NameType.CORPORATE)
+    # A titleInfo's and a series' language is the language of each of their values.
+    assert (title_info.title.lang, title_info.part_name.lang, series.name.lang) == ("cze", "cze", "cze")
+    [responsibility] = result.reading.responsibilities
+    assert [s.text for s in responsibility.statements] == ["Přeložil Dr. J. V. NOVÁK"]
+    [copyright_] = result.reading.copyrights
+    assert copyright_.date.text == "© 1853"
+    # A language is a label: given once, located nowhere.
+    assert [(language.text, language.bbox) for language in result.reading.languages] == [("cze", None), ("ger", None)]
     assert result.periodical_volume is None and result.periodical_issue is None
 
 
@@ -521,6 +530,8 @@ _PERIODICAL_REPLY = _reply(
     agents=[_agent("editor", "K. J. ERBEN", type="personal"),
             _agent("issuingBody", "Spolek", type="corporate")],
     publication=[{"placeTerm": ["Praze"], "publisher": [], "publisherInferred": False, "dateIssued": None}],
+    statementOfResponsibility=["Řídí K. J. Erben"],
+    language=["cze"],
 )
 
 
@@ -544,6 +555,10 @@ def test_the_periodical_engine_reads_the_volume_the_issue_and_the_editor_as_reda
     assert [(a.role, a.name.text, a.type) for a in result.reading.agents] == [
         (AgentRole.REDAKTOR, "K. J. ERBEN", NameType.PERSONAL),
         (AgentRole.ISSUING_BODY, "Spolek", NameType.CORPORATE)]
+    assert title_info.title.lang == "cze"
+    [responsibility] = result.reading.responsibilities
+    assert [s.text for s in responsibility.statements] == ["Řídí K. J. Erben"]
+    assert [language.text for language in result.reading.languages] == ["cze"]
 
 
 def test_a_periodical_frequency_without_an_imprint_is_an_imprint_of_its_own(page):

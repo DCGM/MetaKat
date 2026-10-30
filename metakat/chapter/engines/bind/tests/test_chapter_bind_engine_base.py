@@ -592,7 +592,7 @@ def test_recursive_result_binds_schema_and_detection_provenance(
             ChapterResult(
                 toc_page_key="toc",
                 title_toc_page=evidence("Chapter", "toc"),
-                subtitle_toc_page=evidence("Subtitle", "toc", y=30),
+                subtitle_toc_page=dataclasses.replace(evidence("Subtitle", "toc", y=30), lang="eng"),
                 description_toc_page=evidence("Topics 12", "toc", y=60),
                 agents_toc_page=(
                     ChapterAgent(AgentRole.AUTHOR, evidence("Anna Nová", "toc", y=90), NameType.PERSONAL),
@@ -641,6 +641,8 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     assert _indices(child.pageIndexEnd) == [20]
     assert root.pageNumberStartTocPage[0].text == "10"
     assert root.subTitleTocPage[0].text == "Subtitle"
+    # A value is in the language of its reading.
+    assert (root.subTitleTocPage[0].lang, root.titleTocPage[0].lang) == ("eng", None)
     # The synopsis printed with the entry is its abstract, outside the titleInfo group.
     assert root.abstractTocPage[0].text == "Topics 12"
     assert root.abstractTocPage[0].id not in root.groups[0].members

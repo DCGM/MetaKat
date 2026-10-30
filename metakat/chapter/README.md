@@ -1625,6 +1625,7 @@ Of each entry the engine reads:
 | `titleInfo[0].title`, the first language version; else `designation` | `title_toc_page` |
 | `titleInfo[0].subTitle`, its subtitle | `subtitle_toc_page` |
 | `titleInfo[0].description`, its synopsis | `description_toc_page` |
+| `titleInfo[0].lang` | the `lang` of the title, subtitle and synopsis evidence, so of their values (`<titleInfo lang>`, `<abstract lang>`) |
 | `agents[]`, each in its `role` (never `redaktor`), with its `type` and its `description[]` as affiliations; each name and affiliation is located on its own | `agents_toc_page` |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |
 | `pageReference`, parsed by `ArabicRomanChapterPageNumberParser` | `page_number_toc_page` |
@@ -1636,7 +1637,7 @@ number is printed in the same words, and a word goes to one value only, so
 the part number takes its words from the title.
 
 A grouping heading is an entry like any other. Not read: the parallel titles,
-`pages`, `lang`, and `designation` when the entry
+`pages`, and `designation` when the entry
 has a title. Parallel title versions are inspected only to decide whether
 column reordering is safe.
 

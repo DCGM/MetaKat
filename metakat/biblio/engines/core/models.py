@@ -93,18 +93,47 @@ class BiblioAgent:
     emails: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("email"))
 
 
-BiblioContainer = BiblioTitleInfo | BiblioPublication | BiblioManufacture | BiblioSeries | BiblioAgent
+@dataclass(frozen=True)
+class BiblioResponsibility:
+    """The statements of responsibility, each as printed: a <note type="statement of responsibility"> each.
+
+    MODS gives each statement a container of its own, so its readings form no group."""
+
+    GROUP_TYPE = None
+
+    statements: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("statementOfResponsibility"))
+
+
+@dataclass(frozen=True)
+class BiblioCopyright:
+    """The copyright date: <originInfo eventType="copyright">, which holds nothing else to group it with."""
+
+    GROUP_TYPE = None
+
+    date: Optional[DetectionEvidence] = field(default=None, metadata=_to("copyrightDate"))
+
+
+BiblioContainer = (BiblioTitleInfo | BiblioPublication | BiblioManufacture | BiblioSeries | BiblioAgent
+                   | BiblioResponsibility | BiblioCopyright)
 
 
 @dataclass(frozen=True)
 class BiblioReading:
-    """Everything read about one bibliographic record, as its containers."""
+    """Everything read about one bibliographic record, as its containers.
+
+    `languages` are the languages of the text, as ISO 639-2/B codes: labels
+    the reader chose, not text on the page, so their evidence has no box. They
+    are written as classified values (MetakatBibliographic.language), not as
+    a container."""
 
     title_infos: tuple[BiblioTitleInfo, ...] = ()
     publications: tuple[BiblioPublication, ...] = ()
     manufactures: tuple[BiblioManufacture, ...] = ()
     series: tuple[BiblioSeries, ...] = ()
     agents: tuple[BiblioAgent, ...] = ()
+    responsibilities: tuple[BiblioResponsibility, ...] = ()
+    copyrights: tuple[BiblioCopyright, ...] = ()
+    languages: tuple[DetectionEvidence, ...] = ()
 
     def containers(self) -> Iterator[BiblioContainer]:
         yield from self.title_infos
@@ -112,9 +141,11 @@ class BiblioReading:
         yield from self.manufactures
         yield from self.series
         yield from self.agents
+        yield from self.responsibilities
+        yield from self.copyrights
 
     def is_empty(self) -> bool:
-        return next(self.containers(), None) is None
+        return not self.languages and next(self.containers(), None) is None
 
 
 @dataclass(frozen=True)
@@ -192,7 +223,7 @@ def merge_readings(readings: Sequence[BiblioReading]) -> BiblioReading:
     earlier page's on a tie) and a list field every reading in page order. A
     page that printed several such statements did so on purpose, so then
     they are kept as read; series and names are always kept as read, since a
-    record can have several."""
+    record can have several. Each language is kept once (merge_languages)."""
     def united(name: str) -> tuple:
         per_page = [getattr(reading, name) for reading in readings]
         containers = [container for page in per_page for container in page]
@@ -217,7 +248,20 @@ def merge_readings(readings: Sequence[BiblioReading]) -> BiblioReading:
         manufactures=united("manufactures"),
         series=tuple(container for reading in readings for container in reading.series),
         agents=tuple(container for reading in readings for container in reading.agents),
+        responsibilities=united("responsibilities"),
+        copyrights=united("copyrights"),
+        languages=merge_languages(readings),
     )
+
+
+def merge_languages(readings: Sequence[Optional[BiblioReading]]) -> tuple[DetectionEvidence, ...]:
+    """Every language of the readings once, in the order first read, as its most confident reading gives it."""
+    best: dict[str, DetectionEvidence] = {}
+    for reading in readings:
+        for language in (reading.languages if reading is not None else ()):
+            if language.text not in best or best[language.text].confidence < language.confidence:
+                best[language.text] = language
+    return tuple(best.values())
 
 
 def merge_span(page_keys: Sequence[str], results: Sequence[BiblioSpanResult]) -> Optional[BiblioSpanResult]:

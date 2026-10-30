@@ -26,7 +26,8 @@ Of an entry the stage reads:
   takes its words from it; the parallel titles in other languages are not
   read;
 - the subtitle and the synopsis of its first `titleInfo` object, as
-  `subtitle_toc_page` and `description_toc_page`;
+  `subtitle_toc_page` and `description_toc_page`; the title, subtitle and
+  synopsis are in the `lang` of that object;
 - its `agents`, as `agents_toc_page`, each in its role, with its type and
   its `description` as its affiliations, every name and affiliation
   located as a value of its own; the terms of address are not read;
@@ -35,8 +36,8 @@ Of an entry the stage reads:
 - its `pageReference`, parsed as the YOLO stage parses a detected reference
   (ArabicRomanChapterPageNumberParser), as `page_number_toc_page`.
 
-A heading (`kind` heading) is an entry as an item is. `pages` and `lang` are
-not read, nor `designation` of an entry with a title.
+A heading (`kind` heading) is an entry as an item is. `pages` is not read,
+nor `designation` of an entry with a title.
 
 The model is either behind an API (`vlm.api_url`) or a local one that vLLM
 serves only while `process()` runs (`local`, metakat.common.vlm.local_server),
@@ -165,7 +166,8 @@ class ChapterExtractionEngineVLM:
         entries = [entry for entry in reply.get("entries") or () if isinstance(entry, Mapping)]
         located = self._locate(entries, alto_pages)
 
-        def evidence(index: int, field: str, text: Any, item: Optional[int] = None) -> Optional[DetectionEvidence]:
+        def evidence(index: int, field: str, text: Any, item: Optional[int] = None,
+                     lang: Any = None) -> Optional[DetectionEvidence]:
             if not isinstance(text, str) or not text.strip():
                 return None
             key = (index, field) if item is None else (index, field, item)
@@ -178,6 +180,7 @@ class ChapterExtractionEngineVLM:
                     geometry.x, geometry.y, geometry.width, geometry.height),
                 page_key=keys[page_index],
                 alto=AltoRefs() if region is None else AltoRefs.from_words(region.words),
+                lang=lang if isinstance(lang, str) else None,
             )
 
         result = TocBase(build_hierarchy(entries, evidence, keys), reports=(report,))
@@ -259,12 +262,14 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
     for index, entry in enumerate(entries):
         level = entry.get("level") if isinstance(entry.get("level"), int) and entry.get("level") > 0 else 1
         reference = evidence(index, "pageReference", entry.get("pageReference"))
+        title_info = _first_title_info(entry)
+        lang = title_info.get("lang")
         node = {
             "chapter": dict(
                 toc_page_key=page_keys[_page_index(entry, len(page_keys))],
-                title_toc_page=evidence(index, "title", _title_text(entry)),
-                subtitle_toc_page=evidence(index, "subTitle", _first_title_info(entry).get("subTitle")),
-                description_toc_page=evidence(index, "description", _first_title_info(entry).get("description")),
+                title_toc_page=evidence(index, "title", _title_text(entry), lang=lang),
+                subtitle_toc_page=evidence(index, "subTitle", title_info.get("subTitle"), lang=lang),
+                description_toc_page=evidence(index, "description", title_info.get("description"), lang=lang),
                 agents_toc_page=_toc_agents(index, entry, evidence),
                 part_number_toc_page=evidence(index, "partNumber", entry.get("partNumber")),
                 page_number_toc_page=None if reference is None else ArabicRomanChapterPageNumberParser.create(reference),

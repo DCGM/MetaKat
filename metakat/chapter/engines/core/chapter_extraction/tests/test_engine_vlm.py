@@ -100,6 +100,9 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     # a range is parsed as one.
     assert second.title_toc_page.text == "Les a voda"
     assert (second.description_toc_page.text, first.description_toc_page) == ("O lesích", None)
+    # Both are in the language of their version; a number has none.
+    assert (second.title_toc_page.lang, second.description_toc_page.lang) == ("cze", "cze")
+    assert first.part_number_toc_page.lang is None
     assert second.page_number_toc_page.kind is ChapterPageNumberKind.RANGE
     assert (second.page_number_toc_page.normalized_start(), second.page_number_toc_page.normalized_end()) == (
         "12", "30")
