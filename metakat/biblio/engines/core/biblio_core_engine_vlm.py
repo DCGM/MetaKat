@@ -38,10 +38,9 @@ Configuration, besides `name`:
   can be cached (`vlm.prompt_cache`); the user prompt holds the page data.
   Both receive the variables `ocr` (the ALTO text
   of the span: of its one page as it is, of several pages each under a
-  `--- Page k of n ---` line), `page_count` (the pages of the span),
-  `schema` (the output schema as JSON) and `annotations` (always None: the
-  prompts were developed with human annotations, which MetaKat does not
-  have), and the page images are attached to the user prompt in page order;
+  `--- Page k of n ---` line), `page_count` (the pages of the span) and
+  `schema` (the output schema as JSON), and the page images are attached to
+  the user prompt in page order;
 - `schema_path` - the output schema, for an engine that has none of its own;
 - `confidence` - the confidence given to every value.
 """
@@ -220,7 +219,6 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
                               for page, alto_page in zip(span, alto_pages)]),
             "page_count": len(span),
             "schema": json.dumps(self.schema, ensure_ascii=False, indent=2),
-            "annotations": None,
         })
         try:
             answer = client.request(

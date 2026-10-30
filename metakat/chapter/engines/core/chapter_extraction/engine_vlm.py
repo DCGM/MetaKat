@@ -41,10 +41,9 @@ as for the VLM biblio cores. Configuration, besides `name`:
   stage's own. The system prompt is what every request shares, so that it
   can be cached (`vlm.prompt_cache`); the user prompt holds the page data.
   Both receive `images` (the page keys, one per
-  attached image, in page order), `ocr` (the ALTO text of each page, a line
-  per TextLine and a blank line between blocks, None for a page without
-  text), and `annotations` and `tocDraft`, always None: the prompt was
-  developed with human annotations and drafts, which MetaKat does not have;
+  attached image, in page order) and `ocr` (the ALTO text of each page, a
+  line per TextLine and a blank line between blocks, None for a page without
+  text);
 - `confidence` - the confidence given to every value.
 """
 from __future__ import annotations
@@ -141,8 +140,6 @@ class ChapterExtractionEngineVLM:
         prompts = render_prompts(self.prompts, {
             "images": keys,
             "ocr": [alto_text(alto_page.words) or None for alto_page in alto_pages],
-            "annotations": None,
-            "tocDraft": None,
         })
         images = [VLMImage.from_file(page.image_path, self.vlm_config.image_preprocessing, page.alto_path) for page in pages]
         try:

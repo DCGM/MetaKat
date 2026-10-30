@@ -1565,11 +1565,15 @@ selected TOC pages, their images attached in page order and the ALTO text of
 each under its image index, go in one request with the book TOC prompt and
 schema in `chapter_extraction/vlm/` (smart_digiline `books_toc.2026-10-20`,
 `prompt_toc.txt`, its newest revision, v3 "OCR grounding"; the complete run
-there used v2). The prompt is written for N images, so it is used as it is;
-it receives `images` (the page keys), `ocr` (a line per `TextLine`, a blank
-line between `TextBlock`s, None for a page without text) and `annotations`
-and `tocDraft`, always None. The client, the API or local endpoint and its
-configuration are those of `metakat.common.vlm`, as for the VLM biblio cores:
+there used v2). The prompt is written for N images. MetaKat moved the page
+data - the OCR of each image under its index - to the user prompt, so that
+the system prompt is the same in every request and can be cached
+(`vlm.prompt_cache`), and left out the rules for human annotations and the
+TOC drafts made from them, since MetaKat has neither. The prompts receive
+`images` (the page keys) and `ocr` (a line per `TextLine`, a blank line
+between `TextBlock`s, None for a page without text). The client, the API or
+local endpoint and its configuration are those of `metakat.common.vlm`, as
+for the VLM biblio cores:
 
 ```json
 {

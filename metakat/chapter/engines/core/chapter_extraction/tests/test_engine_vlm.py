@@ -112,7 +112,7 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     assert "OBSAH\n\nI. Úvod 5\n\nII. Les a voda 12—30" in text
     assert "=== Image 0 === OCR (optional support): OBSAH" in words
     assert "=== Image 1 === OCR (optional support): Pramen 14" in words
-    assert "ANNOTATIONS: not provided" in text and "OPTIONAL TOC DRAFT" not in text
+    assert "nnotation" not in text + system["content"][0]["text"] and "DRAFT" not in text
     assert [part["type"] for part in user["content"]].count("image_url") == 2
     assert request["response_format"]["json_schema"]["schema"] == engine.schema
 

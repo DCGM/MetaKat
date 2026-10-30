@@ -3,8 +3,5 @@
 {% endif %}PAGE DATA
 {% if page_count > 1 %}OCR text of the pages, each under its own heading:{% else %}OCR text of the page:{% endif %}
 {{ ocr }}
-{% if annotations %}
-Annotations, in the reading order of the page:
-{{ annotations }}
-{% endif %}
+
 {% if page_count > 1 %}The images of the pages follow, in page order.{% else %}The image of the page follows.{% endif %}

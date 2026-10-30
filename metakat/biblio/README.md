@@ -562,11 +562,12 @@ own name in core `definitions.py`.
 For each span the engine sends one request:
 
 1. reads the ALTO of every page of the span and writes the text into the
-   system prompt (`{{ ocr }}`): a line per `TextLine`, a blank line between
+   user prompt (`{{ ocr }}`): a line per `TextLine`, a blank line between
    `TextBlock`s (`page_text`, which an engine may override, as the periodical
    one does); a span of several pages gives each page under a
-   `--- Page k of n ---` line. The prompt also receives `{{ page_count }}`,
-   the schema as `{{ schema }}` and `{{ annotations }}`, always `None`. The
+   `--- Page k of n ---` line. The prompts also receive `{{ page_count }}`
+   and the schema as `{{ schema }}`. The system prompt, the rules, is the
+   same in every request, so that it can be cached (`vlm.prompt_cache`). The
    engines' own prompts tell the model, only when there are several pages,
    that they are consecutive pages of one document to be read as one record;
    a one-page span gets exactly the single-page prompt;
@@ -605,12 +606,13 @@ located on the wrong occurrence.
 
 The prompts and schemas are the newest of their development (smart_digiline
 `biblio.2026-10-20` and `periodical.2026-10-20`, `prompts/01_prompt_dev*`),
-written for one page. MetaKat adds to each, only for a span of several pages,
-a paragraph telling the model it gets the consecutive pages of one document,
-each page's OCR under its own heading, to be read together as one record, and
-the plural forms of the OCR heading and the image line. With one page the
-rendered prompt is the original, byte for byte. The prompts keep their
-`{% if annotations %}` parts, which MetaKat never fills. The schema is not in
+written for one page. MetaKat moved the page data - the OCR and the line
+announcing the image - from the end of the system prompt to the user prompt,
+and adds to it, only for a span of several pages, a paragraph telling the
+model it gets the consecutive pages of one document, each page's OCR under
+its own heading, to be read together as one record, and the plural forms of
+the OCR heading and the image line. The rules the prompts had for pages with
+human annotations are left out, since MetaKat has none. The schema is not in
 the prompt text; the model gets it as the response format, so a
 `response_format` of `json` leaves the model without it.
 
