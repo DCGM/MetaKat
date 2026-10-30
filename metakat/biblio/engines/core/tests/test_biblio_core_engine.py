@@ -286,9 +286,10 @@ def _evidence(text, confidence, page_key="a"):
 
 
 def test_the_pages_of_a_span_are_one_statement_per_kind():
-    half = BiblioReading(title_infos=(BiblioTitleInfo(title=_evidence("Kytice", 0.6, "a")),))
+    half = BiblioReading(title_infos=(BiblioTitleInfo(title=_evidence("Kytice", 0.6, "a"), translated=False),))
     full = BiblioReading(
-        title_infos=(BiblioTitleInfo(title=_evidence("KYTICE", 0.9, "b"), part_number=_evidence("Díl 2", 0.8, "b")),),
+        title_infos=(BiblioTitleInfo(title=_evidence("KYTICE", 0.9, "b"), part_number=_evidence("Díl 2", 0.8, "b"),
+                                     translated=False),),
         publications=(BiblioPublication(places=(_evidence("Praha", 0.8, "b"),)),),
         agents=(BiblioAgent(role=AgentRole.AUTHOR, name=_evidence("Erben", 0.8, "b")),),
     )
@@ -299,7 +300,7 @@ def test_the_pages_of_a_span_are_one_statement_per_kind():
 
     [title_info] = merged.title_infos
     assert (title_info.title.text, title_info.title.page_key) == ("KYTICE", "b")
-    assert title_info.part_number.text == "Díl 2"
+    assert (title_info.part_number.text, title_info.translated) == ("Díl 2", False)
     [publication] = merged.publications
     assert _texts(publication.places) == ["Praha", "Brno"]
     # Names are entities of their own: both readings are kept.

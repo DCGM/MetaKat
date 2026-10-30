@@ -322,6 +322,9 @@ def merge_readings(readings: Sequence[BiblioReading]) -> BiblioReading:
             items = [getattr(container, container_field.name) for container in containers]
             if isinstance(items[0], tuple):
                 values[container_field.name] = tuple(value for item in items for value in item)
+            elif "metakat" not in container_field.metadata:
+                # A flag of the container, not a reading: the first page's that has one.
+                values[container_field.name] = next((item for item in items if item is not None), None)
             else:
                 best = None
                 for item in items:
