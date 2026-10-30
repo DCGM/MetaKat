@@ -34,7 +34,9 @@ Of an entry the stage reads:
   terms of address, its life `dates`, its `description` and its
   `affiliation`, every one located as a value of its own, except an
   affiliation printed in its agent's description, which takes its words
-  from there (metakat.common.vlm.word_regions);
+  from there (metakat.common.vlm.word_regions), and a name, description or
+  affiliation printed once for several agents of the entry, which takes the
+  words of its identical value (_COPIED_PATHS);
 - its `etal`, the phrase saying there are more agents than named ("a kol."),
   as `etal_toc_page`;
 - its `designation`, the whole printed entry marker with its words and
@@ -541,6 +543,15 @@ def alto_text(words) -> str:
     return "\n".join(lines)
 
 
+# The values the prompt repeats on purpose within one entry, which the
+# aligner gives words to once: a person in two roles, a description or an
+# affiliation printed once for several persons. An unmatched one takes the
+# match of its identical value in the same entry (copy_identical_paths); a
+# name expanded from a ditto mark in another entry is not printed there and
+# stays unmatched.
+_COPIED_PATHS = ("entries[i].agents[*]", "entries[i].descriptions[*]", "entries[i].affiliations[*]")
+
+
 def _text_aligner(*, reorder_columns: bool):
     from text_geometry_aligner import (
         ColumnReadingOrder, CPSATCandidateSelector, OrderedGroupsCandidateGenerator, TextAligner,
@@ -568,4 +579,5 @@ def _text_aligner(*, reorder_columns: bool):
         ),
         normalizer=TextNormalizationPipeline.from_optional_names(["lowercase", "strip-punctuation"]),
         min_similarity=0.5,
+        copy_identical_paths=_COPIED_PATHS,
     )

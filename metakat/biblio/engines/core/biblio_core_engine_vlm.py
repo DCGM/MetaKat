@@ -16,8 +16,11 @@ a publisher or printer printed only as a phrase (`publisherStatement`,
 `manufacturePublisherStatement`) is never given geometry, the phrase is. An
 agent's affiliation repeats the institution's words from its description
 ("Komenského university v Bratislavě" of "profesor Komenského university v
-Bratislavě"), so it takes them from there. Ambiguous text can still be located
-on the wrong occurrence. The model gives no per-value confidence, so every value
+Bratislavě"), so it takes them from there. A text the prompts repeat on purpose
+within one field - a description printed once for several persons, one person
+in two roles, a series number for its names in several languages - is found
+once and copied to its identical values (_COPIED_PATHS). Ambiguous text can
+still be located on the wrong occurrence. The model gives no per-value confidence, so every value
 carries the configured `confidence` (0.95 unless set).
 
 The model is either behind an API (`vlm.api_url`) or a local one that vLLM
@@ -445,6 +448,19 @@ def alto_text(words) -> str:
     return "\n".join(lines)
 
 
+# The values the prompts repeat on purpose within one top-level field, which
+# the aligner gives words to once: a person in two roles, a description or an
+# affiliation printed once for several persons, a series number printed once
+# for its names in several languages (within one series). An unmatched one
+# takes the match of its identical value (copy_identical_paths).
+_COPIED_PATHS = (
+    "agents[*].name", "agents[*].description[*]", "agents[*].affiliation[*]",
+    "series[*].seriesEditor[*].name", "series[*].seriesEditor[*].description[*]",
+    "series[*].seriesEditor[*].affiliation[*]",
+    "series[i].titleInfo[*].seriesPartNumber", "series[i].titleInfo[*].seriesPartName",
+)
+
+
 def _text_aligner():
     from text_geometry_aligner import CPSATCandidateSelector, TextAligner
     from text_geometry_aligner.normalization import TextNormalizationPipeline
@@ -467,5 +483,6 @@ def _text_aligner():
         normalizer=TextNormalizationPipeline.from_optional_names(["lowercase", "strip-punctuation"]),
         min_similarity=0.5,
         share_words_depth=1,
+        copy_identical_paths=_COPIED_PATHS,
         prefer_sibling_proximity=True,
     )

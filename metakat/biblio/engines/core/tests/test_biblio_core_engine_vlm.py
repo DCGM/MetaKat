@@ -190,6 +190,30 @@ def test_metadata_fields_can_share_words_but_values_within_one_field_compete(pag
 
 
 @pytest.mark.parametrize("engine_class", [BiblioCoreEngineVLMMonograph, BiblioCoreEngineVLMPeriodical])
+def test_a_name_or_description_printed_once_for_several_agents_is_located_for_each(page, engine_class):
+    from text_geometry_aligner import ALTOReader
+
+    located = engine_class(_config(), client=object())._locate(ALTOReader().read(page[1]), {
+        "agents": [{"name": "ERBEN", "description": ["KYTICE"]}, {"name": "ERBEN", "description": ["KYTICE"]}],
+    })
+    for agent in (0, 1):
+        assert located["agents", agent, "name"].words[0].alto_word_id == "S3"
+        assert located["agents", agent, "description", 0].words[0].alto_word_id == "S4"
+
+
+def test_a_series_number_is_copied_only_between_the_names_of_one_series(page):
+    from text_geometry_aligner import ALTOReader
+
+    names = [{"seriesName": None, "seriesPartNumber": "1853"}, {"seriesName": None, "seriesPartNumber": "1853"}]
+    located = BiblioCoreEngineVLMMonograph(_config(), client=object())._locate(ALTOReader().read(page[1]), {
+        "series": [{"titleInfo": names}, {"titleInfo": names[:1]}],
+    })
+    assert located["series", 0, "titleInfo", 1, "seriesPartNumber"].words[0].alto_word_id == "S10"
+    assert sum(located["series", series, "titleInfo", 0, "seriesPartNumber"].alto_geometry is not None
+               for series in (0, 1)) == 1
+
+
+@pytest.mark.parametrize("engine_class", [BiblioCoreEngineVLMMonograph, BiblioCoreEngineVLMPeriodical])
 def test_a_name_printed_only_as_a_phrase_does_not_take_geometry_from_the_name_printed_elsewhere(page, engine_class):
     from text_geometry_aligner import ALTOReader
 

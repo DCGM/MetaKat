@@ -269,6 +269,22 @@ def test_repeated_titles_keep_their_own_page_references(tmp_path):
         assert located[index, "pageReference"][1].words[0].alto_line_id == f"{block}L{index + 1}"
 
 
+def test_a_description_printed_once_for_several_agents_is_located_for_each_only_within_its_entry(tmp_path):
+    page = _ocr_page(tmp_path,
+        _line("A", 1, ("Les", 100, 80), ("Jan", 300, 60), ("Petr", 400, 60), ("professori", 500, 150))
+        + _line("B", 2, ("Pole", 100, 80)))
+    agents = [{"role": "author", "name": name, "description": ["professori"]} for name in ("Jan", "Petr")]
+    entries = [{"tocPage": 0, "titleInfo": [{"title": "Les"}], "agents": agents},
+               # "Týž" expanded: the name is not printed with this entry.
+               {"tocPage": 0, "titleInfo": [{"title": "Pole"}], "agents": [{"role": "author", "name": "Jan"}]}]
+
+    located = ChapterExtractionEngineVLM(_config(), client=object())._locate(entries, [page])
+
+    assert [located[0, "descriptions", position][1].words[0].text for position in (0, 1)] == ["professori"] * 2
+    assert located[0, "agents", 0][1].words[0].text == "Jan"
+    assert (1, "agents", 0) not in located
+
+
 def test_interleaved_two_columns_align_in_entry_order_without_changing_ocr(tmp_path):
     # OCR interleaves left/right rows; the TOC lists the complete left column first.
     blocks = "".join(_line(f"{column}{row}", row + 1, (f"{prefix}{row}", x, 180))
