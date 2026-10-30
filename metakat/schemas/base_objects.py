@@ -745,6 +745,12 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     reviewedWorkAuthor: Optional[List[Value]] = None
     reviewedWorkImprint: Optional[List[Value]] = None
 
+    # The page reference printed in the TOC entry, as printed, unparsed
+    # ("125., 138., 286", "3—98", "mapa za titulem"); the page numbers below
+    # are what it is parsed into. The DMF's <extent> has no place for it:
+    # MetaKat-only.
+    pageReferenceTocPage: Optional[List[Value]] = None
+
     # <part type="pageNumber">: the page number printed in the TOC entry,
     # usually on the right. It is evidence read on the table-of-contents page,
     # but it describes the part itself - the standard records what the number

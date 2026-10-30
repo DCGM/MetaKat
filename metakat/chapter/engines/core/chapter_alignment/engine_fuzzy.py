@@ -431,6 +431,8 @@ class ChapterAlignmentEngineFuzzy:
                 title_translated_toc_page=entry.title_translated_toc_page,
                 part_number_toc_page=entry.part_number_toc_page,
                 page_number_toc_page=entry.page_number_toc_page,
+                page_reference_toc_page=entry.page_reference_toc_page,
+                page_runs_toc_page=entry.page_runs_toc_page,
                 title=(
                     None if destination is None else destination.title
                 ),

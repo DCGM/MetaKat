@@ -13,7 +13,7 @@ from metakat.chapter.engines.bind.chapter_bind_engine_base import (
 from metakat.chapter.engines.core.chapter_page_number_parsers import (
     ArabicRomanChapterPageNumberParser,
 )
-from metakat.chapter.engines.core.models import ChapterAgent, ChapterResult, ChapterTitleVersion, TocResult
+from metakat.chapter.engines.core.models import ChapterAgent, ChapterPageRun, ChapterResult, ChapterTitleVersion, TocResult
 from metakat.common.models import AgentRole, AltoRefs, BoundingBox, PageDimensions
 from metakat.common.vlm import VLMCallReport
 from metakat.chapter.engines.core.physical_page_numbers.parsers import (
@@ -676,7 +676,9 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     assert root.id not in bbox_by_id
     assert page_by_detection[root.titleTocPage[0].id] == pages[0].id
     assert page_by_detection[root.title[0].id] == pages[1].id
-    assert len(bbox_by_id) == 13
+    # The printed reference is a value of its own beside the number it parses into.
+    assert root.pageReferenceTocPage[0].text == "10"
+    assert len(bbox_by_id) == 14
 
 
 def test_explicit_container_parents_all_chapter_roots(bind_engine, evidence):
@@ -749,7 +751,7 @@ def test_titleless_chapter_uses_destination_title_evidence(bind_engine, evidence
     assert chapter.titleTocPage is None
     assert chapter.title[0].text == "Destination title"
     assert _indices(chapter.pageIndexStart) == [7]
-    assert len(bbox_by_id) == 2
+    assert len(bbox_by_id) == 3
     assert page_by_detection[chapter.title[0].id] == page.id
 
 
@@ -924,3 +926,28 @@ def test_process_passes_the_page_types_to_the_core(bind_engine):
     bind_engine.process("/batch", metakat_io)
 
     assert bind_engine.core_engine.process.call_args.kwargs["page_types"] == (("tableOfContents", 0.9), None)
+
+
+def test_a_reference_the_reader_split_gives_its_pages_and_ranges_as_printed(bind_engine, evidence):
+    # "58, 69, 81—83": the reader's split, not the parser's, which fails on a
+    # range inside a list. Each range is a run of its own, its start with its
+    # end; which run the resolved scan run is is not known.
+    reference = evidence("58, 69, 81—83", "toc", x=500)
+    page = MetakatPage(id=uuid4(), batch_id=uuid4(), batch_index=0, pageIndex=1)
+    result = TocResult(chapters=(ChapterResult(
+        toc_page_key="toc", title_toc_page=evidence("Chapter", "toc"),
+        page_number_toc_page=ArabicRomanChapterPageNumberParser.create(reference),
+        page_reference_toc_page=reference,
+        page_runs_toc_page=(ChapterPageRun("58"), ChapterPageRun("69"), ChapterPageRun("81", "83")),
+    ),))
+
+    elements, bbox_by_id, _, _ = bind_engine.extract_metakat_elements_from_pipeline(
+        result, {"toc": page}, container_id=uuid4())
+
+    chapter = next(element for element in elements if element.type == "chapter")
+    assert _texts(chapter.pageReferenceTocPage) == ["58, 69, 81—83"]
+    assert _texts(chapter.pageNumberStartTocPage) == ["58", "69", "81"]
+    assert _texts(chapter.pageNumberEndTocPage) == ["83"]
+    assert [group.members for group in chapter.groups if group.type == "pageRange"] == [
+        [chapter.pageNumberStartTocPage[2].id, chapter.pageNumberEndTocPage[0].id]]
+    assert len({bbox_by_id[value.id] for value in (*chapter.pageNumberStartTocPage, *chapter.pageReferenceTocPage)}) == 1

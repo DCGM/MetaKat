@@ -5,8 +5,8 @@ import pytest
 from PIL import Image
 
 from metakat.chapter.engines.core.chapter_core_engine_pipeline import check_chapter_pipeline_stages
-from metakat.chapter.engines.core.chapter_extraction.engine_vlm import ChapterExtractionEngineVLM
-from metakat.chapter.engines.core.models import ChapterPageInput, ChapterPageNumberKind
+from metakat.chapter.engines.core.chapter_extraction.engine_vlm import ChapterExtractionEngineVLM, page_number, page_runs
+from metakat.chapter.engines.core.models import ChapterPageInput, ChapterPageNumberKind, ChapterPageRun
 from metakat.common.models import AgentRole, AltoRefs, BoundingBox
 from metakat.schemas.base_objects import NameType
 
@@ -112,6 +112,9 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     assert second.page_number_toc_page.kind is ChapterPageNumberKind.RANGE
     assert (second.page_number_toc_page.normalized_start(), second.page_number_toc_page.normalized_end()) == (
         "12", "30")
+    # The reference as printed, located, and the model's split of it.
+    assert (second.page_reference_toc_page.text, second.page_reference_toc_page.alto.words) == ("12—30", ("C3W4",))
+    assert second.page_runs_toc_page == (ChapterPageRun("12", "30"),)
     # A level-2 entry on the next page is a child of the last level-1 entry before it.
     [section] = second.children
     assert (section.toc_page_key, section.title_toc_page.text) == ("0008", "Pramen")
@@ -294,3 +297,27 @@ def test_unmatched_entry_can_continue_onto_next_page(toc_pages):
     entries = [{"tocPage": 0, "titleInfo": [{"title": "Pramen"}], "pageReference": "14"}]
     located = ChapterExtractionEngineVLM(_config(), client=object())._locate(entries, pages)
     assert located[0, "title"][0] == located[0, "pageReference"][0] == 1
+
+
+@pytest.mark.parametrize("printed, pages, kind, numbers", [
+    ("35", ["35"], ChapterPageNumberKind.SINGLE, [35]),
+    ("3—98", [{"start": "3", "end": "98"}], ChapterPageNumberKind.RANGE, [3, 98]),
+    ("XII", ["XII"], ChapterPageNumberKind.SINGLE, [12]),
+    ("125., 138., 286", ["125", "138", "286"], ChapterPageNumberKind.LIST, [125, 138, 286]),
+    ("58, 69, 81—83", ["58", "69", {"start": "81", "end": "83"}], ChapterPageNumberKind.LIST, [58, 69, 81]),
+    ("98—3", [{"start": "98", "end": "3"}], ChapterPageNumberKind.SINGLE, [98]),
+    ("12a", ["12a"], None, []),
+    ("mapa za titulem", [], None, []),
+])
+def test_the_page_reference_is_parsed_from_the_models_split_and_kept_as_printed(printed, pages, kind, numbers):
+    reference = SimpleNamespace(text=printed, confidence=.9, bbox=None, page_key="p", alto=AltoRefs(), lang=None)
+
+    number = page_number(reference, page_runs(pages))
+
+    assert number.text == printed
+    assert (number.kind, [item[1] for item in number.normalized_items]) == (kind, numbers)
+
+
+def test_the_models_split_keeps_its_printed_tokens():
+    assert page_runs(["125", {"start": "81", "end": "83"}, " ", {"start": "", "end": "9"}]) == (
+        ChapterPageRun("125"), ChapterPageRun("81", "83"))

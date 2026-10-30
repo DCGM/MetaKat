@@ -36,11 +36,18 @@ Of an entry the stage reads:
   term of address and affiliation located as a value of its own;
 - its `partNumber`, the printed numbering without its words, as
   `part_number_toc_page`;
-- its `pageReference`, parsed as the YOLO stage parses a detected reference
-  (ArabicRomanChapterPageNumberParser), as `page_number_toc_page`.
+- its `pageReference`, the reference as printed, as
+  `page_reference_toc_page`, located in the ALTO;
+- its `pages`, the reference split by the model into its pages and ranges,
+  as `page_runs_toc_page`, which the binder writes as the page numbers; the
+  same split, each page parsed as a number
+  (ArabicRomanChapterPageNumberParser.parse_page), is `page_number_toc_page`,
+  which the alignment anchors the chapter by: one page a single number, one
+  range a range, several a list of their first pages, and no number when a
+  page is not one ("12a") or there are none ("mapa za titulem").
 
-A heading (`kind` heading) is an entry as an item is. `pages` is not read,
-nor `designation` of an entry with a title.
+A heading (`kind` heading) is an entry as an item is. `designation` of an
+entry with a title is not read.
 
 The model is either behind an API (`vlm.api_url`) or a local one that vLLM
 serves only while `process()` runs (`local`, metakat.common.vlm.local_server),
@@ -72,7 +79,16 @@ from typing import Any, Optional, Sequence
 from metakat.chapter.engines.core.chapter_page_number_parsers import (
     ArabicRomanChapterPageNumberParser,
 )
-from metakat.chapter.engines.core.models import ChapterAgent, ChapterBase, ChapterPageInput, ChapterTitleVersion, TocBase
+from metakat.chapter.engines.core.models import (
+    ChapterAgent,
+    ChapterBase,
+    ChapterPageInput,
+    ChapterPageNumberEvidence,
+    ChapterPageNumberKind,
+    ChapterPageRun,
+    ChapterTitleVersion,
+    TocBase,
+)
 from metakat.common.models import AgentRole, AltoRefs, BoundingBox, DetectionEvidence
 from metakat.common.vlm import (
     VLMCallReport,
@@ -265,6 +281,7 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
     for index, entry in enumerate(entries):
         level = entry.get("level") if isinstance(entry.get("level"), int) and entry.get("level") > 0 else 1
         reference = evidence(index, "pageReference", entry.get("pageReference"))
+        runs = page_runs(entry.get("pages")) if reference is not None else None
         title_info = _first_title_info(entry)
         lang = title_info.get("lang")
         node = {
@@ -278,7 +295,9 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
                 title_translated_toc_page=(title_info.get("translated")
                                            if isinstance(title_info.get("translated"), bool) else None),
                 part_number_toc_page=evidence(index, "partNumber", entry.get("partNumber")),
-                page_number_toc_page=None if reference is None else ArabicRomanChapterPageNumberParser.create(reference),
+                page_number_toc_page=None if reference is None else page_number(reference, runs),
+                page_reference_toc_page=reference,
+                page_runs_toc_page=runs,
             ),
             "children": [],
         }
@@ -291,6 +310,46 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
         return ChapterBase(**node["chapter"], children=tuple(freeze(child) for child in node["children"]))
 
     return tuple(freeze(node) for node in roots)
+
+
+def page_runs(pages: Any) -> tuple[ChapterPageRun, ...]:
+    """The model's `pages` as runs: a string a single page, an object a range; empty texts left out."""
+    def text(value: Any) -> Optional[str]:
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
+    runs = []
+    for item in pages if isinstance(pages, list) else ():
+        if isinstance(item, Mapping):
+            if text(item.get("start")) is not None:
+                runs.append(ChapterPageRun(text(item.get("start")), text(item.get("end"))))
+        elif text(item) is not None:
+            runs.append(ChapterPageRun(text(item)))
+    return tuple(runs)
+
+
+def page_number(reference: DetectionEvidence, runs: Sequence[ChapterPageRun]) -> ChapterPageNumberEvidence:
+    """The page reference parsed from the model's split: one page a single number, one range a range (its
+    start alone when its end is in another numeral system or lower), several runs a list of their first
+    pages; no number when a page of it is not one or there are none."""
+    def parsed(run: ChapterPageRun) -> Optional[tuple]:
+        start = ArabicRomanChapterPageNumberParser.parse_page(run.start)
+        end = None if run.end is None else ArabicRomanChapterPageNumberParser.parse_page(run.end)
+        return None if start is None or (run.end is not None and end is None) else (start, end)
+
+    items = [parsed(run) for run in runs]
+    kind, normalized = None, ()
+    if items and all(item is not None for item in items):
+        if len(items) > 1:
+            kind, normalized = ChapterPageNumberKind.LIST, tuple(start for start, _ in items)
+        else:
+            [(start, end)] = items
+            if end is not None and end[2] is start[2] and end[1] >= start[1]:
+                kind, normalized = ChapterPageNumberKind.RANGE, (start, end)
+            else:
+                kind, normalized = ChapterPageNumberKind.SINGLE, (start,)
+    return ChapterPageNumberEvidence(text=reference.text, confidence=reference.confidence, bbox=reference.bbox,
+                                     page_key=reference.page_key, alto=reference.alto, lang=reference.lang,
+                                     kind=kind, normalized_items=normalized)
 
 
 def _page_index(entry: Mapping[str, Any], page_count: int) -> int:

@@ -424,18 +424,19 @@ def _page_runs(record: _Record, start_field: str, end_field: str, part_type: str
         return out
 
     starts, ends = entries(start_field), entries(end_field)
-    runs, used = [], set()
+    # Keyed by the run's start, so the runs keep the order of their starts.
+    runs, used = {}, set()
     for group in element.groups or []:
         if group.type != GroupType.PAGE_RANGE.value:
             continue
-        run_starts = [starts[m] for m in group.members if m in starts]
+        run_starts = [m for m in group.members if m in starts]
         run_ends = [ends[m] for m in group.members if m in ends]
         if run_starts:
-            runs.append((run_starts[0], run_ends[0] if run_ends else None))
+            runs[run_starts[0]] = run_ends[0] if run_ends else None
             used.update(m for m in group.members if m in starts or m in ends)
-    runs += [(start, None) for key, start in starts.items() if key not in used]
+    runs.update({key: None for key in starts if key not in used})
 
-    for start, end in runs:
+    for start, end in ((starts[key], runs[key]) for key in starts if key in runs):
         container, target = record.container(record.root, "part", type=part_type)
         extent = ET.SubElement(container, _m("extent"), {"unit": "pages"})
         record.leaf(extent, "start", start[0])
@@ -499,6 +500,7 @@ _INTERNAL_PART_SECTIONS = {
     "keywords": "subject",
     "reviewedWorkTitle": "relatedItem:reviewOf", "reviewedWorkAuthor": "relatedItem:reviewOf",
     "reviewedWorkImprint": "relatedItem:reviewOf",
+    "pageReferenceTocPage": None,
     "pageNumberStartTocPage": "part:pageNumber", "pageNumberEndTocPage": "part:pageNumber",
     "pageIndexStart": "part:pageIndex", "pageIndexEnd": "part:pageIndex",
     "pageIndexTocPage": None,

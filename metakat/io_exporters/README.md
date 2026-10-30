@@ -44,7 +44,7 @@ one against the Library of Congress schema.
 | `isbn`, `issn` | `<identifier type="isbn">`, `<identifier type="issn">` after the uuid |
 | internal part `abstract`, else `abstractTocPage` (the TOC synopsis), `keywords` | `<abstract>`, `<subject><topic>` |
 | reviewed work | `<relatedItem type="reviewOf">` |
-| page runs | `<part type="pageIndex">` and `<part type="pageNumber">` with `extent/start`, `end` |
+| page runs | `<part type="pageIndex">` and `<part type="pageNumber">` with `extent/start`, `end` ; one `<part>` per `pageRange` group, an ungrouped start alone. A chapter's printed `pageReferenceTocPage` has no MODS element (the DMF's `<extent>` holds only a start and an end) |
 | internal part `dateIssued` | provenance only: an internal part has no `<originInfo>` |
 | page | `part@type`/`genre@type` = page type; `detail type="pageNumber"`; `detail type="pageIndex"`; side as `<note>`; `genre` is `reprePage` when `MetakatPage.representative` is set, otherwise `page` |
 

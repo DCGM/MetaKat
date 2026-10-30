@@ -431,6 +431,20 @@ def test_a_supplement_tells_whether_it_is_an_issues_or_a_volumes(tmp_path):
         [("issue_supplement", "supplement")], [("volume_supplement", "supplement")]]
 
 
+def test_a_printed_reference_of_pages_and_ranges_is_a_part_each_in_printed_order(batch, tmp_path):
+    chapter = batch.chapter
+    chapter.pageReferenceTocPage = [batch.v("58, 69, 81—83", 0.9, 2)]
+    chapter.pageNumberStartTocPage = [batch.v(text, 0.9, 2) for text in ("58", "69", "81")]
+    chapter.pageNumberEndTocPage = [batch.v("83", 0.9, 2)]
+    chapter.groups = [MetakatGroup(type=GroupType.PAGE_RANGE,
+                                   members=[chapter.pageNumberStartTocPage[2].id, chapter.pageNumberEndTocPage[0].id])]
+    record = _export(batch, tmp_path)[str(chapter.id)]
+
+    runs = record.xpath("//mods:part[@type='pageNumber']/mods:extent", namespaces=NS)
+    assert [[child.text for child in run] for run in runs] == [["58"], ["69"], ["81", "83"]]
+    assert not record.xpath("//*[text()='58, 69, 81—83']")
+
+
 def test_pages_carry_type_side_index_and_the_representative_page(batch, tmp_path):
     records = _export(batch, tmp_path)
     title_page, numbered = records[str(batch.pages[0].id)], records[str(batch.pages[1].id)]

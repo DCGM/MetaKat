@@ -408,28 +408,30 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 groups.append([name.id, *(value.id for value in (*terms, *affiliations))])
             return {field: values for field, values in fields.items() if values}, groups
 
-        def bind_page_numbers(
-            evidence: ChapterPageNumberEvidence | None,
-        ) -> tuple[list[Value] | None, list[Value] | None]:
-            # The TOC entry's printed page reference, split by its parsed
-            # shape: a single page is a start, a range a start and an end, a
-            # list one start per page. An unparsed reference keeps its raw
-            # text as the start.
+        def bind_page_runs(
+            resolved: ChapterResult,
+        ) -> list[tuple[Value, Value | None]]:
+            # The TOC entry's page reference as (start, end) runs. Split by
+            # the reader when it splits it - each page a start, each range a
+            # start and an end, as printed - otherwise by its parsed shape: a
+            # single page is a start, a range a start and an end, a list one
+            # start per page. An unparsed reference keeps its raw text as the
+            # start. Every value has the geometry of the whole reference.
+            evidence = resolved.page_number_toc_page
+            if resolved.page_runs_toc_page is not None:
+                source = resolved.page_reference_toc_page or evidence
+                return [(new_value(source, run.start), None if run.end is None else new_value(source, run.end))
+                        for run in resolved.page_runs_toc_page]
             if evidence is None:
-                return None, None
+                return []
             if evidence.kind is ChapterPageNumberKind.RANGE:
-                return (
-                    [new_value(evidence, evidence.normalized_start())],
-                    [new_value(evidence, evidence.normalized_end())],
-                )
+                return [(new_value(evidence, evidence.normalized_start()),
+                         new_value(evidence, evidence.normalized_end()))]
             if evidence.kind is ChapterPageNumberKind.LIST:
-                return (
-                    [new_value(evidence, text) for text, _, _ in evidence.normalized_items],
-                    None,
-                )
+                return [(new_value(evidence, text), None) for text, _, _ in evidence.normalized_items]
             if evidence.kind is ChapterPageNumberKind.SINGLE:
-                return [new_value(evidence, evidence.normalized_start())], None
-            return [new_value(evidence, evidence.output_text())], None
+                return [(new_value(evidence, evidence.normalized_start()), None)]
+            return [(new_value(evidence, evidence.output_text()), None)]
 
         def bind_chapter(
             resolved: ChapterResult,
@@ -502,9 +504,12 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 return values or None
 
             part_number_toc_page = bind_evidence(resolved.part_number_toc_page)
-            page_number_start, page_number_end = bind_page_numbers(
-                resolved.page_number_toc_page
-            )
+            # The reference as printed: the reader's own reading of it, else
+            # the text the parsed number was read from.
+            page_reference_toc_page = bind_evidence(resolved.page_reference_toc_page or resolved.page_number_toc_page)
+            page_runs = bind_page_runs(resolved)
+            page_number_start = [start for start, _ in page_runs] or None
+            page_number_end = [end for _, end in page_runs if end is not None] or None
             chapter = MetakatChapter(
                 id=uuid4(),
                 parent_id=parent_id,
@@ -516,6 +521,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 subTitleTocPage=with_versions(subtitle_toc_page, 1),
                 partNumberTocPage=part_number_toc_page,
                 **agents_toc_page,
+                pageReferenceTocPage=page_reference_toc_page,
                 pageNumberStartTocPage=page_number_start,
                 pageNumberEndTocPage=page_number_end,
                 abstractTocPage=with_versions(description_toc_page, 2),
@@ -525,8 +531,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                                      for version in versions],
                     page_index_start=page_index_start,
                     page_index_end=page_index_end,
-                    page_number_start=page_number_start,
-                    page_number_end=page_number_end,
+                    page_runs=page_runs,
                     agents=agent_groups,
                 ),
             )
@@ -565,16 +570,16 @@ class ChapterBindEngineBase(ChapterBindEngine):
         titles: tuple[list[Value] | None, ...],
         page_index_start: list[tuple[int, UUID]] | None,
         page_index_end: list[tuple[int, UUID]] | None,
-        page_number_start: list[Value] | None,
-        page_number_end: list[Value] | None,
+        page_runs: list[tuple[Value, Value | None]],
         agents: list[list[UUID]] | None = None,
         parallel_titles: list[list[UUID]] | None = None,
     ) -> list[MetakatGroup] | None:
         # Only what this binder knows belongs together. All title readings
         # describe the one chapter. The resolved scan start and end are its
-        # one run, and a single or range TOC reference is the number the core
-        # aligned that run to; a list is left out, since which of its pages
-        # the run belongs to is not known here. An agent's name, its terms of
+        # one run, and a TOC reference of one page or one range is the number
+        # the core aligned that run to; of a reference of several pages and
+        # ranges, which one the run belongs to is not known here, so only each
+        # range is a run of its own, its start with its end. An agent's name, its terms of
         # address and its affiliations are one <name>. A parallel version of
         # the title is a titleInfo of its own. A group of one pairs nothing.
         groups = []
@@ -585,11 +590,13 @@ class ChapterBindEngineBase(ChapterBindEngine):
                    for members in parallel_titles or () if len(members) > 1]
         run_members = [entry_id for _, entry_id in (page_index_start or [])]
         run_members += [entry_id for _, entry_id in (page_index_end or [])]
-        if page_number_start and len(page_number_start) == 1:
-            run_members += [page_number_start[0].id]
-            run_members += [value.id for value in (page_number_end or [])]
+        if len(page_runs) == 1:
+            run_members += [value.id for value in page_runs[0] if value is not None]
         if len(run_members) > 1:
             groups.append(MetakatGroup(type=GroupType.PAGE_RANGE, members=run_members))
+        if len(page_runs) > 1:
+            groups += [MetakatGroup(type=GroupType.PAGE_RANGE, members=[start.id, end.id])
+                       for start, end in page_runs if end is not None]
         groups += [MetakatGroup(type=GroupType.AGENT, members=members) for members in agents or () if len(members) > 1]
         return groups or None
 

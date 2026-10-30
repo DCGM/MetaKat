@@ -136,6 +136,14 @@ class ArabicRomanChapterPageNumberParser(ChapterPageNumberParser):
         return None
 
     @classmethod
+    def parse_page(cls, text: str) -> NormalizedChapterPageNumberItem | None:
+        """One printed page ("12", "XII", "*12") as a normalized item; None when it is not one page."""
+        parsed = cls.parse(text)
+        if parsed is None or parsed[0] is not ChapterPageNumberKind.SINGLE:
+            return None
+        return parsed[1][0]
+
+    @classmethod
     def _parse_token(
         cls,
         token: str,

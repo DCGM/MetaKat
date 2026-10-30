@@ -428,6 +428,8 @@ ChapterBase(
     agents_toc_page: tuple[ChapterAgent, ...] = (),
     part_number_toc_page: DetectionEvidence | None = None,
     page_number_toc_page: ChapterPageNumberEvidence | None = None,
+    page_reference_toc_page: DetectionEvidence | None = None,
+    page_runs_toc_page: tuple[ChapterPageRun, ...] | None = None,
     children: tuple[ChapterBase, ...] = (),
 )
 ```
@@ -441,6 +443,8 @@ ChapterBase(
 | `description_toc_page` | Optional synopsis printed with the entry: what the chapter covers, often with the page numbers of its topics. The YOLO engine fills it from its `Subtitle` class (`podnadpis`), which the annotators put on the synopsis, the VLM engine from `titleInfo[].description`. A description never creates an entry by itself. |
 | `part_number_toc_page` | Optional chapter/section number printed as part of the TOC entry, such as `2.3`. It is not the destination page number. |
 | `page_number_toc_page` | Optional parsed `PageNumber` printed in the TOC entry. It denotes the destination page number and retains the complete source evidence together with normalized semantic values for alignment. |
+| `page_reference_toc_page` | Optional page reference as printed, unparsed, when the engine reads it apart from `page_number_toc_page` (the VLM engine); otherwise the text of `page_number_toc_page` is the printed one. |
+| `page_runs_toc_page` | Optional reference split by the engine into its pages and ranges, in printed order, each a `ChapterPageRun(start, end)` of printed tokens (`end` `None` for a single page); the VLM engine's `pages`. `None` when the engine does not split it, and the binder splits `page_number_toc_page` by its parsed kind. |
 | `children` | Nested TOC entries. The model supports arbitrary hierarchy depth. |
 
 The `ChapterPageNumberEvidence` model extends `DetectionEvidence`:
@@ -1629,7 +1633,8 @@ Of each entry the engine reads:
 | the other `titleInfo[]` objects, the parallel versions flagged `translated`, each with its title, subtitle, synopsis and `lang` | `parallel_titles_toc_page` (`ChapterTitleVersion`); bound after the main version in `titleTocPage`, `subTitleTocPage` (flagged `translated`) and `abstractTocPage`, a titleInfo group each |
 | `agents[]`, each in its `role` (never `redaktor`), with its `type`, its `termsOfAddress[]` and its `description[]` as affiliations; each name, term of address and affiliation is located on its own | `agents_toc_page`; terms bound to `termsOfAddressTocPage`, in the agent's group |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |
-| `pageReference`, parsed by `ArabicRomanChapterPageNumberParser` | `page_number_toc_page` |
+| `pageReference`, the reference as printed | `page_reference_toc_page` |
+| `pages`, the reference split into its pages (strings) and ranges (`start`, `end`) | `page_runs_toc_page`, bound as the page numbers; and `page_number_toc_page`, its pages parsed by `ArabicRomanChapterPageNumberParser.parse_page`, for the alignment: one page a single number, one range a range (its start alone when the end is lower or in another numeral system), several runs a list of their first pages, and no number when a page is not one (`12a`) or there are none (`mapa za titulem`) |
 
 An entry printed with only its designation ("Kapitola 3") has the designation
 as its title: the NDK gives a chapter's title as printed in the book, its
@@ -1637,9 +1642,12 @@ example being "Kapitola 3" (Pravidla pro popis monografií 2.1). Its part
 number is printed in the same words, and a word goes to one value only, so
 the part number takes its words from the title.
 
-A grouping heading is an entry like any other. Not read: `pages` (the
-parsed `pageReference` gives the same pages), and `designation` when the
-entry has a title. Parallel title versions are inspected only to decide whether
+A grouping heading is an entry like any other. Not read: `designation` when
+the entry has a title, and `kind`: a heading and an item are both chapters,
+told apart only by their `level`, which places each in the hierarchy.
+The model's split of the reference is used rather than parsing
+`pageReference` again, which fails on a range inside a list (`58, 69, 81—83`),
+on `125., 138., 286` and on a page like `12a`. Parallel title versions are inspected only to decide whether
 column reordering is safe.
 
 The model names no regions, so each value is located afterwards among the ALTO
@@ -2295,8 +2303,9 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 | `partNumberTocPage` | `part_number_toc_page`: part-number evidence detected on the TOC page. |
 | `authorTocPage`, `translatorTocPage`, … | `agents_toc_page`: each name in the TOC field of its role (`<role>TocPage`), an `AgentValue` with the agent's `type`; written to MODS as `<name>` unless the chapter's own page has a name in that role. |
 | `affiliationTocPage` | The affiliations of those agents, each in an `agent` group with its name. |
-| `pageNumberStartTocPage` | `page_number_toc_page` split by its parsed kind: a single page gives one start, a range its first page, a list one start per listed page, and a reference that failed to parse its original text. It is not the physical page number. |
-| `pageNumberEndTocPage` | The last page of a range reference; otherwise `None`. |
+| `pageReferenceTocPage` | `page_reference_toc_page`, else the text of `page_number_toc_page`: the reference as printed, unparsed. MetaKat-only: the DMF's `<extent>` has only a start and an end. |
+| `pageNumberStartTocPage` | `page_runs_toc_page` when the engine split the reference - the first page of each run as printed - otherwise `page_number_toc_page` split by its parsed kind: a single page gives one start, a range its first page, a list one start per listed page, and a reference that failed to parse its original text. It is not the physical page number. |
+| `pageNumberEndTocPage` | The last page of each range run, or of a range reference; otherwise `None`. |
 | `abstractTocPage` | `description_toc_page`: the synopsis printed with the TOC entry, written to MODS as `<abstract>`; it is in no group. |
 | `groups` | See below. |
 
@@ -2312,8 +2321,10 @@ only when it would have at least two members:
 - `pageRange`: the resolved `pageIndexStart` and `pageIndexEnd` entries, which
   are the chapter's one resolved run, together with the TOC start (and end)
   when the reference is a single page or a range - the number the core aligned
-  that run to. The pages of a list reference stay ungrouped, since which of
-  them the run belongs to is not known here.
+  that run to. Of a reference of several pages and ranges, which one the run
+  belongs to is not known here: its pages stay ungrouped, and each range is a
+  `pageRange` of its own, its start with its end, so MODS writes it as one
+  `<part>`.
 - `agent`: a TOC agent's name and its affiliations - one `<name>`.
 
 Page keys are translated through the image-stem mapping for the processed

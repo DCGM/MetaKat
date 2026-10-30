@@ -28,6 +28,15 @@ NormalizedChapterPageNumberItem = tuple[
 
 
 @dataclass(frozen=True)
+class ChapterPageRun:
+    """One page or one range of a TOC entry's page reference, as the reader split it: the printed tokens,
+    `end` None for a single page."""
+
+    start: str
+    end: str | None = None
+
+
+@dataclass(frozen=True)
 class ChapterPageInput:
     page_key: str
     position: int
@@ -144,7 +153,16 @@ class ChapterBase:
     # the reader says they are the main one, None when it cannot tell.
     title_translated_toc_page: bool | None = field(default=None, kw_only=True)
     part_number_toc_page: DetectionEvidence | None = None
+    # The entry's page reference parsed into numbers, which the alignment
+    # anchors the chapter by.
     page_number_toc_page: ChapterPageNumberEvidence | None = None
+    # The page reference as printed, unparsed, when the reader gives it apart
+    # from page_number_toc_page, whose text is otherwise the printed one.
+    page_reference_toc_page: DetectionEvidence | None = field(default=None, kw_only=True)
+    # The page reference split into its pages and ranges by the reader, in the
+    # printed order; None when the reader does not split it, and the binder
+    # splits page_number_toc_page by its parsed shape.
+    page_runs_toc_page: tuple[ChapterPageRun, ...] | None = field(default=None, kw_only=True)
     children: tuple[ChapterBase, ...] = ()
 
 

@@ -1067,7 +1067,9 @@ def _chapter_annotation_text(
         ("partNumberTocPage", chapter.partNumberTocPage),
         ("titleTocPage", chapter.titleTocPage),
         ("title", chapter.title),
+        ("pageReferenceTocPage", chapter.pageReferenceTocPage),
         ("pageNumberStartTocPage", chapter.pageNumberStartTocPage),
+        ("pageNumberEndTocPage", chapter.pageNumberEndTocPage),
     )
     lines = [
         _bibliographic_line(field_name, value)
