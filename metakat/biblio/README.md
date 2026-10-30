@@ -638,7 +638,14 @@ is not read:
 | printer | `manufacture[]`: one `BiblioManufacture` each | the same |
 | series | `series[]` - `seriesName`, `seriesPartNumber`, `seriesPartName` | - |
 | names | `agents[]` as author, editor, translator, illustrator, photographer; `description[]` as affiliations | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue); author, translator, illustrator, photographer as such; `description[]` as affiliations |
-| not read | `statementOfResponsibility`, `etal`, `distribution`, `copyrightDate`, `isbn`, `illustrativeContent`, `seriesIssn`, `seriesEditor`, the roles composer, reviewer and issuingBody, `termsOfAddress`, `publisherInferred`, the languages | `supplement`, `statementOfResponsibility`, `etal`, `distribution`, `issn`, `isbn`, the roles contributor, composer, reviewer, issuingBody and other, the agent `type`, `termsOfAddress`, `publisherInferred`, the languages |
+| not read | `statementOfResponsibility`, `etal`, `distribution`, `copyrightDate`, `isbn`, `illustrativeContent`, `seriesIssn`, `seriesEditor`, the roles composer, reviewer, issuingBody, contributor and other, the agent `type`, `termsOfAddress`, `publisherInferred`, the languages | `supplement`, `statementOfResponsibility`, `etal`, `distribution`, `issn`, `isbn`, the roles contributor, composer, reviewer, issuingBody and other, the agent `type`, `termsOfAddress`, `publisherInferred`, the languages |
+
+Both schemas, and the TOC schema of the VLM chapter extraction, ask for the
+agents alike: one object per person, family or body, with the same roles
+(author, illustrator, photographer, translator, editor, composer, reviewer,
+issuingBody, contributor, other), the same name types (personal, corporate,
+conference, family), its name, terms of address and description. Each prompt
+says how they are printed in its kind of document.
 
 A publisher the model inferred (`publisherInferred`, e.g. the author of a book
 published "nákladem vlastním") is read as the publisher. Only text values are

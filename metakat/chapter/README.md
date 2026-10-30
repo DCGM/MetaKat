@@ -1584,8 +1584,10 @@ the system prompt is the same in every request and can be cached
 (`vlm.prompt_cache`), and left out the rules for human annotations and the
 TOC drafts made from them, since MetaKat has neither. It reads a subtitle
 apart from the title, by the same rule as the monograph biblio prompt, and
-the authors of an entry's byline - a proceedings volume's or an anthology's
-contributors - as the NDK describes a chapter (`<subTitle>`, `<name>`). How to read the OCR is
+the persons and bodies of an entry's byline - a proceedings volume's or an
+anthology's contributors - as the NDK describes a chapter (`<subTitle>`,
+`<name>`), as `agents` with the roles and name types the VLM biblio prompts
+ask for too. How to read the OCR is
 the VLM engines' shared `{{ ocr_rules }}` (metakat.common.vlm), followed by
 the TOC's own remarks on it. The prompts receive
 `images` (the page keys) and `ocr` (a line per `TextLine`, a blank line
@@ -1623,7 +1625,7 @@ Of each entry the engine reads:
 | `titleInfo[0].title`, the first language version; else `designation` | `title_toc_page` |
 | `titleInfo[0].subTitle`, its subtitle | `subtitle_toc_page` |
 | `titleInfo[0].description`, its synopsis | `description_toc_page` |
-| `authors`, the names of the entry's byline | `authors_toc_page` |
+| `agents[].name` of the agents in the role `author` | `authors_toc_page` |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |
 | `pageReference`, parsed by `ArabicRomanChapterPageNumberParser` | `page_number_toc_page` |
 

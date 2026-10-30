@@ -150,7 +150,18 @@
               "editor",
               "composer",
               "reviewer",
-              "issuingBody"
+              "issuingBody",
+              "contributor",
+              "other"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "personal",
+              "corporate",
+              "conference",
+              "family"
             ]
           },
           "name": {
@@ -171,6 +182,7 @@
         },
         "required": [
           "role",
+          "type",
           "name",
           "termsOfAddress",
           "description"

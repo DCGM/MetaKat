@@ -81,7 +81,7 @@ def _reply(engine_class, **fields):
 
 
 def _agent(role, name, **fields):
-    return {"role": role, "name": name, "termsOfAddress": [], "description": [], **fields}
+    return {"role": role, "type": "personal", "name": name, "termsOfAddress": [], "description": [], **fields}
 
 
 _REPLY = _reply(
@@ -453,6 +453,21 @@ def test_every_call_is_reported_with_its_pages_and_prompts_a_failed_one_too(page
     assert read.images[0].original == (1000, 1500)
 
 
+def test_every_vlm_schema_asks_for_the_agents_alike():
+    from metakat.chapter.engines.core.chapter_extraction import engine_vlm
+
+    def agents(path, *keys):
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        for key in keys:
+            schema = schema[key]
+        return schema["agents"]
+
+    monograph = agents(BiblioCoreEngineVLMMonograph.DEFAULT_SCHEMA_PATH, "properties")
+    assert agents(BiblioCoreEngineVLMPeriodical.DEFAULT_SCHEMA_PATH, "properties") == monograph
+    chapter_schema = engine_vlm._RESOURCES / "schema.json"
+    assert agents(chapter_schema, "properties", "entries", "items", "properties") == monograph
+
+
 def test_a_page_in_two_spans_is_rejected(page):
     with pytest.raises(ValueError, match="more than one place"):
         BiblioCoreEngineVLMMonograph(_config(), client=object()).process(_span(page) + _span(page))
@@ -471,7 +486,7 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_the_roles_it_has_fields
                          "seriesIssn": "1211-3298", "seriesEditor": ["JOSEF TŮMA"], "lang": "cze"}],
              "agents": [_agent("translator", "J. V. NOVÁK", termsOfAddress=["Dr."],
                                description=["c. k. professor v Praze"]),
-                        _agent("composer", "B. SMETANA"), _agent("issuingBody", "UNIVERZITA KARLOVA")],
+                        _agent("composer", "B. SMETANA"), _agent("issuingBody", "UNIVERZITA KARLOVA", type="corporate")],
              "statementOfResponsibility": ["Přeložil Dr. J. V. NOVÁK"], "isbn": ["80-7004-015"]}
     engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(reply).client())
 

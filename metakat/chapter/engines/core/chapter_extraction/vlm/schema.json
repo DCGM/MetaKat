@@ -76,10 +76,59 @@
               "additionalProperties": false
             }
           },
-          "authors": {
+          "agents": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "author",
+                    "illustrator",
+                    "photographer",
+                    "translator",
+                    "editor",
+                    "composer",
+                    "reviewer",
+                    "issuingBody",
+                    "contributor",
+                    "other"
+                  ]
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "personal",
+                    "corporate",
+                    "conference",
+                    "family"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "termsOfAddress": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "description": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "role",
+                "type",
+                "name",
+                "termsOfAddress",
+                "description"
+              ],
+              "additionalProperties": false
             }
           },
           "pageReference": {
@@ -122,7 +171,7 @@
           "partNumber",
           "designation",
           "titleInfo",
-          "authors",
+          "agents",
           "pageReference",
           "pages"
         ],

@@ -57,7 +57,7 @@ class BiblioCoreEngineVLMMonograph(BiblioCoreEngineVLMBase):
     DEFAULT_SYSTEM_PROMPT_PATH = _MONOGRAPH / "prompt_system.txt"
     DEFAULT_USER_PROMPT_PATH = _MONOGRAPH / "prompt_user.txt"
     # Labels the model chooses, not text on the page.
-    LABEL_KEYS = frozenset({"role", "lang", "language", "originalLanguage"})
+    LABEL_KEYS = frozenset({"role", "type", "lang", "language", "originalLanguage"})
 
     def page_from_reply(self, reply, evidence, page_keys):
         return page_from_reply(reply, evidence, page_keys)

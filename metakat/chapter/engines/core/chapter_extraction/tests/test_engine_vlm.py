@@ -36,17 +36,18 @@ _SECOND = _ALTO.format(blocks=_line("D", 1, ("Jan", 100, 40), ("Novák:", 150, 6
 
 _REPLY = {"entries": [
     {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "I", "designation": "I.",
-     "titleInfo": [{"title": "Úvod", "subTitle": None, "description": None, "lang": "cze"}], "authors": [],
+     "titleInfo": [{"title": "Úvod", "subTitle": None, "description": None, "lang": "cze"}], "agents": [],
      "pageReference": "5", "pages": ["5"]},
     {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "II", "designation": "II.",
      "titleInfo": [{"title": "Les a voda", "subTitle": None, "description": "O lesích", "lang": "cze"},
                    {"title": "Wald und Wasser", "subTitle": None, "description": None, "lang": "ger"}],
-     "authors": [], "pageReference": "12—30", "pages": [{"start": "12", "end": "30"}]},
+     "agents": [], "pageReference": "12—30", "pages": [{"start": "12", "end": "30"}]},
     {"tocPage": 1, "level": 2, "kind": "item", "partNumber": None, "designation": None,
      "titleInfo": [{"title": "Pramen", "subTitle": "u cesty", "description": None, "lang": "cze"}],
-     "authors": ["Jan Novák"], "pageReference": "14", "pages": ["14"]},
+     "agents": [{"role": "author", "type": "personal", "name": "Jan Novák", "termsOfAddress": [],
+                 "description": []}], "pageReference": "14", "pages": ["14"]},
     {"tocPage": 1, "level": 1, "kind": "item", "partNumber": None, "designation": None,
-     "titleInfo": [{"title": "Dodatek", "subTitle": None, "description": None, "lang": "cze"}], "authors": [],
+     "titleInfo": [{"title": "Dodatek", "subTitle": None, "description": None, "lang": "cze"}], "agents": [],
      "pageReference": "40", "pages": ["40"]},
 ]}
 
@@ -162,7 +163,7 @@ def test_an_entry_printed_with_only_its_designation_is_titled_by_it(tmp_path):
         _ALTO.format(blocks=_line("A", 1, ("Kapitola", 100, 150), ("3", 260, 20), ("40", 800, 30))), encoding="utf-8")
     page = ChapterPageInput("0009", 8, tmp_path / "0009.jpg", tmp_path / "0009.xml")
     reply = {"entries": [{"tocPage": 0, "level": 1, "kind": "item", "partNumber": "3", "designation": "Kapitola 3",
-                          "titleInfo": [], "authors": [], "pageReference": "40", "pages": ["40"]}]}
+                          "titleInfo": [], "agents": [], "pageReference": "40", "pages": ["40"]}]}
 
     [chapter] = ChapterExtractionEngineVLM(_config(), client=_Endpoint(reply).client()).process([page]).chapters
 

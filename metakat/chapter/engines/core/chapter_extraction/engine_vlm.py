@@ -27,7 +27,9 @@ Of an entry the stage reads:
   read;
 - the subtitle and the synopsis of its first `titleInfo` object, as
   `subtitle_toc_page` and `description_toc_page`;
-- its `authors`, as `authors_toc_page`, one evidence per name;
+- the names of its `agents` in the role of an author, as `authors_toc_page`,
+  one evidence per name; the agents in other roles, their types, terms of
+  address and descriptions are not read;
 - its `partNumber`, the printed numbering without its words, as
   `part_number_toc_page`;
 - its `pageReference`, parsed as the YOLO stage parses a detected reference
@@ -307,7 +309,10 @@ def _title_text(entry: Mapping[str, Any]) -> Any:
 
 
 def _authors(entry: Mapping[str, Any]) -> list[str]:
-    return [name for name in entry.get("authors") or () if isinstance(name, str) and name.strip()]
+    # The names of the entry's agents in the role of its author.
+    names = (agent.get("name") for agent in entry.get("agents") or ()
+             if isinstance(agent, Mapping) and agent.get("role") == "author")
+    return [name for name in names if isinstance(name, str) and name.strip()]
 
 
 def _bare(text: str) -> str:
