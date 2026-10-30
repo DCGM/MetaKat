@@ -3,7 +3,8 @@
 The schema asks for much more than the core result holds; what has no place
 in it is not read. Of the reply this engine reads:
 
-- every `titleInfo` as a title with its subtitle, and the part this volume is:
+- every `titleInfo` as a title with its subtitle, flagged `translated` when it
+  is a parallel title, and the part this volume is:
   of its `parts`, the first of the deepest level, the most specific one (a
   `část` inside a `díl`), with the parts it belongs to - for each level
   above, the nearest part of it printed before - which MODS gives before it
@@ -82,6 +83,7 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
                  for part_path, part in _volume_parts(path, item)]
         own = parts.pop() if parts else BiblioPart()
         title_infos.append(BiblioTitleInfo(
+            translated=item.get("translated") if isinstance(item.get("translated"), bool) else None,
             title=values.one(path + ("title",), item.get("title"), lang),
             sub_title=values.one(path + ("subTitle",), item.get("subTitle"), lang),
             higher_parts=tuple(part for part in parts if part.number is not None or part.name is not None),

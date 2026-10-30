@@ -222,6 +222,18 @@ def test_a_set_isbn_in_one_of_three_monographs_does_not_make_them_one_work():
     assert [v.text for v in first.isbn] == ['80-7004-057-2']
 
 
+def test_a_title_and_its_subtitle_carry_whether_the_title_is_parallel(metakat_page):
+    page = _page_result(_titled(title_infos=(
+        BiblioTitleInfo(title=_ev("Kytice", 0.9), translated=False),
+        BiblioTitleInfo(title=_ev("Bouquet", 0.9), sub_title=_ev("de légendes", 0.8), translated=True),
+    )))
+
+    volume, _ = span_candidates(page)[0]
+
+    assert [(value.text, value.translated) for value in volume.title] == [("Kytice", False), ("Bouquet", True)]
+    assert [(value.text, value.translated) for value in volume.subTitle] == [("de légendes", True)]
+
+
 def test_readings_without_a_title_are_not_referenced(metakat_page):
     # A page can carry biblio evidence (e.g. a photographer credit) without a
     # title; the candidate volume is then discarded, but the evidence's bbox

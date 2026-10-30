@@ -39,20 +39,20 @@ _SECOND = _ALTO.format(blocks=_line("D", 1, ("Jan", 100, 40), ("Novák:", 150, 6
 
 _REPLY = {"entries": [
     {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "I", "designation": "I.",
-     "titleInfo": [{"title": "Úvod", "subTitle": None, "description": None, "lang": "cze"}], "agents": [],
+     "titleInfo": [{"title": "Úvod", "subTitle": None, "description": None, "lang": "cze", "translated": False}], "agents": [],
      "pageReference": "5", "pages": ["5"]},
     {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "II", "designation": "II.",
-     "titleInfo": [{"title": "Les a voda", "subTitle": None, "description": "O lesích", "lang": "cze"},
-                   {"title": "Wald und Wasser", "subTitle": None, "description": None, "lang": "ger"}],
+     "titleInfo": [{"title": "Les a voda", "subTitle": None, "description": "O lesích", "lang": "cze", "translated": False},
+                   {"title": "Wald und Wasser", "subTitle": None, "description": None, "lang": "ger", "translated": True}],
      "agents": [], "pageReference": "12—30", "pages": [{"start": "12", "end": "30"}]},
     {"tocPage": 1, "level": 2, "kind": "item", "partNumber": None, "designation": None,
-     "titleInfo": [{"title": "Pramen", "subTitle": "u cesty", "description": None, "lang": "cze"}],
+     "titleInfo": [{"title": "Pramen", "subTitle": "u cesty", "description": None, "lang": "cze", "translated": False}],
      "agents": [{"role": "author", "type": "personal", "name": "Jan Novák", "termsOfAddress": [],
                  "description": []},
                 {"role": "translator", "type": "personal", "name": "Petr Malý", "termsOfAddress": ["Dr."],
                  "description": ["Brno"]}], "pageReference": "14", "pages": ["14"]},
     {"tocPage": 1, "level": 1, "kind": "item", "partNumber": None, "designation": None,
-     "titleInfo": [{"title": "Dodatek", "subTitle": None, "description": None, "lang": "cze"}], "agents": [],
+     "titleInfo": [{"title": "Dodatek", "subTitle": None, "description": None, "lang": "cze", "translated": False}], "agents": [],
      "pageReference": "40", "pages": ["40"]},
 ]}
 
@@ -147,6 +147,18 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     assert "nnotation" not in text + system["content"][0]["text"] and "DRAFT" not in text
     assert [part["type"] for part in user["content"]].count("image_url") == 2
     assert request["response_format"]["json_schema"]["schema"] == engine.schema
+
+
+def test_the_main_version_is_the_one_not_flagged_translated_wherever_it_is_printed(toc_pages):
+    reply = json.loads(json.dumps(_REPLY))
+    reply["entries"][1]["titleInfo"].reverse()
+    engine = ChapterExtractionEngineVLM(_config(), client=_Endpoint(reply).client())
+
+    second = engine.process(toc_pages).chapters[1]
+
+    assert (second.title_toc_page.text, second.title_toc_page.lang) == ("Les a voda", "cze")
+    assert second.title_translated_toc_page is False
+    assert [version.title.text for version in second.parallel_titles_toc_page] == ["Wald und Wasser"]
 
 
 def test_a_page_without_ocr_text_is_read_from_its_image(toc_pages, tmp_path):

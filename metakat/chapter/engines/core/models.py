@@ -117,8 +117,8 @@ class ChapterAgent:
 @dataclass(frozen=True)
 class ChapterTitleVersion:
     """A parallel version of a TOC entry's title in another language: its title,
-    subtitle and synopsis, each in that language (titleTocPage, subTitleTocPage,
-    abstractTocPage after the entry's first version)."""
+    subtitle and synopsis, each in that language (titleTocPage, subTitleTocPage
+    flagged translated, abstractTocPage, after the entry's main version)."""
 
     title: DetectionEvidence | None = None
     subtitle: DetectionEvidence | None = None
@@ -140,6 +140,9 @@ class ChapterBase:
     agents_toc_page: tuple[ChapterAgent, ...] = field(default=(), kw_only=True)
     # The entry's title in other languages, after the version above.
     parallel_titles_toc_page: tuple[ChapterTitleVersion, ...] = field(default=(), kw_only=True)
+    # Whether the title and subtitle above are a parallel version: false when
+    # the reader says they are the main one, None when it cannot tell.
+    title_translated_toc_page: bool | None = field(default=None, kw_only=True)
     part_number_toc_page: DetectionEvidence | None = None
     page_number_toc_page: ChapterPageNumberEvidence | None = None
     children: tuple[ChapterBase, ...] = ()

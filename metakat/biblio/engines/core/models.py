@@ -47,9 +47,13 @@ class BiblioTitleInfo:
 
     `part_number` and `part_name` are the part this volume is; `higher_parts`
     the parts it belongs to, the highest first, which MODS gives before it in
-    the same <titleInfo> (a part of several levels, MARC 245 $n $p)."""
+    the same <titleInfo> (a part of several levels, MARC 245 $n $p).
+    `translated` is true for a parallel title in another language, false for
+    the main title, None when the reader cannot tell (TitleValue)."""
 
     GROUP_TYPE = GroupType.TITLE_INFO
+
+    translated: Optional[bool] = None
 
     title: Optional[DetectionEvidence] = field(default=None, metadata=_to("title"))
     sub_title: Optional[DetectionEvidence] = field(default=None, metadata=_to("subTitle"))

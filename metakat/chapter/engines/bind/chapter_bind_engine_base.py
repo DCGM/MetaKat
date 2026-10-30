@@ -41,6 +41,7 @@ from metakat.schemas.base_objects import (
     MetakatIO,
     MetakatPage,
     ProarcIO,
+    TitleValue,
     Value,
 )
 
@@ -381,6 +382,14 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 return None
             return [new_value(evidence, evidence.text)]
 
+        def bind_title(
+            evidence: DetectionEvidence | None, translated: bool | None,
+        ) -> list[Value] | None:
+            # A title or subtitle, with whether its version is a parallel one.
+            if evidence is None:
+                return None
+            return [new_value(evidence, evidence.text, TitleValue, translated=translated)]
+
         def bind_agents(
             agents: tuple[ChapterAgent, ...],
         ) -> tuple[dict[str, list[Value]], list[list[UUID]]]:
@@ -478,13 +487,13 @@ class ChapterBindEngineBase(ChapterBindEngine):
             page_index_start = page_index_entries(start_page)
             page_index_end = page_index_entries(end_page)
             title = bind_evidence(resolved.title)
-            title_toc_page = bind_evidence(resolved.title_toc_page)
-            subtitle_toc_page = bind_evidence(resolved.subtitle_toc_page)
+            title_toc_page = bind_title(resolved.title_toc_page, resolved.title_translated_toc_page)
+            subtitle_toc_page = bind_title(resolved.subtitle_toc_page, resolved.title_translated_toc_page)
             description_toc_page = bind_evidence(resolved.description_toc_page)
             agents_toc_page, agent_groups = bind_agents(resolved.agents_toc_page)
             # Each parallel version of the title is a titleInfo of its own,
             # after the first version; its synopsis an abstract in its language.
-            versions = [(bind_evidence(version.title), bind_evidence(version.subtitle),
+            versions = [(bind_title(version.title, True), bind_title(version.subtitle, True),
                          bind_evidence(version.description))
                         for version in resolved.parallel_titles_toc_page]
 

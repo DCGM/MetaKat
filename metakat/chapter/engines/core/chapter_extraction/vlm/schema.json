@@ -65,13 +65,17 @@
                       "type": "null"
                     }
                   ]
+                },
+                "translated": {
+                  "type": "boolean"
                 }
               },
               "required": [
                 "title",
                 "subTitle",
                 "description",
-                "lang"
+                "lang",
+                "translated"
               ],
               "additionalProperties": false
             }

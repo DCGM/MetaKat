@@ -275,6 +275,26 @@ class AgentValue(Value):
         return data
 
 
+class TitleValue(Value):
+    """A title or subtitle: a Value with whether its title is a parallel one.
+
+    `translated` is true for a title in another language printed beside the
+    main one - a parallel title, which MODS writes as <titleInfo
+    type="translated"> - false for the main title, and None when the
+    producer cannot tell. A subtitle carries the flag of its title.
+    """
+
+    translated: Optional[StrictBool] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def _from_value(cls, data: Any) -> Any:
+        # A plain Value is a title not known to be main or parallel.
+        if isinstance(data, Value) and not isinstance(data, TitleValue):
+            return {name: getattr(data, name) for name in Value.model_fields}
+        return data
+
+
 ClassifiedType = TypeVar('ClassifiedType')
 
 
@@ -433,9 +453,9 @@ class _MetakatBibliographicHead(MetakatBaseModel):
     parent_id: Optional[UUID] = None
     hierarchy: Optional[HierarchyType] = None
 
-    # <titleInfo>
-    title: Optional[List[Value]] = None
-    subTitle: Optional[List[Value]] = None
+    # <titleInfo>; a parallel title and its subtitle are flagged translated.
+    title: Optional[List[TitleValue]] = None
+    subTitle: Optional[List[TitleValue]] = None
     partNumber: Optional[List[Value]] = None
     partName: Optional[List[Value]] = None
 
@@ -616,13 +636,14 @@ class _MetakatInternalPartHead(MetakatBaseModel):
     parent_id: UUID
 
     # <titleInfo>. A TOC entry printing its title in several languages gives
-    # titleTocPage and subTitleTocPage the first version first and then each
-    # parallel version, every one in a titleInfo group of its own and with its
-    # `lang`; MODS writes a parallel one as <titleInfo type="translated">.
-    title: Optional[List[Value]] = None
-    titleTocPage: Optional[List[Value]] = None
-    subTitle: Optional[List[Value]] = None
-    subTitleTocPage: Optional[List[Value]] = None
+    # titleTocPage and subTitleTocPage the main version first and then each
+    # parallel version, flagged translated, every one in a titleInfo group of
+    # its own and with its `lang`; MODS writes a parallel one as <titleInfo
+    # type="translated">.
+    title: Optional[List[TitleValue]] = None
+    titleTocPage: Optional[List[TitleValue]] = None
+    subTitle: Optional[List[TitleValue]] = None
+    subTitleTocPage: Optional[List[TitleValue]] = None
 
     # The part's ordinal - "I.", "XI.", "5." - printed at the head of its own
     # opening page and kept out of the title; partNumberTocPage is the same

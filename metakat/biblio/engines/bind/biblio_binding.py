@@ -30,6 +30,7 @@ from metakat.biblio.engines.core.models import (
     BiblioPage,
     BiblioReading,
     BiblioSpanResult,
+    BiblioTitleInfo,
     container_values,
     merge_languages,
 )
@@ -51,6 +52,7 @@ from metakat.schemas.base_objects import (
     MetakatTitle,
     MetakatVolume,
     PageType,
+    TitleValue,
     Value,
     is_annotated,
 )
@@ -312,6 +314,10 @@ def span_candidates(
                     # The name, with what the agent is.
                     value = AgentValue(text=evidence.text, confidence=evidence.confidence, id=uuid4(),
                                        lang=evidence.lang, type=container.type)
+                elif isinstance(container, BiblioTitleInfo) and field_name in ("title", "subTitle"):
+                    # A title, main or parallel.
+                    value = TitleValue(text=evidence.text, confidence=evidence.confidence, id=uuid4(),
+                                       lang=evidence.lang, translated=container.translated)
                 else:
                     value = Value(text=evidence.text, confidence=evidence.confidence, id=uuid4(), lang=evidence.lang)
                 if id(evidence) in set_isbns and set_isbn_ids is not None:

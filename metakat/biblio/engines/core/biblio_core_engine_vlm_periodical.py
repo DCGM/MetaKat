@@ -9,7 +9,8 @@ tokens. The prompt says so, and was developed with the same cut
 The schema asks for more than the core result holds; what has no place in it
 is not read. Of the reply this engine reads:
 
-- every `periodical` object as a title with its subtitle, both in its `lang`;
+- every `periodical` object as a title with its subtitle, both in its `lang`,
+  flagged `translated` when it is a parallel title;
 - `volume` and `issue` as the periodical volume and issue: the volume's number
   and year, the issue's number, date and name (`issuePartName`);
 - every `publication`, without its `publisherInferred` flag, `distribution`,
@@ -91,6 +92,7 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
     values = ReplyValues(evidence)
     title_infos = [
         BiblioTitleInfo(
+            translated=item.get("translated") if isinstance(item.get("translated"), bool) else None,
             title=values.one(path + ("periodicalTitle",), item.get("periodicalTitle"), item.get("lang")),
             sub_title=values.one(path + ("periodicalSubTitle",), item.get("periodicalSubTitle"), item.get("lang")),
         )

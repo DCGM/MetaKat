@@ -225,20 +225,12 @@ def _title_infos(record: _Record) -> None:
         part = _TITLE_LEAF[field_name] in ("partNumber", "partName")
         return record.position("partNumber" if part else field_name)
 
-    # A title in another language than the first title is a parallel title:
+    # A parallel title - its title or subtitle flagged translated - is
     # <titleInfo type="translated">, as MARC 246 with second indicator 1 maps.
-    # The first title's language may be known only from the TOC reading
-    # backing it.
-    first_lang = None
     for members in _consume_groups(record, GroupType.TITLE_INFO.value, tuple(_TITLE_LEAF), rank):
         attributes = _common_lang(v for v, _ in members)
-        if any(_TITLE_LEAF[field_name] == "title" for _, field_name in members):
-            lang = _common_lang([*(v for v, _ in members),
-                                 *(v for value, _ in members for v, _ in record.supplementary.get(value.id, ()))])
-            if first_lang is None:
-                first_lang = lang.get("lang", "")
-            elif lang.get("lang") and first_lang and lang["lang"] != first_lang:
-                attributes["type"] = "translated"
+        if any(getattr(value, "translated", None) is True for value, _ in members):
+            attributes["type"] = "translated"
         container, target = record.container(record.root, "titleInfo", **attributes)
         for value, field_name in members:
             record.leaf(container, _TITLE_LEAF[field_name], value.text)
@@ -250,21 +242,13 @@ def _mark_toc_readings(record: _Record) -> None:
     # value in provenance instead of being written a second time.
     if record.element.type not in INTERNAL_PART_TYPES:
         return
-    # A TOC title of a parallel version - after the first value of its field,
-    # in a titleInfo of its own, or a synopsis in another language - is no
-    # reading of the part's own title, and is written.
-    title_groups = [set(group.members) for group in record.element.groups or []
-                    if group.type == GroupType.TITLE_INFO.value]
-
+    # A TOC title of a parallel version - flagged translated - or a synopsis
+    # in another language is no reading of the part's own title or abstract,
+    # and is written.
     def backs(own_value: Value, toc_value: Value, toc: str) -> bool:
         if toc == "abstractTocPage":
             return own_value.lang is None or toc_value.lang is None or own_value.lang == toc_value.lang
-        if toc not in ("titleTocPage", "subTitleTocPage", "partNumberTocPage"):
-            return True
-        groups = [members for members in title_groups if toc_value.id in members]
-        if groups:
-            return any(own_value.id in members for members in groups)
-        return toc_value.id == _values(record.element, toc)[0].id
+        return getattr(toc_value, "translated", None) is not True
 
     for own, toc in (("title", "titleTocPage"), ("subTitle", "subTitleTocPage"),
                      ("partNumber", "partNumberTocPage"), ("abstract", "abstractTocPage"),

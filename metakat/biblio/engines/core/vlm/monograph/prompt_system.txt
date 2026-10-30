@@ -75,6 +75,7 @@ THE SOURCE EDITION of a translation or a new edition - the edition it was made f
   - One work published in parts keeps its title with its "parts": a novel in parts ("ANNA KARENINA. II."), a textbook, a treatise or a statistical work in volumes ("STAVITELSTVÍ MOSTNÍ. DÍL DRUHÝ."), a cycle ("PRSTEN NIBELUNGŮV … RÝNSKÉ ZLATO.").
   - The number of the work in a series ("SVĚTOVÁ KNIHOVNA, sv. 312") is never a part; it goes to "series".
 - "lang": the language of the title (section 9).
+- "translated": false for the main title - the title in the language of the main text of the book, or, when that cannot be told, the first title printed - and true for each parallel title in another language. Exactly one "titleInfo" object has "translated" false.
 
 5. SERIES: series
 - One object per series the work belongs to: an edition (edice), library (knihovna), collection (sbírka) or collected writings (COLLECTIONS in section 4).

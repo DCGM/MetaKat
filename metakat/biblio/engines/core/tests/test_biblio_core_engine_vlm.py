@@ -87,7 +87,7 @@ def _agent(role, name, **fields):
 
 _REPLY = _reply(
     BiblioCoreEngineVLMMonograph,
-    titleInfo=[{"title": "KYTICE", "subTitle": "z pověstí národních", "parts": [], "lang": "cze"}],
+    titleInfo=[{"title": "KYTICE", "subTitle": "z pověstí národních", "parts": [], "lang": "cze", "translated": False}],
     publication=[{"placeTerm": ["Praze"], "publisher": [], "publisherInferred": False, "dateIssued": "1853",
                   "edition": None}],
     manufacture=[{"manufacturePlaceTerm": [], "manufacturePublisher": [], "manufactureDate": None}],
@@ -385,7 +385,7 @@ def second_page(tmp_path):
 
 
 def test_a_span_is_read_in_one_request_and_each_value_keeps_the_page_it_is_on(page, second_page):
-    reply = {**_REPLY, "titleInfo": [{"title": "KYTICE", "subTitle": None, "lang": None,
+    reply = {**_REPLY, "titleInfo": [{"title": "KYTICE", "subTitle": None, "lang": None, "translated": False,
                                       "parts": [{"level": 1, "partNumber": "DÍL DRUHÝ", "partName": None}]}]}
     endpoint = _Endpoint(reply)
     engine = BiblioCoreEngineVLMMonograph(_config(), client=endpoint.client())
@@ -479,7 +479,7 @@ def test_a_page_in_two_spans_is_rejected(page):
 
 def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_role_and_type(page):
     reply = {**_REPLY,
-             "titleInfo": [{"title": "KYTICE", "subTitle": None, "lang": "cze", "parts": [
+             "titleInfo": [{"title": "KYTICE", "subTitle": None, "lang": "cze", "translated": False, "parts": [
                  {"level": 1, "partNumber": "I", "partName": "PŮDA"},
                  {"level": 2, "partNumber": "4", "partName": "ČECHY"},
                  {"level": 2, "partNumber": "5", "partName": "MORAVA"}]}],
@@ -534,6 +534,17 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_ro
     assert result.periodical_volume is None and result.periodical_issue is None
 
 
+def test_a_parallel_title_is_flagged_translated_and_the_main_one_not(page):
+    reply = {**_REPLY, "titleInfo": [
+        {"title": "BOUQUET", "subTitle": None, "parts": [], "lang": "fre", "translated": True},
+        {"title": "KYTICE", "subTitle": None, "parts": [], "lang": "cze", "translated": False}]}
+    engine = BiblioCoreEngineVLMMonograph(_config(), client=_Endpoint(reply).client())
+
+    parallel, main = engine.process(_span(page)).spans[0].reading.title_infos
+
+    assert [(t.title.text, t.translated) for t in (parallel, main)] == [("BOUQUET", True), ("KYTICE", False)]
+
+
 # --- the periodical engine ----------------------------------------------------
 
 
@@ -543,7 +554,7 @@ def _periodical_config(**overrides):
 
 _PERIODICAL_REPLY = _reply(
     BiblioCoreEngineVLMPeriodical,
-    periodical=[{"periodicalTitle": "KYTICE", "periodicalSubTitle": None, "lang": "cze"}],
+    periodical=[{"periodicalTitle": "KYTICE", "periodicalSubTitle": None, "lang": "cze", "translated": False}],
     volume={"volumePartNumber": "XII", "volumeDateIssued": "1853"},
     issue={"issuePartNumber": "9", "issueDateIssued": None, "issuePartName": "Vánoční číslo"},
     frequency="Vychází každou sobotu",

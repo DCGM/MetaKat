@@ -24,6 +24,7 @@ from metakat.schemas.base_objects import (
     MetakatVolume,
     PageSideType,
     PageType,
+    TitleValue,
     Value,
 )
 
@@ -128,6 +129,9 @@ class _Batch:
     def agent(self, text, name_type, page_index):
         return AgentValue(**dict(self.v(text, 0.9, page_index)), type=name_type)
 
+    def parallel_title(self, text, page_index, lang):
+        return TitleValue(**dict(self.v(text, 0.9, page_index, lang=lang)), translated=True)
+
 
 @pytest.fixture
 def batch():
@@ -200,7 +204,7 @@ def test_identifiers_series_details_names_distribution_languages_and_illustratio
     v.distributionPlaceTerm = [batch.v("v Praze", 0.9, 0)]
     v.originalLanguage = [("rus", 0.9)]
     v.illustrativeContent = [batch.v("Se 14 vyobrazeními", 0.9, 0)]
-    v.title.append(batch.v("Bouquet", 0.9, 0, lang="fre"))
+    v.title.append(batch.parallel_title("Bouquet", 0, "fre"))
     v.groups += [
         MetakatGroup(type=GroupType.SERIES, members=[v.seriesName[0].id, v.seriesIssn[0].id, v.seriesEditor[0].id]),
         MetakatGroup(type=GroupType.AGENT, members=[v.author[0].id, v.termsOfAddress[0].id]),
@@ -226,7 +230,7 @@ def test_identifiers_series_details_names_distribution_languages_and_illustratio
     assert _texts(volume, "/mods:mods/mods:language[@objectPart='translation']/mods:languageTerm") == ["rus"]
     assert _texts(volume, "/mods:mods/mods:physicalDescription/mods:note[@type='physical details']") == [
         "Se 14 vyobrazeními"]
-    # A title in another language than the first is a parallel title.
+    # A title flagged translated is a parallel title.
     assert [(node.get("type"), node.get("lang")) for node in volume.xpath("/mods:mods/mods:titleInfo",
                                                                           namespaces=NS)] == [
         (None, "cze"), ("translated", "fre")]
@@ -234,8 +238,7 @@ def test_identifiers_series_details_names_distribution_languages_and_illustratio
 
 def test_a_chapters_parallel_toc_title_is_written_as_translated_not_demoted(batch, tmp_path, mods_schema):
     c = batch.chapter
-    c.titleTocPage[0].lang = "cze"
-    c.titleTocPage.append(batch.v("Preface", 0.9, 2, lang="eng"))
+    c.titleTocPage.append(batch.parallel_title("Preface", 2, "eng"))
     chapter = _export(batch, tmp_path)[str(c.id)]
 
     assert mods_schema.validate(chapter), mods_schema.error_log.last_error

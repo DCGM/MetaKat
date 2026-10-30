@@ -27,12 +27,16 @@
                 "type": "null"
               }
             ]
+          },
+          "translated": {
+            "type": "boolean"
           }
         },
         "required": [
           "periodicalTitle",
           "periodicalSubTitle",
-          "lang"
+          "lang",
+          "translated"
         ],
         "additionalProperties": false
       }

@@ -27,12 +27,12 @@ one against the Library of Congress schema.
 | MetaKat | MODS |
 |---|---|
 | element type | `<genre>`; an article's `articleGenre` as `genre@type` |
-| `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>`; the parts in the order of their titleInfo group, each number before its name, the highest level first (MODS has no level, MARC 245 repeats `$n` `$p`); a titleInfo whose title is in another language than the first title's is `type="translated"` (a parallel title, MARC 246 second indicator 1) |
+| `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>`; the parts in the order of their titleInfo group, each number before its name, the highest level first (MODS has no level, MARC 245 repeats `$n` `$p`); a titleInfo whose `title` or `subTitle` is a `TitleValue` flagged `translated` is `type="translated"` (a parallel title, MARC 246 second indicator 1) |
 | agents | `<name><namePart>` whole, with `role/roleTerm` marcrelator code: `aut`, `ill`, `pht`, `trl`, `edt`, `cmp` (composer), `rev` (reviewer), `isb` (issuingBody), `ctb` (contributor), `oth` (other) - a redaktor is `edt`, as in Czech records; the name's `type` (personal, corporate, conference, family) as `name@type` when its values agree on one |
 | `termsOfAddress`, `affiliation` | `<name><namePart type="termsOfAddress">`, `<name><affiliation>` of the name they are grouped with |
 | `etal` | a `<name>` of its own holding only `<etal>` (DMF) |
 | internal part `authorTocPage`, `translatorTocPage`, … (every role but redaktor), `termsOfAddressTocPage` and `affiliationTocPage` | `<name>` as the agents, unless the part's own page has a name in the same role; a term of address and an affiliation follow their name |
-| internal part `titleTocPage`, `subTitleTocPage` after the first value | parallel versions of the TOC title: a `<titleInfo type="translated">` each, never demoted to provenance |
+| internal part `titleTocPage`, `subTitleTocPage` flagged `translated` | parallel versions of the TOC title: a `<titleInfo type="translated">` each, never demoted to provenance |
 | `publisher`, `placeTerm`, `dateIssued`, `edition`, `frequency` | `<originInfo eventType="publication">`, publisher as `agent/namePart` with role `publisher` |
 | distribution fields | `<originInfo eventType="distribution">`, distributor as `agent` with role `distributor`, date as `dateOther type="distribution"` |
 | `copyrightDate` | `<originInfo eventType="copyright">` |

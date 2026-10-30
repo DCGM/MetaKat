@@ -20,16 +20,17 @@ the configured `confidence` (0.95 unless set).
 
 Of an entry the stage reads:
 
-- the title of its first `titleInfo` object, as `title_toc_page`; an entry
+- the title of its main `titleInfo` object - the one not flagged
+  `translated` - as `title_toc_page`; an entry
   printed with only its designation ("Kapitola 3") has the designation as
   its title, as the NDK gives such a chapter's title, and its part number
   takes its words from it;
-- the subtitle and the synopsis of its first `titleInfo` object, as
+- the subtitle and the synopsis of its main `titleInfo` object, as
   `subtitle_toc_page` and `description_toc_page`; the title, subtitle and
   synopsis are in the `lang` of that object;
 - the other `titleInfo` objects, the parallel versions in other
   languages, as `parallel_titles_toc_page`, each with its title, subtitle,
-  synopsis and `lang`;
+  synopsis and `lang`, bound as translated titles;
 - its `agents`, as `agents_toc_page`, each in its role, with its type, its
   terms of address and its `description` as its affiliations, every name,
   term of address and affiliation located as a value of its own;
@@ -274,6 +275,8 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
                 description_toc_page=evidence(index, "description", title_info.get("description"), lang=lang),
                 agents_toc_page=_toc_agents(index, entry, evidence),
                 parallel_titles_toc_page=_parallel_titles(index, entry, evidence),
+                title_translated_toc_page=(title_info.get("translated")
+                                           if isinstance(title_info.get("translated"), bool) else None),
                 part_number_toc_page=evidence(index, "partNumber", entry.get("partNumber")),
                 page_number_toc_page=None if reference is None else ArabicRomanChapterPageNumberParser.create(reference),
             ),
@@ -299,13 +302,22 @@ def _page_index(entry: Mapping[str, Any], page_count: int) -> int:
     return min(max(index, 0), page_count - 1)
 
 
+def _title_infos(entry: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    # The entry's language versions, the main one - the first not flagged
+    # translated, the first if all are - first, then the parallel ones.
+    items = [item for item in entry.get("titleInfo") or () if isinstance(item, Mapping)]
+    main = next((item for item in items if item.get("translated") is not True), items[0] if items else None)
+    return [] if main is None else [main, *(item for item in items if item is not main)]
+
+
 def _first_title_info(entry: Mapping[str, Any]) -> Mapping[str, Any]:
-    # The first language version, which the stage reads; {} when there is none.
-    return next((item for item in entry.get("titleInfo") or () if isinstance(item, Mapping)), {})
+    # The main language version, which the stage reads as the entry's title;
+    # {} when there is none.
+    return next(iter(_title_infos(entry)), {})
 
 
 def _own_title(entry: Mapping[str, Any]) -> Optional[str]:
-    # The title of the first titleInfo object, None when it has none.
+    # The title of the main titleInfo object, None when it has none.
     title = _first_title_info(entry).get("title")
     return title if isinstance(title, str) and title.strip() else None
 
@@ -360,8 +372,8 @@ def _toc_agents(index: int, entry: Mapping[str, Any], evidence) -> tuple[Chapter
 
 
 def _title_versions(entry: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    # The titleInfo objects after the first: the parallel versions.
-    return [item for item in entry.get("titleInfo") or () if isinstance(item, Mapping)][1:]
+    # The titleInfo objects besides the main one: the parallel versions.
+    return _title_infos(entry)[1:]
 
 
 def _parallel_titles(index: int, entry: Mapping[str, Any], evidence) -> tuple[ChapterTitleVersion, ...]:

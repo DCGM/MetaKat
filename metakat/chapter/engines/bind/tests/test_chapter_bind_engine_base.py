@@ -664,6 +664,8 @@ def test_recursive_result_binds_schema_and_detection_provenance(
     # Each parallel version follows the first in its field, a titleInfo of
     # its own when it has more than a title.
     assert [value.text for value in root.titleTocPage] == ["Chapter", "Kapitel", "Chapitre"]
+    # The main version's flag is unknown here: the core did not say.
+    assert [value.translated for value in root.titleTocPage] == [None, True, True]
     assert [value.text for value in root.subTitleTocPage] == ["Subtitle", "Untertitel"]
     assert ("titleInfo", [root.titleTocPage[1].id, root.subTitleTocPage[1].id]) in groups
     assert not any(root.titleTocPage[2].id in members for _, members in groups)

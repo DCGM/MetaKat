@@ -1622,11 +1622,11 @@ Of each entry the engine reads:
 | Reply | `ChapterBase` |
 |---|---|
 | `tocPage`, the index of the image the entry starts on | `toc_page_key` |
-| `titleInfo[0].title`, the first language version; else `designation` | `title_toc_page` |
-| `titleInfo[0].subTitle`, its subtitle | `subtitle_toc_page` |
-| `titleInfo[0].description`, its synopsis | `description_toc_page` |
-| `titleInfo[0].lang` | the `lang` of the title, subtitle and synopsis evidence, so of their values (`<titleInfo lang>`, `<abstract lang>`) |
-| `titleInfo[1:]`, the parallel versions in other languages, each with its title, subtitle, synopsis and `lang` | `parallel_titles_toc_page` (`ChapterTitleVersion`); bound after the first version in `titleTocPage`, `subTitleTocPage`, `abstractTocPage`, a titleInfo group each |
+| `titleInfo[].title` of the main version - the one not flagged `translated`, the first if all are; else `designation` | `title_toc_page`; its `translated` as `title_translated_toc_page` |
+| the main version's `subTitle` | `subtitle_toc_page` |
+| the main version's `description`, its synopsis | `description_toc_page` |
+| the main version's `lang` | the `lang` of the title, subtitle and synopsis evidence, so of their values (`<titleInfo lang>`, `<abstract lang>`) |
+| the other `titleInfo[]` objects, the parallel versions flagged `translated`, each with its title, subtitle, synopsis and `lang` | `parallel_titles_toc_page` (`ChapterTitleVersion`); bound after the main version in `titleTocPage`, `subTitleTocPage` (flagged `translated`) and `abstractTocPage`, a titleInfo group each |
 | `agents[]`, each in its `role` (never `redaktor`), with its `type`, its `termsOfAddress[]` and its `description[]` as affiliations; each name, term of address and affiliation is located on its own | `agents_toc_page`; terms bound to `termsOfAddressTocPage`, in the agent's group |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |
 | `pageReference`, parsed by `ArabicRomanChapterPageNumberParser` | `page_number_toc_page` |
