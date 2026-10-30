@@ -315,6 +315,12 @@
         "type": "string"
       }
     },
+    "isbnSet": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "illustrativeContent": {
       "type": "array",
       "items": {
@@ -345,6 +351,7 @@
     "distribution",
     "copyrightDate",
     "isbn",
+    "isbnSet",
     "illustrativeContent",
     "language",
     "originalLanguage"

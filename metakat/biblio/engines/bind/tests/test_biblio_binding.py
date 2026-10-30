@@ -22,6 +22,7 @@ from metakat.biblio.engines.core.models import (
     BiblioAgent,
     BiblioCopyright,
     BiblioCoreResult,
+    BiblioIdentifiers,
     BiblioManufacture,
     BiblioPart,
     BiblioPublication,
@@ -170,6 +171,33 @@ def test_a_part_of_several_levels_keeps_its_printed_order_and_is_told_apart_by_e
     assert not same_unit(*spans(volume, other_volume))
     # A half-title printing only the lowest level reads the same volume.
     assert same_unit(*spans(half_title, volume))
+
+
+def test_the_isbn_of_the_whole_set_goes_to_the_title_of_a_multipart_monograph():
+    def with_isbns(reading, own, whole):
+        ev = reading.reading.title_infos[0].title
+        return dataclasses.replace(reading, reading=dataclasses.replace(reading.reading, identifiers=(
+            BiblioIdentifiers(isbns=(dataclasses.replace(ev, text=own),),
+                              set_isbns=(dataclasses.replace(ev, text=whole),)),)))
+
+    pages = _scan({4}, {0: .99, 4: .99})
+    io, _ = _process(pages,
+                     with_isbns(_read(0, 'Země', part='I'), '80-7004-057-2 /tento svazek/', '80-7004-015 /celý soubor/'),
+                     with_isbns(_read(4, 'Země', part='II'), '80-7004-058-0', '80-7004-015 /soubor/'))
+
+    [title] = _of(io, MetakatTitle)
+    first, second = _of(io, MetakatVolume)
+    # Printed on both volumes, the set's ISBN is one, in its most confident reading.
+    assert [value.text for value in title.isbn] == ['80-7004-015 /celý soubor/']
+    assert ([v.text for v in first.isbn], [v.text for v in second.isbn]) == (
+        ['80-7004-057-2 /tento svazek/'], ['80-7004-058-0'])
+
+
+def test_a_set_isbn_stays_on_a_monograph_with_no_title_above_it():
+    ev = _ev("Kytice", 0.9)
+    page = _page_result(_titled(identifiers=(BiblioIdentifiers(set_isbns=(dataclasses.replace(ev, text="80-1"),)),)))
+    volume, _ = span_candidates(page)[0]
+    assert [value.text for value in volume.isbn] == ["80-1"]
 
 
 def test_readings_without_a_title_are_not_referenced(metakat_page):

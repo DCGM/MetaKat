@@ -294,15 +294,19 @@ def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceCo
 def span_candidates(
     page_result: BiblioSpanResult,
     detection_page_keys: Optional[Dict[UUID, str]] = None,
+    set_isbn_ids: Optional[set] = None,
 ) -> Tuple[List[MetakatElement], dict, dict]:
     # detection_page_keys, when given, receives the page key each value
-    # was read on.
+    # was read on; set_isbn_ids the ids of the ISBNs of a whole work in
+    # several volumes, which the candidate volume holds in `isbn` until the
+    # binder decides there is a title above it (move_set_isbns).
     detection_id_to_detection_bbox = {}
     detection_id_to_alto = {}
 
     def containers(reading: Optional[BiblioReading]):
         for container in (reading.containers() if reading is not None else ()):
             values = []
+            set_isbns = {id(evidence) for evidence in getattr(container, "set_isbns", ())}
             for field_name, evidence in container_values(container):
                 if isinstance(container, BiblioAgent) and field_name == container.role.value:
                     # The name, with what the agent is.
@@ -310,6 +314,8 @@ def span_candidates(
                                        lang=evidence.lang, type=container.type)
                 else:
                     value = Value(text=evidence.text, confidence=evidence.confidence, id=uuid4(), lang=evidence.lang)
+                if id(evidence) in set_isbns and set_isbn_ids is not None:
+                    set_isbn_ids.add(value.id)
                 if detection_page_keys is not None:
                     detection_page_keys[value.id] = evidence.page_key
                 bbox = evidence.bbox
@@ -386,6 +392,8 @@ class Scan:
     # The core's VLM calls and the pages their page keys name.
     reports: Tuple[VLMCallReport, ...] = ()
     page_by_key: Dict[str, MetakatPage] = dataclasses.field(default_factory=dict)
+    # The ids of the ISBNs read as the whole work's (span_candidates).
+    set_isbn_ids: set = dataclasses.field(default_factory=set)
 
 
 def read_scan(core_engine, batch_dir: str, metakat_io: MetakatIO) -> Scan:
@@ -420,10 +428,11 @@ def read_scan(core_engine, batch_dir: str, metakat_io: MetakatIO) -> Scan:
         for page in pages
         if (image_filename := image_mapping.get(page.id)) is not None
     }
-    bboxes, page_ids, alto, anchors = read_spans(spans, core_result, page_key_to_metakat_page)
+    set_isbn_ids: set = set()
+    bboxes, page_ids, alto, anchors = read_spans(spans, core_result, page_key_to_metakat_page, set_isbn_ids)
     logger.info(f"{sum(span.names for span in spans)} span(s) name a document")
     return Scan(metakat_io, pages, documents, spans, anchors, bboxes, page_ids, alto,
-                core_result.reports, page_key_to_metakat_page)
+                core_result.reports, page_key_to_metakat_page, set_isbn_ids)
 
 
 def write_scan(scan: Scan, elements: List[MetakatElement]) -> MetakatIO:
@@ -498,6 +507,7 @@ def read_spans(
     spans: List[TitleSpan],
     core_result: BiblioCoreResult,
     page_key_to_metakat_page: dict,
+    set_isbn_ids: Optional[set] = None,
 ) -> Tuple[dict, dict, dict, Anchors]:
     """Each span's candidate volume and issue, its score, and the geometry of every value read.
 
@@ -510,7 +520,7 @@ def read_spans(
         if result is None:
             continue
         page_keys: Dict[UUID, str] = {}
-        elements, bboxes, alto = span_candidates(result, page_keys)
+        elements, bboxes, alto = span_candidates(result, page_keys, set_isbn_ids)
         for detection_id, page_key in page_keys.items():
             page = page_key_to_metakat_page.get(page_key)
             if page is None:
@@ -586,6 +596,37 @@ def authoritative_spans(documents: List[List[MetakatPage]], spans: List[TitleSpa
     return [max((span for span in spans if span.document == index and span.names),
                 key=lambda span: span.score, default=None)
             for index in range(len(documents))]
+
+
+_ISBN = re.compile(r"\d(?:[\s-]?[\dXx]){7,12}")
+
+
+def isbn_key(text: str) -> str:
+    """The digits of the ISBN a reading prints, its qualifier left out ("80-7004-015 /celý soubor/" gives
+    "807004015"); the whole text, normalized, when it prints none."""
+    match = _ISBN.search(text)
+    return re.sub(r"[\s-]", "", match.group(0)).upper() if match else normalize_text(text)
+
+
+def move_set_isbns(volumes: List[MetakatVolume], title: MetakatTitle, set_isbn_ids: set) -> None:
+    """Give the title above the volumes the ISBNs of the whole work its volumes read.
+
+    The DMF gives a multipart monograph's set ISBN to its title. Every
+    volume prints it, so each distinct one is kept once, as its most
+    confident reading; the volumes keep only their own ISBNs."""
+    best: Dict[str, Value] = {}
+    for volume in volumes:
+        own = []
+        for value in volume.isbn or ():
+            if value.id not in set_isbn_ids:
+                own.append(value)
+                continue
+            key = isbn_key(value.text)
+            if key not in best or best[key].confidence < value.confidence:
+                best[key] = value
+        volume.isbn = own or None
+    if best:
+        title.isbn = list(best.values())
 
 
 def title_from(volumes: List[MetakatVolume], hierarchy: HierarchyType) -> MetakatTitle:

@@ -178,7 +178,7 @@ container, so one `MetakatGroup` type:
 | `BiblioCopyright` | `<originInfo eventType="copyright">` / no group | `date` → `copyrightDate` |
 | `BiblioEtal` | `<name><etal>` / no group | `phrase` → `etal` |
 | `BiblioIllustrations` | `<physicalDescription><note type="physical details">`, one per statement / no group | `statements` → `illustrativeContent` |
-| `BiblioIdentifiers` | `<identifier>`, one per value / no group | `isbns` → `isbn`, `issns` → `issn` |
+| `BiblioIdentifiers` | `<identifier>`, one per value / no group | `isbns` → `isbn`, `set_isbns` → `isbn` of the title above the volumes (the volume's until the binder makes one), `issns` → `issn` |
 
 `languages` are not a container: they are labels the core chose, not text on
 the page, so their evidence has no box. The binder writes them as classified
@@ -655,7 +655,7 @@ is not read:
 | printer | `manufacture[]`: one `BiblioManufacture` each | the same |
 | series | `series[]` - `seriesName`, `seriesPartNumber`, `seriesPartName`, every value in its `lang` | - |
 | statements | `statementOfResponsibility[]` as one `BiblioResponsibility`; `copyrightDate` as a `BiblioCopyright`; `illustrativeContent[]` as one `BiblioIllustrations` | `statementOfResponsibility[]`, `copyrightDate` as for books |
-| identifiers | `isbn[]` as one `BiblioIdentifiers` (`seriesIssn` is the series') | `isbn[]` and `issn[]` as one `BiblioIdentifiers` |
+| identifiers | `isbn[]` and `isbnSet[]` (the whole set's, `set_isbns`) as one `BiblioIdentifiers` (`seriesIssn` is the series') | `isbn[]` and `issn[]` as one `BiblioIdentifiers` |
 | languages | `language[]` as `languages`, `originalLanguage[]` as `original_languages` | the same |
 | names | `agents[]`, each in its role, with its `type`, `termsOfAddress[]` and `description[]` as affiliations; `etal` as a `BiblioEtal` | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`, `termsOfAddress[]` and `description[]` as affiliations; `etal` |
 | not read | `publisherInferred` | `supplement`, `publisherInferred` |
@@ -823,7 +823,11 @@ Which record a value goes to is the binder's decision, made per reading:
 | `periodical_issue` | — | all of it |
 
 A title made above the volumes (`title_from`, and the periodical's title)
-takes the languages of the volume whose title it takes. The periodical's title
+takes the languages of the volume whose title it takes.
+The title of a multipart monograph takes the ISBNs of the whole set read on
+any of its title pages (`move_set_isbns`), each distinct one once, as its most
+confident reading; the volumes keep their own. A monograph that is not
+multipart keeps a set ISBN, having no title to give it to. The periodical's title
 also takes the ISSN, which the DMF gives the title of a periodical, from all
 its title pages (`periodical_issn`): an ISSN whose check digit (ISO 3297,
 modulus 11) agrees is preferred, then the one read on most title pages, then

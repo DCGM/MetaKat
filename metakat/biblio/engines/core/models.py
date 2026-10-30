@@ -152,11 +152,16 @@ class BiblioEtal:
 
 @dataclass(frozen=True)
 class BiblioIdentifiers:
-    """The ISBNs and ISSNs printed, each an <identifier> of its own."""
+    """The ISBNs and ISSNs printed, each an <identifier> of its own.
+
+    `set_isbns` are the ISBNs of the whole work in several volumes ("/celý
+    soubor/"): the DMF gives them to the title above the volumes, which the
+    binder alone decides there is; until then they are read as `isbn`."""
 
     GROUP_TYPE = None
 
     isbns: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("isbn"))
+    set_isbns: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("isbn"))
     issns: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("issn"))
 
 

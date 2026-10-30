@@ -15,8 +15,9 @@ in it is not read. Of the reply this engine reads:
 - every `distribution`, `manufacture` and `series`, with its ISSN and editors;
 - the `agents`, each in the field of its role, with its type, its terms of
   address and its `description` as its affiliations, and `etal`;
-- the statements of responsibility, the `copyrightDate`, the `isbn`, the
-  `illustrativeContent` and the `language` and `originalLanguage` codes;
+- the statements of responsibility, the `copyrightDate`, the `isbn` and
+  `isbnSet` (the whole set's, `set_isbns`), the `illustrativeContent` and the
+  `language` and `originalLanguage` codes;
 - the `lang` of a titleInfo or series, as the language of each of its values.
 
 Not read: the `publisherInferred` flag.
@@ -129,7 +130,8 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
             date=values.one(("copyrightDate",), reply.get("copyrightDate"))),)),
         illustrations=kept_containers((BiblioIllustrations(
             statements=values.many(("illustrativeContent",), reply.get("illustrativeContent"))),)),
-        identifiers=kept_containers((BiblioIdentifiers(isbns=values.many(("isbn",), reply.get("isbn"))),)),
+        identifiers=kept_containers((BiblioIdentifiers(isbns=values.many(("isbn",), reply.get("isbn")),
+                                                       set_isbns=values.many(("isbnSet",), reply.get("isbnSet"))),)),
         languages=values.languages(reply),
         original_languages=values.languages(reply, "originalLanguage"),
     )
