@@ -66,7 +66,7 @@ def test_exact_duplicate_titleinfo_row_is_dropped_as_a_whole():
     assert result["title"] == ["Estetika"]
 
 
-def test_roles_are_mapped_including_photographer_and_unmapped_role_is_dropped():
+def test_roles_are_mapped_and_an_unmapped_role_is_dropped():
     xml = _wrap("""
     <mods:name type="personal" usage="primary">
       <mods:namePart type="family">Novak</mods:namePart>
@@ -81,12 +81,23 @@ def test_roles_are_mapped_including_photographer_and_unmapped_role_is_dropped():
       <mods:namePart type="family">Kubat</mods:namePart>
       <mods:role><mods:roleTerm authority="marcrelator" type="code">oth</mods:roleTerm></mods:role>
     </mods:name>
+    <mods:name type="corporate">
+      <mods:namePart>Univerzita Karlova</mods:namePart>
+      <mods:role><mods:roleTerm authority="marcrelator" type="code">isb</mods:roleTerm></mods:role>
+    </mods:name>
+    <mods:name type="personal">
+      <mods:namePart type="family">Tiskař</mods:namePart>
+      <mods:role><mods:roleTerm authority="marcrelator" type="code">prt</mods:roleTerm></mods:role>
+    </mods:name>
     """)
     result = parse_mods(xml)
     assert result["author"] == ["Novak Jan"]
     assert result["photographer"] == ["Svoboda"]
+    assert result["other"] == ["Kubat"]
+    assert result["issuingBody"] == ["Univerzita Karlova"]
     assert result["editor"] is None
     assert result["translator"] is None
+    assert "Tiskař" not in str(result)
 
 
 def test_manufacture_origin_info_kept_separate_from_publication():

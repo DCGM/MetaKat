@@ -19,14 +19,13 @@ belong to them are the bind engine's decisions.
 from __future__ import annotations
 
 import dataclasses
-import enum
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator, Optional, Sequence
 
-from metakat.common.models import DetectionEvidence
+from metakat.common.models import AgentRole, DetectionEvidence
 from metakat.common.vlm.report import VLMCallReport
-from metakat.schemas.base_objects import GroupType
+from metakat.schemas.base_objects import GroupType, NameType
 
 
 def _to(metakat_field: str):
@@ -81,25 +80,15 @@ class BiblioSeries:
     part_name: Optional[DetectionEvidence] = field(default=None, metadata=_to("seriesPartName"))
 
 
-class AgentRole(str, enum.Enum):
-    """A name's role; each value is the MetakatBibliographic field it goes to."""
-
-    AUTHOR = "author"
-    ILLUSTRATOR = "illustrator"
-    PHOTOGRAPHER = "photographer"
-    TRANSLATOR = "translator"
-    EDITOR = "editor"
-    REDAKTOR = "redaktor"
-
-
 @dataclass(frozen=True)
 class BiblioAgent:
-    """One <name>: a person or body in one role, with their affiliations."""
+    """One <name>: a person or body in one role, what it is when known, with their affiliations."""
 
     GROUP_TYPE = GroupType.AGENT
 
     role: AgentRole
     name: DetectionEvidence
+    type: Optional[NameType] = None
     affiliations: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("affiliation"))
     emails: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("email"))
 

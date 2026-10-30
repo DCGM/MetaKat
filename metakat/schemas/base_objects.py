@@ -118,6 +118,15 @@ class ArticleGenre(str, enum.Enum):
     TABLE_OF_CONTENTS = "tableOfContents"
 
 
+class NameType(str, enum.Enum):
+    """What an agent is, MODS <name type="...">: the four name types of the
+    DMF, which the name authorities use as well."""
+    PERSONAL = "personal"
+    CORPORATE = "corporate"
+    CONFERENCE = "conference"
+    FAMILY = "family"
+
+
 class BiblioType(str, enum.Enum):
     TITLE = "Title"
     SUBTITLE = "Subtitle"
@@ -246,6 +255,25 @@ class Value(MetakatBaseModel):
     annotated: Optional[StrictBool] = Field(default=None, exclude_if=lambda value: value is None)
 
 
+class AgentValue(Value):
+    """A name in one role: a Value with what the agent it names is.
+
+    The role is the field the value is in (MetakatAgents). `type` is the
+    agent's MODS <name type="...">, None when the producer cannot tell - a
+    detector reads a name without telling a person from a body.
+    """
+
+    type: Optional[NameType] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def _from_value(cls, data: Any) -> Any:
+        # A plain Value is a name whose type is not known.
+        if isinstance(data, Value) and not isinstance(data, AgentValue):
+            return {name: getattr(data, name) for name in Value.model_fields}
+        return data
+
+
 ClassifiedType = TypeVar('ClassifiedType')
 
 
@@ -346,7 +374,10 @@ class MetakatAgents(MetakatBaseModel):
     vocabulary restriction anywhere, so a title, a volume, an issue, a
     supplement, a chapter and an article may all carry any of these roles.
     MetaKat encodes the role in the field name instead of a roleTerm, which
-    is why there is one field per role rather than one agent field.
+    is why there is one field per role rather than one agent field. The roles
+    are those the VLM prompts ask for, and `redaktor`, the editor of a
+    periodical; `other` holds a name in a role none of the others covers.
+    Each name is an AgentValue, carrying what the agent is - <name type>.
 
     `affiliation` is a <name> child too. Note it describes *one* agent and
     repeats within that agent, so which affiliation goes with which name is
@@ -362,12 +393,17 @@ class MetakatAgents(MetakatBaseModel):
     internal part has one.
     """
 
-    author: Optional[List[Value]] = None
-    illustrator: Optional[List[Value]] = None
-    photographer: Optional[List[Value]] = None
-    translator: Optional[List[Value]] = None
-    editor: Optional[List[Value]] = None
-    redaktor: Optional[List[Value]] = None
+    author: Optional[List[AgentValue]] = None
+    illustrator: Optional[List[AgentValue]] = None
+    photographer: Optional[List[AgentValue]] = None
+    translator: Optional[List[AgentValue]] = None
+    editor: Optional[List[AgentValue]] = None
+    redaktor: Optional[List[AgentValue]] = None
+    composer: Optional[List[AgentValue]] = None
+    reviewer: Optional[List[AgentValue]] = None
+    issuingBody: Optional[List[AgentValue]] = None
+    contributor: Optional[List[AgentValue]] = None
+    other: Optional[List[AgentValue]] = None
     affiliation: Optional[List[Value]] = None
     email: Optional[List[Value]] = None
 
@@ -572,10 +608,22 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     pageIndexStart/pageIndexEnd already say which pages those are.
     """
 
-    # <name> with role aut, read in the TOC entry: the authors printed with it,
-    # one value per name. It closes the <name> block, right after the agents
-    # read on the part's own page, which MODS writes instead when there are any.
-    authorTocPage: Optional[List[Value]] = None
+    # <name>, read in the TOC entry: the persons and bodies printed with it,
+    # one value per name in the field of its role, as MetakatAgents has them,
+    # and their affiliations. They close the <name> block, right after the
+    # agents read on the part's own page, which MODS writes instead of the TOC
+    # reading of the same role when there are any.
+    authorTocPage: Optional[List[AgentValue]] = None
+    illustratorTocPage: Optional[List[AgentValue]] = None
+    photographerTocPage: Optional[List[AgentValue]] = None
+    translatorTocPage: Optional[List[AgentValue]] = None
+    editorTocPage: Optional[List[AgentValue]] = None
+    composerTocPage: Optional[List[AgentValue]] = None
+    reviewerTocPage: Optional[List[AgentValue]] = None
+    issuingBodyTocPage: Optional[List[AgentValue]] = None
+    contributorTocPage: Optional[List[AgentValue]] = None
+    otherTocPage: Optional[List[AgentValue]] = None
+    affiliationTocPage: Optional[List[Value]] = None
 
     # <genre type="...">. A typed classifier value; in practice only articles
     # carry a meaningful genre
@@ -913,7 +961,7 @@ class ObjectItem(BaseModel):
     # fields still occupies its index there, as None - so these lists are
     # List[Optional[str]], not List[str]. A record with a titleInfo carrying
     # only a title and another carrying only a partNumber parses to
-    # title=["Kytice", None] and partNumber=[None, "2"]. Only the six
+    # title=["Kytice", None] and partNumber=[None, "2"]. Only the
     # role-derived name fields below are plain List[str]: they are a set of
     # names rather than a column of an aligned group, so they never hold a
     # placeholder.
@@ -935,6 +983,11 @@ class ObjectItem(BaseModel):
     translator: Optional[List[str]] = None
     editor: Optional[List[str]] = None
     redaktor: Optional[List[str]] = None
+    composer: Optional[List[str]] = None
+    reviewer: Optional[List[str]] = None
+    issuingBody: Optional[List[str]] = None
+    contributor: Optional[List[str]] = None
+    other: Optional[List[str]] = None
 
 class ProarcIO(BaseModel):
     model_config = ConfigDict(extra="forbid")  # additionalProperties: false

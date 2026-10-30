@@ -62,7 +62,8 @@ _PROARC_VOLUME_SINGLE_FIELDS = (
 )
 _PROARC_VOLUME_LIST_FIELDS = (
     "publisher", "manufacturePublisher", "manufacturePlaceTerm", "author", "illustrator",
-    "photographer", "translator", "editor", "seriesName", "seriesPartNumber",
+    "photographer", "translator", "editor", "composer", "reviewer", "issuingBody", "contributor",
+    "other", "seriesName", "seriesPartNumber",
 )
 # MetaKat field names that differ from the ObjectItem field holding the same
 # value. ObjectItem keeps the parser's names, so every lookup of a record

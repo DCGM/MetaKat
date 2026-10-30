@@ -12,7 +12,7 @@ MODS_NS = "http://www.loc.gov/mods/v3"
 NS = {"mods": MODS_NS}
 
 # Roles that map onto a MetakatVolume/MetakatIssue field. Any other
-# marcrelator code (e.g. "oth") has no matching field and is dropped.
+# marcrelator code (e.g. "prt") has no matching field and is dropped.
 ROLE_TERM_TO_FIELD = {
     "aut": "author",
     "ill": "illustrator",
@@ -20,6 +20,11 @@ ROLE_TERM_TO_FIELD = {
     "trl": "translator",
     "edt": "editor",
     "red": "redaktor",
+    "cmp": "composer",
+    "rev": "reviewer",
+    "isb": "issuingBody",
+    "ctb": "contributor",
+    "oth": "other",
 }
 
 # Placeholder values Czech MARC/MODS records use for "unknown" instead of
@@ -35,7 +40,8 @@ FIELD_NAMES = (
     "title", "subTitle", "partName", "partNumber", "dateIssued", "edition",
     "placeTerm", "publisher", "manufacturePublisher", "manufacturePlaceTerm",
     "author", "illustrator", "photographer", "translator", "editor",
-    "redaktor", "seriesName", "seriesNumber",
+    "redaktor", "composer", "reviewer", "issuingBody", "contributor", "other",
+    "seriesName", "seriesNumber",
 )
 
 

@@ -81,6 +81,11 @@ _BIBLIO_FIELD_NAMES = (
     "seriesName",
     "seriesPartNumber",
     "redaktor",
+    "composer",
+    "reviewer",
+    "issuingBody",
+    "contributor",
+    "other",
 )
 
 

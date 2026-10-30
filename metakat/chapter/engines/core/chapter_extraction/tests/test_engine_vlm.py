@@ -7,7 +7,8 @@ from PIL import Image
 from metakat.chapter.engines.core.chapter_core_engine_pipeline import check_chapter_pipeline_stages
 from metakat.chapter.engines.core.chapter_extraction.engine_vlm import ChapterExtractionEngineVLM
 from metakat.chapter.engines.core.models import ChapterPageInput, ChapterPageNumberKind
-from metakat.common.models import AltoRefs, BoundingBox
+from metakat.common.models import AgentRole, AltoRefs, BoundingBox
+from metakat.schemas.base_objects import NameType
 
 # Two TOC pages: the first lists two chapters, the second a section of the
 # second chapter and an appendix whose title the OCR missed.
@@ -32,7 +33,8 @@ _FIRST = _ALTO.format(blocks=_line("A", 1, ("OBSAH", 400, 120))
                       + _line("C", 3, ("II.", 100, 30), ("Les", 140, 60), ("a", 210, 20), ("voda", 240, 90),
                               ("12—30", 800, 80)))
 _SECOND = _ALTO.format(blocks=_line("D", 1, ("Jan", 100, 40), ("Novák:", 150, 60), ("Pramen", 220, 120),
-                                       ("u", 350, 15), ("cesty", 370, 60), ("14", 800, 30)))
+                                       ("u", 350, 15), ("cesty", 370, 60), ("Petr", 440, 40), ("Malý", 485, 50),
+                                       ("(Brno)", 540, 60), ("14", 800, 30)))
 
 _REPLY = {"entries": [
     {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "I", "designation": "I.",
@@ -45,7 +47,9 @@ _REPLY = {"entries": [
     {"tocPage": 1, "level": 2, "kind": "item", "partNumber": None, "designation": None,
      "titleInfo": [{"title": "Pramen", "subTitle": "u cesty", "description": None, "lang": "cze"}],
      "agents": [{"role": "author", "type": "personal", "name": "Jan Novák", "termsOfAddress": [],
-                 "description": []}], "pageReference": "14", "pages": ["14"]},
+                 "description": []},
+                {"role": "translator", "type": "personal", "name": "Petr Malý", "termsOfAddress": ["Dr."],
+                 "description": ["Brno"]}], "pageReference": "14", "pages": ["14"]},
     {"tocPage": 1, "level": 1, "kind": "item", "partNumber": None, "designation": None,
      "titleInfo": [{"title": "Dodatek", "subTitle": None, "description": None, "lang": "cze"}], "agents": [],
      "pageReference": "40", "pages": ["40"]},
@@ -102,12 +106,17 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     # A level-2 entry on the next page is a child of the last level-1 entry before it.
     [section] = second.children
     assert (section.toc_page_key, section.title_toc_page.text) == ("0008", "Pramen")
-    assert section.page_number_toc_page.alto.words == ("D1W5",)
+    assert section.page_number_toc_page.alto.words == ("D1W8",)
     # A subtitle and a byline are read apart from the title, each located in the ALTO.
     assert (section.subtitle_toc_page.text, section.subtitle_toc_page.alto.words) == ("u cesty", ("D1W3", "D1W4"))
-    [author] = section.authors_toc_page
-    assert (author.text, author.alto.words) == ("Jan Novák", ("D1W0", "D1W1"))
-    assert (first.subtitle_toc_page, first.authors_toc_page) == (None, ())
+    author, translator = section.agents_toc_page
+    assert (author.role, author.type, author.affiliations) == (AgentRole.AUTHOR, NameType.PERSONAL, ())
+    assert (author.name.text, author.name.alto.words) == ("Jan Novák", ("D1W0", "D1W1"))
+    # Every role is read, with the agent's affiliations, each located on its own.
+    assert (translator.role, translator.name.text) == (AgentRole.TRANSLATOR, "Petr Malý")
+    [affiliation] = translator.affiliations
+    assert (affiliation.text, affiliation.alto.words) == ("Brno", ("D1W7",))
+    assert (first.subtitle_toc_page, first.agents_toc_page) == (None, ())
     # A title the OCR does not hold keeps its page, without a box.
     assert (appendix.title_toc_page.page_key, appendix.title_toc_page.bbox) == ("0008", None)
     assert {evidence.confidence for evidence in (first.title_toc_page, section.title_toc_page)} == {0.95}
@@ -123,7 +132,7 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     # Each page's OCR under its image index, its lines and blocks kept.
     assert "OBSAH\n\nI. Úvod 5\n\nII. Les a voda 12—30" in text
     assert "=== Image 0 === OCR (optional support): OBSAH" in words
-    assert "=== Image 1 === OCR (optional support): Jan Novák: Pramen u cesty 14" in words
+    assert "=== Image 1 === OCR (optional support): Jan Novák: Pramen u cesty Petr Malý (Brno) 14" in words
     assert "nnotation" not in text + system["content"][0]["text"] and "DRAFT" not in text
     assert [part["type"] for part in user["content"]].count("image_url") == 2
     assert request["response_format"]["json_schema"]["schema"] == engine.schema

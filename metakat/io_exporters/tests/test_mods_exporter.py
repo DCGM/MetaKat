@@ -9,6 +9,7 @@ from metakat.io_exporters.mods_exporter import (
     MODS_NS, PROVENANCE_NS, _media_fragment_xywh, export_mods, section_order,
 )
 from metakat.schemas.base_objects import (
+    AgentValue,
     GroupType,
     HierarchyType,
     MetakatArticle,
@@ -124,6 +125,9 @@ class _Batch:
         self.detection_to_page[value.id] = self.pages[page_index].id
         return value
 
+    def agent(self, text, name_type, page_index):
+        return AgentValue(**dict(self.v(text, 0.9, page_index)), type=name_type)
+
 
 @pytest.fixture
 def batch():
@@ -173,6 +177,23 @@ def test_a_redaktor_is_coded_as_an_editor_and_keeps_its_field_in_provenance(batc
     assert volume.xpath("//mkp:event[mkp:observedValue='Jan Novák']/@field", namespaces=NS) == ["redaktor"]
 
 
+def test_a_name_has_the_type_of_its_agent_and_every_role_its_code(batch, tmp_path):
+    batch.volume.issuingBody = [batch.agent("Univerzita Karlova", "corporate", 0)]
+    batch.volume.composer = [batch.agent("B. Smetana", "personal", 0)]
+    batch.volume.other = [batch.v("Jan Pomocný", 0.9, 0)]
+    volume = _export(batch, tmp_path)[str(batch.volume.id)]
+
+    def name(text, path):
+        return volume.xpath(f"//mods:name[mods:namePart='{text}']/{path}", namespaces=NS)
+
+    assert [attribute for attribute in name("Univerzita Karlova", "@type")] == ["corporate"]
+    assert [code.text for code in name("Univerzita Karlova", "mods:role/mods:roleTerm")] == ["isb"]
+    assert [code.text for code in name("B. Smetana", "mods:role/mods:roleTerm")] == ["cmp"]
+    # A name whose type is not known is written without one.
+    assert name("Jan Pomocný", "@type") == []
+    assert [code.text for code in name("Jan Pomocný", "mods:role/mods:roleTerm")] == ["oth"]
+
+
 def test_a_chapter_writes_its_own_reading_and_keeps_the_toc_one_in_provenance(batch, tmp_path):
     chapter = _export(batch, tmp_path)[str(batch.chapter.id)]
 
@@ -209,6 +230,30 @@ def test_a_chapters_toc_authors_are_names_unless_its_own_page_names_some(batch, 
     assert _texts(chapter, "/mods:mods/mods:name/mods:namePart") == ["ANNA NOVÁ"]
     events = chapter.xpath("//mkp:assertion[@property='namePart']/mkp:event/@field", namespaces=NS)
     assert events == ["author", "authorTocPage", "authorTocPage"]
+
+
+def test_a_chapters_toc_agent_is_one_name_with_its_affiliation_unless_its_own_page_has_the_role(batch, tmp_path):
+    translator, affiliation = batch.agent("Petr Malý", "personal", 2), batch.v("Brno", 0.9, 2)
+    batch.chapter.translatorTocPage = [translator]
+    batch.chapter.affiliationTocPage = [affiliation]
+    batch.chapter.groups = [*(batch.chapter.groups or []),
+                            MetakatGroup(type=GroupType.AGENT, members=[translator.id, affiliation.id])]
+    chapter = _export(batch, tmp_path)[str(batch.chapter.id)]
+
+    [name] = chapter.xpath("/mods:mods/mods:name", namespaces=NS)
+    assert name.get("type") == "personal"
+    assert _texts(chapter, "/mods:mods/mods:name/mods:namePart | /mods:mods/mods:name/mods:affiliation") == [
+        "Petr Malý", "Brno"]
+    assert _texts(chapter, "/mods:mods/mods:name/mods:role/mods:roleTerm") == ["trl"]
+
+    # The chapter's own translator wins: the TOC's, with its affiliation, backs it in provenance.
+    batch.chapter.translator = [batch.v("PETR MALÝ", 0.9, 1)]
+    chapter = _export(batch, tmp_path / "own")[str(batch.chapter.id)]
+
+    assert _texts(chapter, "/mods:mods/mods:name/mods:namePart") == ["PETR MALÝ"]
+    assert _texts(chapter, "/mods:mods/mods:name/mods:affiliation") == []
+    events = chapter.xpath("//mkp:assertion[@property='namePart']/mkp:event/@field", namespaces=NS)
+    assert events == ["translator", "translatorTocPage", "affiliationTocPage"]
 
 
 def test_grouped_runs_pair_and_ungrouped_starts_stand_alone(batch, tmp_path):

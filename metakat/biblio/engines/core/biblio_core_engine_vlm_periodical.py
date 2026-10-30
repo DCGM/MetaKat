@@ -14,15 +14,14 @@ is not read. Of the reply this engine reads:
   and year, the issue's number, date and name (`issuePartName`);
 - every `publication`, without its `publisherInferred` flag, `manufacture`,
   and the `frequency`, as part of the first imprint;
-- the `agents` in a role the core has a field for, each with its
-  `description` as its affiliations: an editor of a periodical is its
-  `redaktor`, which the periodical binder gives to the issue; an author,
-  translator, illustrator and photographer keep their role; a contributor,
-  composer, reviewer, issuing body and other role are not read.
+- the `agents`, each with its type and its `description` as its
+  affiliations, in the field of its role: an editor of a periodical is its
+  `redaktor`, which the periodical binder gives to the issue; every other
+  role keeps its name.
 
 Not read: `supplement` (the binder binds issues only), the statements of
-responsibility, `etal`, `distribution`, `issn`, `isbn`, the types and terms of
-address of the agents and the languages.
+responsibility, `etal`, `distribution`, `issn`, `isbn`, the terms of address
+of the agents and the languages.
 """
 from __future__ import annotations
 
@@ -41,7 +40,6 @@ from metakat.biblio.engines.core.biblio_core_engine_vlm import (
 )
 from metakat.biblio.engines.core.models import (
     AgentRole,
-    BiblioAgent,
     BiblioManufacture,
     BiblioPage,
     BiblioPublication,
@@ -53,8 +51,10 @@ from metakat.biblio.engines.core.models import (
 logger = logging.getLogger(__name__)
 
 _PERIODICAL = RESOURCES / "periodical"
-_ROLES = {"editor": AgentRole.REDAKTOR, "author": AgentRole.AUTHOR, "translator": AgentRole.TRANSLATOR,
-          "illustrator": AgentRole.ILLUSTRATOR, "photographer": AgentRole.PHOTOGRAPHER}
+# Every role the schema has is the field of the same name, but the editor of a
+# periodical is its redaktor.
+_ROLES = {**{role.value: role for role in AgentRole if role is not AgentRole.REDAKTOR},
+          "editor": AgentRole.REDAKTOR}
 
 # The dense body text: within one TextBlock, at least MIN_RUN consecutive
 # lines whose height is within HEIGHT_TOLERANCE of the page's body height and
@@ -113,15 +113,7 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         )
         for path, item in values.items(reply, "manufacture")
     ]
-    agents = []
-    for path, item in values.items(reply, "agents"):
-        role = _ROLES.get(item.get("role"))
-        name = values.one(path + ("name",), item.get("name"))
-        if role is None:
-            logger.debug("Span %s: a %s is not read", page_keys[0], item.get("role"))
-        elif name is not None:
-            agents.append(BiblioAgent(role=role, name=name,
-                                      affiliations=values.many(path + ("description",), item.get("description"))))
+    agents = values.agents(reply, _ROLES, page_keys[0])
     if reply.get("supplement") is True:
         logger.info("Span %s is a supplement; it is read as an issue", page_keys[0])
 
@@ -144,7 +136,7 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         title_infos=kept_containers(title_infos),
         publications=kept_containers(publications),
         manufactures=kept_containers(manufactures),
-        agents=tuple(agents),
+        agents=agents,
     )
     result = BiblioSpanResult(
         page_keys=tuple(page_keys),

@@ -750,9 +750,12 @@ title and whose second has only a part number reads as:
 { "title": ["Kytice", null], "partNumber": [null, "2"] }
 ```
 
-The six role-derived name fields — `author`, `illustrator`, `photographer`,
-`translator`, `editor`, `redaktor` — are a set of names rather than a column of
-an aligned group, so they never hold a placeholder and stay `List[str]`.
+The role-derived name fields — `author`, `illustrator`, `photographer`,
+`translator`, `editor`, `redaktor`, `composer`, `reviewer`, `issuingBody`,
+`contributor` and `other`, from the marcrelator codes `aut`, `ill`, `pht`, `trl`,
+`edt`, `red`, `cmp`, `rev`, `isb`, `ctb` and `oth` — are a set of names rather
+than a column of an aligned group, so they never hold a placeholder and stay
+`List[str]`.
 
 The same function backs the standalone parser, which writes the parsed package
 as JSON and exits non-zero when nothing usable could be read:

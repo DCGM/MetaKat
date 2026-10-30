@@ -1,11 +1,29 @@
 from __future__ import annotations
 
+import enum
 import math
 from dataclasses import dataclass, field
 from typing import Iterable
 
 
-__all__ = ["AltoRefs", "BoundingBox", "DetectionEvidence", "PageDimensions"]
+__all__ = ["AgentRole", "AltoRefs", "BoundingBox", "DetectionEvidence", "PageDimensions"]
+
+
+class AgentRole(str, enum.Enum):
+    """A name's role; each value is the MetakatAgents field it goes to, and with
+    the suffix TocPage the field of an internal part's TOC reading."""
+
+    AUTHOR = "author"
+    ILLUSTRATOR = "illustrator"
+    PHOTOGRAPHER = "photographer"
+    TRANSLATOR = "translator"
+    EDITOR = "editor"
+    REDAKTOR = "redaktor"
+    COMPOSER = "composer"
+    REVIEWER = "reviewer"
+    ISSUING_BODY = "issuingBody"
+    CONTRIBUTOR = "contributor"
+    OTHER = "other"
 
 
 @dataclass(frozen=True)

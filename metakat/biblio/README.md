@@ -169,7 +169,7 @@ container, so one `MetakatGroup` type:
 | `BiblioPublication` | `<originInfo eventType="publication">` / `originInfoPublication` | `places` → `placeTerm`, `publishers` → `publisher`, `date_issued` → `dateIssued`, `edition` → `edition`, `frequency` → `frequency` |
 | `BiblioManufacture` | `<originInfo eventType="manufacture">` / `originInfoManufacture` | `places` → `manufacturePlaceTerm`, `manufacturers` → `manufacturePublisher`, `date` → `manufactureDate` |
 | `BiblioSeries` | `<relatedItem type="series">` / `series` | `name` → `seriesName`, `part_number` → `seriesPartNumber`, `part_name` → `seriesPartName` |
-| `BiblioAgent` | `<name>` / `agent` | `name` → the field named by `role` (`AgentRole`: `author`, `illustrator`, `photographer`, `translator`, `editor`, `redaktor`), `affiliations` → `affiliation`, `emails` → `email` |
+| `BiblioAgent` | `<name>` / `agent` | `name` → the field named by `role` (`AgentRole`: `author`, `illustrator`, `photographer`, `translator`, `editor`, `redaktor`, `composer`, `reviewer`, `issuingBody`, `contributor`, `other`), as an `AgentValue` whose `type` is the agent's `type` (`NameType`: personal, corporate, conference, family; `None` when unknown), `affiliations` → `affiliation`, `emails` → `email` |
 
 A field typed `DetectionEvidence | None` holds one reading; a tuple field holds
 any number, in reading order. The mapping is declared on the dataclass fields
@@ -637,8 +637,8 @@ is not read:
 | imprint | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`, `edition` | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`; `frequency` in the first one |
 | printer | `manufacture[]`: one `BiblioManufacture` each | the same |
 | series | `series[]` - `seriesName`, `seriesPartNumber`, `seriesPartName` | - |
-| names | `agents[]` as author, editor, translator, illustrator, photographer; `description[]` as affiliations | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue); author, translator, illustrator, photographer as such; `description[]` as affiliations |
-| not read | `statementOfResponsibility`, `etal`, `distribution`, `copyrightDate`, `isbn`, `illustrativeContent`, `seriesIssn`, `seriesEditor`, the roles composer, reviewer, issuingBody, contributor and other, the agent `type`, `termsOfAddress`, `publisherInferred`, the languages | `supplement`, `statementOfResponsibility`, `etal`, `distribution`, `issn`, `isbn`, the roles contributor, composer, reviewer, issuingBody and other, the agent `type`, `termsOfAddress`, `publisherInferred`, the languages |
+| names | `agents[]`, each in its role, with its `type`; `description[]` as affiliations | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`; `description[]` as affiliations |
+| not read | `statementOfResponsibility`, `etal`, `distribution`, `copyrightDate`, `isbn`, `illustrativeContent`, `seriesIssn`, `seriesEditor`, `termsOfAddress`, `publisherInferred`, the languages | `supplement`, `statementOfResponsibility`, `etal`, `distribution`, `issn`, `isbn`, `termsOfAddress`, `publisherInferred`, the languages |
 
 Both schemas, and the TOC schema of the VLM chapter extraction, ask for the
 agents alike: one object per person, family or body, with the same roles
@@ -945,7 +945,7 @@ Matching and merging use the fields shared by `MetakatVolume` and the ProArc
 | Kind | Fields |
 |---|---|
 | Single-kept | `dateIssued`, `title`, `subTitle`, `edition`, `placeTerm` |
-| Keep-all | `publisher`, `manufacturePublisher`, `manufacturePlaceTerm`, `author`, `illustrator`, `photographer`, `translator`, `editor`, `seriesName`, `seriesPartNumber` |
+| Keep-all | `publisher`, `manufacturePublisher`, `manufacturePlaceTerm`, `author`, `illustrator`, `photographer`, `translator`, `editor`, `composer`, `reviewer`, `issuingBody`, `contributor`, `other`, `seriesName`, `seriesPartNumber` |
 
 Both kinds are lists of `Value`s; a single-kept field holds one. Record values
 are looked up by the MetaKat field name except where the ProArc parser names

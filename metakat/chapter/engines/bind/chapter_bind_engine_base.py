@@ -13,6 +13,7 @@ from metakat.common.aux.document_groups import (
 )
 from metakat.chapter.engines.bind.chapter_bind_engine import ChapterBindEngine
 from metakat.chapter.engines.core.models import (
+    ChapterAgent,
     ChapterPageNumberEvidence,
     ChapterPageNumberKind,
     ChapterResult,
@@ -30,6 +31,7 @@ from metakat.chapter.engines.core.physical_page_numbers.parsers import (
     DecoratedPageNumberParser,
 )
 from metakat.schemas.base_objects import (
+    AgentValue,
     DocumentType,
     GroupType,
     MetakatAltoRefs,
@@ -343,7 +345,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 return None
             return [(page.pageIndex, uuid4())]
 
-        def new_value(evidence: DetectionEvidence, text: str) -> Value:
+        def new_value(evidence: DetectionEvidence, text: str, value_type: type[Value] = Value, **fields) -> Value:
             # Every value gets its own id; values read from one region share
             # its geometry, page and ALTO elements.
             source_page = page_by_key.get(evidence.page_key)
@@ -367,7 +369,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                     lines=list(evidence.alto.lines),
                     words=list(evidence.alto.words),
                 )
-            return Value(text=text, confidence=evidence.confidence, id=value_id)
+            return value_type(text=text, confidence=evidence.confidence, id=value_id, **fields)
 
         def bind_evidence(
             evidence: DetectionEvidence | None,
@@ -377,6 +379,21 @@ class ChapterBindEngineBase(ChapterBindEngine):
             if evidence is None:
                 return None
             return [new_value(evidence, evidence.text)]
+
+        def bind_agents(
+            agents: tuple[ChapterAgent, ...],
+        ) -> tuple[dict[str, list[Value]], list[list[UUID]]]:
+            # Each name, with what the agent is, goes to the TOC field of its
+            # role; a name and its affiliations are one <name>.
+            fields: dict[str, list[Value]] = {}
+            groups = []
+            for agent in agents:
+                name = new_value(agent.name, agent.name.text, AgentValue, type=agent.type)
+                affiliations = [new_value(evidence, evidence.text) for evidence in agent.affiliations]
+                fields.setdefault(f"{agent.role.value}TocPage", []).append(name)
+                fields.setdefault("affiliationTocPage", []).extend(affiliations)
+                groups.append([name.id, *(value.id for value in affiliations)])
+            return {field: values for field, values in fields.items() if values}, groups
 
         def bind_page_numbers(
             evidence: ChapterPageNumberEvidence | None,
@@ -460,9 +477,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
             title_toc_page = bind_evidence(resolved.title_toc_page)
             subtitle_toc_page = bind_evidence(resolved.subtitle_toc_page)
             description_toc_page = bind_evidence(resolved.description_toc_page)
-            authors_toc_page = [
-                value for author in resolved.authors_toc_page for value in bind_evidence(author)
-            ] or None
+            agents_toc_page, agent_groups = bind_agents(resolved.agents_toc_page)
             part_number_toc_page = bind_evidence(resolved.part_number_toc_page)
             page_number_start, page_number_end = bind_page_numbers(
                 resolved.page_number_toc_page
@@ -477,7 +492,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 titleTocPage=title_toc_page,
                 subTitleTocPage=subtitle_toc_page,
                 partNumberTocPage=part_number_toc_page,
-                authorTocPage=authors_toc_page,
+                **agents_toc_page,
                 pageNumberStartTocPage=page_number_start,
                 pageNumberEndTocPage=page_number_end,
                 abstractTocPage=description_toc_page,
@@ -487,6 +502,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                     page_index_end=page_index_end,
                     page_number_start=page_number_start,
                     page_number_end=page_number_end,
+                    agents=agent_groups,
                 ),
             )
             logger.debug(
@@ -526,12 +542,14 @@ class ChapterBindEngineBase(ChapterBindEngine):
         page_index_end: list[tuple[int, UUID]] | None,
         page_number_start: list[Value] | None,
         page_number_end: list[Value] | None,
+        agents: list[list[UUID]] | None = None,
     ) -> list[MetakatGroup] | None:
         # Only what this binder knows belongs together. All title readings
         # describe the one chapter. The resolved scan start and end are its
         # one run, and a single or range TOC reference is the number the core
         # aligned that run to; a list is left out, since which of its pages
-        # the run belongs to is not known here. A group of one pairs nothing.
+        # the run belongs to is not known here. An agent's name and its
+        # affiliations are one <name>. A group of one pairs nothing.
         groups = []
         title_members = [value.id for values in titles for value in (values or [])]
         if len(title_members) > 1:
@@ -543,6 +561,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
             run_members += [value.id for value in (page_number_end or [])]
         if len(run_members) > 1:
             groups.append(MetakatGroup(type=GroupType.PAGE_RANGE, members=run_members))
+        groups += [MetakatGroup(type=GroupType.AGENT, members=members) for members in agents or () if len(members) > 1]
         return groups or None
 
     @staticmethod

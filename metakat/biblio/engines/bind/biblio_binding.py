@@ -35,6 +35,7 @@ from metakat.biblio.engines.core.models import (
 from metakat.common.aux.document_groups import assign_page_indices, bottom_documents, lowest_document_groups
 from metakat.common.vlm.report import VLMCallReport
 from metakat.schemas.base_objects import (
+    AgentValue,
     DocumentType,
     GroupType,
     HierarchyType,
@@ -264,7 +265,12 @@ def span_candidates(
         for container in (reading.containers() if reading is not None else ()):
             values = []
             for field_name, evidence in container_values(container):
-                value = Value(text=evidence.text, confidence=evidence.confidence, id=uuid4())
+                if isinstance(container, BiblioAgent) and field_name == container.role.value:
+                    # The name, with what the agent is.
+                    value = AgentValue(text=evidence.text, confidence=evidence.confidence, id=uuid4(),
+                                       type=container.type)
+                else:
+                    value = Value(text=evidence.text, confidence=evidence.confidence, id=uuid4())
                 if detection_page_keys is not None:
                     detection_page_keys[value.id] = evidence.page_key
                 bbox = evidence.bbox

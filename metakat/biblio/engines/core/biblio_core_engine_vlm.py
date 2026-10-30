@@ -57,13 +57,14 @@ from typing import Any, Callable, ClassVar, Iterable, Optional, Sequence
 
 from metakat.biblio.engines.core.biblio_core_engine import BiblioCoreEngine
 from metakat.biblio.engines.core.models import (
+    BiblioAgent,
     BiblioCoreResult,
     BiblioPage,
     BiblioSpan,
     BiblioSpanResult,
     container_values,
 )
-from metakat.common.models import AltoRefs, BoundingBox, DetectionEvidence
+from metakat.common.models import AgentRole, AltoRefs, BoundingBox, DetectionEvidence
 from metakat.common.vlm import (
     VLMCallReport,
     VLMClient,
@@ -76,6 +77,7 @@ from metakat.common.vlm import (
     render_prompts,
 )
 from metakat.common.vlm.local_server import LocalModelConfig, serve
+from metakat.schemas.base_objects import NameType
 
 logger = logging.getLogger(__name__)
 
@@ -309,6 +311,25 @@ class ReplyValues:
         for index, item in enumerate(reply.get(key) or ()):
             if isinstance(item, Mapping):
                 yield (key, index), item
+
+    def agents(self, reply: Mapping[str, Any], roles: Mapping[str, AgentRole],
+               page_key: str) -> tuple[BiblioAgent, ...]:
+        """Every named object under `agents`, in the role `roles` gives its role, with
+        its type and its description as its affiliations."""
+        agents = []
+        for path, item in self.items(reply, "agents"):
+            role = roles.get(item.get("role"))
+            name = self.one(path + ("name",), item.get("name"))
+            label = item.get("type")
+            if role is None:
+                logger.debug("Span %s: a %s is not read", page_key, item.get("role"))
+            elif name is not None:
+                agents.append(BiblioAgent(
+                    role=role, name=name,
+                    type=NameType(label) if isinstance(label, str) and label in NameType._value2member_map_ else None,
+                    affiliations=self.many(path + ("description",), item.get("description")),
+                ))
+        return tuple(agents)
 
 
 def _alignable(reply: Any, label_keys: frozenset[str] = frozenset()) -> Any:

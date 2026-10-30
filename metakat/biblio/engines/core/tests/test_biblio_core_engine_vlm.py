@@ -23,6 +23,7 @@ from metakat.biblio.engines.core.models import (
     container_values,
 )
 from metakat.common.models import AltoRefs, BoundingBox
+from metakat.schemas.base_objects import NameType
 
 # A title page: author, title on two lines, imprint. Words carry IDs; the
 # blocks and lines too.
@@ -476,7 +477,7 @@ def test_a_page_in_two_spans_is_rejected(page):
 # --- the monograph engine -----------------------------------------------------
 
 
-def test_the_monograph_engine_keeps_the_deepest_part_and_the_roles_it_has_fields_for(page):
+def test_the_monograph_engine_keeps_the_deepest_part_and_every_agent_with_its_role_and_type(page):
     reply = {**_REPLY,
              "titleInfo": [{"title": "KYTICE", "subTitle": None, "lang": "cze", "parts": [
                  {"level": 1, "partNumber": "I", "partName": "PŮDA"},
@@ -496,9 +497,11 @@ def test_the_monograph_engine_keeps_the_deepest_part_and_the_roles_it_has_fields
     assert (title_info.part_number.text, title_info.part_name.text) == ("4", "ČECHY")
     [series] = result.reading.series
     assert (series.name.text, series.part_number.text) == ("SVĚTOVÁ KNIHOVNA", "sv. 312")
-    [translator] = result.reading.agents
-    assert translator.role == AgentRole.TRANSLATOR
+    translator, composer, body = result.reading.agents
+    assert (translator.role, translator.type) == (AgentRole.TRANSLATOR, NameType.PERSONAL)
     assert [a.text for a in translator.affiliations] == ["c. k. professor v Praze"]
+    assert (composer.role, composer.name.text) == (AgentRole.COMPOSER, "B. SMETANA")
+    assert (body.role, body.type) == (AgentRole.ISSUING_BODY, NameType.CORPORATE)
     assert result.periodical_volume is None and result.periodical_issue is None
 
 
@@ -537,7 +540,10 @@ def test_the_periodical_engine_reads_the_volume_the_issue_and_the_editor_as_reda
     [publication] = result.reading.publications
     assert [p.text for p in publication.places] == ["Praze"]
     assert publication.frequency.text == "Vychází každou sobotu"
-    assert [(a.role, a.name.text) for a in result.reading.agents] == [(AgentRole.REDAKTOR, "K. J. ERBEN")]
+    # The editor of a periodical is its redaktor; every other role keeps its name.
+    assert [(a.role, a.name.text, a.type) for a in result.reading.agents] == [
+        (AgentRole.REDAKTOR, "K. J. ERBEN", NameType.PERSONAL),
+        (AgentRole.ISSUING_BODY, "Spolek", NameType.CORPORATE)]
 
 
 def test_a_periodical_frequency_without_an_imprint_is_an_imprint_of_its_own(page):

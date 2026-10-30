@@ -90,7 +90,7 @@ ChapterResult(
     title_toc_page: DetectionEvidence | None,
     subtitle_toc_page: DetectionEvidence | None = None,
     description_toc_page: DetectionEvidence | None = None,
-    authors_toc_page: tuple[DetectionEvidence, ...] = (),
+    agents_toc_page: tuple[ChapterAgent, ...] = (),
     part_number_toc_page: DetectionEvidence | None = None,
     page_number_toc_page: ChapterPageNumberEvidence | None = None,
     title: DetectionEvidence | None = None,
@@ -105,7 +105,7 @@ ChapterResult(
 | `toc_page_key` | Input image stem of the page containing the source TOC entry. |
 | `title_toc_page` | Title evidence from the TOC page, when available. |
 | `subtitle_toc_page` | Optional subtitle completing the entry's title on the TOC page. |
-| `authors_toc_page` | The authors printed with the TOC entry, one evidence per name, in printed order; empty when none. |
+| `agents_toc_page` | The persons and bodies printed with the TOC entry, in printed order; empty when none. |
 | `description_toc_page` | Optional synopsis printed with the TOC entry: what the chapter covers, often with the page numbers of its topics. It is not a subtitle. |
 | `part_number_toc_page` | Optional chapter or section-number evidence from the TOC page. |
 | `page_number_toc_page` | Optional parsed destination-page reference from the TOC page. It retains the original OCR evidence as well as the normalized values supplied by the TOC-producing engine. It is not the physical number detected on the destination page. |
@@ -425,7 +425,7 @@ ChapterBase(
     title_toc_page: DetectionEvidence | None,
     subtitle_toc_page: DetectionEvidence | None = None,
     description_toc_page: DetectionEvidence | None = None,
-    authors_toc_page: tuple[DetectionEvidence, ...] = (),
+    agents_toc_page: tuple[ChapterAgent, ...] = (),
     part_number_toc_page: DetectionEvidence | None = None,
     page_number_toc_page: ChapterPageNumberEvidence | None = None,
     children: tuple[ChapterBase, ...] = (),
@@ -437,7 +437,7 @@ ChapterBase(
 | `toc_page_key` | Physical TOC page containing the entry. It is present even when the entry has no title evidence. |
 | `title_toc_page` | Chapter title detected on the TOC page. This remains distinct from a title later found on the destination page, which `ChapterResult` holds as `title`. |
 | `subtitle_toc_page` | Optional subtitle completing the entry's title on the TOC page; the VLM engine reads it, the YOLO engine has none. |
-| `authors_toc_page` | The authors printed with the entry - a byline before or after the title - one evidence per name, in printed order; the VLM engine reads them, the YOLO engine none. |
+| `agents_toc_page` | The persons and bodies printed with the entry - a byline before or after the title - in printed order, each a `ChapterAgent`: its `role` (`AgentRole`, the MetaKat field it goes to), its `name` evidence, its `type` (`NameType`, `None` when unknown) and its `affiliations` evidence. The VLM engine reads them, the YOLO engine none. |
 | `description_toc_page` | Optional synopsis printed with the entry: what the chapter covers, often with the page numbers of its topics. The YOLO engine fills it from its `Subtitle` class (`podnadpis`), which the annotators put on the synopsis, the VLM engine from `titleInfo[].description`. A description never creates an entry by itself. |
 | `part_number_toc_page` | Optional chapter/section number printed as part of the TOC entry, such as `2.3`. It is not the destination page number. |
 | `page_number_toc_page` | Optional parsed `PageNumber` printed in the TOC entry. It denotes the destination page number and retains the complete source evidence together with normalized semantic values for alignment. |
@@ -1625,7 +1625,7 @@ Of each entry the engine reads:
 | `titleInfo[0].title`, the first language version; else `designation` | `title_toc_page` |
 | `titleInfo[0].subTitle`, its subtitle | `subtitle_toc_page` |
 | `titleInfo[0].description`, its synopsis | `description_toc_page` |
-| `agents[].name` of the agents in the role `author` | `authors_toc_page` |
+| `agents[]`, each in its `role` (never `redaktor`), with its `type` and its `description[]` as affiliations; each name and affiliation is located on its own | `agents_toc_page` |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |
 | `pageReference`, parsed by `ArabicRomanChapterPageNumberParser` | `page_number_toc_page` |
 
@@ -2291,7 +2291,8 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 | `titleTocPage` | `title_toc_page`: title evidence detected on the TOC page. |
 | `subTitleTocPage` | `subtitle_toc_page`: a subtitle completing the entry's title on the TOC page. |
 | `partNumberTocPage` | `part_number_toc_page`: part-number evidence detected on the TOC page. |
-| `authorTocPage` | `authors_toc_page`: one value per author printed with the TOC entry, written to MODS as `<name>` with role `aut` unless the chapter's own page names authors; in no group. |
+| `authorTocPage`, `translatorTocPage`, … | `agents_toc_page`: each name in the TOC field of its role (`<role>TocPage`), an `AgentValue` with the agent's `type`; written to MODS as `<name>` unless the chapter's own page has a name in that role. |
+| `affiliationTocPage` | The affiliations of those agents, each in an `agent` group with its name. |
 | `pageNumberStartTocPage` | `page_number_toc_page` split by its parsed kind: a single page gives one start, a range its first page, a list one start per listed page, and a reference that failed to parse its original text. It is not the physical page number. |
 | `pageNumberEndTocPage` | The last page of a range reference; otherwise `None`. |
 | `abstractTocPage` | `description_toc_page`: the synopsis printed with the TOC entry, written to MODS as `<abstract>`; it is in no group. |
@@ -2311,6 +2312,7 @@ only when it would have at least two members:
   when the reference is a single page or a range - the number the core aligned
   that run to. The pages of a list reference stay ungrouped, since which of
   them the run belongs to is not known here.
+- `agent`: a TOC agent's name and its affiliations - one `<name>`.
 
 Page keys are translated through the image-stem mapping for the processed
 document. An unknown TOC or evidence page key is an error. Unknown start/end

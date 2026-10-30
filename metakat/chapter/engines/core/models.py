@@ -4,8 +4,9 @@ import enum
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from metakat.common.models import DetectionEvidence, PageDimensions
+from metakat.common.models import AgentRole, DetectionEvidence, PageDimensions
 from metakat.common.vlm.report import VLMCallReport
+from metakat.schemas.base_objects import NameType
 from metakat.chapter.engines.core.physical_page_numbers.models import (
     PageNumberNumeralSystem,
     PageNumberTextCase,
@@ -100,6 +101,18 @@ class ChapterPageNumberEvidence(DetectionEvidence):
         return apply_page_number_text_case(self.text, case)
 
 
+@dataclass(frozen=True)
+class ChapterAgent:
+    """A person or body printed with a TOC entry: its name in its role (MetakatChapter's
+    field of the role with the suffix TocPage), what it is when known, and its
+    affiliations (affiliationTocPage)."""
+
+    role: AgentRole
+    name: DetectionEvidence
+    type: NameType | None = None
+    affiliations: tuple[DetectionEvidence, ...] = ()
+
+
 # Field names follow the MetaKat schema (MetakatChapter): a `_toc_page` field
 # was read in the table-of-contents entry, an unsuffixed one on the chapter's
 # own destination page.
@@ -111,9 +124,8 @@ class ChapterBase:
     # The synopsis printed with the entry - what the chapter covers, often with
     # page numbers of its topics - not a subtitle (MetakatChapter.abstractTocPage).
     description_toc_page: DetectionEvidence | None = field(default=None, kw_only=True)
-    # The authors printed with the entry, one evidence per name, in printed
-    # order (MetakatChapter.authorTocPage).
-    authors_toc_page: tuple[DetectionEvidence, ...] = field(default=(), kw_only=True)
+    # The persons and bodies printed with the entry, in printed order.
+    agents_toc_page: tuple[ChapterAgent, ...] = field(default=(), kw_only=True)
     part_number_toc_page: DetectionEvidence | None = None
     page_number_toc_page: ChapterPageNumberEvidence | None = None
     children: tuple[ChapterBase, ...] = ()

@@ -74,10 +74,19 @@ ROLE_CODES = {
     "translator": "trl",
     "editor": "edt",
     "redaktor": "edt",
-    "reviewedWorkAuthor": "aut",
-    "authorTocPage": "aut",
+    "composer": "cmp",
+    "reviewer": "rev",
+    "issuingBody": "isb",
+    "contributor": "ctb",
+    "other": "oth",
 }
-AGENT_FIELDS = ("author", "illustrator", "photographer", "translator", "editor", "redaktor", "affiliation")
+AGENT_FIELDS = (*ROLE_CODES, "affiliation")
+# An internal part's agents read in its TOC entry: the same fields with the
+# suffix TocPage; a TOC names no redaktor.
+TOC_AGENT_FIELDS = tuple(f"{field_name}TocPage" for field_name in AGENT_FIELDS if field_name != "redaktor")
+ROLE_CODES |= {f"{field_name}TocPage": code for field_name, code in ROLE_CODES.items() if field_name != "redaktor"}
+ROLE_CODES["reviewedWorkAuthor"] = "aut"
+_AFFILIATION_FIELDS = ("affiliation", "affiliationTocPage")
 
 def _m(tag: str) -> str:
     return f"{{{MODS_NS}}}{tag}"
@@ -215,21 +224,35 @@ def _mark_toc_readings(record: _Record) -> None:
         return
     for own, toc in (("title", "titleTocPage"), ("subTitle", "subTitleTocPage"),
                      ("partNumber", "partNumberTocPage"), ("abstract", "abstractTocPage"),
-                     ("author", "authorTocPage")):
+                     *((toc.removesuffix("TocPage"), toc) for toc in TOC_AGENT_FIELDS
+                       if toc not in _AFFILIATION_FIELDS)):
         own_values = _values(record.element, own)
         toc_values = _values(record.element, toc)
         if own_values and toc_values:
             record.supplementary.setdefault(own_values[0].id, []).extend(
                 (value, toc) for value in toc_values
             )
+    # A TOC affiliation goes with the name it describes.
+    for group in record.element.groups or []:
+        if group.type != GroupType.AGENT.value:
+            continue
+        backed = next((own_id for own_id, readings in record.supplementary.items()
+                       if any(value.id in group.members for value, _ in readings)), None)
+        if backed is not None:
+            record.supplementary[backed].extend(
+                (value, "affiliationTocPage") for value in _values(record.element, "affiliationTocPage")
+                if value.id in group.members
+            )
 
 
 def _names(record: _Record) -> None:
-    for members in _consume_groups(record, GroupType.AGENT.value, (*AGENT_FIELDS, "authorTocPage")):
-        container, target = record.container(record.root, "name")
+    for members in _consume_groups(record, GroupType.AGENT.value, (*AGENT_FIELDS, *TOC_AGENT_FIELDS)):
+        # What the agent is, when its names agree on it.
+        types = {getattr(value, "type", None) for value, field_name in members} - {None}
+        container, target = record.container(record.root, "name", **({"type": types.pop()} if len(types) == 1 else {}))
         roles = []
         for value, field_name in members:
-            if field_name == "affiliation":
+            if field_name in _AFFILIATION_FIELDS:
                 continue
             record.leaf(container, "namePart", value.text)
             record.value(target, container, "namePart", value, field_name)
@@ -239,7 +262,7 @@ def _names(record: _Record) -> None:
             role = ET.SubElement(container, _m("role"))
             record.leaf(role, "roleTerm", code, type="code", authority="marcrelator")
         for value, field_name in members:
-            if field_name == "affiliation":
+            if field_name in _AFFILIATION_FIELDS:
                 record.leaf(container, "affiliation", value.text)
                 record.value(target, container, "affiliation", value, field_name)
 
@@ -380,7 +403,7 @@ _BIBLIOGRAPHIC_SECTIONS = {
 _INTERNAL_PART_SECTIONS = {
     **_COMMON_SECTIONS,
     "titleTocPage": "titleInfo", "subTitleTocPage": "titleInfo", "partNumberTocPage": "titleInfo",
-    "authorTocPage": "name",
+    **{field_name: "name" for field_name in TOC_AGENT_FIELDS},
     "articleGenre": "genre",
     # An internal part has no <originInfo>; its date is written to provenance only.
     "dateIssued": "provenance:dateIssued",

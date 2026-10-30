@@ -35,6 +35,7 @@ from metakat.schemas.base_objects import (
     MetakatPage,
     MetakatTitle,
     MetakatVolume,
+    NameType,
     PageType,
     Value,
 )
@@ -95,6 +96,22 @@ def test_an_agent_is_bound_to_the_volume_with_its_geometry(metakat_page):
     assert _tc(volume.photographer) == ("Jane Doe", 0.8)
     assert detection_to_bbox[volume.photographer[0].id] == (10, 40, 100, 20)
     assert len(detection_to_bbox) == 2
+
+
+def test_an_agents_name_carries_what_the_agent_is(metakat_page):
+    page = _page_result(_titled(agents=(
+        BiblioAgent(role=AgentRole.ISSUING_BODY, name=_ev("Univerzita Karlova", 0.8), type=NameType.CORPORATE,
+                    affiliations=(_ev("Praha", 0.8),)),
+        BiblioAgent(role=AgentRole.AUTHOR, name=_ev("Jan Novák", 0.8)),
+    )))
+
+    volume, _ = span_candidates(page)[0]
+
+    [body] = volume.issuingBody
+    assert (body.text, body.type) == ("Univerzita Karlova", "corporate")
+    # A reader that does not tell persons from bodies leaves the type unknown.
+    assert volume.author[0].type is None
+    assert isinstance(volume.affiliation[0], Value) and not hasattr(volume.affiliation[0], "type")
 
 
 def test_readings_without_a_title_are_not_referenced(metakat_page):

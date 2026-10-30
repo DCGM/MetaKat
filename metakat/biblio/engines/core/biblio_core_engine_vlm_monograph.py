@@ -11,13 +11,12 @@ in it is not read. Of the reply this engine reads:
   model derived from the page - the author of a book published "nákladem
   vlastním" - is read as the publisher;
 - every `manufacture` and `series` (without its ISSN and editors);
-- the `agents` in a role the core has a field for - author, editor,
-  translator, illustrator, photographer - each with its `description` as its
-  affiliations; a composer, a reviewer and an issuing body are not read.
+- the `agents`, each in the field of its role, with its type and its
+  `description` as its affiliations.
 
 Not read: the statements of responsibility, `etal`, `distribution`,
-`copyrightDate`, `isbn`, `illustrativeContent`, the terms of address and the
-languages.
+`copyrightDate`, `isbn`, `illustrativeContent`, the terms of address of the
+agents and the languages.
 """
 from __future__ import annotations
 
@@ -34,7 +33,6 @@ from metakat.biblio.engines.core.biblio_core_engine_vlm import (
 )
 from metakat.biblio.engines.core.models import (
     AgentRole,
-    BiblioAgent,
     BiblioManufacture,
     BiblioPublication,
     BiblioReading,
@@ -46,8 +44,8 @@ from metakat.biblio.engines.core.models import (
 logger = logging.getLogger(__name__)
 
 _MONOGRAPH = RESOURCES / "monograph"
-_ROLES = {role.value: role for role in (AgentRole.AUTHOR, AgentRole.EDITOR, AgentRole.TRANSLATOR,
-                                        AgentRole.ILLUSTRATOR, AgentRole.PHOTOGRAPHER)}
+# Every role the schema has is the field of the same name.
+_ROLES = {role.value: role for role in AgentRole if role is not AgentRole.REDAKTOR}
 
 
 class BiblioCoreEngineVLMMonograph(BiblioCoreEngineVLMBase):
@@ -101,21 +99,13 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         )
         for path, item in values.items(reply, "series")
     ]
-    agents = []
-    for path, item in values.items(reply, "agents"):
-        role = _ROLES.get(item.get("role"))
-        name = values.one(path + ("name",), item.get("name"))
-        if role is None:
-            logger.debug("Span %s: a %s is not read", page_keys[0], item.get("role"))
-        elif name is not None:
-            agents.append(BiblioAgent(role=role, name=name,
-                                      affiliations=values.many(path + ("description",), item.get("description"))))
+    agents = values.agents(reply, _ROLES, page_keys[0])
     reading = BiblioReading(
         title_infos=kept_containers(title_infos),
         publications=kept_containers(publications),
         manufactures=kept_containers(manufactures),
         series=kept_containers(series),
-        agents=tuple(agents),
+        agents=agents,
     )
     if reading.is_empty():
         return None

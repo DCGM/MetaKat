@@ -28,9 +28,9 @@ one against the Library of Congress schema.
 |---|---|
 | element type | `<genre>`; an article's `articleGenre` as `genre@type` |
 | `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>` |
-| agents | `<name><namePart>` whole, with `role/roleTerm` marcrelator code: `aut`, `ill`, `pht`, `trl`, `edt` - a redaktor is `edt`, as in Czech records |
+| agents | `<name><namePart>` whole, with `role/roleTerm` marcrelator code: `aut`, `ill`, `pht`, `trl`, `edt`, `cmp` (composer), `rev` (reviewer), `isb` (issuingBody), `ctb` (contributor), `oth` (other) - a redaktor is `edt`, as in Czech records; the name's `type` (personal, corporate, conference, family) as `name@type` when its values agree on one |
 | `affiliation` | `<name><affiliation>` |
-| internal part `authorTocPage` | `<name>` with role `aut`, unless the part's own page names authors |
+| internal part `authorTocPage`, `translatorTocPage`, … (every role but redaktor) and `affiliationTocPage` | `<name>` as the agents, unless the part's own page has a name in the same role; an affiliation follows its name |
 | `publisher`, `placeTerm`, `dateIssued`, `edition`, `frequency` | `<originInfo eventType="publication">`, publisher as `agent/namePart` with role `publisher` |
 | `copyrightDate` | `<originInfo eventType="copyright">` |
 | manufacture fields | `<originInfo eventType="manufacture">`, printer as `agent` with role `manufacturer`, date as `dateOther type="manufacture"` |

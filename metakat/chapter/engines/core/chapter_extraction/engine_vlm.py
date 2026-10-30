@@ -27,9 +27,9 @@ Of an entry the stage reads:
   read;
 - the subtitle and the synopsis of its first `titleInfo` object, as
   `subtitle_toc_page` and `description_toc_page`;
-- the names of its `agents` in the role of an author, as `authors_toc_page`,
-  one evidence per name; the agents in other roles, their types, terms of
-  address and descriptions are not read;
+- its `agents`, as `agents_toc_page`, each in its role, with its type and
+  its `description` as its affiliations, every name and affiliation
+  located as a value of its own; the terms of address are not read;
 - its `partNumber`, the printed numbering without its words, as
   `part_number_toc_page`;
 - its `pageReference`, parsed as the YOLO stage parses a detected reference
@@ -68,8 +68,8 @@ from typing import Any, Optional, Sequence
 from metakat.chapter.engines.core.chapter_page_number_parsers import (
     ArabicRomanChapterPageNumberParser,
 )
-from metakat.chapter.engines.core.models import ChapterBase, ChapterPageInput, TocBase
-from metakat.common.models import AltoRefs, BoundingBox, DetectionEvidence
+from metakat.chapter.engines.core.models import ChapterAgent, ChapterBase, ChapterPageInput, TocBase
+from metakat.common.models import AgentRole, AltoRefs, BoundingBox, DetectionEvidence
 from metakat.common.vlm import (
     VLMCallReport,
     VLMClient,
@@ -83,6 +83,7 @@ from metakat.common.vlm import (
 )
 from metakat.common.vlm.local_server import LocalModelConfig, serve
 from metakat.engine_config import require_config_mapping
+from metakat.schemas.base_objects import NameType
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,8 @@ DEFAULT_CONFIDENCE = 0.95
 # The CP-SAT selection is exact but may take long on a page with many
 # candidates; past this limit the best selection found so far is used.
 _SELECTION_TIME_LIMIT_SECONDS = 10.0
+# Every role the schema has is the field of the same name; a TOC names no redaktor.
+_ROLES = {role.value: role for role in AgentRole if role is not AgentRole.REDAKTOR}
 
 
 class ChapterExtractionEngineVLM:
@@ -262,9 +265,7 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
                 title_toc_page=evidence(index, "title", _title_text(entry)),
                 subtitle_toc_page=evidence(index, "subTitle", _first_title_info(entry).get("subTitle")),
                 description_toc_page=evidence(index, "description", _first_title_info(entry).get("description")),
-                authors_toc_page=tuple(
-                    found for item, name in enumerate(_authors(entry))
-                    if (found := evidence(index, "authors", name, item)) is not None),
+                agents_toc_page=_toc_agents(index, entry, evidence),
                 part_number_toc_page=evidence(index, "partNumber", entry.get("partNumber")),
                 page_number_toc_page=None if reference is None else ArabicRomanChapterPageNumberParser.create(reference),
             ),
@@ -308,11 +309,34 @@ def _title_text(entry: Mapping[str, Any]) -> Any:
     return _own_title(entry) or entry.get("designation")
 
 
-def _authors(entry: Mapping[str, Any]) -> list[str]:
-    # The names of the entry's agents in the role of its author.
-    names = (agent.get("name") for agent in entry.get("agents") or ()
-             if isinstance(agent, Mapping) and agent.get("role") == "author")
-    return [name for name in names if isinstance(name, str) and name.strip()]
+def _agents(entry: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    # The entry's agents with a name, in a role the stage knows.
+    return [agent for agent in entry.get("agents") or ()
+            if isinstance(agent, Mapping) and agent.get("role") in _ROLES
+            and isinstance(agent.get("name"), str) and agent["name"].strip()]
+
+
+def _descriptions(agent: Mapping[str, Any]) -> list[str]:
+    return [text for text in agent.get("description") or () if isinstance(text, str) and text.strip()]
+
+
+def _toc_agents(index: int, entry: Mapping[str, Any], evidence) -> tuple[ChapterAgent, ...]:
+    # An affiliation is located by its position among all the entry's
+    # affiliations, as _entry_texts lists them.
+    agents, position = [], 0
+    for item, agent in enumerate(_agents(entry)):
+        affiliations = []
+        for text in _descriptions(agent):
+            affiliations.append(evidence(index, "affiliations", text, position))
+            position += 1
+        label = agent.get("type")
+        agents.append(ChapterAgent(
+            role=_ROLES[agent["role"]],
+            name=evidence(index, "agents", agent["name"], item),
+            type=NameType(label) if isinstance(label, str) and label in NameType._value2member_map_ else None,
+            affiliations=tuple(affiliations),
+        ))
+    return tuple(agents)
 
 
 def _bare(text: str) -> str:
@@ -334,7 +358,8 @@ def _entry_texts(entry: Mapping[str, Any]) -> dict:
         "title": _title_text(entry),
         "subTitle": _first_title_info(entry).get("subTitle"),
         "description": _first_title_info(entry).get("description"),
-        "authors": _authors(entry),
+        "agents": [agent["name"] for agent in _agents(entry)],
+        "affiliations": [text for agent in _agents(entry) for text in _descriptions(agent)],
         "partNumber": entry.get("partNumber"),
         "pageReference": entry.get("pageReference"),
     }
