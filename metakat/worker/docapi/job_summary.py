@@ -233,7 +233,7 @@ def _result_summary(data: Mapping[str, Any], mods_dir: Path) -> dict:
         mods_counts=None if mods_counts is None else _ordered(mods_counts, also=json_counts),
         numbered=sum(1 for page in pages if page.get("pageNumber")),
         page_types=tuple(page_types.most_common()),
-        fields=tuple((kind, n) for kind, n in fields.most_common() if n),
+        fields=tuple((kind, n) for kind, n in _ordered(fields) if n),
         hierarchy=hierarchy,
         documents=len(document_ids),
         unassigned_pages=sum(1 for page in pages if page.get("parent_id") not in by_id),

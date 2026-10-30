@@ -140,7 +140,7 @@ def test_the_output_compares_json_and_mods_and_counts_pages_types_and_fields(tmp
             "          0 supplements, 8 pages\n"
             " numbered 4 pages\n"
             " types    titlePage 3, blank 1, map 1\n"
-            " fields   issue 3, title 2, volume 2,\n"
+            " fields   title 2, volume 2, issue 3,\n"
             "          supplement 1\n\n") in body
 
 
