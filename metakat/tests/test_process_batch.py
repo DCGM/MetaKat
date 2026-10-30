@@ -110,6 +110,33 @@ def test_process_batch_runs_page_number_before_and_after_page_type():
     assert order == ["page_number", "page_type", "page_number final", "biblio", "chapter"]
 
 
+def test_a_given_proarc_json_is_dropped_with_a_warning(caplog):
+    # The ProArc integration is not supported yet: the batch is processed as
+    # if no ProArc JSON had been given.
+    seen = []
+
+    def load(bind_config, core_config):
+        return types.SimpleNamespace(
+            process=lambda **kwargs: seen.append(kwargs["proarc_io"]) or kwargs["metakat_io"])
+
+    initial = MetakatIO(batch_id=uuid4())
+    with (
+        mock.patch.object(process_batch_module, "init_io", return_value=(initial, None)) as init_io,
+        mock.patch.object(process_batch_module, "_preflight_engine_requirements"),
+        mock.patch.object(process_batch_module, "load_biblio_bind_engine", side_effect=load),
+        caplog.at_level("WARNING", logger=process_batch_module.__name__),
+    ):
+        process_batch_module.process_batch(
+            batch_dir="batch",
+            engine_config={"biblio": {"core": {"name": "biblio-core"}, "bind": {"name": "biblio-bind"}}},
+            proarc_data=_proarc_package(f"uuid:{uuid4()}"),
+        )
+
+    assert init_io.call_args.kwargs["proarc_data"] is None
+    assert seen == [None]
+    assert "ProArc integration is not supported yet" in caplog.text
+
+
 _GOOD_MODS = (
     '<mods xmlns="http://www.loc.gov/mods/v3">'
     "<titleInfo><title>Kytice</title></titleInfo></mods>"

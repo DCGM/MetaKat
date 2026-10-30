@@ -696,6 +696,11 @@ not support command-line-style `--set` assignments.
 
 ## Reading ProArc input
 
+**The ProArc integration is not supported yet.** `process_batch` drops a given
+ProArc JSON with a warning - from the worker meta file and from `--proarc-json`
+alike - and processes the batch as if none had been given, until the integration
+is implemented. What follows describes the reading that will then be used.
+
 `parse_proarc_json` in `metakat/io_parsers/parser_proarc_json.py` is the single
 gate for every ProArc document entering the pipeline, whether it arrives through
 the worker meta file or the `--proarc-json` argument. Nothing validates a ProArc

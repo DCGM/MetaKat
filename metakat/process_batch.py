@@ -87,7 +87,8 @@ def parse_args():
     parser.add_argument('--metakat-json', type=str)
     parser.add_argument('--engine-name', type=str, help='Engine name to record in the MetaKat JSON')
     parser.add_argument('--engine-version', type=str, help='Engine version to record with --engine-name')
-    parser.add_argument('--proarc-json', type=str)
+    parser.add_argument('--proarc-json', type=str,
+                        help='ProArc JSON; not supported yet, so ignored with a warning')
     parser.add_argument(
         '--engine-config',
         type=str,
@@ -198,7 +199,8 @@ def process_batch(
         batch_dir: Path to the batch directory
         engine_config: Final merged and path-resolved pipeline configuration
         metakat_data: Decoded input MetaKat JSON object
-        proarc_data: Decoded input ProARC JSON object
+        proarc_data: Decoded input ProARC JSON object; not supported yet, so
+            dropped with a warning
         ordered_image_filenames: List of ordered image filenames in batch_dir (defaults to natsorted image files)
         output_metakat_json: Path to output Metakat JSON file
         output_metakat_pdf: Path to output interactive MetaKat PDF file
@@ -233,6 +235,14 @@ def process_batch(
     )
 
     _preflight_engine_requirements(pipeline_config)
+
+    if proarc_data is not None:
+        # The ProArc integration is not supported yet and will be implemented
+        # separately: a given ProArc JSON is dropped, and the batch is
+        # processed as if none had been given.
+        logger.warning("ProArc JSON given, but the ProArc integration is not supported yet: "
+                       "ignoring it and processing the batch without it")
+        proarc_data = None
 
     metakat_io, proarc_io = init_io(
         batch_dir=batch_dir,
