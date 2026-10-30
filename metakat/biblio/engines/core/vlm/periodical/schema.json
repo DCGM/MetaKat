@@ -41,9 +41,6 @@
         "additionalProperties": false
       }
     },
-    "supplement": {
-      "type": "boolean"
-    },
     "volume": {
       "type": "object",
       "properties": {
@@ -94,6 +91,42 @@
         "issuePartName"
       ],
       "additionalProperties": false
+    },
+    "supplement": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "supplementPartNumber": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "supplementDateIssued": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "supplementPartName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "supplementPartNumber",
+            "supplementDateIssued",
+            "supplementPartName"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "frequency": {
       "type": [
@@ -325,9 +358,9 @@
   },
   "required": [
     "periodical",
-    "supplement",
     "volume",
     "issue",
+    "supplement",
     "frequency",
     "statementOfResponsibility",
     "agents",

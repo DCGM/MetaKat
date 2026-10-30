@@ -11,8 +11,11 @@ from metakat.biblio.engines.core.models import (
     BiblioEtal,
     BiblioIdentifiers,
     BiblioPublication,
+    BiblioReading,
+    BiblioTitleInfo,
     merge_span,
 )
+from metakat.common.models import BoundingBox as CoreBoundingBox, DetectionEvidence
 from metakat.common.vlm import VLMCallReport
 from metakat.biblio.engines.bind.biblio_bind_engine_periodical import (
     BiblioBindEnginePeriodical,
@@ -135,8 +138,24 @@ def test_a_second_issue_starts_on_its_title_page():
 # --- supplements -------------------------------------------------------------
 
 
-def _supplement(*args, **kwargs):
-    return dataclasses.replace(_read(*args, **kwargs), supplement=True)
+def _ev(index, text):
+    return DetectionEvidence(text=text, confidence=.9, bbox=CoreBoundingBox(10, 10, 100, 20), page_key=f'p{index}')
+
+
+def _numbering(index, number=None, date=None):
+    """A periodical issue's or a supplement's number and date read on page `index`."""
+    return BiblioReading(title_infos=(BiblioTitleInfo(part_number=_ev(index, number)),) if number else (),
+                         publications=(BiblioPublication(date_issued=_ev(index, date)),) if date else ())
+
+
+def _supplement(*args, number=None, date=None, issue_date=None, **kwargs):
+    """A supplement's span read on page args[0]: `number` and `date` its own, `issue_date` its issue's."""
+    result = _read(*args, **kwargs)
+    index, issue = args[0], kwargs.get('issue')
+    return dataclasses.replace(
+        result, supplement=True,
+        periodical_issue=_numbering(index, issue, issue_date) if issue or issue_date else None,
+        periodical_supplement=_numbering(index, number, date) if number or date else None)
 
 
 def test_a_supplement_of_an_issue_stands_under_the_issue_it_reads_the_number_of():
@@ -149,7 +168,8 @@ def test_a_supplement_of_an_issue_stands_under_the_issue_it_reads_the_number_of(
     [supplement] = _of(io, MetakatSupplement)
     [volume] = _of(io, MetakatVolume)
     assert supplement.parent_id == first.id and {first.parent_id, second.parent_id} == {volume.id}
-    assert supplement.title[0].text == 'Příloha „Mlynářských Novin“' and supplement.partNumber[0].text == '1'
+    # The number of the issue it belongs to is not its own.
+    assert supplement.title[0].text == 'Příloha „Mlynářských Novin“' and supplement.partNumber is None
     assert _parents(io) == [first.id] * 3 + [supplement.id] * 2 + [second.id] * 3
     assert [p.pageIndex for p in _of(io, MetakatPage)] == [1, 2, 3, 1, 2, 1, 2, 3]
 
@@ -184,6 +204,46 @@ def test_two_supplements_of_one_issue_are_two_unless_their_titles_agree(second, 
     [issue] = _of(io, MetakatIssue)
     assert len(_of(io, MetakatSupplement)) == supplements
     assert {s.parent_id for s in _of(io, MetakatSupplement)} == {issue.id}
+
+
+def test_a_supplement_has_its_own_number_and_date_not_its_issues():
+    pages = _scan({4}, {0: .99, 4: .99})
+    issue = dataclasses.replace(_read(0, 'Národní listy'), periodical_issue=_numbering(0, '12', '3. března 1910'))
+    io, _ = _bound(pages, issue, _supplement(4, 'Literární příloha', issue='12', issue_date='3. března 1910',
+                                            number='3', date='15. března 1910'))
+    [parent] = _of(io, MetakatIssue)
+    [supplement] = _of(io, MetakatSupplement)
+    assert supplement.parent_id == parent.id and parent.dateIssued[0].text == '3. března 1910'
+    assert supplement.partNumber[0].text == '3' and supplement.dateIssued[0].text == '15. března 1910'
+
+
+def test_a_supplement_without_a_number_or_date_of_its_own_takes_none_from_its_issue():
+    pages = _scan({4}, {0: .99, 4: .99})
+    issue = dataclasses.replace(_read(0, 'Národní listy'), periodical_issue=_numbering(0, '12', '3. března 1910'))
+    io, _ = _bound(pages, issue, _supplement(4, 'Literární příloha', issue='12', issue_date='3. března 1910'))
+    [parent] = _of(io, MetakatIssue)
+    [supplement] = _of(io, MetakatSupplement)
+    assert supplement.parent_id == parent.id
+    assert supplement.partNumber is None and supplement.dateIssued is None
+
+
+@pytest.mark.parametrize("second, supplements", [('2', 2), ('1', 1), (None, 1)])
+def test_two_supplements_of_one_issue_with_one_title_are_two_when_their_own_numbers_differ(second, supplements):
+    pages = _scan({8}, {0: .99, 8: .99, 20: .99}, count=32)
+    io, _ = _bound(pages, _read(0, 'Národní listy', issue='45'),
+                   _supplement(8, 'Literární příloha', issue='45', number='1'),
+                   _supplement(20, 'Literární příloha', issue='45', number=second))
+    assert len(_of(io, MetakatSupplement)) == supplements
+
+
+def test_a_supplements_own_numbering_does_not_start_a_volume():
+    pages = _scan({4, 8}, {0: .99, 4: .99, 8: .99})
+    io, _ = _bound(pages, _read(0, 'Národní listy', volume='Ročník L', issue='12'),
+                   _supplement(4, 'Literární příloha', issue='12', number='Ročník II. Číslo 3'),
+                   _read(8, 'Národní listy', volume='Ročník L', issue='13'))
+    [volume] = _of(io, MetakatVolume)
+    assert volume.partNumber[0].text == 'Ročník L'
+    assert {unit.parent_id for unit in _of(io, MetakatIssue)} == {volume.id}
 
 
 def test_short_issues_and_supplements_in_one_document_split_on_their_title_pages():

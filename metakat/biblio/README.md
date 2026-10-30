@@ -140,6 +140,7 @@ class BiblioSpanResult:
     reading: BiblioReading = BiblioReading()
     periodical_volume: BiblioReading | None = None
     periodical_issue: BiblioReading | None = None
+    periodical_supplement: BiblioReading | None = None
 
 
 @dataclass(frozen=True)
@@ -161,7 +162,8 @@ describe, never by a hierarchy decision:
 |---|---|
 | `reading` | Everything whose level the core cannot state - on a title page, most of it. The binder decides which record each value goes to. |
 | `periodical_volume` | What the core read as explicitly describing a periodical volume, such as a printed volume number or year. |
-| `periodical_issue` | What the core read as explicitly describing a periodical issue, such as an issue number or date. |
+| `periodical_issue` | What the core read as explicitly describing a periodical issue, such as an issue number or date. On a supplement's span, the issue it belongs to. |
+| `periodical_supplement` | On a supplement's span, the supplement's own number, date and name. |
 
 A `BiblioReading` holds **containers**. Each container class is one MODS
 container, so one `MetakatGroup` type. A container nested in another - a
@@ -665,7 +667,7 @@ is not read:
 | identifiers | `isbn[]` and `isbnSet[]` (the whole set's, `set_isbns`) as one `BiblioIdentifiers` (`seriesIssn` is the series') | `isbn[]` and `issn[]` as one `BiblioIdentifiers` |
 | languages | `language[]` as `languages`, `originalLanguage[]` as `original_languages` | the same |
 | names | `agents[]`, each in its role, with its `type`, `termsOfAddress[]`, life `dates`, `description[]` and `affiliation[]`; `etal` as a `BiblioEtal` | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`, `termsOfAddress[]`, life `dates`, `description[]` and `affiliation[]`; `etal` |
-| supplement | `supplement` as the span result's `supplement`: a map, an atlas, plates or a key issued with a volume | `supplement` as the span result's `supplement`; its `issue` is the numbering of the issue it belongs to |
+| supplement | `supplement` as the span result's `supplement`: a map, an atlas, plates or a key issued with a volume | `supplement`, an object on a page of a supplement and null otherwise, as the span result's `supplement`; its `supplementPartNumber`, `supplementPartName` and `supplementDateIssued` - the supplement's own - as `periodical_supplement`, the number and name as a `BiblioTitleInfo`, the date as a `BiblioPublication`; `volume` and `issue` are then the numbering of the volume and the issue it belongs to |
 
 Both schemas, and the TOC schema of the VLM chapter extraction, ask for the
 agents alike: one object per person, family or body, with the same roles
@@ -861,6 +863,11 @@ Which record a value goes to is the binder's decision, made per reading:
 | `periodical_volume` | all of it | — |
 | `periodical_issue` | — | all of it |
 
+A span the core tells is a supplement's also gives a candidate
+`MetakatSupplement`: what the issue takes from `reading`, with
+`periodical_supplement` in place of `periodical_issue` - its own number, date
+and name, never those of the issue it belongs to.
+
 A title made above the volumes (`title_from`, and the periodical's title)
 takes the languages of the volume whose title it takes.
 The title of a multipart monograph takes the ISBNs of the whole set read on
@@ -891,7 +898,7 @@ The `hierarchy` of the candidate volume follows from what its span says:
 
 | The span's result | `MetakatVolume.hierarchy` |
 |---|---|
-| has a `periodical_volume` or `periodical_issue` reading | `periodical` |
+| has a `periodical_volume`, `periodical_issue` or `periodical_supplement` reading | `periodical` |
 | otherwise, a `title_info` of `reading` has a `part_number` or `part_name` | `multipart` |
 | otherwise | `monograph` |
 
@@ -901,11 +908,12 @@ Both elements are candidates; emission is conditional:
 |---|---|
 | `MetakatVolume` | `title` is set. |
 | `MetakatIssue` | the volume was emitted and `title` is set. |
+| `MetakatSupplement` | the issue was emitted and the span is a supplement's. |
 
 A span without a title therefore names nothing, and all of its evidence
 becomes unreferenced. Each binder takes the candidate it binds: the monograph
-binder the volume, the periodical binder the issue (and the volume for the
-volume number or year). `MetakatIssue.parent_id` is deliberately left unset at
+binder the volume, the periodical binder the issue or the supplement (and the
+volume for the volume number or year). `MetakatIssue.parent_id` is deliberately left unset at
 creation: an issue's volume is decided in
 [hierarchy binding](#hierarchy-binding), once every span has been read.
 
@@ -1159,11 +1167,16 @@ A document whose authoritative span the core tells belongs to a supplement
 (příloha, Beilage; the VLM's `supplement`) is a `MetakatSupplement` instead of
 an issue, unless a span of the same document that is not a supplement's names
 it too: then the supplement was not split off and the document is that issue.
-The supplement keeps what an issue keeps - its own title as printed
-("Příloha „Mlynářských Novin“", "Zábavná příloha Národních listů") and the
-number and date of the issue it belongs to, as the DMF asks of a supplement
-without a number of its own. Its title is not a candidate for the
-periodical's title unless only supplements read one.
+The supplement keeps what an issue keeps from its title page - its own title
+as printed ("Příloha „Mlynářských Novin“", "Zábavná příloha Národních
+listů"), names, imprint - with its own number, name and date (the VLM's
+`supplementPartNumber`, `supplementPartName`, `supplementDateIssued`), never
+those of the issue it belongs to: the DMF asks a supplement's number
+("číslo přílohy, pokud nějaké má") and fills its `<originInfo>` only where
+it differs from the issue's, so a supplement printing no number or date of
+its own has none. The issue's number and date only place it (below). Its
+title is not a candidate for the periodical's title unless only supplements
+read one.
 
 Following the DMF's two kinds of scanned supplement, it stands:
 
@@ -1365,8 +1378,8 @@ opens another unit when:
   periodical a closer span opens another unit too when it reads a different
   one than each of those spans (`different_unit`): a volume level or the issue
   number both read disagrees (`different_issue`), it is a supplement and they
-  an issue or the other way round, or both are supplements whose titles do
-  not agree (`different_supplements`). Issues and supplements are often only
+  an issue or the other way round, or both are supplements whose titles or
+  own numbers do not agree (`different_supplements`). Issues and supplements are often only
   a few pages long, while a cover, a second sheet or a repeated masthead of
   one issue reads the same numbering or none - a cover reading only the
   title stays in the issue whose title page follows;
@@ -1394,9 +1407,10 @@ opens another unit when:
     the spans are not the same issue. A supplement and an issue are never
     the same unit, so a supplement left in its issue's document is split
     off, and two supplements are one only when their titles agree too
-    (`title_similarity` at least `SUPPLEMENT_TITLE_SIMILARITY`, 0.8): both
-    print the numbering of the issue they belong to, not their own
-    (`same_unit`);
+    (`title_similarity` at least `SUPPLEMENT_TITLE_SIMILARITY`, 0.8) and
+    so do their own numbers when both read one: both print the numbering of
+    the issue they belong to ("Literární příloha č. 1" and "Literární
+    příloha č. 2" of issue 45 are two; `same_unit`);
 - the start page's `startsDocument` is not annotated.
 
 Where the new document starts differs by binder:

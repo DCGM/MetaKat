@@ -23,8 +23,10 @@ is not read. Of the reply this engine reads:
 - the terms of address of the agents and `etal`;
 - the statements of responsibility, the `copyrightDate`, the `issn` and
   `isbn` and the `language` and `originalLanguage` codes;
-- `supplement`, as the span result's `supplement`: the page belongs to a
-  supplement, its `issue` being the numbering of the issue it belongs to.
+- `supplement`, an object on a page of a supplement, null otherwise: the
+  span result's `supplement`, and the supplement's own number, date and name
+  as its `periodical_supplement`; `volume` and `issue` are then the
+  numbering of the volume and the issue it belongs to.
 """
 from __future__ import annotations
 
@@ -160,7 +162,10 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         reading=reading,
         periodical_volume=level("volume", "volumePartNumber", "volumeDateIssued"),
         periodical_issue=level("issue", "issuePartNumber", "issueDateIssued", "issuePartName"),
-        supplement=reply.get("supplement") is True,
+        periodical_supplement=level("supplement", "supplementPartNumber", "supplementDateIssued",
+                                    "supplementPartName"),
+        # A supplement printing no number, date or name of its own is still one.
+        supplement=isinstance(reply.get("supplement"), Mapping),
     )
     return None if result.is_empty() else result
 

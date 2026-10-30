@@ -54,6 +54,7 @@ from metakat.schemas.base_objects import (
     MetakatIO,
     MetakatIssue,
     MetakatPage,
+    MetakatSupplement,
     MetakatTitle,
     MetakatVolume,
     PageType,
@@ -222,6 +223,9 @@ class TitleSpan:
     # The core tells the span belongs to a supplement of a periodical issue
     # or volume.
     supplement: bool = False
+    # Then the candidate supplement: what an issue takes from the span, with
+    # the supplement's own number, date and name (span_candidates).
+    supplement_unit: Optional[MetakatSupplement] = None
 
     @property
     def start(self) -> int:
@@ -374,22 +378,27 @@ def different_titles(first: TitleSpan, second: TitleSpan) -> bool:
 
 
 def different_supplements(first: TitleSpan, second: TitleSpan) -> bool:
-    """Whether two spans are a supplement's and another unit's, or two supplements' with titles that do not agree.
+    """Whether two spans are a supplement's and another unit's, or two supplements' with titles or own numbers
+    that do not agree.
 
-    A supplement may print what names the unit it belongs to - a periodical
-    supplement the numbering of its issue - not its own: two supplements of
-    one unit differ in their titles. A supplement without a title read agrees
-    with any."""
+    A supplement prints what names the unit it belongs to - a periodical
+    supplement the numbering of its issue - and may print its own number:
+    two supplements of one unit differ in their titles or their own numbers.
+    A supplement without a title or an own number read agrees with any."""
     if first.supplement != second.supplement:
         return True
     if not first.supplement:
         return False
+    numbers = [span.supplement_unit.partNumber if span.supplement_unit is not None else None
+               for span in (first, second)]
+    if all(number is not None for number in numbers) and not texts_match(*numbers):
+        return True
     titles = [kept(span.volume.title) if span.volume is not None else None for span in (first, second)]
     return all(title is not None for title in titles) and \
         title_similarity(titles[0].text, titles[1].text) < SUPPLEMENT_TITLE_SIMILARITY
 
 
-def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceContainers]) -> None:
+def _compose(record: Union[MetakatVolume, MetakatIssue, MetakatSupplement], sources: List[_SourceContainers]) -> None:
     """Fill a record from the readings of one page that reach it.
 
     `sources` go from the reading that states no level to the one that
@@ -432,6 +441,11 @@ def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceCo
 #     redaktor; the issue takes the fields a periodical issue repeats from
 #     its title page (_ISSUE_FIELDS).
 #   * `periodical_volume` / `periodical_issue` - that record only.
+#
+# A span the core tells is a supplement's also gives a candidate supplement:
+# what the issue takes from `reading`, with `periodical_supplement` - the
+# supplement's own number, date and name - in place of `periodical_issue`,
+# the numbering of the issue it belongs to.
 #
 # Each container becomes one group on each record it reaches, holding the
 # values that reached it. When the span's readings give one record the
@@ -500,6 +514,7 @@ def span_candidates(
     reading = list(containers(page_result.reading))
     periodical_volume = list(containers(page_result.periodical_volume))
     periodical_issue = list(containers(page_result.periodical_issue))
+    periodical_supplement = list(containers(page_result.periodical_supplement))
 
     # Anchored by the caller, on the page its title was read from.
     metakat_volume = MetakatVolume(id=uuid4(), hierarchy=span_hierarchy(page_result))
@@ -512,9 +527,16 @@ def span_candidates(
         _restrict(reading, lambda field_name: field_name in _ISSUE_FIELDS),
         periodical_issue,
     ])
+    metakat_supplement = MetakatSupplement(id=uuid4())
+    _compose(metakat_supplement, [
+        _restrict(reading, lambda field_name: field_name in _ISSUE_FIELDS),
+        periodical_supplement,
+    ])
     for field_name, name in (("language", "languages"), ("originalLanguage", "original_languages")):
         setattr(metakat_volume, field_name, _languages(name, page_result.reading, page_result.periodical_volume))
         setattr(metakat_issue, field_name, _languages(name, page_result.reading, page_result.periodical_issue))
+        setattr(metakat_supplement, field_name,
+                _languages(name, page_result.reading, page_result.periodical_supplement))
 
     elements = []
     if metakat_volume.title is not None:
@@ -523,6 +545,8 @@ def span_candidates(
             # parent_id is left unset: the issue's volume is decided by
             # the periodical binder once every span has been read.
             elements.append(metakat_issue)
+            if page_result.supplement:
+                elements.append(metakat_supplement)
 
     return elements, detection_id_to_detection_bbox, detection_id_to_alto
 
@@ -536,7 +560,8 @@ def _languages(name: str, *readings: Optional[BiblioReading]) -> Optional[List[C
 def span_hierarchy(page_result: BiblioSpanResult) -> HierarchyType:
     # A printed volume number or date marks a periodical; a part number
     # or name alone, one part of a multipart monograph.
-    if page_result.periodical_volume is not None or page_result.periodical_issue is not None:
+    if (page_result.periodical_volume is not None or page_result.periodical_issue is not None
+            or page_result.periodical_supplement is not None):
         return HierarchyType.PERIODICAL
     if any(title_info.parts or title_info.part_number is not None or title_info.part_name is not None
            for title_info in page_result.reading.title_infos):
@@ -702,6 +727,7 @@ def read_spans(
         span.supplement = result.supplement
         span.volume = next((e for e in elements if isinstance(e, MetakatVolume)), None)
         span.issue = next((e for e in elements if isinstance(e, MetakatIssue)), None)
+        span.supplement_unit = next((e for e in elements if isinstance(e, MetakatSupplement)), None)
         if span.volume is None:
             continue
         title = kept(span.volume.title)

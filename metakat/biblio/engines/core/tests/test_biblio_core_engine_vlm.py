@@ -684,15 +684,35 @@ def test_the_periodical_engine_reads_the_volume_the_issue_and_the_editor_as_reda
     assert [language.text for language in result.reading.languages] == ["cze"]
 
 
-@pytest.mark.parametrize("supplement", [True, False])
+_NOTHING_OWN = {"supplementPartNumber": None, "supplementDateIssued": None, "supplementPartName": None}
+
+
+@pytest.mark.parametrize("supplement", [_NOTHING_OWN, None])
 def test_the_periodical_engine_tells_a_supplement_with_the_issue_it_belongs_to(page, supplement):
     reply = {**_PERIODICAL_REPLY, "supplement": supplement}
     engine = BiblioCoreEngineVLMPeriodical(_periodical_config(), client=_Endpoint(reply).client())
 
     result = engine.process(_span(page)).spans[0]
 
-    assert result.supplement is supplement
+    # A supplement printing nothing of its own is still one.
+    assert result.supplement is (supplement is not None) and result.periodical_supplement is None
     assert result.periodical_issue.title_infos[0].part_number.text == "9"
+
+
+def test_the_periodical_engine_reads_a_supplements_own_number_date_and_name_apart_from_its_issues(page):
+    reply = {**_PERIODICAL_REPLY, "supplement": {
+        "supplementPartNumber": "3", "supplementDateIssued": "15. března 1910", "supplementPartName": "Vánoční"}}
+    engine = BiblioCoreEngineVLMPeriodical(_periodical_config(), client=_Endpoint(reply).client())
+
+    result = engine.process(_span(page)).spans[0]
+
+    assert result.supplement
+    [own] = result.periodical_supplement.title_infos
+    assert (own.part_number.text, own.part_name.text) == ("3", "Vánoční")
+    [own_date] = result.periodical_supplement.publications
+    assert own_date.date_issued.text == "15. března 1910"
+    [issue] = result.periodical_issue.title_infos
+    assert (issue.part_number.text, issue.part_name.text) == ("9", "Vánoční číslo")
 
 
 def test_a_periodical_frequency_without_an_imprint_is_an_imprint_of_its_own(page):

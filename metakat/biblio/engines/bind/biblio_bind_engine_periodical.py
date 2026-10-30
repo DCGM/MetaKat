@@ -91,13 +91,16 @@ def belongs_to(supplement: TitleSpan, issue: TitleSpan) -> bool:
 def unit_of(winner: Optional[TitleSpan]):
     """The issue a document's authoritative span names, or its supplement when the span is one's.
 
-    The DMF gives a frequency to the periodical's title and a supplement, not
-    to an issue: an issue's frequency is left to the title (periodical_title)."""
+    A supplement has its own number, date and name only, never those of the
+    issue it belongs to: the DMF fills a supplement's <originInfo> only where
+    it differs from the issue's. The DMF gives a frequency to the
+    periodical's title and a supplement, not to an issue: an issue's
+    frequency is left to the title (periodical_title)."""
+    if winner is not None and winner.supplement:
+        return winner.supplement_unit if winner.supplement_unit is not None else MetakatSupplement(id=uuid4())
     issue = winner.issue if winner is not None and winner.issue is not None else MetakatIssue(id=uuid4())
-    if winner is None or not winner.supplement:
-        issue.frequency = None
-        return issue
-    return MetakatSupplement(**{name: getattr(issue, name) for name in MetakatIssue.model_fields if name != "type"})
+    issue.frequency = None
+    return issue
 
 
 class BiblioBindEnginePeriodical(BiblioBindEngine):
