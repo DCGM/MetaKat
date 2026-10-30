@@ -349,6 +349,25 @@ def title_similarity(first: str, second: str) -> float:
 # How alike two supplements' titles must be (title_similarity) to be one
 # supplement's.
 SUPPLEMENT_TITLE_SIMILARITY = 0.8
+# Below this title_similarity, two titles neither of which contains the other
+# are two works' (different_titles).
+DIFFERENT_TITLE_SIMILARITY = 0.5
+
+
+def different_titles(first: TitleSpan, second: TitleSpan) -> bool:
+    """Whether two spans read the titles of two different works: both read a title, neither contains the other
+    and they are less alike than DIFFERENT_TITLE_SIMILARITY.
+
+    One work's title read on two of its pages may be shortened on one of
+    them ("Spisy" and "Spisy Jana Nerudy") or misread; two works' titles
+    share little ("Nejnovější národní písně" and "Zpěvník slovanský")."""
+    titles = [kept(span.volume.title) if span.volume is not None else None for span in (first, second)]
+    if any(title is None for title in titles):
+        return False
+    texts = [normalize_text(title.text) for title in titles]
+    if texts[0] in texts[1] or texts[1] in texts[0]:
+        return False
+    return title_similarity(titles[0].text, titles[1].text) < DIFFERENT_TITLE_SIMILARITY
 
 
 def different_supplements(first: TitleSpan, second: TitleSpan) -> bool:

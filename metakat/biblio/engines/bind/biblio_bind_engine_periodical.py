@@ -21,7 +21,7 @@ import dataclasses
 import logging
 import math
 import re
-from typing import Callable, Dict, Hashable, List, Optional
+from typing import Callable, Container, Dict, Hashable, List, Optional
 
 from uuid import uuid4
 
@@ -131,7 +131,7 @@ class BiblioBindEnginePeriodical(BiblioBindEngine):
                         issues[index].parent_id = issues[owner].id
             volumes.append(volume)
         logger.info(f"Bound {len(issues)} issue(s) in {len(volumes)} volume(s)")
-        title = periodical_title(scan.spans)
+        title = periodical_title(scan.spans, scan.detection_to_bbox)
         for volume in volumes:
             volume.parent_id = title.id
         return [title, *volumes, *issues]
@@ -140,12 +140,15 @@ class BiblioBindEnginePeriodical(BiblioBindEngine):
 # --- the periodical's title ---------------------------------------------------
 
 
-def periodical_title(spans: List[TitleSpan]) -> MetakatTitle:
+def periodical_title(spans: List[TitleSpan], located: Container = ()) -> MetakatTitle:
     """The title of the periodical: the title its title pages agree on most; unnamed when none reads one.
 
     A scan holds one periodical, so every title read on any of its title
     pages is a reading of that one title, or an outlier: a misread title, a
-    subtitle or heading taken for it. Each reading is scored by its mean
+    subtitle or heading taken for it. A reading the core located on its page
+    (its value id in `located`, the scan's detection_to_bbox) outranks one it
+    did not: a title not printed on the page may be the model's, not the
+    page's. Each reading is scored by its mean
     similarity to the most similar half of the others (title_similarity),
     so a minority of outliers does not lower the score of a good reading.
     The highest score wins, the more confident reading on a tie. The title
@@ -159,6 +162,7 @@ def periodical_title(spans: List[TitleSpan]) -> MetakatTitle:
     if not candidates:
         return MetakatTitle(id=uuid4(), hierarchy=HierarchyType.PERIODICAL)
     issn = periodical_issn(candidates)
+    candidates = [candidate for candidate in candidates if kept(candidate.title).id in located] or candidates
     texts = [kept(candidate.title).text for candidate in candidates]
 
     def score(index: int) -> float:

@@ -229,6 +229,21 @@ def test_the_periodical_title_is_the_one_the_issues_agree_on_not_the_most_confid
                                                                  'Zlata Praha']
 
 
+def _unlocated(result):
+    # The title the core did not find on the page: no geometry.
+    info = result.reading.title_infos[0]
+    info = dataclasses.replace(info, title=dataclasses.replace(info.title, bbox=None))
+    return dataclasses.replace(result, reading=dataclasses.replace(result.reading, title_infos=(info,)))
+
+
+def test_the_periodical_title_is_one_found_on_its_page():
+    pages = _scan({4}, {0: .99, 4: .99})
+    io, _ = _bound(pages, _unlocated(_read(0, 'Czernowitzer Allgemeine Zeitung', issue='3566')),
+                   _read(4, 'Czernowitzer Morgenblatt', issue='3567'))
+    [title] = _of(io, MetakatTitle)
+    assert title.title[0].text == 'Czernowitzer Morgenblatt'
+
+
 def test_the_issn_is_the_periodical_titles_and_the_isbn_and_names_the_issues():
     pages = _scan({4}, {0: .99})
     reading = _read(0, 'Ročenka', issue='1')

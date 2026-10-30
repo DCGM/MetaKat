@@ -1232,7 +1232,11 @@ an issue without its own - is left to the MODS exporter.
 A periodical's title is chosen by `periodical_title`. A scan holds one
 periodical, so every title read on any of its title-page spans, not only the
 authoritative ones, is a reading of that title or an outlier: a misread
-title, a subtitle or heading taken for it. Each reading is scored by its mean
+title, a subtitle or heading taken for it. A reading the core located on its
+page (its value in the scan's `detection_to_bbox`) outranks one it did not:
+a title not printed on the page may be the model's, not the page's - the
+VLM once named "Czernowitzer Morgenblatt" "Czernowitzer Allgemeine Zeitung",
+another paper of the city. Each reading is scored by its mean
 `title_similarity` (`difflib` ratio of the normalized texts) to the most
 similar half of the other readings, so a minority of outliers does not lower a
 good reading's score. The highest score wins, the more confident reading on a
@@ -1356,7 +1360,11 @@ opens another unit when:
     parts above or below it left out, each part agreeing in its number or its
     name. A half-title with "část 4", or with "díl I" alone, is "díl I,
     část 4"; "díl II, část 4" and "díl I, část 5" are not; a span reading no
-    part is among any;
+    part is among any, unless the two read the titles of different works
+    (`different_titles`: neither title contains the other and their
+    `title_similarity` is below `DIFFERENT_TITLE_SIMILARITY`, 0.5) - a book
+    bound before a part of another work is its own volume, "Nejnovější
+    národní písně" before "Zpěvník slovanský, II";
   - **periodical** (`same_issue`): every volume level both read agreeing,
     aligned from the lowest, and the issue number too when both read one.
     "Ročník 5, číslo 1" and "Ročník 5, číslo 2" are two issues, so are

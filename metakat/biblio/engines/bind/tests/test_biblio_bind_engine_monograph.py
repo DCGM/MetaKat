@@ -798,6 +798,17 @@ def test_a_page_describing_the_part_it_stands_in_never_splits_it(later):
     assert len(_of(io, MetakatVolume)) == 1
 
 
+@pytest.mark.parametrize('first, volumes', [
+    ('Nejnovější národní písně', 2),  # another work bound before the part
+    ('Zpěvník slovanský', 1),         # the work's own title page, printing no part
+    ('Zpěvník', 1),                   # its title shortened
+])
+def test_a_title_page_reading_no_part_is_another_work_only_when_its_title_is_another(first, volumes):
+    pages = _scan((), {1: .99, 16: .99}, count=30)
+    io, _ = _process(pages, _read(1, first), _read(16, 'ZPĚVNÍK SLOVANSKÝ', part='II'))
+    assert len(_of(io, MetakatVolume)) == volumes
+
+
 def test_a_title_page_printing_another_part_splits_whatever_part_title_pages_stand_between():
     # Not told a divisional title page, the binder reads "Část 2" as another part.
     pages = _scan((), {1: .99, 16: .99}, count=30)

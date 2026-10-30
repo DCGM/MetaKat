@@ -30,9 +30,11 @@ from metakat.biblio.engines.bind.biblio_binding import (
     TitleSpan,
     authoritative_spans,
     different_supplements,
+    different_titles,
     kept,
     normalize_text,
     move_set_isbns,
+    part_paths,
     read_scan,
     same_part,
     split_documents,
@@ -253,8 +255,15 @@ def opening_start(document: List[MetakatPage], span: TitleSpan, opened: List[Tit
 
 def same_unit(first: TitleSpan, second: TitleSpan) -> bool:
     """Whether two spans read the same part (same_part), neither being a supplement's that the other's is not
-    (different_supplements)."""
-    return not different_supplements(first, second) and same_part(first, second)
+    (different_supplements).
+
+    A span that reads no part is among any part, but not of a work with
+    another title (different_titles): a scan of two books bound together,
+    one without a part number, holds two works, not one part."""
+    if different_supplements(first, second) or not same_part(first, second):
+        return False
+    reads_no_part = any(span.volume is None or not part_paths(span.volume) for span in (first, second))
+    return not (reads_no_part and different_titles(first, second))
 
 
 _ROMAN = re.compile(r"M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})")
