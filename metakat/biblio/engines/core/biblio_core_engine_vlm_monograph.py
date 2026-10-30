@@ -7,24 +7,22 @@ in it is not read. Of the reply this engine reads:
   is a parallel title, and its `parts`, every part the volume is or contains
   with the parts it is divided into, as the model nested them (a `část`
   inside its `díl`);
-- every `publication`, without its `publisherInferred` flag: a publisher the
-  model derived from the page - the author of a book published "nákladem
-  vlastním" - is read as the publisher;
-- every `distribution` and `manufacture`, and every `series` with its ISSN
-  and editors and its `titleInfo`: the names of the series, one per
-  language, each with its number and part name, flagged `translated` when it
-  is a parallel name;
+- every `publication`, its `publisherStatement` - the phrase printed instead
+  of the publisher's name ("nákladem vlastním") - as its `statement`, the
+  publisher it stands for (the author) as its publisher;
+- every `distribution` and `manufacture`, a printer printed as the
+  publisher's own printing house with its `manufacturePublisherStatement`;
+- every `series` with its ISSN and editors and its `titleInfo`: the names of
+  the series, one per language, each with its number and part name, flagged
+  `translated` when it is a parallel name;
 - the `agents`, each in the field of its role, with its type, its terms of
   address and its `description` as its affiliations, and `etal`;
 - the statements of responsibility, the `copyrightDate`, the `isbn` and
   `isbnSet` (the whole set's, `set_isbns`), the `illustrativeContent` and the
   `language` and `originalLanguage` codes;
 - the `lang` of a titleInfo or of a series' titleInfo, as the language of each
-  of its values.
-
+  of its values;
 - the `pageKind`, what the span is (TitlePageKind).
-
-Not read: the `publisherInferred` flag.
 """
 from __future__ import annotations
 
@@ -93,6 +91,7 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         BiblioPublication(
             places=values.many(path + ("placeTerm",), item.get("placeTerm")),
             publishers=values.many(path + ("publisher",), item.get("publisher")),
+            statement=values.one(path + ("publisherStatement",), item.get("publisherStatement")),
             date_issued=values.one(path + ("dateIssued",), item.get("dateIssued")),
             edition=values.one(path + ("edition",), item.get("edition")),
         )
@@ -102,6 +101,7 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         BiblioManufacture(
             places=values.many(path + ("manufacturePlaceTerm",), item.get("manufacturePlaceTerm")),
             manufacturers=values.many(path + ("manufacturePublisher",), item.get("manufacturePublisher")),
+            statement=values.one(path + ("manufacturePublisherStatement",), item.get("manufacturePublisherStatement")),
             date=values.one(path + ("manufactureDate",), item.get("manufactureDate")),
         )
         for path, item in values.items(reply, "manufacture")

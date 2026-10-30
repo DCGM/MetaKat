@@ -245,6 +245,32 @@ def test_identifiers_series_details_names_distribution_languages_and_illustratio
         (None, "cze"), ("translated", "fre")]
 
 
+def test_a_publisher_and_a_printer_printed_only_as_a_phrase_are_the_phrase_in_mods(batch, tmp_path, mods_schema):
+    # The Czech RDA practice transcribes "nákladem vlastním" as the publisher
+    # (MARC 264 $b); the name it stands for stays in MetaKat.
+    v = batch.volume
+    v.publisher = [batch.v("K. J. Erben", 0.9, 0)]
+    v.publisherStatement = [batch.v("Nákladem vlastním", 0.9, 0)]
+    v.manufacturePublisher = [batch.v("K. J. Erben", 0.9, 0)]
+    v.manufacturePublisherStatement = [batch.v("Tiskem vlastní tiskárny", 0.9, 0)]
+    v.groups += [
+        MetakatGroup(type=GroupType.ORIGIN_INFO_PUBLICATION,
+                     members=[v.placeTerm[0].id, v.publisher[0].id, v.publisherStatement[0].id]),
+        MetakatGroup(type=GroupType.ORIGIN_INFO_MANUFACTURE,
+                     members=[v.manufacturePublisher[0].id, v.manufacturePublisherStatement[0].id]),
+    ]
+    volume = _export(batch, tmp_path)[str(v.id)]
+
+    assert mods_schema.validate(volume), mods_schema.error_log.last_error
+    publication = "/mods:mods/mods:originInfo[@eventType='publication']"
+    assert _texts(volume, f"{publication}/mods:agent[mods:role/mods:roleTerm='publisher']/mods:namePart") == [
+        "Nákladem vlastním"]
+    manufacture = "/mods:mods/mods:originInfo[@eventType='manufacture']"
+    assert _texts(volume, f"{manufacture}/mods:agent[mods:role/mods:roleTerm='manufacturer']/mods:namePart") == [
+        "Tiskem vlastní tiskárny"]
+    assert "K. J. Erben" not in _texts(volume, "//mods:originInfo/mods:agent/mods:namePart")
+
+
 def test_a_series_is_one_related_item_with_a_title_info_per_name_and_the_parallel_one_translated(
         batch, tmp_path, mods_schema):
     v = batch.volume
@@ -460,6 +486,7 @@ LEAF_OF_FIELD = {
     "partNumber": "partNumber", "partNumberTocPage": "partNumber", "partName": "partName",
     "placeTerm": "place", "manufacturePlaceTerm": "place", "distributionPlaceTerm": "place",
     "publisher": "agent", "manufacturePublisher": "agent", "distributor": "agent",
+    "publisherStatement": "agent", "manufacturePublisherStatement": "agent",
     "dateIssued": "dateIssued", "manufactureDate": "dateOther", "distributionDate": "dateOther",
     "copyrightDate": "copyrightDate",
     "edition": "edition", "frequency": "frequency",

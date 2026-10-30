@@ -78,7 +78,8 @@ Anchors = Dict[UUID, UUID]
 # (span_candidates). The ISSN is the periodical title's (periodical_issn).
 # Everything else a title page says describes the volume.
 _ISSUE_FIELDS = frozenset((
-    "title", "subTitle", "publisher", "placeTerm", "manufacturePublisher", "manufacturePlaceTerm",
+    "title", "subTitle", "publisher", "publisherStatement", "placeTerm",
+    "manufacturePublisher", "manufacturePublisherStatement", "manufacturePlaceTerm",
     "distributionPlaceTerm", "distributor", "distributionDate",
     *(role.value for role in AgentRole), "termsOfAddress", "affiliation", "etal",
     "statementOfResponsibility", "copyrightDate", "isbn",

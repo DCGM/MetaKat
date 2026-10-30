@@ -79,12 +79,18 @@ class BiblioTitleInfo:
 
 @dataclass(frozen=True)
 class BiblioPublication:
-    """One imprint: <originInfo eventType="publication">."""
+    """One imprint: <originInfo eventType="publication">.
+
+    `statement` is the phrase printed instead of the publisher's name
+    ("nákladem vlastním", "Im Selbstverlage"), and `publishers` the publisher
+    it stands for, read from elsewhere on the page - the author, the issuing
+    body. MODS gives the phrase as the publisher, as catalogues transcribe it."""
 
     GROUP_TYPE = GroupType.ORIGIN_INFO_PUBLICATION
 
     places: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("placeTerm"))
     publishers: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("publisher"))
+    statement: Optional[DetectionEvidence] = field(default=None, metadata=_to("publisherStatement"))
     date_issued: Optional[DetectionEvidence] = field(default=None, metadata=_to("dateIssued"))
     edition: Optional[DetectionEvidence] = field(default=None, metadata=_to("edition"))
     frequency: Optional[DetectionEvidence] = field(default=None, metadata=_to("frequency"))
@@ -103,12 +109,17 @@ class BiblioDistribution:
 
 @dataclass(frozen=True)
 class BiblioManufacture:
-    """One manufacture statement: <originInfo eventType="manufacture">."""
+    """One manufacture statement: <originInfo eventType="manufacture">.
+
+    `statement` is the phrase printed instead of the printer's name ("Tiskem
+    vlastní tiskárny"), and `manufacturers` the printer it stands for, the
+    publisher (BiblioPublication)."""
 
     GROUP_TYPE = GroupType.ORIGIN_INFO_MANUFACTURE
 
     places: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("manufacturePlaceTerm"))
     manufacturers: tuple[DetectionEvidence, ...] = field(default=(), metadata=_to("manufacturePublisher"))
+    statement: Optional[DetectionEvidence] = field(default=None, metadata=_to("manufacturePublisherStatement"))
     date: Optional[DetectionEvidence] = field(default=None, metadata=_to("manufactureDate"))
 
 

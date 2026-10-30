@@ -485,6 +485,11 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     # <originInfo eventType="publication">
     placeTerm: Optional[List[Value]] = None
     publisher: Optional[List[Value]] = None
+    # The phrase printed instead of the publisher's name ("nákladem
+    # vlastním", "Im Selbstverlage"); `publisher` then holds the one it
+    # stands for, read elsewhere on the page. MODS gives the phrase as the
+    # publisher, as the Czech RDA practice transcribes it in MARC 264 $b.
+    publisherStatement: Optional[List[Value]] = None
     dateIssued: Optional[List[Value]] = None
     edition: Optional[List[Value]] = None
     frequency: Optional[List[Value]] = None
@@ -501,6 +506,9 @@ class _MetakatBibliographicFields(MetakatBaseModel):
     # <dateOther type="manufacture">, not a dateIssued - hence the name.
     manufacturePlaceTerm: Optional[List[Value]] = None
     manufacturePublisher: Optional[List[Value]] = None
+    # The phrase printed instead of the printer's name ("Tiskem vlastní
+    # tiskárny"), as publisherStatement.
+    manufacturePublisherStatement: Optional[List[Value]] = None
     manufactureDate: Optional[List[Value]] = None
 
     # <originInfo eventType="copyright">

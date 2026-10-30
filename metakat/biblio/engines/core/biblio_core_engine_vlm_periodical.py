@@ -13,8 +13,9 @@ is not read. Of the reply this engine reads:
   flagged `translated` when it is a parallel title;
 - `volume` and `issue` as the periodical volume and issue: the volume's number
   and year, the issue's number, date and name (`issuePartName`);
-- every `publication`, without its `publisherInferred` flag, `distribution`,
-  `manufacture`, and the `frequency`, as part of the first imprint;
+- every `publication`, `distribution` and `manufacture`, the phrases printed
+  instead of a publisher's or a printer's name with them, as for books, and
+  the `frequency`, as part of the first imprint;
 - the `agents`, each with its type and its `description` as its
   affiliations, in the field of its role: an editor of a periodical is its
   `redaktor`, which the periodical binder gives to the issue; every other
@@ -102,6 +103,7 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         BiblioPublication(
             places=values.many(path + ("placeTerm",), item.get("placeTerm")),
             publishers=values.many(path + ("publisher",), item.get("publisher")),
+            statement=values.one(path + ("publisherStatement",), item.get("publisherStatement")),
             date_issued=values.one(path + ("dateIssued",), item.get("dateIssued")),
         )
         for path, item in values.items(reply, "publication")
@@ -115,6 +117,7 @@ def page_from_reply(reply: Mapping[str, Any], evidence: EvidenceFactory,
         BiblioManufacture(
             places=values.many(path + ("manufacturePlaceTerm",), item.get("manufacturePlaceTerm")),
             manufacturers=values.many(path + ("manufacturePublisher",), item.get("manufacturePublisher")),
+            statement=values.one(path + ("manufacturePublisherStatement",), item.get("manufacturePublisherStatement")),
             date=values.one(path + ("manufactureDate",), item.get("manufactureDate")),
         )
         for path, item in values.items(reply, "manufacture")

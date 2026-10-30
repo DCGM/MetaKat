@@ -185,8 +185,11 @@
               "type": "string"
             }
           },
-          "publisherInferred": {
-            "type": "boolean"
+          "publisherStatement": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "dateIssued": {
             "type": [
@@ -198,7 +201,7 @@
         "required": [
           "placeTerm",
           "publisher",
-          "publisherInferred",
+          "publisherStatement",
           "dateIssued"
         ],
         "additionalProperties": false
@@ -221,6 +224,12 @@
               "type": "string"
             }
           },
+          "manufacturePublisherStatement": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "manufactureDate": {
             "type": [
               "string",
@@ -231,6 +240,7 @@
         "required": [
           "manufacturePlaceTerm",
           "manufacturePublisher",
+          "manufacturePublisherStatement",
           "manufactureDate"
         ],
         "additionalProperties": false

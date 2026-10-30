@@ -10,6 +10,7 @@ from metakat.biblio.engines.core.models import (
     BiblioCoreResult,
     BiblioEtal,
     BiblioIdentifiers,
+    BiblioPublication,
     merge_span,
 )
 from metakat.common.vlm import VLMCallReport
@@ -181,6 +182,21 @@ def test_the_distributor_describes_the_issue_like_its_imprint():
     [volume] = _of(io, MetakatVolume)
     [title] = _of(io, MetakatTitle)
     assert volume.distributor is None and title.distributor is None
+
+
+def test_a_phrase_printed_instead_of_the_publisher_describes_the_issue_like_its_publisher():
+    reading = _read(0, 'Ročenka', issue='1')
+    ev = reading.reading.title_infos[0].title
+    reading = dataclasses.replace(reading, reading=dataclasses.replace(reading.reading, publications=(
+        BiblioPublication(publishers=(dataclasses.replace(ev, text='Spolek'),),
+                          statement=dataclasses.replace(ev, text='Nákladem vlastním')),)))
+    io, _ = _bound(_scan((), {0: .99}), reading)
+
+    [issue] = _of(io, MetakatIssue)
+    assert ([v.text for v in issue.publisher], [v.text for v in issue.publisherStatement]) == (
+        ['Spolek'], ['Nákladem vlastním'])
+    [volume] = _of(io, MetakatVolume)
+    assert volume.publisherStatement is None
 
 
 def _with_issn(reading, *issns):

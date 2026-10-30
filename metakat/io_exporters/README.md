@@ -33,10 +33,10 @@ one against the Library of Congress schema.
 | `etal` | a `<name>` of its own holding only `<etal>` (DMF) |
 | internal part `authorTocPage`, `translatorTocPage`, … (every role but redaktor), `termsOfAddressTocPage` and `affiliationTocPage` | `<name>` as the agents, unless the part's own page has a name in the same role; a term of address and an affiliation follow their name |
 | internal part `titleTocPage`, `subTitleTocPage` flagged `translated` | parallel versions of the TOC title: a `<titleInfo type="translated">` each, never demoted to provenance |
-| `publisher`, `placeTerm`, `dateIssued`, `edition`, `frequency` | `<originInfo eventType="publication">`, publisher as `agent/namePart` with role `publisher` |
+| `publisher`, `publisherStatement`, `placeTerm`, `dateIssued`, `edition`, `frequency` | `<originInfo eventType="publication">`, publisher as `agent/namePart` with role `publisher`; a `publisherStatement` in the group ("nákladem vlastním") is the agent instead of the publisher it stands for, as the Czech RDA practice transcribes it in MARC 264 $b |
 | distribution fields | `<originInfo eventType="distribution">`, distributor as `agent` with role `distributor`, date as `dateOther type="distribution"` |
 | `copyrightDate` | `<originInfo eventType="copyright">` |
-| manufacture fields | `<originInfo eventType="manufacture">`, printer as `agent` with role `manufacturer`, date as `dateOther type="manufacture"` |
+| manufacture fields | `<originInfo eventType="manufacture">`, printer as `agent` with role `manufacturer` (a `manufacturePublisherStatement` in the group instead of the printer it stands for), date as `dateOther type="manufacture"` |
 | series fields | `<relatedItem type="series">`: `<titleInfo>`, `seriesIssn` as `<identifier type="issn">`, `seriesEditor` as `<name>` with role `edt`; one relatedItem per `series` group, a `<titleInfo>` per `seriesTitleInfo` group nested in it (DMF: one titleInfo per field under a common relatedItem), `type="translated"` when its `seriesName` is flagged `translated` (a parallel name) |
 | `statementOfResponsibility` | `<note type="statement of responsibility">` |
 | `language`, `originalLanguage` | `<language><languageTerm authority="iso639-2b">`; an original language with `objectPart="translation"` (DMF, MARC 041 `$h`) |

@@ -325,15 +325,22 @@ def _names(record: _Record) -> None:
 
 def _origin_info(record: _Record, group_type: Optional[str], event_type: str, role: Optional[str],
                  fields: dict[str, tuple]) -> None:
+    # A phrase printed instead of a name ("nákladem vlastním") is the agent,
+    # as the Czech RDA practice transcribes it (MARC 264 $b); the name it
+    # stands for stays in MetaKat only.
+    stands_for = {field_name: path[1] for field_name, path in fields.items() if path[0] == "statement"}
     for members in _consume_groups(record, group_type, tuple(fields)):
         container, target = record.container(record.root, "originInfo", eventType=event_type)
+        replaced = {stands_for[field_name] for _, field_name in members if field_name in stands_for}
         for value, field_name in members:
             path = fields[field_name]
+            if field_name in replaced:
+                continue
             if path[0] == "place":
                 place = ET.SubElement(container, _m("place"))
                 record.leaf(place, "placeTerm", value.text, type="text")
                 record.value(target, container, "placeTerm", value, field_name)
-            elif path[0] == "agent":
+            elif path[0] in ("agent", "statement"):
                 agent = ET.SubElement(container, _m("agent"))
                 record.leaf(agent, "namePart", value.text)
                 if role is not None:
@@ -464,11 +471,13 @@ _BIBLIOGRAPHIC_SECTIONS = {
     "hierarchy": None,
     "partName": "titleInfo",
     "placeTerm": "originInfo:publication", "publisher": "originInfo:publication",
+    "publisherStatement": "originInfo:publication",
     "dateIssued": "originInfo:publication", "edition": "originInfo:publication",
     "frequency": "originInfo:publication",
     "distributionPlaceTerm": "originInfo:distribution", "distributor": "originInfo:distribution",
     "distributionDate": "originInfo:distribution",
     "manufacturePlaceTerm": "originInfo:manufacture", "manufacturePublisher": "originInfo:manufacture",
+    "manufacturePublisherStatement": "originInfo:manufacture",
     "manufactureDate": "originInfo:manufacture",
     "copyrightDate": "originInfo:copyright",
     "originalLanguage": "language",
@@ -576,7 +585,7 @@ _SECTION_WRITERS = {
     "genre": _genre,
     "originInfo:publication": lambda record: _origin_info(
         record, GroupType.ORIGIN_INFO_PUBLICATION.value, "publication", "publisher", {
-            "placeTerm": ("place",), "publisher": ("agent",),
+            "placeTerm": ("place",), "publisher": ("agent",), "publisherStatement": ("statement", "publisher"),
             "dateIssued": ("dateIssued", {}), "edition": ("edition", {}), "frequency": ("frequency", {}),
         }),
     "originInfo:distribution": lambda record: _origin_info(
@@ -587,6 +596,7 @@ _SECTION_WRITERS = {
     "originInfo:manufacture": lambda record: _origin_info(
         record, GroupType.ORIGIN_INFO_MANUFACTURE.value, "manufacture", "manufacturer", {
             "manufacturePlaceTerm": ("place",), "manufacturePublisher": ("agent",),
+            "manufacturePublisherStatement": ("statement", "manufacturePublisher"),
             "manufactureDate": ("dateOther", {"type": "manufacture"}),
         }),
     # No group type binds a copyright date to anything: each is its own event.

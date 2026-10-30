@@ -12,7 +12,8 @@ it from the image differently from the OCR, or no page has ALTO - keeps only
 the span's first page.
 Equally good repeated matches prefer nearby sibling fields, such as the date
 and publisher of an imprint. Within a top-level field words remain exclusive;
-inferred publishers are never given geometry. Ambiguous text can still be located
+a publisher or printer printed only as a phrase (`publisherStatement`,
+`manufacturePublisherStatement`) is never given geometry, the phrase is. Ambiguous text can still be located
 on the wrong occurrence. The model gives no per-value confidence, so every value
 carries the configured `confidence` (0.95 unless set).
 
@@ -357,6 +358,11 @@ class ReplyValues:
         return tuple(agents)
 
 
+# A name printed only as a phrase is read from another statement on the page
+# (the author, the publisher): its words there are not this name's.
+_STATEMENTS = {"publisher": "publisherStatement", "manufacturePublisher": "manufacturePublisherStatement"}
+
+
 def _alignable(reply: Any, label_keys: frozenset[str] = frozenset()) -> Any:
     """The reply with only its text values left to align.
 
@@ -365,7 +371,7 @@ def _alignable(reply: Any, label_keys: frozenset[str] = frozenset()) -> Any:
     JSON path.
     """
     if isinstance(reply, Mapping):
-        return {key: None if key in label_keys or (key == "publisher" and reply.get("publisherInferred") is True)
+        return {key: None if key in label_keys or (key in _STATEMENTS and reply.get(_STATEMENTS[key]))
                 else _alignable(value, label_keys)
                 for key, value in reply.items()}
     if isinstance(reply, list):

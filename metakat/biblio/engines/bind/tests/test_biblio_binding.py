@@ -335,6 +335,24 @@ def test_each_container_becomes_one_group_on_the_record(metakat_page):
     assert _group(volume, "originInfoManufacture") == []
 
 
+def test_a_phrase_printed_instead_of_a_name_is_in_the_group_of_the_name_it_stands_for(metakat_page):
+    page = _page_result(_titled(
+        publications=(BiblioPublication(publishers=(_ev("K. J. Erben", 0.8),),
+                                        statement=_ev("Nákladem vlastním", 0.8)),),
+        manufactures=(BiblioManufacture(manufacturers=(_ev("K. J. Erben", 0.8),),
+                                        statement=_ev("Tiskem vlastní tiskárny", 0.8)),),
+    ))
+
+    (volume, _), _, _ = span_candidates(page)
+    finalize_groups(volume)
+
+    [publication] = _group(volume, "originInfoPublication")
+    assert publication.members == [volume.publisher[0].id, volume.publisherStatement[0].id]
+    [manufacture] = _group(volume, "originInfoManufacture")
+    assert manufacture.members == [volume.manufacturePublisher[0].id, volume.manufacturePublisherStatement[0].id]
+    assert volume.publisherStatement[0].text == "Nákladem vlastním"
+
+
 def test_separate_containers_stay_separate_groups(metakat_page):
     page = _page_result(_titled(publications=(
         BiblioPublication(places=(_ev("Praha", 0.8),), publishers=(_ev("Academia", 0.8),)),

@@ -91,9 +91,10 @@ def _agent(role, name, **fields):
 _REPLY = _reply(
     BiblioCoreEngineVLMMonograph,
     titleInfo=[{"title": "KYTICE", "subTitle": "z pověstí národních", "parts": [], "lang": "cze", "translated": False}],
-    publication=[{"placeTerm": ["Praze"], "publisher": [], "publisherInferred": False, "dateIssued": "1853",
+    publication=[{"placeTerm": ["Praze"], "publisher": [], "publisherStatement": None, "dateIssued": "1853",
                   "edition": None}],
-    manufacture=[{"manufacturePlaceTerm": [], "manufacturePublisher": [], "manufactureDate": None}],
+    manufacture=[{"manufacturePlaceTerm": [], "manufacturePublisher": [], "manufacturePublisherStatement": None,
+                  "manufactureDate": None}],
     agents=[_agent("author", "K. J. ERBEN"), _agent("illustrator", "Mikoláš Aleš")],
     language=["cze"],
 )
@@ -188,16 +189,17 @@ def test_metadata_fields_can_share_words_but_values_within_one_field_compete(pag
 
 
 @pytest.mark.parametrize("engine_class", [BiblioCoreEngineVLMMonograph, BiblioCoreEngineVLMPeriodical])
-def test_inferred_publishers_do_not_take_geometry_from_printed_publishers(page, engine_class):
+def test_a_name_printed_only_as_a_phrase_does_not_take_geometry_from_the_name_printed_elsewhere(page, engine_class):
     from text_geometry_aligner import ALTOReader
 
     reply = {"publication": [
-        {"publisher": ["ERBEN"], "publisherInferred": True},
-        {"publisher": ["ERBEN"], "publisherInferred": False},
-    ]}
+        {"publisher": ["ERBEN"], "publisherStatement": "nákladem vlastním"},
+        {"publisher": ["ERBEN"], "publisherStatement": None},
+    ], "manufacture": [{"manufacturePublisher": ["ERBEN"], "manufacturePublisherStatement": "Tiskem vlastní tiskárny"}]}
     original = json.loads(json.dumps(reply))
     located = engine_class(_config(), client=object())._locate(ALTOReader().read(page[1]), reply)
     assert ("publication", 0, "publisher", 0) not in located
+    assert ("manufacture", 0, "manufacturePublisher", 0) not in located
     assert located["publication", 1, "publisher", 0].words[0].alto_word_id == "S3"
     assert reply == original
 
@@ -583,7 +585,7 @@ _PERIODICAL_REPLY = _reply(
     frequency="Vychází každou sobotu",
     agents=[_agent("editor", "K. J. ERBEN", type="personal"),
             _agent("issuingBody", "Spolek", type="corporate")],
-    publication=[{"placeTerm": ["Praze"], "publisher": [], "publisherInferred": False, "dateIssued": None}],
+    publication=[{"placeTerm": ["Praze"], "publisher": [], "publisherStatement": None, "dateIssued": None}],
     distribution=[{"distributionPlaceTerm": ["v Praze"], "distributor": ["Fr. Řivnáče"], "distributionDate": None}],
     statementOfResponsibility=["Řídí K. J. Erben"],
     copyrightDate="1925",
@@ -641,6 +643,30 @@ def test_a_periodical_level_with_nothing_read_is_absent(page):
     engine = BiblioCoreEngineVLMPeriodical(_periodical_config(), client=_Endpoint(reply).client())
 
     assert engine.process(_span(page)).spans[0].periodical_issue is None
+
+
+@pytest.mark.parametrize("engine_class, config, base", [
+    (BiblioCoreEngineVLMMonograph, _config, _REPLY),
+    (BiblioCoreEngineVLMPeriodical, _periodical_config, _PERIODICAL_REPLY),
+])
+def test_a_publisher_and_a_printer_printed_only_as_a_phrase_keep_the_phrase_with_the_name_it_stands_for(
+        page, engine_class, config, base):
+    reply = {**base,
+             "publication": [{**base["publication"][0], "publisher": ["K. J. ERBEN"],
+                              "publisherStatement": "Nákladem vlastním"}],
+             "manufacture": [{"manufacturePlaceTerm": ["v Hradci Králové"], "manufacturePublisher": ["K. J. ERBEN"],
+                              "manufacturePublisherStatement": "Tiskem vlastní tiskárny v Hradci Králové",
+                              "manufactureDate": None}]}
+    engine = engine_class(config(), client=_Endpoint(reply).client())
+
+    reading = engine.process(_span(page)).spans[0].reading
+
+    [publication] = reading.publications
+    assert ([p.text for p in publication.publishers], publication.statement.text) == (
+        ["K. J. ERBEN"], "Nákladem vlastním")
+    [manufacture] = reading.manufactures
+    assert ([m.text for m in manufacture.manufacturers], manufacture.statement.text) == (
+        ["K. J. ERBEN"], "Tiskem vlastní tiskárny v Hradci Králové")
 
 
 def _alto_lines(*blocks):

@@ -171,8 +171,8 @@ other's (`MetakatGroup` members can be group ids):
 | Container | MODS container / `GroupType` | Fields → MetaKat field |
 |---|---|---|
 | `BiblioTitleInfo` | `<titleInfo>` / `titleInfo` | `title` → `title`, `sub_title` → `subTitle`, `parts` (`BiblioPart`, a `part` group each: `number` → `partNumber`, `name` → `partName`, its `parts` - the parts it is divided into - `part` groups nested in it), `part_number` → `partNumber`, `part_name` → `partName` (a part read without its place among them - a detected part, a periodical volume or issue - together one more `part` group) |
-| `BiblioPublication` | `<originInfo eventType="publication">` / `originInfoPublication` | `places` → `placeTerm`, `publishers` → `publisher`, `date_issued` → `dateIssued`, `edition` → `edition`, `frequency` → `frequency` |
-| `BiblioManufacture` | `<originInfo eventType="manufacture">` / `originInfoManufacture` | `places` → `manufacturePlaceTerm`, `manufacturers` → `manufacturePublisher`, `date` → `manufactureDate` |
+| `BiblioPublication` | `<originInfo eventType="publication">` / `originInfoPublication` | `places` → `placeTerm`, `publishers` → `publisher`, `statement` → `publisherStatement`, `date_issued` → `dateIssued`, `edition` → `edition`, `frequency` → `frequency` |
+| `BiblioManufacture` | `<originInfo eventType="manufacture">` / `originInfoManufacture` | `places` → `manufacturePlaceTerm`, `manufacturers` → `manufacturePublisher`, `statement` → `manufacturePublisherStatement`, `date` → `manufactureDate` |
 | `BiblioDistribution` | `<originInfo eventType="distribution">` / `originInfoDistribution` | `places` → `distributionPlaceTerm`, `distributors` → `distributor`, `date` → `distributionDate` |
 | `BiblioSeries` | `<relatedItem type="series">` / `series` | `titles` (`BiblioSeriesTitle`, a `<titleInfo>` and a `seriesTitleInfo` group each, one per language: `name` → `seriesName` as a `TitleValue` with its `translated` flag, `part_number` → `seriesPartNumber`, `part_name` → `seriesPartName`), `issn` → `seriesIssn`, `editors` → `seriesEditor` |
 | `BiblioAgent` | `<name>` / `agent` | `name` → the field named by `role` (`AgentRole`: `author`, `illustrator`, `photographer`, `translator`, `editor`, `redaktor`, `composer`, `reviewer`, `issuingBody`, `contributor`, `other`), as an `AgentValue` whose `type` is the agent's `type` (`NameType`: personal, corporate, conference, family; `None` when unknown), `terms_of_address` → `termsOfAddress`, `affiliations` → `affiliation`, `emails` → `email` |
@@ -605,7 +605,9 @@ For each span the engine sends one request:
    prefer nearby sibling fields, such as the place beside its imprint date.
    These are the title-page dataset preparation settings; ordered TOC anchors
    and column reordering are not used for unordered bibliographic fields.
-   Inferred publishers and coded values are excluded from geometry matching.
+   A publisher or printer printed only as a phrase (`publisherStatement`,
+   `manufacturePublisherStatement`) and coded values are excluded from
+   geometry matching; the phrase itself is located.
    A value found on several
    pages is taken from the first, in page order;
 4. builds the `BiblioSpanResult` from the reply.
@@ -655,15 +657,15 @@ is not read:
 | parts | `titleInfo[].parts` - every part the volume is or contains, each with the parts nested in it (a `část` within its `díl`, up to three levels), as `parts`, nested as the model nested them | - |
 | page kind | `pageKind` - what the span is (`titlePage`, `partTitle`, `halfTitle`, `seriesTitle`, `other`) as the result's `kind` (`TitlePageKind`); the binder never starts a part on a half-title, divisional or series title page | - |
 | volume, issue | - | `volume` (`volumePartNumber`, `volumeDateIssued`) as `periodical_volume`, `issue` (`issuePartNumber`, `issuePartName`, `issueDateIssued`) as `periodical_issue`: the number and name as a `BiblioTitleInfo`, the date as a `BiblioPublication`, as the YOLO engine reads them |
-| imprint | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`, `edition` | `publication[]` - `placeTerm[]`, `publisher[]`, `dateIssued`; `frequency` in the first one |
+| imprint | `publication[]` - `placeTerm[]`, `publisher[]`, `publisherStatement`, `dateIssued`, `edition` | `publication[]` - `placeTerm[]`, `publisher[]`, `publisherStatement`, `dateIssued`; `frequency` in the first one |
 | distributor | `distribution[]`: one `BiblioDistribution` each | the same |
-| printer | `manufacture[]`: one `BiblioManufacture` each | the same |
+| printer | `manufacture[]`: one `BiblioManufacture` each, `manufacturePublisherStatement` as its `statement` | the same |
 | series | `series[]` - one `BiblioSeries` each, with `seriesIssn` and `seriesEditor`; its `titleInfo[]` - `seriesName`, `seriesPartNumber`, `seriesPartName`, one `BiblioSeriesTitle` per language, every value in its `lang`, `translated` (a parallel name of the series) as its flag | - |
 | statements | `statementOfResponsibility[]` as one `BiblioResponsibility`; `copyrightDate` as a `BiblioCopyright`; `illustrativeContent[]` as one `BiblioIllustrations` | `statementOfResponsibility[]`, `copyrightDate` as for books |
 | identifiers | `isbn[]` and `isbnSet[]` (the whole set's, `set_isbns`) as one `BiblioIdentifiers` (`seriesIssn` is the series') | `isbn[]` and `issn[]` as one `BiblioIdentifiers` |
 | languages | `language[]` as `languages`, `originalLanguage[]` as `original_languages` | the same |
 | names | `agents[]`, each in its role, with its `type`, `termsOfAddress[]` and `description[]` as affiliations; `etal` as a `BiblioEtal` | `agents[]`: an editor as `redaktor` (the periodical binder gives it to the issue), every other role as such, with its `type`, `termsOfAddress[]` and `description[]` as affiliations; `etal` |
-| not read | `publisherInferred` | `supplement`, `publisherInferred` |
+| not read | - | `supplement` |
 
 Both schemas, and the TOC schema of the VLM chapter extraction, ask for the
 agents alike: one object per person, family or body, with the same roles
@@ -672,8 +674,16 @@ issuingBody, contributor, other), the same name types (personal, corporate,
 conference, family), its name, terms of address and description. Each prompt
 says how they are printed in its kind of document.
 
-A publisher the model inferred (`publisherInferred`, e.g. the author of a book
-published "nákladem vlastním") is read as the publisher. Only text values are
+A publisher printed only as a phrase that names no one ("nákladem vlastním",
+"Im Selbstverlage des Verfassers") is two values: the phrase as printed,
+`publisherStatement`, and the publisher it stands for, read elsewhere on the
+page (the author, the issuing body), `publisher`. A printer printed as the
+publisher's own printing house ("Tiskem vlastní tiskárny") is the same:
+`manufacturePublisherStatement` and the publisher as `manufacturePublisher`.
+MetaKat keeps both; MODS gives the phrase as the publisher or printer, as the
+Czech RDA practice transcribes it in MARC 264 $b, the name it stands for
+being the national field 928 (NK ČR, *Katalogizace podle RDA ve formátu
+MARC 21*). Only text values are
 located in the ALTO: the labels in `LABEL_KEYS` (roles, agent types, language
 codes) and the flags and levels are not.
 
@@ -839,7 +849,7 @@ Which record a value goes to is the binder's decision, made per reading:
 
 | Reading | `MetakatVolume` takes | `MetakatIssue` takes |
 |---|---|---|
-| `reading` | everything except `redaktor` | `title`, `subTitle`, `publisher`, `placeTerm`, `manufacturePublisher`, `manufacturePlaceTerm`, the distribution fields, every agent role (`redaktor` included) with `termsOfAddress` and `affiliation`, `etal`, `statementOfResponsibility`, `copyrightDate`, `isbn`, the languages and original languages - what an issue repeats from its title page |
+| `reading` | everything except `redaktor` | `title`, `subTitle`, `publisher`, `publisherStatement`, `placeTerm`, `manufacturePublisher`, `manufacturePublisherStatement`, `manufacturePlaceTerm`, the distribution fields, every agent role (`redaktor` included) with `termsOfAddress` and `affiliation`, `etal`, `statementOfResponsibility`, `copyrightDate`, `isbn`, the languages and original languages - what an issue repeats from its title page |
 | `periodical_volume` | all of it | — |
 | `periodical_issue` | — | all of it |
 
