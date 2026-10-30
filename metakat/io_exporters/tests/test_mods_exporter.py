@@ -196,6 +196,21 @@ def test_a_chapters_toc_synopsis_is_its_abstract_unless_its_own_page_has_one(bat
     assert events == ["abstract", "abstractTocPage"]
 
 
+def test_a_chapters_toc_authors_are_names_unless_its_own_page_names_some(batch, tmp_path):
+    batch.chapter.authorTocPage = [batch.v("Anna Nová", 0.9, 2), batch.v("Jan Novák", 0.9, 2)]
+    chapter = _export(batch, tmp_path)[str(batch.chapter.id)]
+
+    assert _texts(chapter, "/mods:mods/mods:name/mods:namePart") == ["Anna Nová", "Jan Novák"]
+    assert _texts(chapter, "/mods:mods/mods:name/mods:role/mods:roleTerm") == ["aut", "aut"]
+
+    batch.chapter.author = [batch.v("ANNA NOVÁ", 0.9, 1)]
+    chapter = _export(batch, tmp_path / "own")[str(batch.chapter.id)]
+
+    assert _texts(chapter, "/mods:mods/mods:name/mods:namePart") == ["ANNA NOVÁ"]
+    events = chapter.xpath("//mkp:assertion[@property='namePart']/mkp:event/@field", namespaces=NS)
+    assert events == ["author", "authorTocPage", "authorTocPage"]
+
+
 def test_grouped_runs_pair_and_ungrouped_starts_stand_alone(batch, tmp_path):
     records = _export(batch, tmp_path)
     chapter, article = records[str(batch.chapter.id)], records[str(batch.article.id)]

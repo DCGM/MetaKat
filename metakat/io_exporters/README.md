@@ -30,6 +30,7 @@ one against the Library of Congress schema.
 | `title`, `subTitle`, `partNumber`, `partName` | `<titleInfo>` |
 | agents | `<name><namePart>` whole, with `role/roleTerm` marcrelator code: `aut`, `ill`, `pht`, `trl`, `edt` - a redaktor is `edt`, as in Czech records |
 | `affiliation` | `<name><affiliation>` |
+| internal part `authorTocPage` | `<name>` with role `aut`, unless the part's own page names authors |
 | `publisher`, `placeTerm`, `dateIssued`, `edition`, `frequency` | `<originInfo eventType="publication">`, publisher as `agent/namePart` with role `publisher` |
 | `copyrightDate` | `<originInfo eventType="copyright">` |
 | manufacture fields | `<originInfo eventType="manufacture">`, printer as `agent` with role `manufacturer`, date as `dateOther type="manufacture"` |

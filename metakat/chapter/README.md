@@ -90,6 +90,7 @@ ChapterResult(
     title_toc_page: DetectionEvidence | None,
     subtitle_toc_page: DetectionEvidence | None = None,
     description_toc_page: DetectionEvidence | None = None,
+    authors_toc_page: tuple[DetectionEvidence, ...] = (),
     part_number_toc_page: DetectionEvidence | None = None,
     page_number_toc_page: ChapterPageNumberEvidence | None = None,
     title: DetectionEvidence | None = None,
@@ -104,6 +105,7 @@ ChapterResult(
 | `toc_page_key` | Input image stem of the page containing the source TOC entry. |
 | `title_toc_page` | Title evidence from the TOC page, when available. |
 | `subtitle_toc_page` | Optional subtitle completing the entry's title on the TOC page. |
+| `authors_toc_page` | The authors printed with the TOC entry, one evidence per name, in printed order; empty when none. |
 | `description_toc_page` | Optional synopsis printed with the TOC entry: what the chapter covers, often with the page numbers of its topics. It is not a subtitle. |
 | `part_number_toc_page` | Optional chapter or section-number evidence from the TOC page. |
 | `page_number_toc_page` | Optional parsed destination-page reference from the TOC page. It retains the original OCR evidence as well as the normalized values supplied by the TOC-producing engine. It is not the physical number detected on the destination page. |
@@ -423,6 +425,7 @@ ChapterBase(
     title_toc_page: DetectionEvidence | None,
     subtitle_toc_page: DetectionEvidence | None = None,
     description_toc_page: DetectionEvidence | None = None,
+    authors_toc_page: tuple[DetectionEvidence, ...] = (),
     part_number_toc_page: DetectionEvidence | None = None,
     page_number_toc_page: ChapterPageNumberEvidence | None = None,
     children: tuple[ChapterBase, ...] = (),
@@ -433,7 +436,8 @@ ChapterBase(
 |---|---|
 | `toc_page_key` | Physical TOC page containing the entry. It is present even when the entry has no title evidence. |
 | `title_toc_page` | Chapter title detected on the TOC page. This remains distinct from a title later found on the destination page, which `ChapterResult` holds as `title`. |
-| `subtitle_toc_page` | Optional subtitle completing the entry's title on the TOC page. |
+| `subtitle_toc_page` | Optional subtitle completing the entry's title on the TOC page; the VLM engine reads it, the YOLO engine has none. |
+| `authors_toc_page` | The authors printed with the entry - a byline before or after the title - one evidence per name, in printed order; the VLM engine reads them, the YOLO engine none. |
 | `description_toc_page` | Optional synopsis printed with the entry: what the chapter covers, often with the page numbers of its topics. The YOLO engine fills it from its `Subtitle` class (`podnadpis`), which the annotators put on the synopsis, the VLM engine from `titleInfo[].description`. A description never creates an entry by itself. |
 | `part_number_toc_page` | Optional chapter/section number printed as part of the TOC entry, such as `2.3`. It is not the destination page number. |
 | `page_number_toc_page` | Optional parsed `PageNumber` printed in the TOC entry. It denotes the destination page number and retains the complete source evidence together with normalized semantic values for alignment. |
@@ -1578,7 +1582,10 @@ there used v2). The prompt is written for N images. MetaKat moved the page
 data - the OCR of each image under its index - to the user prompt, so that
 the system prompt is the same in every request and can be cached
 (`vlm.prompt_cache`), and left out the rules for human annotations and the
-TOC drafts made from them, since MetaKat has neither. How to read the OCR is
+TOC drafts made from them, since MetaKat has neither. It reads a subtitle
+apart from the title, by the same rule as the monograph biblio prompt, and
+the authors of an entry's byline - a proceedings volume's or an anthology's
+contributors - as the NDK describes a chapter (`<subTitle>`, `<name>`). How to read the OCR is
 the VLM engines' shared `{{ ocr_rules }}` (metakat.common.vlm), followed by
 the TOC's own remarks on it. The prompts receive
 `images` (the page keys) and `ocr` (a line per `TextLine`, a blank line
@@ -1614,7 +1621,9 @@ Of each entry the engine reads:
 |---|---|
 | `tocPage`, the index of the image the entry starts on | `toc_page_key` |
 | `titleInfo[0].title`, the first language version; else `designation` | `title_toc_page` |
+| `titleInfo[0].subTitle`, its subtitle | `subtitle_toc_page` |
 | `titleInfo[0].description`, its synopsis | `description_toc_page` |
+| `authors`, the names of the entry's byline | `authors_toc_page` |
 | `partNumber`, the numbering without its words | `part_number_toc_page` |
 | `pageReference`, parsed by `ArabicRomanChapterPageNumberParser` | `page_number_toc_page` |
 
@@ -2272,6 +2281,7 @@ For every `ChapterResult`, the binder creates one `MetakatChapter`:
 | `titleTocPage` | `title_toc_page`: title evidence detected on the TOC page. |
 | `subTitleTocPage` | `subtitle_toc_page`: a subtitle completing the entry's title on the TOC page. |
 | `partNumberTocPage` | `part_number_toc_page`: part-number evidence detected on the TOC page. |
+| `authorTocPage` | `authors_toc_page`: one value per author printed with the TOC entry, written to MODS as `<name>` with role `aut` unless the chapter's own page names authors; in no group. |
 | `pageNumberStartTocPage` | `page_number_toc_page` split by its parsed kind: a single page gives one start, a range its first page, a list one start per listed page, and a reference that failed to parse its original text. It is not the physical page number. |
 | `pageNumberEndTocPage` | The last page of a range reference; otherwise `None`. |
 | `abstractTocPage` | `description_toc_page`: the synopsis printed with the TOC entry, written to MODS as `<abstract>`; it is in no group. |

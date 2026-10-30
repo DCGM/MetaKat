@@ -25,7 +25,9 @@ Of an entry the stage reads:
   its title, as the NDK gives such a chapter's title, and its part number
   takes its words from it; the parallel titles in other languages are not
   read;
-- the synopsis of its first `titleInfo` object, as `description_toc_page`;
+- the subtitle and the synopsis of its first `titleInfo` object, as
+  `subtitle_toc_page` and `description_toc_page`;
+- its `authors`, as `authors_toc_page`, one evidence per name;
 - its `partNumber`, the printed numbering without its words, as
   `part_number_toc_page`;
 - its `pageReference`, parsed as the YOLO stage parses a detected reference
@@ -158,10 +160,11 @@ class ChapterExtractionEngineVLM:
         entries = [entry for entry in reply.get("entries") or () if isinstance(entry, Mapping)]
         located = self._locate(entries, alto_pages)
 
-        def evidence(index: int, field: str, text: Any) -> Optional[DetectionEvidence]:
+        def evidence(index: int, field: str, text: Any, item: Optional[int] = None) -> Optional[DetectionEvidence]:
             if not isinstance(text, str) or not text.strip():
                 return None
-            page_index, region = located.get((index, field), (_page_index(entries[index], len(pages)), None))
+            key = (index, field) if item is None else (index, field, item)
+            page_index, region = located.get(key, (_page_index(entries[index], len(pages)), None))
             geometry = None if region is None else region.alto_geometry
             return DetectionEvidence(
                 text=text.strip(),
@@ -190,11 +193,23 @@ class ChapterExtractionEngineVLM:
             yield VLMClient(dataclasses.replace(self.vlm_config, api_url=api_url), self._client, local=True)
 
     def _locate(self, entries: Sequence[Mapping[str, Any]], alto_pages) -> dict:
-        """(entry index, field) -> (page index, aligned region) of every value found in the ALTO.
+        """(entry index, field[, position in its list]) -> (page index, aligned region)
+        of every value found in the ALTO.
 
         An entry's values are looked for on the page it starts on, then the
         ones not found there on the next page, where the entry may go on."""
-        located: dict[tuple[int, str], tuple[int, Any]] = {}
+        located: dict[tuple, tuple[int, Any]] = {}
+
+        def pending(index: int, entry: Mapping[str, Any]) -> dict:
+            texts = {}
+            for field, text in _entry_texts(entry).items():
+                if isinstance(text, list):
+                    if any((index, field, item) not in located for item in range(len(text))):
+                        texts[field] = text
+                elif (index, field) not in located:
+                    texts[field] = text
+            return texts
+
         parallel_titles = any(
             sum(bool(title.get("title") or title.get("description"))
                 for title in entry.get("titleInfo") or () if isinstance(title, Mapping)) > 1
@@ -204,8 +219,7 @@ class ChapterExtractionEngineVLM:
         for offset in (0, 1):
             for page_index, alto_page in enumerate(alto_pages):
                 data = {"entries": [
-                    {field: text for field, text in _entry_texts(entry).items() if (index, field) not in located}
-                    if _page_index(entry, len(alto_pages)) + offset == page_index else {}
+                    pending(index, entry) if _page_index(entry, len(alto_pages)) + offset == page_index else {}
                     for index, entry in enumerate(entries)
                 ]}
                 if not any(data["entries"]):
@@ -216,7 +230,7 @@ class ChapterExtractionEngineVLM:
                         path = region.json_text_path
                         if path is None or region.alto_geometry is None:
                             continue
-                        located.setdefault((path[1], path[2]), (page_index, region))
+                        located.setdefault(tuple(path[1:]), (page_index, region))
         # An entry titled by its designation ("Kapitola 3") prints its part
         # number in the title's words, and a word goes to one value only, so
         # the part number takes its words from the title.
@@ -244,7 +258,11 @@ def build_hierarchy(entries: Sequence[Mapping[str, Any]], evidence, page_keys: S
             "chapter": dict(
                 toc_page_key=page_keys[_page_index(entry, len(page_keys))],
                 title_toc_page=evidence(index, "title", _title_text(entry)),
+                subtitle_toc_page=evidence(index, "subTitle", _first_title_info(entry).get("subTitle")),
                 description_toc_page=evidence(index, "description", _first_title_info(entry).get("description")),
+                authors_toc_page=tuple(
+                    found for item, name in enumerate(_authors(entry))
+                    if (found := evidence(index, "authors", name, item)) is not None),
                 part_number_toc_page=evidence(index, "partNumber", entry.get("partNumber")),
                 page_number_toc_page=None if reference is None else ArabicRomanChapterPageNumberParser.create(reference),
             ),
@@ -288,6 +306,10 @@ def _title_text(entry: Mapping[str, Any]) -> Any:
     return _own_title(entry) or entry.get("designation")
 
 
+def _authors(entry: Mapping[str, Any]) -> list[str]:
+    return [name for name in entry.get("authors") or () if isinstance(name, str) and name.strip()]
+
+
 def _bare(text: str) -> str:
     return re.sub(r"\W", "", text).casefold()
 
@@ -305,11 +327,14 @@ def _entry_texts(entry: Mapping[str, Any]) -> dict:
     # looked for in the ALTO, so no other text takes their words.
     texts = {
         "title": _title_text(entry),
+        "subTitle": _first_title_info(entry).get("subTitle"),
         "description": _first_title_info(entry).get("description"),
+        "authors": _authors(entry),
         "partNumber": entry.get("partNumber"),
         "pageReference": entry.get("pageReference"),
     }
-    return {field: text for field, text in texts.items() if isinstance(text, str) and text.strip()}
+    return {field: text for field, text in texts.items()
+            if (isinstance(text, str) and text.strip()) or (isinstance(text, list) and text)}
 
 
 def alto_text(words) -> str:

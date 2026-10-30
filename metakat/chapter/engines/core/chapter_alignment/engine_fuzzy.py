@@ -426,6 +426,7 @@ class ChapterAlignmentEngineFuzzy:
                 title_toc_page=entry.title_toc_page,
                 subtitle_toc_page=entry.subtitle_toc_page,
                 description_toc_page=entry.description_toc_page,
+                authors_toc_page=entry.authors_toc_page,
                 part_number_toc_page=entry.part_number_toc_page,
                 page_number_toc_page=entry.page_number_toc_page,
                 title=(

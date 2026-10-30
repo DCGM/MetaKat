@@ -460,6 +460,9 @@ class ChapterBindEngineBase(ChapterBindEngine):
             title_toc_page = bind_evidence(resolved.title_toc_page)
             subtitle_toc_page = bind_evidence(resolved.subtitle_toc_page)
             description_toc_page = bind_evidence(resolved.description_toc_page)
+            authors_toc_page = [
+                value for author in resolved.authors_toc_page for value in bind_evidence(author)
+            ] or None
             part_number_toc_page = bind_evidence(resolved.part_number_toc_page)
             page_number_start, page_number_end = bind_page_numbers(
                 resolved.page_number_toc_page
@@ -474,6 +477,7 @@ class ChapterBindEngineBase(ChapterBindEngine):
                 titleTocPage=title_toc_page,
                 subTitleTocPage=subtitle_toc_page,
                 partNumberTocPage=part_number_toc_page,
+                authorTocPage=authors_toc_page,
                 pageNumberStartTocPage=page_number_start,
                 pageNumberEndTocPage=page_number_end,
                 abstractTocPage=description_toc_page,

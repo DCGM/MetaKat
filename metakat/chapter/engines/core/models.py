@@ -111,6 +111,9 @@ class ChapterBase:
     # The synopsis printed with the entry - what the chapter covers, often with
     # page numbers of its topics - not a subtitle (MetakatChapter.abstractTocPage).
     description_toc_page: DetectionEvidence | None = field(default=None, kw_only=True)
+    # The authors printed with the entry, one evidence per name, in printed
+    # order (MetakatChapter.authorTocPage).
+    authors_toc_page: tuple[DetectionEvidence, ...] = field(default=(), kw_only=True)
     part_number_toc_page: DetectionEvidence | None = None
     page_number_toc_page: ChapterPageNumberEvidence | None = None
     children: tuple[ChapterBase, ...] = ()

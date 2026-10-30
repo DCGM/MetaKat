@@ -75,6 +75,7 @@ ROLE_CODES = {
     "editor": "edt",
     "redaktor": "edt",
     "reviewedWorkAuthor": "aut",
+    "authorTocPage": "aut",
 }
 AGENT_FIELDS = ("author", "illustrator", "photographer", "translator", "editor", "redaktor", "affiliation")
 
@@ -213,7 +214,8 @@ def _mark_toc_readings(record: _Record) -> None:
     if record.element.type not in INTERNAL_PART_TYPES:
         return
     for own, toc in (("title", "titleTocPage"), ("subTitle", "subTitleTocPage"),
-                     ("partNumber", "partNumberTocPage"), ("abstract", "abstractTocPage")):
+                     ("partNumber", "partNumberTocPage"), ("abstract", "abstractTocPage"),
+                     ("author", "authorTocPage")):
         own_values = _values(record.element, own)
         toc_values = _values(record.element, toc)
         if own_values and toc_values:
@@ -223,7 +225,7 @@ def _mark_toc_readings(record: _Record) -> None:
 
 
 def _names(record: _Record) -> None:
-    for members in _consume_groups(record, GroupType.AGENT.value, AGENT_FIELDS):
+    for members in _consume_groups(record, GroupType.AGENT.value, (*AGENT_FIELDS, "authorTocPage")):
         container, target = record.container(record.root, "name")
         roles = []
         for value, field_name in members:
@@ -378,6 +380,7 @@ _BIBLIOGRAPHIC_SECTIONS = {
 _INTERNAL_PART_SECTIONS = {
     **_COMMON_SECTIONS,
     "titleTocPage": "titleInfo", "subTitleTocPage": "titleInfo", "partNumberTocPage": "titleInfo",
+    "authorTocPage": "name",
     "articleGenre": "genre",
     # An internal part has no <originInfo>; its date is written to provenance only.
     "dateIssued": "provenance:dateIssued",

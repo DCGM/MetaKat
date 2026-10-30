@@ -572,6 +572,11 @@ class _MetakatInternalPartFields(MetakatBaseModel):
     pageIndexStart/pageIndexEnd already say which pages those are.
     """
 
+    # <name> with role aut, read in the TOC entry: the authors printed with it,
+    # one value per name. It closes the <name> block, right after the agents
+    # read on the part's own page, which MODS writes instead when there are any.
+    authorTocPage: Optional[List[Value]] = None
+
     # <genre type="...">. A typed classifier value; in practice only articles
     # carry a meaningful genre
     # specialisation.

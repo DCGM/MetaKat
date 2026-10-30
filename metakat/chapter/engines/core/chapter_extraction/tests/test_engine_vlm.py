@@ -31,20 +31,23 @@ _FIRST = _ALTO.format(blocks=_line("A", 1, ("OBSAH", 400, 120))
                       + _line("B", 2, ("I.", 100, 30), ("Úvod", 140, 100), ("5", 800, 20))
                       + _line("C", 3, ("II.", 100, 30), ("Les", 140, 60), ("a", 210, 20), ("voda", 240, 90),
                               ("12—30", 800, 80)))
-_SECOND = _ALTO.format(blocks=_line("D", 1, ("Pramen", 160, 120), ("14", 800, 30)))
+_SECOND = _ALTO.format(blocks=_line("D", 1, ("Jan", 100, 40), ("Novák:", 150, 60), ("Pramen", 220, 120),
+                                       ("u", 350, 15), ("cesty", 370, 60), ("14", 800, 30)))
 
 _REPLY = {"entries": [
     {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "I", "designation": "I.",
-     "titleInfo": [{"title": "Úvod", "description": None, "lang": "cze"}], "pageReference": "5", "pages": ["5"]},
+     "titleInfo": [{"title": "Úvod", "subTitle": None, "description": None, "lang": "cze"}], "authors": [],
+     "pageReference": "5", "pages": ["5"]},
     {"tocPage": 0, "level": 1, "kind": "item", "partNumber": "II", "designation": "II.",
-     "titleInfo": [{"title": "Les a voda", "description": "O lesích", "lang": "cze"},
-                   {"title": "Wald und Wasser", "description": None, "lang": "ger"}],
-     "pageReference": "12—30", "pages": [{"start": "12", "end": "30"}]},
+     "titleInfo": [{"title": "Les a voda", "subTitle": None, "description": "O lesích", "lang": "cze"},
+                   {"title": "Wald und Wasser", "subTitle": None, "description": None, "lang": "ger"}],
+     "authors": [], "pageReference": "12—30", "pages": [{"start": "12", "end": "30"}]},
     {"tocPage": 1, "level": 2, "kind": "item", "partNumber": None, "designation": None,
-     "titleInfo": [{"title": "Pramen", "description": None, "lang": "cze"}], "pageReference": "14", "pages": ["14"]},
+     "titleInfo": [{"title": "Pramen", "subTitle": "u cesty", "description": None, "lang": "cze"}],
+     "authors": ["Jan Novák"], "pageReference": "14", "pages": ["14"]},
     {"tocPage": 1, "level": 1, "kind": "item", "partNumber": None, "designation": None,
-     "titleInfo": [{"title": "Dodatek", "description": None, "lang": "cze"}], "pageReference": "40",
-     "pages": ["40"]},
+     "titleInfo": [{"title": "Dodatek", "subTitle": None, "description": None, "lang": "cze"}], "authors": [],
+     "pageReference": "40", "pages": ["40"]},
 ]}
 
 
@@ -98,7 +101,12 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     # A level-2 entry on the next page is a child of the last level-1 entry before it.
     [section] = second.children
     assert (section.toc_page_key, section.title_toc_page.text) == ("0008", "Pramen")
-    assert section.page_number_toc_page.alto.words == ("D1W1",)
+    assert section.page_number_toc_page.alto.words == ("D1W5",)
+    # A subtitle and a byline are read apart from the title, each located in the ALTO.
+    assert (section.subtitle_toc_page.text, section.subtitle_toc_page.alto.words) == ("u cesty", ("D1W3", "D1W4"))
+    [author] = section.authors_toc_page
+    assert (author.text, author.alto.words) == ("Jan Novák", ("D1W0", "D1W1"))
+    assert (first.subtitle_toc_page, first.authors_toc_page) == (None, ())
     # A title the OCR does not hold keeps its page, without a box.
     assert (appendix.title_toc_page.page_key, appendix.title_toc_page.bbox) == ("0008", None)
     assert {evidence.confidence for evidence in (first.title_toc_page, section.title_toc_page)} == {0.95}
@@ -114,7 +122,7 @@ def test_the_toc_pages_are_read_in_one_request_into_the_hierarchy(toc_pages):
     # Each page's OCR under its image index, its lines and blocks kept.
     assert "OBSAH\n\nI. Úvod 5\n\nII. Les a voda 12—30" in text
     assert "=== Image 0 === OCR (optional support): OBSAH" in words
-    assert "=== Image 1 === OCR (optional support): Pramen 14" in words
+    assert "=== Image 1 === OCR (optional support): Jan Novák: Pramen u cesty 14" in words
     assert "nnotation" not in text + system["content"][0]["text"] and "DRAFT" not in text
     assert [part["type"] for part in user["content"]].count("image_url") == 2
     assert request["response_format"]["json_schema"]["schema"] == engine.schema
@@ -154,7 +162,7 @@ def test_an_entry_printed_with_only_its_designation_is_titled_by_it(tmp_path):
         _ALTO.format(blocks=_line("A", 1, ("Kapitola", 100, 150), ("3", 260, 20), ("40", 800, 30))), encoding="utf-8")
     page = ChapterPageInput("0009", 8, tmp_path / "0009.jpg", tmp_path / "0009.xml")
     reply = {"entries": [{"tocPage": 0, "level": 1, "kind": "item", "partNumber": "3", "designation": "Kapitola 3",
-                          "titleInfo": [], "pageReference": "40", "pages": ["40"]}]}
+                          "titleInfo": [], "authors": [], "pageReference": "40", "pages": ["40"]}]}
 
     [chapter] = ChapterExtractionEngineVLM(_config(), client=_Endpoint(reply).client()).process([page]).chapters
 

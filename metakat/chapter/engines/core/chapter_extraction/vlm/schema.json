@@ -44,6 +44,12 @@
                     "null"
                   ]
                 },
+                "subTitle": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
                 "description": {
                   "type": [
                     "string",
@@ -63,10 +69,17 @@
               },
               "required": [
                 "title",
+                "subTitle",
                 "description",
                 "lang"
               ],
               "additionalProperties": false
+            }
+          },
+          "authors": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           },
           "pageReference": {
@@ -109,6 +122,7 @@
           "partNumber",
           "designation",
           "titleInfo",
+          "authors",
           "pageReference",
           "pages"
         ],
