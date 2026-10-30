@@ -18,6 +18,7 @@ from doc_api.tools.mail.mail_sender import MailSender
 from metakat.process_batch import process_batch
 from metakat.engine_config import prepare_engine_config, require_config_mapping
 from metakat.common.vlm.local_server import local_model_locations
+from metakat.worker.docapi.job_summary import render_log, render_mail, summarize_job
 
 
 logger = logging.getLogger(__name__)
@@ -148,6 +149,31 @@ class MetakatWorker(DocWorkerWrapper):
         finally:
             root_logger.removeHandler(job_log_file_handler)
             job_log_file_handler.close()
+
+    def on_job_finished(self,
+                        job: Job,
+                        response: WorkerResponse,
+                        job_dir: Optional[str],
+                        duration_s: float,
+                        job_log_file_handler: Optional[logging.FileHandler]) -> None:
+        """Log a summary of the job and email it when mailing is set up."""
+        root_logger = logging.getLogger()
+        # Into the job's log too, like everything logged while it was processed.
+        if job_log_file_handler is not None:
+            root_logger.addHandler(job_log_file_handler)
+        try:
+            definition = job.engine_definition if isinstance(job.engine_definition, dict) else {}
+            summary = summarize_job(
+                job, response, duration_s,
+                metakat_json=Path(job_dir) / "result" / "metakat.json" if job_dir else None,
+                has_chapter_stage="chapter" in definition,
+            )
+            logger.info(render_log(summary))
+            if self.mail_sender is not None:
+                self.send_mail(*render_mail(summary))
+        finally:
+            if job_log_file_handler is not None:
+                root_logger.removeHandler(job_log_file_handler)
 
     @staticmethod
     def _load_metadata_envelope(meta_file: Optional[str]) -> dict:
