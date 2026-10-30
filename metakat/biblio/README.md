@@ -598,7 +598,8 @@ For each span the engine sends one request:
    schema; a local model needs vLLM's `--limit-mm-per-prompt` to allow as many
    images as the longest span;
 3. locates every text value of the reply among the ALTO words of the span's
-   pages with text-geometry-aligner's text alignment: exact matches, then
+   pages, read in one pass as one text in page order (text-geometry-aligner's
+   `align_pages`, which stacks the pages one below the other): exact matches, then
    fuzzy ones within the aligner's default error limits. Matching lowercases
    and strips punctuation, rejecting similarity below 0.5. CP-SAT gives each
    word to at most one value within a top-level metadata key; different keys
@@ -610,8 +611,13 @@ For each span the engine sends one request:
    A publisher or printer printed only as a phrase (`publisherStatement`,
    `manufacturePublisherStatement`) and coded values are excluded from
    geometry matching; the phrase itself is located.
-   A value found on several
-   pages is taken from the first, in page order;
+   Values compete for the words of all the span's pages: a value printed on
+   several pages is taken from the first unless a later one matches it
+   better, and a value printed across a page break is found too, with its
+   words on the page it starts on. A text the prompts repeat on purpose
+   within one key (a description printed once for several persons, one
+   person in two roles, a series number for its names in several languages)
+   is found once and copied to its identical values;
 4. builds the `BiblioSpanResult` from the reply.
 
 A located value gets its page, the box of its words in ALTO coordinates - the

@@ -4,12 +4,14 @@ For each span - the consecutive title pages of one document - the model gets
 all of its page images and their ALTO text in one request and returns the
 bibliographic statements it can read as JSON, one record for the span. The
 model names no regions, so each value is located afterwards by finding its
-text among the ALTO words of the span's pages (text-geometry-aligner's text
-alignment, exact then fuzzy, sharing words across top-level metadata fields), on the
-first page, in span order, where it is found. A value found there gets that
-page, the box of its words and their ALTO IDs; one that is not - the model read
-it from the image differently from the OCR, or no page has ALTO - keeps only
-the span's first page.
+text among the ALTO words of the span's pages, read as one text in span order
+(text-geometry-aligner's align_pages: exact then fuzzy, sharing words across
+top-level metadata fields). A value printed on several pages is found on the
+first of them unless a later one matches it better, and a value printed
+across a page break is found too. A value found gets the page it starts on,
+the box of its words there and their ALTO IDs; one that is not - the model
+read it from the image differently from the OCR, or no page has ALTO - keeps
+only the span's first page.
 Equally good repeated matches prefer nearby sibling fields, such as the date
 and publisher of an imprint. Within a top-level field words remain exclusive;
 a publisher or printer printed only as a phrase (`publisherStatement`,
@@ -244,14 +246,12 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
             return None, self._report(error.report, page_keys)
         reply, report = answer.data, self._report(answer.report, page_keys)
 
-        # Per JSON path, the first page of the span whose ALTO holds the value.
-        located: dict[tuple, tuple[str, Any]] = {}
-        for page, alto_page in zip(span, alto_pages):
-            if alto_page is None:
-                continue
-            for path, region in self._locate(alto_page, reply).items():
-                if region.alto_geometry is not None and path not in located:
-                    located[path] = (page.page_key, region)
+        # Per JSON path, the page of the span the value is printed on, and its words there.
+        with_alto = [(page, alto_page) for page, alto_page in zip(span, alto_pages) if alto_page is not None]
+        located: dict[tuple, tuple[str, Any]] = {
+            path: (with_alto[page_index][0].page_key, region)
+            for path, (page_index, region) in self._locate([alto_page for _, alto_page in with_alto], reply).items()
+        }
         _locate_affiliations(reply, located)
 
         def evidence(path: tuple, text: Optional[str]) -> Optional[DetectionEvidence]:
@@ -285,14 +285,22 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
             raise ValueError(f"{type(self).__name__} needs {key}")
         return str(path)
 
-    def _locate(self, alto_page, reply: Any) -> dict:
-        """The aligned region of every text value in the reply, by JSON path."""
-        document = self.aligner.align_data(alto_page, _alignable(reply, self.LABEL_KEYS))
+    def _locate(self, alto_pages: Sequence, reply: Any) -> dict:
+        """(page index, aligned region) of every text value of the reply found in the ALTO, by JSON path.
+
+        The span's pages are aligned at once as one text (align_pages), so
+        values compete for the words of all of them: a value printed on
+        several pages - a title on the cover and on the title page - is found
+        on the first, a value printed across a page break is found too, and
+        it keeps its words on the page it starts on."""
+        if not alto_pages:
+            return {}
+        document = self.aligner.align_pages(alto_pages, _alignable(reply, self.LABEL_KEYS))
         return {
-            tuple(region.json_text_path): region
-            for page in document.pages
-            for region in page.regions
-            if region.json_text_path is not None
+            tuple(region.json_text_path): (region.page_index, words_region(
+                [word for word in region.words if word.page_index == region.page_index]))
+            for region in document.pages[0].regions
+            if region.json_text_path is not None and region.alto_geometry is not None
         }
 
 
