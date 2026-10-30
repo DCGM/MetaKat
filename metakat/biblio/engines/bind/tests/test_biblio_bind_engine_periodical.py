@@ -94,6 +94,20 @@ def test_two_issues_in_one_document_are_split():
     assert len(_of(io, MetakatIssue)) == 2
 
 
+@pytest.mark.parametrize("first, second, issues", [
+    (dict(volume='Ročník 5', issue='1'), dict(volume='Ročník 5', issue='2'), 2),
+    (dict(volume='Ročník 5', issue='1'), dict(volume='Ročník 6', issue='1'), 2),
+    (dict(volume='Ročník 5', issue='1'), dict(issue='2'), 2),
+    (dict(volume='Ročník 5', issue='1'), dict(issue='1'), 1),
+    (dict(volume='Ročník 5', issue='1'), dict(volume='Ročník 5'), 1),
+    (dict(volume='Ročník 5', issue='1'), dict(volume='Ročník 6'), 2),
+])
+def test_a_later_title_page_splits_the_issue_unless_the_volume_and_issue_both_read_agree(first, second, issues):
+    pages = _scan((), {0: .99, 12: .99}, count=24)
+    io, _ = _bound(pages, _read(0, 'Zlatá Praha', **first), _read(12, 'Zlatá Praha', **second))
+    assert len(_of(io, MetakatIssue)) == issues
+
+
 def test_every_document_of_a_periodical_scan_is_an_issue():
     pages = _scan({4}, {1: .99})
     io, _ = _bound(pages, _read(1, 'Zlatá Praha'))

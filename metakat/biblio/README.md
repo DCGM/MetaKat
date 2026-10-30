@@ -1263,7 +1263,11 @@ opens another unit when:
     část 4"; "díl II, část 4" and "díl I, část 5" are not; a span reading no
     part is among any;
   - **periodical** (`same_issue`): every volume level both read agreeing,
-    aligned from the lowest, or the same issue number;
+    aligned from the lowest, and the issue number too when both read one.
+    "Ročník 5, číslo 1" and "Ročník 5, číslo 2" are two issues, so are
+    "Ročník 5, číslo 1" and "Ročník 6, číslo 1"; "Ročník 5" alone or
+    "číslo 1" alone stays in "Ročník 5, číslo 1"; with nothing read by both,
+    the spans are not the same issue;
 - the start page's `startsDocument` is not annotated.
 
 Where the new document starts differs by binder:

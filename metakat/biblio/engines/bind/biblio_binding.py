@@ -312,14 +312,16 @@ def same_part(first: TitleSpan, second: TitleSpan) -> bool:
 
 def same_issue(first: TitleSpan, second: TitleSpan) -> bool:
     """Whether two spans read the same periodical unit: every level of the volume both read
-    agrees, aligned from the lowest, or else the same issue number."""
+    agrees, aligned from the lowest, and so does the issue number when both read one; with
+    neither read by both, they are not."""
     chains = [(part_paths(span.volume) or [()])[0] for span in (first, second)]
     common = list(zip(reversed(chains[0]), reversed(chains[1])))
-    if common and all(_agrees(a, b) for a, b in common):
-        return True
-    if first.issue is not None and second.issue is not None and first.issue.partNumber is not None:
-        return texts_match(first.issue.partNumber, second.issue.partNumber)
-    return False
+    if not all(_agrees(a, b) for a, b in common):
+        return False
+    issues = [span.issue.partNumber if span.issue is not None else None for span in (first, second)]
+    if all(issue is not None for issue in issues):
+        return texts_match(*issues)
+    return bool(common)
 
 
 def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceContainers]) -> None:
