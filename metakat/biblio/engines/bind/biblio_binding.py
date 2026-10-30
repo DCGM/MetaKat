@@ -72,15 +72,16 @@ logger = logging.getLogger(__name__)
 Anchors = Dict[UUID, UUID]
 
 # What an issue takes from its title page's reading besides its own number
-# and date: what each issue repeats - the periodical's title, imprint and
-# distributor, its redaktor and the other persons and bodies named with their
-# terms of address and affiliations, the statements of responsibility, a
-# copyright date and the ISBN the DMF gives an issue - and its languages
-# (span_candidates). The ISSN is the periodical title's (periodical_issn).
+# and date: what each issue repeats - the periodical's title, imprint,
+# manufacture statement and distributor, its redaktor and the other persons
+# and bodies named with their terms of address and affiliations, the
+# statements of responsibility, a copyright date and the ISBN the DMF gives an
+# issue - and its languages (span_candidates). The frequency only a supplement
+# keeps (unit_of); the ISSN is the periodical title's (periodical_issn).
 # Everything else a title page says describes the volume.
 _ISSUE_FIELDS = frozenset((
-    "title", "subTitle", "publisher", "publisherStatement", "placeTerm",
-    "manufacturePublisher", "manufacturePublisherStatement", "manufacturePlaceTerm",
+    "title", "subTitle", "publisher", "publisherStatement", "placeTerm", "frequency",
+    "manufacturePublisher", "manufacturePublisherStatement", "manufacturePlaceTerm", "manufactureDate",
     "distributionPlaceTerm", "distributor", "distributionDate",
     *(role.value for role in AgentRole), "termsOfAddress", "affiliation", "etal",
     "statementOfResponsibility", "copyrightDate", "isbn",
@@ -389,9 +390,12 @@ def different_supplements(first: TitleSpan, second: TitleSpan) -> bool:
 def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceContainers]) -> None:
     """Fill a record from the readings of one page that reach it.
 
-    A single-valued field read by two of the readings - a part number read
-    both as such and as a periodical volume number - keeps the more
-    confident reading; the first on a tie.
+    `sources` go from the reading that states no level to the one that
+    states the record's own. A single-valued field read by two of them keeps
+    the later one's reading, which says what the value is: a part number read
+    both as such and as a periodical volume number is the volume number, and
+    a volume's year or an issue's date printed as such outranks the date of
+    the imprint ("1908-1909", not "1909"), whatever their confidences.
     """
     fields: Dict[str, List[Value]] = {}
     single_source: Dict[str, int] = {}
@@ -404,8 +408,8 @@ def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceCo
             for field_name, value, single in values:
                 earlier = single_source.get(field_name)
                 if single and earlier is not None and earlier != index:
-                    if fields[field_name][0].confidence < value.confidence:
-                        fields[field_name] = [value]
+                    fields[field_name] = [value]
+                    single_source[field_name] = index
                 else:
                     fields.setdefault(field_name, []).append(value)
                     if single and earlier is None:
@@ -431,7 +435,7 @@ def _compose(record: Union[MetakatVolume, MetakatIssue], sources: List[_SourceCo
 # values that reached it. When the span's readings give one record the
 # same statement twice - a title from `reading` and a volume number from
 # `periodical_volume` are one <titleInfo> - they are united (union_groups),
-# and a single-valued field read in both keeps the more confident reading.
+# and a single-valued field read in both keeps the level's reading (_compose).
 def span_candidates(
     page_result: BiblioSpanResult,
     detection_page_keys: Optional[Dict[UUID, str]] = None,

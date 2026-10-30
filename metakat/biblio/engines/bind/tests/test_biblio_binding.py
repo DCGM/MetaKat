@@ -427,11 +427,12 @@ def test_a_periodical_issue_is_read_with_its_title_even_without_a_number(metakat
     assert [element.type for element in elements] == ["volume", "issue"]
 
 
-def test_a_field_read_twice_on_one_page_keeps_the_more_confident_reading(metakat_page):
+def test_a_field_read_twice_on_one_page_keeps_the_levels_reading(metakat_page):
     # A part number read both as a plain part number and as a periodical
-    # volume number is one field of the volume.
+    # volume number is one field of the volume: the volume number, however
+    # confident the plain reading.
     page = _page_result(
-        _titled(title_infos=(BiblioTitleInfo(title=_ev("Zlatá Praha", 0.9), part_number=_ev("IV", 0.6)),)),
+        _titled(title_infos=(BiblioTitleInfo(title=_ev("Zlatá Praha", 0.9), part_number=_ev("IV", 0.95)),)),
         periodical_volume=BiblioReading(title_infos=(BiblioTitleInfo(part_number=_ev("Ročník IV", 0.8)),)),
     )
 
@@ -446,6 +447,44 @@ def test_a_field_read_twice_on_one_page_keeps_the_more_confident_reading(metakat
     assert (title_info.members, part.members) == ([volume.title[0].id, part.id], [volume.partNumber[0].id])
     # The losing reading's geometry is returned; process() drops it.
     assert len(detection_to_bbox) == 3
+
+
+def test_a_volume_year_and_an_issue_date_printed_as_such_outrank_the_imprint_date(metakat_page):
+    page = _page_result(
+        _titled(publications=(BiblioPublication(date_issued=_ev("1909", 0.95)),)),
+        periodical_volume=BiblioReading(publications=(BiblioPublication(date_issued=_ev("1908-1909", 0.8)),)),
+        periodical_issue=BiblioReading(publications=(BiblioPublication(date_issued=_ev("15. dubna 1909", 0.8)),)),
+    )
+
+    volume, issue = span_candidates(page)[0]
+
+    assert (_tc(volume.dateIssued), _tc(issue.dateIssued)) == (("1908-1909", 0.8), ("15. dubna 1909", 0.8))
+
+
+def test_an_imprint_date_dates_the_volume_when_no_volume_year_is_printed(metakat_page):
+    page = _page_result(_titled(publications=(BiblioPublication(date_issued=_ev("1909", 0.9)),)),
+                        periodical_volume=BiblioReading(title_infos=(BiblioTitleInfo(part_number=_ev("Ročník IV", 0.8)),)))
+
+    volume, _ = span_candidates(page)[0]
+
+    assert _tc(volume.dateIssued) == ("1909", 0.9)
+
+
+def test_an_issue_repeats_its_title_pages_manufacture_statement_with_its_date(metakat_page):
+    page = _page_result(
+        _titled(manufactures=(BiblioManufacture(places=(_ev("Praha", 0.8),), manufacturers=(_ev("Otto", 0.8),),
+                                                date=_ev("1909", 0.8)),)),
+        periodical_issue=BiblioReading(title_infos=(BiblioTitleInfo(part_number=_ev("Číslo 3", 0.8)),)),
+    )
+
+    _, issue = span_candidates(page)[0]
+    finalize_groups(issue)
+
+    assert [_tc(field) for field in (issue.manufacturePlaceTerm, issue.manufacturePublisher, issue.manufactureDate)] \
+        == [("Praha", 0.8), ("Otto", 0.8), ("1909", 0.8)]
+    [manufacture] = _group(issue, "originInfoManufacture")
+    assert manufacture.members == [issue.manufacturePlaceTerm[0].id, issue.manufacturePublisher[0].id,
+                                   issue.manufactureDate[0].id]
 
 
 def test_finalized_groups_hold_only_the_records_own_values():

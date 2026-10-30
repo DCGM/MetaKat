@@ -404,3 +404,34 @@ def test_a_volume_year_that_names_no_year_is_not_read():
                    _read(4, 'Zlatá Praha', volume='Ročník IV', year='9532', issue='2'))
     [volume] = _of(io, MetakatVolume)
     assert volume.partNumber[0].text == 'Ročník IV' and volume.dateIssued is None
+
+
+def _with_imprint(reading, date=None, frequency=None):
+    ev = reading.reading.title_infos[0].title
+    publication = BiblioPublication(date_issued=dataclasses.replace(ev, text=date) if date else None,
+                                    frequency=dataclasses.replace(ev, text=frequency) if frequency else None)
+    return dataclasses.replace(reading, reading=dataclasses.replace(reading.reading, publications=(publication,)))
+
+
+def test_the_frequency_is_the_periodical_titles_and_a_supplements_not_an_issues():
+    # DMF: the frequency is R on the title and RA on a supplement.
+    pages = _scan({3, 5}, {0: .99, 3: .99, 5: .99})
+    io, _ = _bound(pages,
+                   _with_imprint(_read(0, 'Zlatá Praha', volume='Ročník I', issue='1'), frequency='Vychází týdně'),
+                   _with_imprint(_supplement(3, 'Příloha', issue='1'), frequency='Vychází měsíčně'),
+                   _with_imprint(_read(5, 'Zlatá Praha', volume='Ročník I', issue='2'), frequency='vychází týdně.'))
+
+    [title] = _of(io, MetakatTitle)
+    [supplement] = _of(io, MetakatSupplement)
+    assert [v.text for v in title.frequency] == ['Vychází týdně']
+    assert [v.text for v in supplement.frequency] == ['Vychází měsíčně']
+    assert [issue.frequency for issue in _of(io, MetakatIssue)] == [None, None]
+    assert [volume.frequency for volume in _of(io, MetakatVolume)] == [None]
+
+
+def test_the_volume_year_is_the_one_printed_as_such_not_the_imprint_date():
+    io, _ = _bound(_scan((), {0: .99}),
+                   _with_imprint(_read(0, 'Kalendář', volume='Ročník 5', year='1893', issue='1'), date='1892'))
+
+    [volume] = _of(io, MetakatVolume)
+    assert [v.text for v in volume.dateIssued] == ['1893']

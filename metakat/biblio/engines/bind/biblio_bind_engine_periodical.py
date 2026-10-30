@@ -87,9 +87,13 @@ def belongs_to(supplement: TitleSpan, issue: TitleSpan) -> bool:
 
 
 def unit_of(winner: Optional[TitleSpan]):
-    """The issue a document's authoritative span names, or its supplement when the span is one's."""
+    """The issue a document's authoritative span names, or its supplement when the span is one's.
+
+    The DMF gives a frequency to the periodical's title and a supplement, not
+    to an issue: an issue's frequency is left to the title (periodical_title)."""
     issue = winner.issue if winner is not None and winner.issue is not None else MetakatIssue(id=uuid4())
     if winner is None or not winner.supplement:
+        issue.frequency = None
         return issue
     return MetakatSupplement(**{name: getattr(issue, name) for name in MetakatIssue.model_fields if name != "type"})
 
@@ -152,9 +156,10 @@ def periodical_title(spans: List[TitleSpan], located: Container = ()) -> Metakat
     similarity to the most similar half of the others (title_similarity),
     so a minority of outliers does not lower the score of a good reading.
     The highest score wins, the more confident reading on a tie. The title
-    takes that span's title, subtitle, title group and languages, and the
-    ISSN its title pages agree on (periodical_issn), which the DMF gives the
-    title of a periodical."""
+    takes that span's title, subtitle, groups and languages, and the ISSN
+    (periodical_issn) and the frequency its title pages agree on, which the
+    DMF gives the title of a periodical. The frequency is the one most of
+    them read, compared as normalized text, in its most confident reading."""
     # A supplement's title is its own, not the periodical's, unless only supplements are read.
     candidates = ([span.volume for span in spans if span.volume is not None and span.volume.title
                    and not span.supplement]
@@ -162,7 +167,9 @@ def periodical_title(spans: List[TitleSpan], located: Container = ()) -> Metakat
     if not candidates:
         return MetakatTitle(id=uuid4(), hierarchy=HierarchyType.PERIODICAL)
     issn = periodical_issn(candidates)
-    candidates = [candidate for candidate in candidates if kept(candidate.title).id in located] or candidates
+    frequency = _consensus([value for candidate in candidates for value in candidate.frequency or ()],
+                           normalize_text)
+    candidates =[candidate for candidate in candidates if kept(candidate.title).id in located] or candidates
     texts = [kept(candidate.title).text for candidate in candidates]
 
     def score(index: int) -> float:
@@ -178,7 +185,8 @@ def periodical_title(spans: List[TitleSpan], located: Container = ()) -> Metakat
     logger.info("Periodical title %r chosen from %d title reading(s)", texts[best], len(candidates))
     return MetakatTitle(id=uuid4(), hierarchy=HierarchyType.PERIODICAL, title=winner.title,
                         subTitle=winner.subTitle, language=winner.language,
-                        originalLanguage=winner.originalLanguage, issn=issn, groups=winner.groups)
+                        originalLanguage=winner.originalLanguage, issn=issn,
+                        frequency=[frequency] if frequency is not None else None, groups=winner.groups)
 
 
 _ISSN = re.compile(r"(?<![\dXx])(\d{4})\s*[-‐‑–—]?\s*(\d{3}[\dXx])(?![\dXx])")

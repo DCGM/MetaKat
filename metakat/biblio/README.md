@@ -856,7 +856,7 @@ Which record a value goes to is the binder's decision, made per reading:
 
 | Reading | `MetakatVolume` takes | `MetakatIssue` takes |
 |---|---|---|
-| `reading` | everything except `redaktor` | `title`, `subTitle`, `publisher`, `publisherStatement`, `placeTerm`, `manufacturePublisher`, `manufacturePublisherStatement`, `manufacturePlaceTerm`, the distribution fields, every agent role (`redaktor` included) with `termsOfAddress` and `affiliation`, `etal`, `statementOfResponsibility`, `copyrightDate`, `isbn`, the languages and original languages - what an issue repeats from its title page |
+| `reading` | everything except `redaktor` | `title`, `subTitle`, `publisher`, `publisherStatement`, `placeTerm`, `frequency`, `manufacturePublisher`, `manufacturePublisherStatement`, `manufacturePlaceTerm`, `manufactureDate`, the distribution fields, every agent role (`redaktor` included) with `termsOfAddress` and `affiliation`, `etal`, `statementOfResponsibility`, `copyrightDate`, `isbn`, the languages and original languages - what an issue repeats from its title page |
 | `periodical_volume` | all of it | — |
 | `periodical_issue` | — | all of it |
 
@@ -876,9 +876,15 @@ values of it that reached that record. When two readings of one page give a
 record the same statement - a title from `reading` and a volume number from
 `periodical_volume` are one `<titleInfo>` of the volume - their groups are
 united as described under [Groups](#groups). A single-valued field that two
-readings both fill, such as a part number read both as `PartNumber` and as
-`PeriodicalVolumePartNumber`, keeps the more confident reading; the first on
-a tie.
+readings both fill keeps the reading of `periodical_volume` or
+`periodical_issue`, which says what the value is, whatever the confidences: a
+part number read both as `PartNumber` and as `PeriodicalVolumePartNumber` is
+the volume number, and a volume's year or an issue's date printed as such
+outranks the date of the imprint ("1908-1909", not the imprint's "1909"). An
+imprint date still dates the volume when no year of the volume is read.
+Of the fields an issue takes from `reading`, a plain issue drops the
+`frequency` (`unit_of`): the DMF gives it to the periodical's title and a
+supplement only.
 
 The `hierarchy` of the candidate volume follows from what its span says:
 
@@ -1240,8 +1246,10 @@ another paper of the city. Each reading is scored by its mean
 `title_similarity` (`difflib` ratio of the normalized texts) to the most
 similar half of the other readings, so a minority of outliers does not lower a
 good reading's score. The highest score wins, the more confident reading on a
-tie, and the title takes that span's `title`, `subTitle` and groups. With no
-reading the title is unnamed.
+tie, and the title takes that span's `title`, `subTitle` and groups, and the
+`frequency` most of the title pages read (as normalized text, in its most
+confident reading; a supplement's only when nothing else is read), which the
+DMF gives the title of a periodical. With no reading the title is unnamed.
 
 A multipart monograph's title is made by `title_from` (shared), which takes
 the volume with the highest-confidence `title` among the parts and builds:
