@@ -179,6 +179,29 @@ def test_the_main_version_is_the_one_not_flagged_translated_wherever_it_is_print
     assert [version.title.text for version in second.parallel_titles_toc_page] == ["Wald und Wasser"]
 
 
+def test_an_author_named_inside_the_title_takes_the_title_words(tmp_path):
+    Image.new("RGB", (1000, 1500), "white").save(tmp_path / "0007.jpg")
+    (tmp_path / "0007.xml").write_text(_ALTO.format(blocks=_line("A", 1, ("Erbenova", 100, 120),
+                                                                 ("Kytice", 230, 90), ("7", 800, 20))),
+                                       encoding="utf-8")
+    reply = {"entries": [
+        {"tocPage": 0, "level": 1, "kind": "item", "partNumber": None, "designation": None,
+         "titleInfo": [{"title": "Erbenova Kytice", "subTitle": None, "description": None, "lang": "cze",
+                        "translated": False}],
+         "agents": [{"role": "author", "type": "personal", "name": "Erbenova", "termsOfAddress": [], "dates": None,
+                     "description": [], "affiliation": []}],
+         "etal": None, "pageReference": "7", "pages": ["7"]},
+    ]}
+    engine = ChapterExtractionEngineVLM(_config(), client=_Endpoint(reply).client())
+
+    [entry] = engine.process([ChapterPageInput("0007", 6, tmp_path / "0007.jpg", tmp_path / "0007.xml")]).chapters
+
+    # The title stays whole, and the author takes its own words from it.
+    assert (entry.title_toc_page.text, entry.title_toc_page.alto.words) == ("Erbenova Kytice", ("A1W0", "A1W1"))
+    [author] = entry.agents_toc_page
+    assert (author.name.text, author.name.alto.words) == ("Erbenova", ("A1W0",))
+
+
 def test_a_page_without_ocr_text_is_read_from_its_image(toc_pages, tmp_path):
     (tmp_path / "0008.xml").write_text(_ALTO.format(blocks=""), encoding="utf-8")
     endpoint = _Endpoint({"entries": []})

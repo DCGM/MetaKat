@@ -36,7 +36,9 @@ Of an entry the stage reads:
   terms of address, its life `dates`, its `description` and its
   `affiliation`, every one located as a value of its own, except an
   affiliation printed in its agent's description, which takes its words
-  from there (metakat.common.vlm.word_regions), and a name, description or
+  from there (metakat.common.vlm.word_regions), an author named inside the
+  entry's title ("Erbenova" of "Erbenova Kytice"), which takes its words
+  from the title, and a name, description or
   affiliation printed once for several agents of the entry, which takes the
   words of its identical value (_COPIED_PATHS);
 - its `etal`, the phrase saying there are more agents than named ("a kol."),
@@ -264,6 +266,18 @@ class ChapterExtractionEngineVLM:
             words = words_run(designation.words, number)
             if words:
                 located[index, "partNumber"] = (page_index, words_region(words))
+        # An author named inside the title ("Erbenova" of "Erbenova Kytice")
+        # is printed in the title's words and takes them.
+        for index, entry in enumerate(entries):
+            for item, agent in enumerate(_agents(entry)):
+                if (index, "agents", item) in located or not _in_title(entry, agent["name"]):
+                    continue
+                for field in _TITLE_FIELDS:
+                    page_index, title = located.get((index, field), (None, None))
+                    words = () if title is None else words_run(title.words, agent["name"])
+                    if words:
+                        located[index, "agents", item] = (page_index, words_region(words))
+                        break
         # An affiliation is printed in the words of its agent's description
         # ("profesor Komenského university v Bratislavě") and takes them.
         for index, entry in enumerate(entries):
@@ -430,6 +444,22 @@ def _from_description(agent: Mapping[str, Any], text: str) -> bool:
     return any(bare(text) in bare(description) for description in _descriptions(agent))
 
 
+# The fields of the main titleInfo an author can be named inside.
+_TITLE_FIELDS = ("title", "subTitle")
+
+
+def _in_title(entry: Mapping[str, Any], name: str) -> bool:
+    # Whether a name is printed as whole words of the entry's title or subtitle.
+    tokens = [token for token in map(bare, name.split()) if token]
+    for field in _TITLE_FIELDS:
+        text = _first_title_info(entry).get(field)
+        words = [bare(word) for word in text.split()] if _has_text(text) else []
+        if tokens and any(words[start:start + len(tokens)] == tokens
+                          for start in range(len(words) - len(tokens) + 1)):
+            return True
+    return False
+
+
 def _terms(agent: Mapping[str, Any]) -> list[str]:
     return [text for text in agent.get("termsOfAddress") or () if isinstance(text, str) and text.strip()]
 
@@ -494,7 +524,8 @@ def _entry_texts(entry: Mapping[str, Any]) -> dict:
         **{f"{field}.{number}": item.get(field)
            for number, item in enumerate(_title_versions(entry), start=1)
            for field in ("title", "subTitle", "description")},
-        "agents": [agent["name"] for agent in _agents(entry)],
+        # One named inside the title has no words of its own (_locate).
+        "agents": [None if _in_title(entry, agent["name"]) else agent["name"] for agent in _agents(entry)],
         "termsOfAddress": [text for agent in _agents(entry) for text in _terms(agent)],
         "dates": [text for agent in _agents(entry) for text in _dates(agent)],
         "descriptions": [text for agent in _agents(entry) for text in _descriptions(agent)],
