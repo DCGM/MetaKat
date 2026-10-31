@@ -2,6 +2,7 @@ import base64
 import io
 import json
 from types import SimpleNamespace
+from xml.etree import ElementTree
 
 import pytest
 from PIL import Image
@@ -259,6 +260,22 @@ def test_an_image_is_scaled_to_its_smallest_text(tmp_path):
     image, _ = _decoded(VLMImage.from_file(
         tmp_path / "page.jpg", ImagePreprocessing(text_height=20), tmp_path / "page.xml"))
     assert image.size == (2000, 1000)
+
+
+def test_the_smallest_text_is_measured_without_a_text_height_mode(tmp_path):
+    Image.new("RGB", (4000, 2000), "white").save(tmp_path / "page.jpg")
+    (tmp_path / "page.xml").write_text(
+        '<alto><Layout><Page WIDTH="2000" HEIGHT="1000"><PrintSpace>'
+        '<TextLine HEIGHT="20"><String CONTENT="Praha" HEIGHT="20" WC="0.9"/></TextLine>'
+        '</PrintSpace></Page></Layout></alto>')
+    (tmp_path / "broken.xml").write_text("<alto>")
+
+    image = VLMImage.from_file(tmp_path / "page.jpg", ImagePreprocessing(max_w=1000), tmp_path / "page.xml")
+    assert image.size.sent == (1000, 500) and image.size.smallest_text_px == 40
+    image = VLMImage.from_file(tmp_path / "page.jpg", ImagePreprocessing(max_w=1000), tmp_path / "broken.xml")
+    assert image.size.sent == (1000, 500) and image.size.smallest_text_px is None
+    with pytest.raises(ElementTree.ParseError):
+        VLMImage.from_file(tmp_path / "page.jpg", ImagePreprocessing(text_height=20), tmp_path / "broken.xml")
 
 
 def test_the_image_preprocessing_config_is_read_and_its_max_pixels_cannot_be_null():

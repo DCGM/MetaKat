@@ -55,6 +55,7 @@ from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
+from xml.etree import ElementTree
 
 from metakat.common.vlm.image_preprocessing import ImagePreprocessing, smallest_text_height
 from metakat.common.vlm.report import VLMCallReport, VLMImageSize, VLMPricing, attempt
@@ -188,7 +189,12 @@ class VLMImage:
         preprocessing: Optional[ImagePreprocessing] = None,
         alto: Optional[str | os.PathLike[str]] = None,
     ) -> "VLMImage":
-        """The image at the size `preprocessing` allows; `alto`, when given, measures its text."""
+        """The image at the size `preprocessing` allows; `alto`, when given, measures its text.
+
+        The text is measured in every mode, so the report always tells how large
+        the text sent to the model is. Only a `text_height` mode scales by it,
+        and only there a broken ALTO fails the image.
+        """
         from PIL import Image
 
         path = Path(path)
@@ -196,8 +202,14 @@ class VLMImage:
         with Image.open(path) as image:
             image_format, original = image.format, image.size
             text_height = None
-            if preprocessing.text_height is not None and alto is not None:
-                text_height = smallest_text_height(alto, image.size)
+            if alto is not None:
+                try:
+                    text_height = smallest_text_height(alto, image.size)
+                except (OSError, ElementTree.ParseError) as error:
+                    if preprocessing.text_height is not None:
+                        raise
+                    logger.warning("Smallest text of %s not measured, ALTO %s unreadable: %s",
+                                   path.name, Path(alto).name, error)
             size = preprocessing.scaled_size(*image.size, text_height)
             scaled = size != image.size
             if scaled:
