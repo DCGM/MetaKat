@@ -21,7 +21,7 @@ import os
 import re
 import unicodedata
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
 from uuid import UUID, uuid4
 
 from metakat.biblio.engines.core.models import (
@@ -163,11 +163,33 @@ def _is_single(container: BiblioContainer, field_name: str) -> bool:
     )
 
 
+# The fields that describe an agent's name rather than name it.
+_AGENT_DETAIL_FIELDS = frozenset(("termsOfAddress", "nameDate", "nameDescription", "affiliation"))
+
+
 def _restrict(source: _SourceContainers, keep: Callable[[str], bool]) -> _SourceContainers:
-    return [
-        (group_type, [value for value in values if keep(value[0])], node)
-        for group_type, values, node in source
-    ]
+    """The values whose field `keep` accepts. An agent goes whole, by the field of its name: its terms of
+    address, life dates, descriptions and affiliations describe that name and reach only the records it does."""
+    restricted = []
+    for group_type, values, node in source:
+        field_of = {value.id: field_name for field_name, value, _ in values}
+        decided = {}
+        for agent in _agent_nodes(node):
+            ids = [member for member in agent.members if member in field_of]
+            names = [field_of[member] for member in ids if field_of[member] not in _AGENT_DETAIL_FIELDS]
+            kept_agent = bool(names) and all(keep(field_name) for field_name in names)
+            decided.update(dict.fromkeys(ids, kept_agent))
+        restricted.append((group_type, [value for value in values if decided.get(value[1].id, keep(value[0]))], node))
+    return restricted
+
+
+def _agent_nodes(node: _Node) -> Iterator[_Node]:
+    # The agents in a container's group: an agent's own, or a series' editors.
+    if node.group_type == GroupType.AGENT.value:
+        yield node
+    for member in node.members:
+        if isinstance(member, _Node):
+            yield from _agent_nodes(member)
 
 
 def _node_groups(node: _Node, present: set) -> List[MetakatGroup]:
@@ -440,6 +462,8 @@ def _compose(record: Union[MetakatVolume, MetakatIssue, MetakatSupplement], sour
 #   * `reading` - level not stated. The volume takes all of it, but in a
 #     periodical not the editor, who edits the issues; the issue takes the
 #     fields a periodical issue repeats from its title page (_ISSUE_FIELDS).
+#     An agent goes whole with its name, its terms of address, dates,
+#     descriptions and affiliations with it (_restrict).
 #   * `periodical_volume` / `periodical_issue` - that record only.
 #
 # A span the core tells is a supplement's also gives a candidate supplement:

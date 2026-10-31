@@ -389,8 +389,11 @@ def test_a_periodical_page_gives_a_volume_and_an_issue(metakat_page):
             publications=(BiblioPublication(
                 places=(_ev("Praha", 0.8),), publishers=(_ev("Otto", 0.8),), edition=_ev("2. vyd.", 0.5),
             ),),
-            agents=(BiblioAgent(role=AgentRole.EDITOR, name=_ev("Novák", 0.7)),
-                    BiblioAgent(role=AgentRole.AUTHOR, name=_ev("Vrchlický", 0.7))),
+            agents=(BiblioAgent(role=AgentRole.EDITOR, name=_ev("Novák", 0.7), terms_of_address=(_ev("Dr.", 0.7),),
+                                dates=_ev("1850—1910", 0.7), descriptions=(_ev("professor gymnasia v Táboře", 0.7),),
+                                affiliations=(_ev("gymnasia v Táboře", 0.7),)),
+                    BiblioAgent(role=AgentRole.AUTHOR, name=_ev("Vrchlický", 0.7),
+                                terms_of_address=(_ev("Prof.", 0.7),))),
         ),
         periodical_volume=BiblioReading(
             title_infos=(BiblioTitleInfo(part_number=_ev("Ročník IV", 0.8)),),
@@ -412,6 +415,11 @@ def test_a_periodical_page_gives_a_volume_and_an_issue(metakat_page):
     assert (issue.dateIssued, issue.edition, volume.editor) == (None, None, None)
     assert _tc(issue.editor) == ("Novák", 0.7)
     assert _tc(issue.author) == _tc(volume.author) == ("Vrchlický", 0.7)
+    # What describes the editor's name goes with it: the volume keeps only the author's.
+    assert [value.text for value in volume.termsOfAddress] == ["Prof."]
+    assert (volume.nameDate, volume.nameDescription, volume.affiliation) == (None, None, None)
+    assert [value.text for value in issue.termsOfAddress] == ["Dr.", "Prof."]
+    assert [value.text for value in issue.affiliation] == ["gymnasia v Táboře"]
     # The title and the volume number are one titleInfo of the volume.
     finalize_groups(volume)
     [title_info] = _group(volume, "titleInfo")
