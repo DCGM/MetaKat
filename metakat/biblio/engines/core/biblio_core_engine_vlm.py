@@ -457,13 +457,16 @@ def alto_text(words) -> str:
 
 
 # The values the prompts repeat on purpose within one top-level field, which
-# the aligner gives words to once: a person in two roles, a description or an
-# affiliation printed once for several persons, a series number printed once
+# the aligner gives words to once: a person in two roles with their terms of
+# address and life dates, a description or an affiliation printed once for
+# several persons, a series number printed once
 # for its names in several languages (within one series). An unmatched one
 # takes the match of its identical value (copy_identical_paths).
 _COPIED_PATHS = (
-    "agents[*].name", "agents[*].description[*]", "agents[*].affiliation[*]",
-    "series[*].seriesEditor[*].name", "series[*].seriesEditor[*].description[*]",
+    "agents[*].name", "agents[*].termsOfAddress[*]", "agents[*].dates", "agents[*].description[*]",
+    "agents[*].affiliation[*]",
+    "series[*].seriesEditor[*].name", "series[*].seriesEditor[*].termsOfAddress[*]",
+    "series[*].seriesEditor[*].dates", "series[*].seriesEditor[*].description[*]",
     "series[*].seriesEditor[*].affiliation[*]",
     "series[i].titleInfo[*].seriesPartNumber", "series[i].titleInfo[*].seriesPartName",
 )

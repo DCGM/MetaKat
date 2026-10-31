@@ -38,7 +38,7 @@ Of an entry the stage reads:
   affiliation printed in its agent's description, which takes its words
   from there (metakat.common.vlm.word_regions), an author named inside the
   entry's title ("Erbenova" of "Erbenova Kytice"), which takes its words
-  from the title, and a name, description or
+  from the title, and a name, term of address, life dates, description or
   affiliation printed once for several agents of the entry, which takes the
   words of its identical value (_COPIED_PATHS);
 - its `etal`, the phrase saying there are more agents than named ("a kol."),
@@ -562,12 +562,13 @@ def alto_text(words) -> str:
 
 
 # The values the prompt repeats on purpose within one entry, which the
-# aligner gives words to once: a person in two roles, a description or an
-# affiliation printed once for several persons. An unmatched one takes the
-# match of its identical value in the same entry (copy_identical_paths); a
-# name expanded from a ditto mark in another entry is not printed there and
-# stays unmatched.
-_COPIED_PATHS = ("entries[i].agents[*]", "entries[i].descriptions[*]", "entries[i].affiliations[*]")
+# aligner gives words to once: a person in two roles with their terms of
+# address and life dates, a description or an affiliation printed once for
+# several persons. An unmatched one takes the match of its identical value in
+# the same entry (copy_identical_paths); a name expanded from a ditto mark in
+# another entry is not printed there and stays unmatched.
+_COPIED_PATHS = ("entries[i].agents[*]", "entries[i].termsOfAddress[*]", "entries[i].dates[*]",
+                 "entries[i].descriptions[*]", "entries[i].affiliations[*]")
 
 
 def _text_aligner(*, reorder_columns: bool):

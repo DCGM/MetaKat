@@ -225,12 +225,29 @@ def test_the_pages_of_a_span_are_aligned_as_one_text(page, tmp_path, engine_clas
 def test_a_name_or_description_printed_once_for_several_agents_is_located_for_each(page, engine_class):
     from text_geometry_aligner import ALTOReader
 
+    agent = {"name": "ERBEN", "termsOfAddress": ["K."], "dates": "1853", "description": ["KYTICE"]}
     located = engine_class(_config(), client=object())._locate([ALTOReader().read(page[1])], {
-        "agents": [{"name": "ERBEN", "description": ["KYTICE"]}, {"name": "ERBEN", "description": ["KYTICE"]}],
+        "agents": [agent, agent],
     })
-    for agent in (0, 1):
-        assert located["agents", agent, "name"][1].words[0].alto_word_id == "S3"
-        assert located["agents", agent, "description", 0][1].words[0].alto_word_id == "S4"
+    for index in (0, 1):
+        assert located["agents", index, "name"][1].words[0].alto_word_id == "S3"
+        assert located["agents", index, "termsOfAddress", 0][1].words[0].alto_word_id == "S1"
+        assert located["agents", index, "dates"][1].words[0].alto_word_id == "S10"
+        assert located["agents", index, "description", 0][1].words[0].alto_word_id == "S4"
+
+
+def test_a_series_editor_listed_twice_is_located_for_each(page):
+    from text_geometry_aligner import ALTOReader
+
+    editor = {"name": "ERBEN", "termsOfAddress": ["K."], "dates": "1853"}
+    located = BiblioCoreEngineVLMMonograph(_config(), client=object())._locate([ALTOReader().read(page[1])], {
+        "series": [{"seriesEditor": [editor, editor]}],
+    })
+    for index in (0, 1):
+        path = ("series", 0, "seriesEditor", index)
+        assert located[(*path, "name")][1].words[0].alto_word_id == "S3"
+        assert located[(*path, "termsOfAddress", 0)][1].words[0].alto_word_id == "S1"
+        assert located[(*path, "dates")][1].words[0].alto_word_id == "S10"
 
 
 def test_a_series_number_is_copied_only_between_the_names_of_one_series(page):

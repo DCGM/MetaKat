@@ -202,6 +202,29 @@ def test_an_author_named_inside_the_title_takes_the_title_words(tmp_path):
     assert (author.name.text, author.name.alto.words) == ("Erbenova", ("A1W0",))
 
 
+def test_a_person_in_two_roles_is_located_for_each_with_their_terms_and_dates(tmp_path):
+    Image.new("RGB", (1000, 1500), "white").save(tmp_path / "0007.jpg")
+    (tmp_path / "0007.xml").write_text(_ALTO.format(blocks=_line(
+        "A", 1, ("Dr.", 100, 30), ("Jan", 140, 40), ("Novák", 190, 60), ("(1850—1910):", 260, 120),
+        ("Pramen", 390, 90), ("7", 800, 20))), encoding="utf-8")
+    person = {"type": "personal", "name": "Jan Novák", "termsOfAddress": ["Dr."], "dates": "1850—1910",
+              "description": [], "affiliation": []}
+    reply = {"entries": [
+        {"tocPage": 0, "level": 1, "kind": "item", "partNumber": None, "designation": None,
+         "titleInfo": [{"title": "Pramen", "subTitle": None, "description": None, "lang": "cze", "translated": False}],
+         "agents": [{"role": "author", **person}, {"role": "illustrator", **person}],
+         "etal": None, "pageReference": "7", "pages": ["7"]},
+    ]}
+    engine = ChapterExtractionEngineVLM(_config(), client=_Endpoint(reply).client())
+
+    [entry] = engine.process([ChapterPageInput("0007", 6, tmp_path / "0007.jpg", tmp_path / "0007.xml")]).chapters
+
+    for agent in entry.agents_toc_page:
+        assert agent.name.alto.words == ("A1W1", "A1W2")
+        assert [term.alto.words for term in agent.terms_of_address] == [("A1W0",)]
+        assert agent.dates.alto.words == ("A1W3",)
+
+
 def test_a_page_without_ocr_text_is_read_from_its_image(toc_pages, tmp_path):
     (tmp_path / "0008.xml").write_text(_ALTO.format(blocks=""), encoding="utf-8")
     endpoint = _Endpoint({"entries": []})
