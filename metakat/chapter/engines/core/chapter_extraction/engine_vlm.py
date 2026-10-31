@@ -35,19 +35,20 @@ Of an entry the stage reads:
 - its `agents`, as `agents_toc_page`, each in its role, with its type, its
   terms of address, its life `dates`, its `description` and its
   `affiliation`, every one located as a value of its own, except an
-  affiliation printed in its agent's description, which takes its words
-  from there (metakat.common.vlm.word_regions), an author named inside the
-  entry's title ("Erbenova" of "Erbenova Kytice"), which takes its words
-  from the title, and a name, term of address, life dates, description or
-  affiliation printed once for several agents of the entry, which takes the
-  words of its identical value (_COPIED_PATHS);
+  affiliation printed in its agent's description and an author named inside
+  the entry's title ("Erbenova" of "Erbenova Kytice"), which are located
+  within the words of the description or the title (_INSIDE_PATHS), and a
+  name, term of address, life dates, description or affiliation printed once
+  for several agents of the entry, which takes the words of its identical
+  value (_COPIED_PATHS);
 - its `etal`, the phrase saying there are more agents than named ("a kol."),
   as `etal_toc_page`;
 - its `designation`, the whole printed entry marker with its words and
   punctuation ("Kapitola VIII."), as `designation_toc_page`;
 - its `partNumber`, the printed numbering without its words, as
   `part_number_toc_page`; it is printed in the designation's words, and a
-  word goes to one value only, so it takes its words from the designation;
+  word goes to one value only, so it is located within the designation's
+  words (_INSIDE_PATHS);
 - its `pageReference`, the reference as printed, as
   `page_reference_toc_page`, located in the ALTO;
 - its `pages`, the reference split by the model into its pages and ranges,
@@ -113,7 +114,7 @@ from metakat.common.vlm import (
     render_prompts,
 )
 from metakat.common.vlm.local_server import LocalModelConfig, serve
-from metakat.common.vlm.word_regions import bare, words_region, words_run
+from metakat.common.vlm.word_regions import words_region
 from metakat.engine_config import require_config_mapping
 from metakat.schemas.base_objects import ClassifiedValue, NameType, TocEntryKind
 
@@ -197,11 +198,11 @@ class ChapterExtractionEngineVLM:
         entries = [entry for entry in reply.get("entries") or () if isinstance(entry, Mapping)]
         located = self._locate(entries, alto_pages)
 
-        def evidence(index: int, field: str, text: Any, item: Optional[int] = None,
+        def evidence(index: int, field: str, text: Any, item: tuple = (),
                      lang: Any = None) -> Optional[DetectionEvidence]:
             if not isinstance(text, str) or not text.strip():
                 return None
-            key = (index, field) if item is None else (index, field, item)
+            key = (index, field, *item)
             page_index, region = located.get(key, (_page_index(entries[index], len(pages)), None))
             geometry = None if region is None else region.alto_geometry
             return DetectionEvidence(
@@ -232,8 +233,8 @@ class ChapterExtractionEngineVLM:
             yield VLMClient(dataclasses.replace(self.vlm_config, api_url=api_url), self._client, local=True)
 
     def _locate(self, entries: Sequence[Mapping[str, Any]], alto_pages) -> dict:
-        """(entry index, field[, position in its list]) -> (page index, aligned region)
-        of every value found in the ALTO.
+        """(entry index, field, ...) -> (page index, aligned region) of every value
+        found in the ALTO, by its path in _entry_texts.
 
         The pages are one table of contents, aligned at once as one text
         (align_pages): an entry is found wherever it is printed, whatever
@@ -255,41 +256,6 @@ class ChapterExtractionEngineVLM:
                     continue
                 words = [word for word in region.words if word.page_index == region.page_index]
                 located[tuple(path[1:])] = (region.page_index, words_region(words))
-        # The part number is printed in the designation's words ("Kapitola 3"),
-        # and a word goes to one value only, so the part number takes its
-        # words from the designation.
-        for index, entry in enumerate(entries):
-            number = entry.get("partNumber")
-            if (index, "designation") not in located or not isinstance(number, str):
-                continue
-            page_index, designation = located[index, "designation"]
-            words = words_run(designation.words, number)
-            if words:
-                located[index, "partNumber"] = (page_index, words_region(words))
-        # An author named inside the title ("Erbenova" of "Erbenova Kytice")
-        # is printed in the title's words and takes them.
-        for index, entry in enumerate(entries):
-            for item, agent in enumerate(_agents(entry)):
-                if (index, "agents", item) in located or not _in_title(entry, agent["name"]):
-                    continue
-                for field in _TITLE_FIELDS:
-                    page_index, title = located.get((index, field), (None, None))
-                    words = () if title is None else words_run(title.words, agent["name"])
-                    if words:
-                        located[index, "agents", item] = (page_index, words_region(words))
-                        break
-        # An affiliation is printed in the words of its agent's description
-        # ("profesor Komenského university v Bratislavě") and takes them.
-        for index, entry in enumerate(entries):
-            for affiliation, descriptions in _affiliation_sources(entry):
-                if (index, "affiliations", affiliation[0]) in located:
-                    continue
-                for position in descriptions:
-                    page_index, description = located.get((index, "descriptions", position), (None, None))
-                    words = () if description is None else words_run(description.words, affiliation[1])
-                    if words:
-                        located[index, "affiliations", affiliation[0]] = (page_index, words_region(words))
-                        break
         return located
 
 
@@ -427,70 +393,27 @@ def _dates(agent: Mapping[str, Any]) -> list[str]:
     return [agent["dates"]] if _has_text(agent.get("dates")) else []
 
 
-def _affiliation_sources(entry: Mapping[str, Any]) -> Iterator[tuple[tuple[int, str], range]]:
-    # Each affiliation by its position among the entry's affiliations, with
-    # the positions of its agent's descriptions among the entry's descriptions.
-    affiliations = descriptions = 0
-    for agent in _agents(entry):
-        own = range(descriptions, descriptions + len(_descriptions(agent)))
-        for text in _affiliations(agent):
-            yield (affiliations, text), own
-            affiliations += 1
-        descriptions = own.stop
-
-
-def _from_description(agent: Mapping[str, Any], text: str) -> bool:
-    # Whether an affiliation repeats words of its agent's description, where it takes them.
-    return any(bare(text) in bare(description) for description in _descriptions(agent))
-
-
-# The fields of the main titleInfo an author can be named inside.
-_TITLE_FIELDS = ("title", "subTitle")
-
-
-def _in_title(entry: Mapping[str, Any], name: str) -> bool:
-    # Whether a name is printed as whole words of the entry's title or subtitle.
-    tokens = [token for token in map(bare, name.split()) if token]
-    for field in _TITLE_FIELDS:
-        text = _first_title_info(entry).get(field)
-        words = [bare(word) for word in text.split()] if _has_text(text) else []
-        if tokens and any(words[start:start + len(tokens)] == tokens
-                          for start in range(len(words) - len(tokens) + 1)):
-            return True
-    return False
-
-
 def _terms(agent: Mapping[str, Any]) -> list[str]:
     return [text for text in agent.get("termsOfAddress") or () if isinstance(text, str) and text.strip()]
 
 
 def _toc_agents(index: int, entry: Mapping[str, Any], evidence) -> tuple[ChapterAgent, ...]:
-    # A term of address, life dates, a description or an affiliation is
-    # located by its position among all the entry's values of its kind, as
-    # _entry_texts lists them.
-    agents, positions = [], {"termsOfAddress": 0, "dates": 0, "descriptions": 0, "affiliations": 0}
-
-    def located(field: str, texts: list[str]) -> tuple:
-        found = []
-        for text in texts:
-            found.append(evidence(index, field, text, positions[field]))
-            positions[field] += 1
-        return tuple(found)
-
+    # Every value of an agent is located by its path in _entry_texts.
+    agents = []
     for item, agent in enumerate(_agents(entry)):
-        terms = located("termsOfAddress", _terms(agent))
-        dates = located("dates", _dates(agent))
-        descriptions = located("descriptions", _descriptions(agent))
-        affiliations = located("affiliations", _affiliations(agent))
+
+        def located(field: str, texts: list[str]) -> tuple:
+            return tuple(evidence(index, "agents", text, (item, field, number)) for number, text in enumerate(texts))
+
         label = agent.get("type")
         agents.append(ChapterAgent(
             role=_ROLES[agent["role"]],
-            name=evidence(index, "agents", agent["name"], item),
+            name=evidence(index, "agents", agent["name"], (item, "name")),
             type=NameType(label) if isinstance(label, str) and label in NameType._value2member_map_ else None,
-            affiliations=affiliations,
-            terms_of_address=terms,
-            dates=next(iter(dates), None),
-            descriptions=descriptions,
+            affiliations=located("affiliations", _affiliations(agent)),
+            terms_of_address=located("termsOfAddress", _terms(agent)),
+            dates=evidence(index, "agents", agent.get("dates"), (item, "dates")),
+            descriptions=located("descriptions", _descriptions(agent)),
         ))
     return tuple(agents)
 
@@ -524,22 +447,15 @@ def _entry_texts(entry: Mapping[str, Any]) -> dict:
         **{f"{field}.{number}": item.get(field)
            for number, item in enumerate(_title_versions(entry), start=1)
            for field in ("title", "subTitle", "description")},
-        # One named inside the title has no words of its own (_locate).
-        "agents": [None if _in_title(entry, agent["name"]) else agent["name"] for agent in _agents(entry)],
-        "termsOfAddress": [text for agent in _agents(entry) for text in _terms(agent)],
-        "dates": [text for agent in _agents(entry) for text in _dates(agent)],
-        "descriptions": [text for agent in _agents(entry) for text in _descriptions(agent)],
-        # One printed in a description has no words of its own (_locate).
-        "affiliations": [None if _from_description(agent, text) else text
-                         for agent in _agents(entry) for text in _affiliations(agent)],
+        "agents": [{"name": agent["name"], "termsOfAddress": _terms(agent), "dates": next(iter(_dates(agent)), None),
+                    "descriptions": _descriptions(agent), "affiliations": _affiliations(agent)}
+                   for agent in _agents(entry)],
         "etal": entry.get("etal"),
         "designation": entry.get("designation"),
-        # Printed in the designation's words, which it takes when there is one.
-        "partNumber": None if _has_text(entry.get("designation")) else entry.get("partNumber"),
+        "partNumber": entry.get("partNumber"),
         "pageReference": entry.get("pageReference"),
     }
-    return {field: text for field, text in texts.items()
-            if _has_text(text) or (isinstance(text, list) and any(item is not None for item in text))}
+    return {field: text for field, text in texts.items() if _has_text(text) or (isinstance(text, list) and text)}
 
 
 def _has_text(text: Any) -> bool:
@@ -567,8 +483,20 @@ def alto_text(words) -> str:
 # several persons. An unmatched one takes the match of its identical value in
 # the same entry (copy_identical_paths); a name expanded from a ditto mark in
 # another entry is not printed there and stays unmatched.
-_COPIED_PATHS = ("entries[i].agents[*]", "entries[i].termsOfAddress[*]", "entries[i].dates[*]",
-                 "entries[i].descriptions[*]", "entries[i].affiliations[*]")
+_COPIED_PATHS = ("entries[i].agents[*].name", "entries[i].agents[*].termsOfAddress[*]", "entries[i].agents[*].dates",
+                 "entries[i].agents[*].descriptions[*]", "entries[i].agents[*].affiliations[*]")
+
+# The values printed inside the words of another value of their entry: the
+# part number in the designation ("3" of "Kapitola 3"), an author named
+# inside the title ("Erbenova" of "Erbenova Kytice"), an affiliation in its
+# agent's description. One whose text is in its container's text is located
+# within the container's words (inside_paths), as a word goes to one value
+# only.
+_INSIDE_PATHS = {
+    "entries[i].partNumber": "entries[i].designation",
+    "entries[i].agents[*].name": ["entries[i].title", "entries[i].subTitle"],
+    "entries[i].agents[a].affiliations[*]": "entries[i].agents[a].descriptions[*]",
+}
 
 
 def _text_aligner(*, reorder_columns: bool):
@@ -599,4 +527,5 @@ def _text_aligner(*, reorder_columns: bool):
         normalizer=TextNormalizationPipeline.from_optional_names(["lowercase", "strip-punctuation"]),
         min_similarity=0.5,
         copy_identical_paths=_COPIED_PATHS,
+        inside_paths=_INSIDE_PATHS,
     )

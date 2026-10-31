@@ -18,7 +18,8 @@ a publisher or printer printed only as a phrase (`publisherStatement`,
 `manufacturePublisherStatement`) is never given geometry, the phrase is. An
 agent's affiliation repeats the institution's words from its description
 ("Komenského university v Bratislavě" of "profesor Komenského university v
-Bratislavě"), so it takes them from there. A text the prompts repeat on purpose
+Bratislavě"), so it is located within the description's words
+(_INSIDE_PATHS). A text the prompts repeat on purpose
 within one field - a description printed once for several persons, one person
 in two roles, a series number for its names in several languages - is found
 once and copied to its identical values (_COPIED_PATHS). Ambiguous text can
@@ -88,7 +89,7 @@ from metakat.common.vlm import (
     render_prompts,
 )
 from metakat.common.vlm.local_server import LocalModelConfig, serve
-from metakat.common.vlm.word_regions import bare, words_region, words_run
+from metakat.common.vlm.word_regions import words_region
 from metakat.schemas.base_objects import NameType
 
 logger = logging.getLogger(__name__)
@@ -252,7 +253,6 @@ class BiblioCoreEngineVLMBase(BiblioCoreEngine):
             path: (with_alto[page_index][0].page_key, region)
             for path, (page_index, region) in self._locate([alto_page for _, alto_page in with_alto], reply).items()
         }
-        _locate_affiliations(reply, located)
 
         def evidence(path: tuple, text: Optional[str]) -> Optional[DetectionEvidence]:
             if text is None or not text.strip():
@@ -389,48 +389,15 @@ def _alignable(reply: Any, label_keys: frozenset[str] = frozenset()) -> Any:
     JSON path.
     """
     if isinstance(reply, Mapping):
-        aligned = {key: None if key in label_keys or (key in _STATEMENTS and reply.get(_STATEMENTS[key]))
-                   else _alignable(value, label_keys)
-                   for key, value in reply.items()}
-        # An affiliation repeated from a description has no words of its own
-        # there (_locate_affiliations).
-        descriptions = [bare(text) for text in _texts(reply.get("description")) if text is not None]
-        if isinstance(aligned.get("affiliation"), list):
-            aligned["affiliation"] = [None if text is not None and any(bare(text) in description
-                                                                       for description in descriptions) else text
-                                      for text in aligned["affiliation"]]
-        return aligned
+        return {key: None if key in label_keys or (key in _STATEMENTS and reply.get(_STATEMENTS[key]))
+                else _alignable(value, label_keys)
+                for key, value in reply.items()}
     if isinstance(reply, list):
         return [_alignable(value, label_keys) for value in reply]
     # Only text is printed on the page: a flag or a number is not looked for.
     if not isinstance(reply, str) or not reply.strip():
         return None
     return reply
-
-
-def _locate_affiliations(reply: Any, located: dict, path: tuple = ()) -> None:
-    """An affiliation repeated from a description of its agent takes its words from that description."""
-    if isinstance(reply, list):
-        for index, value in enumerate(reply):
-            _locate_affiliations(value, located, path + (index,))
-        return
-    if not isinstance(reply, Mapping):
-        return
-    for key, value in reply.items():
-        _locate_affiliations(value, located, path + (key,))
-    for index, affiliation in enumerate(_texts(reply.get("affiliation"))):
-        if affiliation is None or path + ("affiliation", index) in located:
-            continue
-        for number in range(len(_texts(reply.get("description")))):
-            page_key, region = located.get(path + ("description", number), (None, None))
-            words = () if region is None else words_run(region.words, affiliation)
-            if words:
-                located[path + ("affiliation", index)] = (page_key, words_region(words))
-                break
-
-
-def _texts(values: Any) -> list:
-    return [value if isinstance(value, str) else None for value in values] if isinstance(values, list) else []
 
 
 def span_text(page_texts: Sequence[Optional[str]]) -> str:
@@ -472,6 +439,17 @@ _COPIED_PATHS = (
 )
 
 
+# An affiliation repeats the institution's words from its agent's description
+# ("Komenského university v Bratislavě" of "profesor Komenského university v
+# Bratislavě"); one whose text is in a description of its agent is located
+# within that description's words (inside_paths), as a word goes to one value
+# only.
+_INSIDE_PATHS = {
+    "agents[a].affiliation[*]": "agents[a].description[*]",
+    "series[s].seriesEditor[a].affiliation[*]": "series[s].seriesEditor[a].description[*]",
+}
+
+
 def _text_aligner():
     from text_geometry_aligner import CPSATCandidateSelector, TextAligner
     from text_geometry_aligner.normalization import TextNormalizationPipeline
@@ -495,5 +473,6 @@ def _text_aligner():
         min_similarity=0.5,
         share_words_depth=1,
         copy_identical_paths=_COPIED_PATHS,
+        inside_paths=_INSIDE_PATHS,
         prefer_sibling_proximity=True,
     )

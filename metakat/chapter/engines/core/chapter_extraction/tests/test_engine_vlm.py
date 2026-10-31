@@ -326,9 +326,9 @@ def test_a_description_printed_once_for_several_agents_is_located_for_each_only_
 
     located = ChapterExtractionEngineVLM(_config(), client=object())._locate(entries, [page])
 
-    assert [located[0, "descriptions", position][1].words[0].text for position in (0, 1)] == ["professori"] * 2
-    assert located[0, "agents", 0][1].words[0].text == "Jan"
-    assert (1, "agents", 0) not in located
+    assert [located[0, "agents", item, "descriptions", 0][1].words[0].text for item in (0, 1)] == ["professori"] * 2
+    assert located[0, "agents", 0, "name"][1].words[0].text == "Jan"
+    assert (1, "agents", 0, "name") not in located
 
 
 def test_interleaved_two_columns_align_in_entry_order_without_changing_ocr(tmp_path):
