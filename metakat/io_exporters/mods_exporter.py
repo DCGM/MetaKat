@@ -16,9 +16,10 @@ what it knows belongs together; a group becomes one container here, and every
 ungrouped value its own container. Nothing is paired or merged by this module,
 so an ungrouped start of a page run is written without an end.
 
-A value read both on a chapter's own page and in its TOC entry is written
-once, from the chapter's page; the TOC reading becomes a second event of that
-value's assertion. A TOC reading with no counterpart is written itself.
+An internal part's opening-page title is primary; its TOC title is written
+in a separate alternative titleInfo, each with its own provenance. Parallel
+titles remain translated. Other repeated readings may back a selected value
+in provenance.
 
     python -m metakat.io_exporters.mods_exporter --metakat-json metakat.json \\
         --output-dir mods [--overview metakat.mods.txt] [--no-provenance]
@@ -245,12 +246,20 @@ def _title_infos(record: _Record) -> None:
         part = _TITLE_LEAF[field_name] in ("partNumber", "partName")
         return record.position("partNumber" if part else field_name)
 
-    # A parallel title - its title or subtitle flagged translated - is
-    # <titleInfo type="translated">, as MARC 246 with second indicator 1 maps.
-    for members in _consume_groups(record, GroupType.TITLE_INFO.value, tuple(_TITLE_LEAF), rank):
+    containers = list(_consume_groups(record, GroupType.TITLE_INFO.value, tuple(_TITLE_LEAF), rank))
+    internal = record.element.type in INTERNAL_PART_TYPES
+    if internal:
+        # A group may join both sources. Keep its associations within each
+        # source, but never put TOC text in the opening-page titleInfo.
+        containers = [source for toc in (False, True) for members in containers
+                      if (source := [(value, field_name) for value, field_name in members
+                                     if field_name.endswith("TocPage") == toc])]
+    for members in containers:
         attributes = _common_lang(v for v, _ in members)
         if any(getattr(value, "translated", None) is True for value, _ in members):
             attributes["type"] = "translated"
+        elif internal and record.element.title and all(name.endswith("TocPage") for _, name in members):
+            attributes["type"] = "alternative"
         container, target = record.container(record.root, "titleInfo", **attributes)
         for value, field_name in members:
             record.leaf(container, _TITLE_LEAF[field_name], value.text)
@@ -258,20 +267,17 @@ def _title_infos(record: _Record) -> None:
 
 
 def _mark_toc_readings(record: _Record) -> None:
-    # A chapter's own page wins; its TOC reading of the same field backs that
-    # value in provenance instead of being written a second time.
+    # Titles have separate primary/alternative titleInfo containers. Other
+    # TOC readings can back their opening-page counterpart in provenance.
     if record.element.type not in INTERNAL_PART_TYPES:
         return
-    # A TOC title of a parallel version - flagged translated - or a synopsis
-    # in another language is no reading of the part's own title or abstract,
-    # and is written.
+    # A synopsis known to be in another language is a separate abstract.
     def backs(own_value: Value, toc_value: Value, toc: str) -> bool:
         if toc == "abstractTocPage":
             return own_value.lang is None or toc_value.lang is None or own_value.lang == toc_value.lang
-        return getattr(toc_value, "translated", None) is not True
+        return True
 
-    for own, toc in (("title", "titleTocPage"), ("subTitle", "subTitleTocPage"),
-                     ("partNumber", "partNumberTocPage"), ("abstract", "abstractTocPage"), ("etal", "etalTocPage"),
+    for own, toc in (("abstract", "abstractTocPage"), ("etal", "etalTocPage"),
                      *((toc.removesuffix("TocPage"), toc) for toc in TOC_AGENT_FIELDS
                        if toc not in _NAME_DETAIL_FIELDS)):
         own_values = _values(record.element, own)

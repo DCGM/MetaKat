@@ -86,10 +86,15 @@ one language.
 
 ### Two readings of one field
 
-A chapter's title, subtitle and part number can be read on its own page and in
-its TOC entry. The own-page reading is written; the TOC reading becomes a
-second event in the same provenance assertion. A TOC reading with no
-own-page counterpart is written itself.
+A chapter or article's opening-page title is written as the primary
+`<titleInfo>`. Its TOC title, subtitle and part number are written separately
+in `<titleInfo type="alternative">`, even when both sources share a JSON
+titleInfo group. Each container has its own provenance assertions and source
+evidence. Parallel titles retain `type="translated"`; a TOC-only title is
+primary when no opening-page title exists. Other fields, such as agents and
+abstracts, retain their existing opening-page preference.
+
+See [MODS output format, issue #10](https://github.com/DCGM/MetaKat/issues/10#issuecomment-6039699177).
 
 ## Provenance
 

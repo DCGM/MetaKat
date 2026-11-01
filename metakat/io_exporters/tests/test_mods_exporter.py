@@ -1,3 +1,4 @@
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -332,7 +333,8 @@ def test_a_chapters_parallel_toc_title_is_written_as_translated_not_demoted(batc
     assert mods_schema.validate(chapter), mods_schema.error_log.last_error
     assert [(node.get("type"), [child.text for child in node]) for node in chapter.xpath(
         "/mods:mods/mods:titleInfo", namespaces=NS)] == [
-        (None, ["PŘEDMLUVA", "k druhému vydání"]), ("translated", ["Preface"])]
+        (None, ["PŘEDMLUVA"]), ("alternative", ["Předmluva", "k druhému vydání"]),
+        ("translated", ["Preface"])]
 
 
 def test_an_editor_is_coded_edt_and_keeps_its_field_in_provenance(batch, tmp_path):
@@ -359,15 +361,50 @@ def test_a_name_has_the_type_of_its_agent_and_every_role_its_code(batch, tmp_pat
     assert [code.text for code in name("Jan Pomocný", "mods:role/mods:roleTerm")] == ["oth"]
 
 
-def test_a_chapter_writes_its_own_reading_and_keeps_the_toc_one_in_provenance(batch, tmp_path):
-    chapter = _export(batch, tmp_path)[str(batch.chapter.id)]
+@pytest.mark.parametrize("part_kind", ["chapter", "article"])
+@pytest.mark.parametrize("provenance", [True, False])
+def test_internal_part_toc_title_is_an_alternative_with_its_own_evidence(batch, mods_schema, part_kind, provenance):
+    from metakat.io_exporters.mods_exporter import build_mods
+    part = getattr(batch, part_kind)
+    part.subTitle = [batch.v("Opening subtitle", 0.8, 1)]
+    part.partNumber = [batch.v("I", 0.8, 1)]
+    part.titleTocPage = [batch.v("Title in the contents", 0.9, 2)]
+    part.subTitleTocPage = [batch.v("TOC subtitle", 0.8, 2)]
+    part.partNumberTocPage = [batch.v("II", 0.8, 2)]
+    part.groups = [MetakatGroup(type=GroupType.TITLE_INFO, members=[
+        part.title[0].id, part.subTitle[0].id, part.partNumber[0].id,
+        part.titleTocPage[0].id, part.subTitleTocPage[0].id, part.partNumberTocPage[0].id])]
+    batch.io.detection_to_page_mapping.update(batch.detection_to_page)
+    batch.io.detection_to_bbox.update(batch.detection_to_bbox)
+    root = etree.fromstring(ET.tostring(build_mods(part, batch.io, provenance=provenance)))
+    assert mods_schema.validate(root), mods_schema.error_log.last_error
+    primary, alternative = root.xpath("/mods:mods/mods:titleInfo", namespaces=NS)
+    assert primary.get("type") is None
+    assert _texts(primary, "mods:title | mods:subTitle | mods:partNumber") == [
+        part.title[0].text, "Opening subtitle", "I"]
+    assert alternative.get("type") == "alternative"
+    assert _texts(alternative, "mods:title | mods:subTitle | mods:partNumber") == [
+        "Title in the contents", "TOC subtitle", "II"]
+    if provenance:
+        for container, value, field_name in ((primary, part.title[0], "title"),
+                                             (alternative, part.titleTocPage[0], "titleTocPage")):
+            [assertion] = root.xpath("//mkp:assertion[@target=$target][@property='title']",
+                                    target="#" + container.get("ID"), namespaces=NS)
+            assert assertion.get("selectedEvent") == str(value.id)
+            [event] = assertion.findall(f"{{{PROVENANCE_NS}}}event")
+            assert event.get("field") == field_name
+            assert event.find(f"{{{PROVENANCE_NS}}}evidence").get("page") == batch.io.detection_to_page_mapping[value.id].urn
+    else:
+        assert not root.xpath("//mods:extension", namespaces=NS)
 
-    # One titleInfo: the heading from the chapter's page, the subtitle only the TOC has.
-    assert _texts(chapter, "/mods:mods/mods:titleInfo/*") == ["PŘEDMLUVA", "k druhému vydání"]
-    events = chapter.xpath("//mkp:assertion[@property='title']/mkp:event", namespaces=NS)
-    assert [(e.get("field"), e.findtext(f"{{{PROVENANCE_NS}}}observedValue")) for e in events] == [
-        ("title", "PŘEDMLUVA"), ("titleTocPage", "Předmluva")]
-    assert events[0].getparent().get("selectedEvent") == events[0].get("id")
+
+def test_a_toc_only_title_remains_primary_and_no_alternative_is_invented(batch, tmp_path, mods_schema):
+    batch.chapter.title = None
+    chapter = _export(batch, tmp_path)[str(batch.chapter.id)]
+    assert mods_schema.validate(chapter), mods_schema.error_log.last_error
+    [title] = chapter.xpath("/mods:mods/mods:titleInfo", namespaces=NS)
+    assert title.get("type") is None
+    assert _texts(title, "mods:title") == ["Předmluva"]
 
 
 def test_a_chapters_toc_synopsis_is_its_abstract_unless_its_own_page_has_one(batch, tmp_path):
