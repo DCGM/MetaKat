@@ -628,6 +628,24 @@ def test_mail_timeout_must_be_finite_positive(monkeypatch, value):
         Config()
 
 
+def test_worker_mail_identity_defaults_to_wrapper_defaults(monkeypatch):
+    for key in ("WORKER_IDENTITY", "WORKER_HOSTNAME", "MAIL_SUBJECT"):
+        monkeypatch.delenv(key, raising=False)
+    assert worker_module.worker_mail_identity(Config()) == {
+        "identity": None, "hostname": None, "mail_subject": "[{identity}] {status} ({hostname})"}
+
+
+def test_worker_mail_identity_names_the_deployment_in_mail(monkeypatch, tmp_path):
+    monkeypatch.setenv("WORKER_IDENTITY", "MetaKat worker prod")
+    monkeypatch.setenv("WORKER_HOSTNAME", "gpu-host")
+    monkeypatch.setenv("MAIL_SUBJECT", "{identity}: {status} on {hostname}")
+    worker = MetakatWorker(api_url="http://127.0.0.1:1", connector=mock.Mock(), base_dir=str(tmp_path),
+                           mail_sender=mock.Mock(), **worker_module.worker_mail_identity(Config()))
+    worker.send_mail = mock.Mock()
+    worker._send_worker_mail("ALIVE", "report")
+    assert worker.send_mail.call_args.args[0] == "MetaKat worker prod: ALIVE on gpu-host"
+
+
 def test_mail_timeout_defaults_to_sixty_seconds(monkeypatch):
     monkeypatch.delenv("MAIL_TIMEOUT_SECONDS", raising=False)
     assert Config().MAIL_TIMEOUT_SECONDS == 60

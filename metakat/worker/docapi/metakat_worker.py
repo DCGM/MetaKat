@@ -280,6 +280,12 @@ def mail_sender_from_config(config) -> Optional[MailSender]:
     )
 
 
+def worker_mail_identity(config) -> dict:
+    """How the wrapper's health and failure mail names this worker."""
+    return {"identity": config.WORKER_IDENTITY, "hostname": config.WORKER_HOSTNAME,
+            "mail_subject": config.MAIL_SUBJECT}
+
+
 def _extension_set(value: str) -> set:
     """Parse a comma-separated extension list the way the environment variable is."""
     extensions = {item.strip() for item in value.split(",") if item.strip()}
@@ -440,6 +446,7 @@ def main():
         polling_interval=config.POLLING_INTERVAL,
         mail_sender=mail_sender,
         health_config=health_config,
+        **worker_mail_identity(config),
         prefer_image_url=config.PREFER_IMAGE_URL,
         prefer_alto_url=config.PREFER_ALTO_URL,
         prefer_page_url=config.PREFER_PAGE_URL,

@@ -31,6 +31,9 @@ The launcher retains job files and PDF/MODS inspection outputs. Email uses `smtp
 run every 24 hours. `DEV_MAIL_*` variables can override the relay, sender, recipients,
 timeout and alive interval. Optional credentials use `DEV_MAIL_PASSWORD_FILE`
 and `DEV_MAIL_USERNAME`; they are independent of the live worker.
+Mail subjects name the worker `MetaKat worker dev` (override with
+`DEV_WORKER_IDENTITY`), e.g. `[MetaKat worker dev] ALIVE (pckohut)`, so they are
+not confused with the production worker's `MetaKat worker prod`.
 Attempt history is appended to `~/data/metakat_worker_dev/logs/job_history.jsonl`.
 The sibling `job_history.stats.json` caches cumulative statistics and recent
 records for rolling windows. It can be rebuilt from the JSONL history.

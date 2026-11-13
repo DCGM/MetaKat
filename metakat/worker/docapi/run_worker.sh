@@ -35,6 +35,13 @@ export MAIL_PORT=25
 export MAIL_SECURITY=starttls
 export MAIL_SENDER_MAIL=ikohut@fit.vut.cz
 export MAIL_RECEIVER_MAILS=ikohut@fit.vut.cz
+export MAIL_TIMEOUT_SECONDS=60
+# Health reporting: a mail when the worker starts and an alive report every
+# day; 0 disables the periodic report.
+export MAIL_STARTUP=true
+export MAIL_ALIVE_INTERVAL_SECONDS=86400
+# Names this worker in mail subjects: [MetaKat worker prod] ALIVE (host).
+export WORKER_IDENTITY="MetaKat worker prod"
 MAIL_PASSWORD_FILE="${MAIL_PASSWORD_FILE:-$SCRIPT_DIR/.mail_password}"
 if [ -r "$MAIL_PASSWORD_FILE" ]; then
     export MAIL_PASSWORD="$(<"$MAIL_PASSWORD_FILE")"
@@ -50,11 +57,25 @@ export VLLM_GPU_MEMORY_UTILIZATION=0.8
 export BASE_DIR=/mnt/kolosus/data/metakat_worker
 export ENGINES_DIR=/home/ikohut/data/metakat_worker/engines
 export LOGGING_DIR=/home/ikohut/data/metakat_worker/logs
+# Persistent JSONL attempt history, kept apart from job-directory cleanup;
+# empty disables it.
+export JOB_HISTORY_PATH="$LOGGING_DIR/job_history.jsonl"
 export STORE_METAKAT_PDF=true
 export STORE_MODS_OVERVIEW=true
 
 # No PYTHONPATH: metakat, text-geometry-aligner and doc-api are installed into
 # this environment as editable packages.
 source /home/ikohut/python_env/metakat/bin/activate
+# DocAPI's secret masking of the worker log recognizes keys by this prefix.
+export KEY_PREFIX=metakat
+export PYTHONUNBUFFERED=1
 
-python metakat_worker.py
+# Only one production worker at a time.
+mkdir -p "$LOGGING_DIR"
+exec 9>"/home/ikohut/data/metakat_worker/worker.lock"
+if ! flock -n 9; then
+    echo "run_worker.sh: a production worker is already running." >&2
+    exit 1
+fi
+cd "$SCRIPT_DIR"
+exec python -u metakat_worker.py

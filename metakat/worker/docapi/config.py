@@ -46,6 +46,13 @@ class Config:
         self.MAIL_STARTUP = self._env_bool("MAIL_STARTUP", True)
         # Alive interval 0 disables periodic reports. Failures use the mailer directly.
         self.MAIL_ALIVE_INTERVAL_SECONDS = self._nonnegative_seconds("MAIL_ALIVE_INTERVAL_SECONDS", 86400)
+        # How health and failure mail names this worker, e.g. "MetaKat worker prod";
+        # empty uses the class name (MetakatWorker) and socket.gethostname().
+        self.WORKER_IDENTITY = os.getenv("WORKER_IDENTITY") or None
+        self.WORKER_HOSTNAME = os.getenv("WORKER_HOSTNAME") or None
+        # Python format string with {identity}, {hostname}, {status} (ALIVE/FAILURE)
+        # and {time} (UTC datetime, e.g. {time:%Y-%m-%d}).
+        self.MAIL_SUBJECT = os.getenv("MAIL_SUBJECT") or "[{identity}] {status} ({hostname})"
 
         # MAILING configuration
         ################################################################################################################

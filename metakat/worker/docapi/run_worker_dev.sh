@@ -53,6 +53,8 @@ export MAIL_SENDER_MAIL="${DEV_MAIL_SENDER_MAIL:-ikohut@fit.vut.cz}"
 export MAIL_RECEIVER_MAILS="${DEV_MAIL_RECEIVER_MAILS:-ikohut@fit.vut.cz}"
 export MAIL_STARTUP=true
 export MAIL_ALIVE_INTERVAL_SECONDS="${DEV_MAIL_ALIVE_INTERVAL_SECONDS:-86400}"
+# Tells development mail apart from the production worker on the same host.
+export WORKER_IDENTITY="${DEV_WORKER_IDENTITY:-MetaKat worker dev}"
 if [[ -n "${DEV_MAIL_PASSWORD_FILE:-}" ]]; then
     export MAIL_PASSWORD="$(<"$DEV_MAIL_PASSWORD_FILE")"
 fi
