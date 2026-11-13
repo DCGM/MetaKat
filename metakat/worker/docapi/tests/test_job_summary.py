@@ -7,7 +7,7 @@ import pytest
 from doc_worker.doc_worker_wrapper import WorkerResponse
 
 from metakat.worker.docapi import metakat_worker as worker_module
-from metakat.worker.docapi.job_summary import render_log, render_mail, render_text, summarize_job
+from metakat.worker.docapi.job_summary import render_log, render_text, summarize_job
 from metakat.worker.docapi.metakat_worker import MetakatWorker
 
 WORKER = "metakat 1234567, docapi 89abcde, host"
@@ -94,9 +94,8 @@ def _summary(tmp_path, data, response=None, chapter=False, pages=8, mods="all", 
 
 
 def test_the_header_names_the_job_its_engine_and_worker(tmp_path):
-    subject, body = render_mail(_summary(tmp_path, _periodical()))
+    body = render_text(_summary(tmp_path, _periodical()))
 
-    assert subject == "[MetaKat] OK job 3f2a9c1e, 8 pages, 4 documents"
     assert body.startswith(
         "job       3f2a9c1e-7d4b-4c1a-9e2f-0a6b5c8d9e10\n"
         "engine    periodical v1.7.0\n"
@@ -212,8 +211,7 @@ def test_a_failed_job_carries_its_error_and_traceback_but_not_in_the_user_text(t
     summary = summarize_job(_job(), response, 3.0, job_dir=_job_dir(tmp_path, alto=3), has_chapter_stage=False,
                             worker=WORKER)
 
-    subject, body = render_mail(summary)
-    assert subject == "[MetaKat] FAILED job 3f2a9c1e"
+    body = render_text(summary)
     assert " alto     3\n" in body and "output" not in body and "vlm" not in body
     assert "error\nFailed to download job data from server\nValueError: broken\n\nTraceback (most recent" in body
     user_text = render_text(summary, with_error=False)
@@ -247,36 +245,12 @@ def worker():
         yield worker
 
 
-def test_the_worker_logs_the_summary_into_the_job_log_and_mails_it(tmp_path, worker, caplog):
-    _job_dir(tmp_path, _periodical(), mods=_all_ids(_periodical()),
-             meta={"metakat_json": {}, "engine_config_override": {"biblio": {"core": {"vlm": {"model": "m"}}}}})
-    job_log = logging.FileHandler(tmp_path / "worker.log")
-
-    with caplog.at_level(logging.INFO):
-        worker.on_job_finished(_job(), WorkerResponse.ok(), str(tmp_path), 10.0, job_log)
-    job_log.close()
-
-    assert "Job summary: job 3f2a9c1e" in caplog.text
-    assert "Job summary: job 3f2a9c1e" in (tmp_path / "worker.log").read_text()
-    assert job_log not in logging.getLogger().handlers
-    subject, body = worker.mail_sender.send.call_args.args[:2]
-    assert subject == "[MetaKat] OK job 3f2a9c1e, 8 pages, 4 documents"
-    assert " meta     metakat_json\n override biblio.core.vlm.model = m\n" in body
-
-
-def test_without_a_mail_sender_the_worker_only_logs(tmp_path, worker, caplog):
-    worker.mail_sender = None
-
-    with caplog.at_level(logging.INFO):
-        worker.on_job_finished(_job(), WorkerResponse.fail("Failed to upload results to server"), None, 1.0, None)
-
-    assert "Job summary: job 3f2a9c1e-7d4b-4c1a-9e2f-0a6b5c8d9e10 FAILED" in caplog.text
-
-
 def test_the_api_gets_the_same_summary_in_both_logs_of_a_processed_job(tmp_path, worker):
     _job_dir(tmp_path, _periodical(), mods=_all_ids(_periodical()))
 
-    log, log_user = worker.job_api_logs(_job(), WorkerResponse.ok(), str(tmp_path), 10.0)
+    response = worker._processing_response(_job(), WorkerResponse.ok(), str(tmp_path), 10.0)
+    log, log_user = response.final_log, response.final_log_user
+    worker.mail_sender.send.assert_not_called()
 
     assert log == log_user
     assert log.startswith("job       3f2a9c1e-7d4b-4c1a-9e2f-0a6b5c8d9e10\n")
@@ -289,9 +263,12 @@ def test_the_user_log_of_a_failed_job_leaves_out_its_error(tmp_path, worker):
     except ValueError as error:
         response = WorkerResponse.fail("MetakatWorker processing failed", exception=error)
 
-    log, log_user = worker.job_api_logs(_job(), response, str(tmp_path), 10.0)
+    worker.current_job = _job()
+    response = worker._processing_response(worker.current_job, response, str(tmp_path), 0.0)
+    log, log_user = worker._prepare_final_logs(response)
 
-    assert "status    FAILED, 0m 10s\n" in log and "status    FAILED, 0m 10s\n" in log_user
-    assert "error\nMetakatWorker processing failed\nValueError: broken" in log
+    assert "status    FAILED, 0m 00s\n" in log and "status    FAILED, 0m 00s\n" in log_user
+    assert "error\nMetakatWorker processing failed" in log
+    assert "Exception: ValueError: broken" in log
     assert "Traceback (most recent call last):" in log
     assert "error" not in log_user and "Traceback" not in log_user and "broken" not in log_user
