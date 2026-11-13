@@ -3,13 +3,16 @@ import os
 import logging
 import time
 import socket
+import math
+
+from doc_api.tools.secrets import mask_secrets_in_text
 
 class MetakatWorkerFormatter(logging.Formatter):
     converter = time.gmtime
 
     def format(self, record: logging.LogRecord) -> str:
         record.hostname = socket.gethostname()
-        return super().format(record)
+        return mask_secrets_in_text(super().format(record))
 
 
 TRUE_VALUES = {"true", "1"}
@@ -34,11 +37,24 @@ class Config:
         self.STORE_METAKAT_PDF = self._env_bool("STORE_METAKAT_PDF", False)
         self.STORE_MODS_OVERVIEW = self._env_bool("STORE_MODS_OVERVIEW", False)
 
-        # MAILING configuration, for MetakatWorker.send_mail
+        # Prefer normal API uploads when both sources exist, unless enabled.
+        self.PREFER_IMAGE_URL = self._env_bool("PREFER_IMAGE_URL", False)
+        self.PREFER_ALTO_URL = self._env_bool("PREFER_ALTO_URL", False)
+        self.PREFER_PAGE_URL = self._env_bool("PREFER_PAGE_URL", False)
+
+        # Worker health mail only; DocAPI sends job outcome notifications.
+        self.MAIL_STARTUP = self._env_bool("MAIL_STARTUP", True)
+        # Alive interval 0 disables periodic reports. Failures use the mailer directly.
+        self.MAIL_ALIVE_INTERVAL_SECONDS = self._nonnegative_seconds("MAIL_ALIVE_INTERVAL_SECONDS", 86400)
+
+        # MAILING configuration
         ################################################################################################################
         # without MAIL_SERVER and MAIL_SENDER_MAIL the worker sends no emails
         self.MAIL_SERVER = os.getenv("MAIL_SERVER", None)
         self.MAIL_PORT = int(os.getenv("MAIL_PORT", "25"))
+        self.MAIL_TIMEOUT_SECONDS = float(os.getenv("MAIL_TIMEOUT_SECONDS", "60"))
+        if not math.isfinite(self.MAIL_TIMEOUT_SECONDS) or self.MAIL_TIMEOUT_SECONDS <= 0:
+            raise ValueError("MAIL_TIMEOUT_SECONDS must be a finite, positive number")
         # auto (ssl with a password, none without), none, ssl or starttls
         self.MAIL_SECURITY = os.getenv("MAIL_SECURITY", "auto")
         self.MAIL_SENDER_MAIL = os.getenv("MAIL_SENDER_MAIL", None)
@@ -55,6 +71,14 @@ class Config:
         self.LOGGING_CONSOLE_LEVEL = os.getenv("LOGGING_CONSOLE_LEVEL", logging.INFO)
         self.LOGGING_FILE_LEVEL = os.getenv("LOGGING_FILE_LEVEL", logging.INFO)
         self.LOGGING_DIR = os.getenv("LOGGING_DIR", os.path.join(self.BASE_DIR, "logs"))
+        # Empty disables history; otherwise default beside the general logs.
+        self._job_history_path = os.getenv("JOB_HISTORY_PATH")
+
+    @property
+    def JOB_HISTORY_PATH(self):
+        if self._job_history_path is None:
+            return os.path.join(self.LOGGING_DIR, "job_history.jsonl")
+        return self._job_history_path or None
 
     @property
     def LOGGING_CONFIG(self):
@@ -115,6 +139,13 @@ class Config:
         if val is None:
             return default
         return val.strip().lower() in TRUE_VALUES
+
+    @staticmethod
+    def _nonnegative_seconds(key: str, default: float) -> float:
+        value = float(os.getenv(key, str(default)))
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"{key} must be a finite, nonnegative number")
+        return value
 
     def create_dirs(self):
         os.makedirs(self.JOBS_DIR, exist_ok=True)

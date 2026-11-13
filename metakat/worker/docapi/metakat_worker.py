@@ -5,10 +5,13 @@ import socket
 import subprocess
 import tempfile
 import shutil
+import time
+from dataclasses import replace
 from pathlib import Path
 import logging.config
 
 from metakat.worker.docapi.config import config
+from doc_worker.doc_worker_wrapper import WorkerHealthConfig
 
 import argparse
 from typing import Optional
@@ -24,7 +27,7 @@ import metakat
 from metakat.process_batch import process_batch
 from metakat.engine_config import prepare_engine_config, require_config_mapping
 from metakat.common.vlm.local_server import local_model_locations
-from metakat.worker.docapi.job_summary import JobSummary, render_log, render_mail, render_text, summarize_job
+from metakat.worker.docapi.job_summary import JobSummary, render_log, render_text, summarize_job
 
 
 logger = logging.getLogger(__name__)
@@ -32,9 +35,24 @@ logger = logging.getLogger(__name__)
 
 class MetakatWorker(DocWorkerWrapper):
 
-    def process_job(self,
+    def process_job(self, job: Job, job_log_file_handler: logging.FileHandler,
+                    images_dir: str, result_dir: str, alto_dir: Optional[str] = None,
+                    page_xml_dir: Optional[str] = None, meta_file: Optional[str] = None,
+                    engine_dir: Optional[str] = None) -> WorkerResponse:
+        """Process the inputs and return the summary as explicit final reports."""
+        started = time.monotonic()
+        root_logger = logging.getLogger()
+        root_logger.addHandler(job_log_file_handler)
+        try:
+            response = self._process_job(
+                job, images_dir, result_dir, alto_dir, page_xml_dir, meta_file, engine_dir)
+            return self._processing_response(
+                job, response, str(Path(result_dir).parent), time.monotonic() - started)
+        finally:
+            root_logger.removeHandler(job_log_file_handler)
+
+    def _process_job(self,
                     job: Job,
-                    job_log_file_handler: logging.FileHandler,
                     images_dir: str,
                     result_dir: str,
                     alto_dir: Optional[str] = None,
@@ -44,7 +62,6 @@ class MetakatWorker(DocWorkerWrapper):
         """        
         Args:
             job: The job object containing job metadata
-            job_log_file_handler: File handler for logging job processing into job-specific log file
             images_dir: Directory path containing the downloaded images
             result_dir: Directory path where processing results should be saved
             alto_dir: Optional directory path containing ALTO XML files
@@ -56,14 +73,11 @@ class MetakatWorker(DocWorkerWrapper):
         Returns:
             WorkerResponse indicating success or failure
         """
-        root_logger = logging.getLogger()
-
         try:
-            root_logger.addHandler(job_log_file_handler)
-
             if alto_dir is None:
                 logger.error("ALTO files are required")
-                return WorkerResponse.fail("ALTO files are required")
+                return WorkerResponse.fail(final_log="ALTO files are required",
+                                           final_log_user="ALTO files are required for this engine.")
             
             # Create temporary directory with symlinks to images and ALTO files
             tmp_batch_dir = tempfile.mkdtemp(prefix="metakat_batch_")
@@ -78,11 +92,13 @@ class MetakatWorker(DocWorkerWrapper):
                 images_path = Path(images_dir)
                 for image_file in images_path.iterdir():
                     if image_file.name not in ordered_image_filenames:
-                        return WorkerResponse.fail(f"Image file not listed in job images: {image_file.name}")
+                        return WorkerResponse.fail(final_log=f"Image file not listed in job images: {image_file.name}",
+                                                   final_log_user="An input image is not listed in the job definition.")
                     ext = image_file.suffix.lower()
                     if ext not in config.ALLOWED_IMAGE_EXTENSIONS:
-                        return WorkerResponse.fail(f"Image file with unsupported extension found: {image_file.name}, "
-                                                   f"allowed extensions are: {', '.join(config.ALLOWED_IMAGE_EXTENSIONS)}")
+                        return WorkerResponse.fail(final_log=f"Image file with unsupported extension found: {image_file.name}, "
+                                                   f"allowed extensions are: {', '.join(config.ALLOWED_IMAGE_EXTENSIONS)}",
+                                                   final_log_user="An input image has an unsupported extension.")
                     if image_file.is_file():
                         symlink_path = Path(tmp_batch_dir) / image_file.name
                         symlink_path.symlink_to(image_file.resolve())
@@ -150,40 +166,26 @@ class MetakatWorker(DocWorkerWrapper):
             
         except Exception as e:
             logger.exception("MetakatWorker processing failed")
-            return WorkerResponse.fail("MetakatWorker processing failed", exception=e)
+            return WorkerResponse.error(final_log="MetakatWorker processing failed",
+                                        final_log_user="Processing failed. Please try again later.", exception=e)
 
-        finally:
-            root_logger.removeHandler(job_log_file_handler)
-            job_log_file_handler.close()
-
-    def on_job_finished(self,
-                        job: Job,
-                        response: WorkerResponse,
-                        job_dir: Optional[str],
-                        duration_s: float,
-                        job_log_file_handler: Optional[logging.FileHandler]) -> None:
-        """Log a summary of the job and email it when mailing is set up."""
-        root_logger = logging.getLogger()
-        # Into the job's log too, like everything logged while it was processed.
-        if job_log_file_handler is not None:
-            root_logger.addHandler(job_log_file_handler)
+    def _processing_response(self, job: Job, response: WorkerResponse,
+                             job_dir: str, duration_s: float) -> WorkerResponse:
+        """Attach MetaKat's summary to the processing outcome, without sending it."""
         try:
-            summary = self._summarize(job, response, job_dir, duration_s)
+            # The wrapper adds diagnostics from exception/error_adapter_response.
+            # Summarize the message here so those details appear only once.
+            summary = self._summarize(
+                job, replace(response, exception=None, error_adapter_response=None), job_dir, duration_s)
             logger.info(render_log(summary))
-            if self.mail_sender is not None:
-                self.send_mail(*render_mail(summary))
-        finally:
-            if job_log_file_handler is not None:
-                root_logger.removeHandler(job_log_file_handler)
-
-    def job_api_logs(self,
-                     job: Job,
-                     response: WorkerResponse,
-                     job_dir: Optional[str],
-                     duration_s: float) -> tuple:
-        """The job's summary for the API: the same in both logs, a failure's error in the technical log only."""
-        summary = self._summarize(job, response, job_dir, duration_s)
-        return render_text(summary), render_text(summary, with_error=False)
+            user_report = render_text(summary, with_error=False)
+            if response.final_log_user:
+                user_report += "\n" + response.final_log_user
+            return replace(response, final_log=render_text(summary), final_log_user=user_report)
+        except Exception:
+            # A broken summary must not change the processing outcome.
+            logger.exception("Could not prepare the final job summary")
+            return response
 
     @classmethod
     def _summarize(cls, job: Job, response: WorkerResponse, job_dir: Optional[str], duration_s: float) -> JobSummary:
@@ -274,6 +276,7 @@ def mail_sender_from_config(config) -> Optional[MailSender]:
         username=config.MAIL_USERNAME,
         password=config.MAIL_PASSWORD,
         security=config.MAIL_SECURITY,
+        timeout=config.MAIL_TIMEOUT_SECONDS,
     )
 
 
@@ -417,21 +420,29 @@ def main():
     # Create connector
     connector = Connector(api_key=config.WORKER_KEY)
     
+    # Health mail is enabled only when this deployment configures mailing.
+    mail_sender = mail_sender_from_config(config)
+    health_config = WorkerHealthConfig(
+        mail_startup=config.MAIL_STARTUP,
+        alive_interval_seconds=config.MAIL_ALIVE_INTERVAL_SECONDS,
+    ) if mail_sender is not None else None
+
     # Create and start worker
     worker = MetakatWorker(
         api_url=config.API_URL,
         connector=connector,
         base_dir=config.BASE_DIR,
+        job_history_path=config.JOB_HISTORY_PATH,
         jobs_dir=config.JOBS_DIR,
-        engines_dir=config.ENGINES_DIR,
-        polling_interval=config.POLLING_INTERVAL,
         cleanup_job_dir=config.CLEANUP_JOB_DIR,
+        engines_dir=config.ENGINES_DIR,
         cleanup_old_engines=config.CLEANUP_OLD_ENGINES,
-        # Without streaming, DocAPI holds the whole engine ZIP in memory and
-        # tries to parse it as JSON (DCGM/DocAPI#42); streamed, it goes
-        # straight to disk.
-        download_engine_using_stream=True,
-        mail_sender=mail_sender_from_config(config),
+        polling_interval=config.POLLING_INTERVAL,
+        mail_sender=mail_sender,
+        health_config=health_config,
+        prefer_image_url=config.PREFER_IMAGE_URL,
+        prefer_alto_url=config.PREFER_ALTO_URL,
+        prefer_page_url=config.PREFER_PAGE_URL,
     )
 
     logger.info(f"Starting MetakatWorker connecting to {config.API_URL}")

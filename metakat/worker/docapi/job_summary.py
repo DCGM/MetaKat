@@ -1,4 +1,4 @@
-"""A summary of a finished job, rendered for the logs, the API and an email.
+"""A summary of a finished job, rendered for the local logs and DocAPI final reports.
 
 The summary holds only facts about the job and counts: no text read from
 the documents. It is built from the job, the worker's response and what the
@@ -14,6 +14,8 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+
+from doc_worker.doc_worker_wrapper import WorkerResponseStatus
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +77,7 @@ class JobSummary:
     engine_version: str
     worker: str
     succeeded: bool
+    status: str
     duration_s: float
     has_chapter_stage: bool
     error: Optional[str] = None
@@ -105,8 +108,8 @@ def summarize_job(job, response, duration_s: float, *, job_dir: Optional[Path], 
     `metadata` is the job's metadata envelope, `worker` what ran the job.
     """
     error = trace = None
-    if not response.success:
-        lines = [response.error_message or "Job failed"]
+    if response.status != WorkerResponseStatus.OK:
+        lines = [response.final_log or "Job failed"]
         adapter_response = response.error_adapter_response
         if adapter_response is not None:
             lines.append(f"API status {adapter_response.status}, code {adapter_response.code}")
@@ -117,7 +120,9 @@ def summarize_job(job, response, duration_s: float, *, job_dir: Optional[Path], 
     metadata = metadata or {}
     summary: Dict[str, Any] = dict(
         job_id=str(job.id), engine_name=str(job.engine_name), engine_version=str(job.engine_version),
-        worker=worker, succeeded=response.success, duration_s=duration_s, has_chapter_stage=has_chapter_stage,
+        worker=worker, succeeded=response.status == WorkerResponseStatus.OK,
+        status={WorkerResponseStatus.OK: "OK", WorkerResponseStatus.ERROR: "ERROR",
+                WorkerResponseStatus.FAIL: "FAILED"}[response.status], duration_s=duration_s, has_chapter_stage=has_chapter_stage,
         error=error, traceback=trace, images=len(job.images or []),
         meta=tuple(key for key in ("metakat_json", "proarc_json") if metadata.get(key) is not None),
         overrides=tuple(_override_settings(metadata.get("engine_config_override") or {})))
@@ -440,22 +445,13 @@ def _model(vlm: VLMSummary) -> str:
     return f"{vlm.model} {vlm.reasoning_effort}" if vlm.reasoning_effort else vlm.model
 
 
-def render_mail(summary: JobSummary) -> Tuple[str, str]:
-    """The email's subject and plain text body, laid out to be read on a phone."""
-    status = "OK" if summary.succeeded else "FAILED"
-    subject = f"[MetaKat] {status} job {summary.job_id[:8]}"
-    if summary.succeeded:
-        subject += f", {_plural(summary.images, 'page')}, {_plural(summary.documents, 'document')}"
-    return subject, render_text(summary)
-
-
 def render_text(summary: JobSummary, with_error: bool = True) -> str:
     """The summary as plain text, narrow enough for a phone; with_error=False leaves out a failure's error."""
     lines = [
         _row("job", summary.job_id),
         _row("engine", f"{summary.engine_name} {summary.engine_version}"),
         _row("worker", summary.worker),
-        _row("status", f"{'OK' if summary.succeeded else 'FAILED'}, {_duration(summary.duration_s)}"),
+        _row("status", f"{summary.status}, {_duration(summary.duration_s)}"),
         "", "input",
         _row("images", str(summary.images), " "),
     ]
@@ -493,7 +489,7 @@ def render_text(summary: JobSummary, with_error: bool = True) -> str:
 
 def render_log(summary: JobSummary) -> str:
     """The summary as log lines: one for the job, one per document and one per VLM engine."""
-    head = [f"Job summary: job {summary.job_id} {'OK' if summary.succeeded else 'FAILED'}",
+    head = [f"Job summary: job {summary.job_id} {summary.status}",
             f"engine {summary.engine_name} {summary.engine_version}", f"worker {summary.worker}",
             f"duration {_duration(summary.duration_s)}"]
     inputs = [f"images {summary.images}"]

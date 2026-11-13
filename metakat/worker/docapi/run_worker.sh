@@ -24,7 +24,7 @@ else
     echo "run_worker.sh: no OpenRouter key at $OPENROUTER_KEY_FILE; VLM engines will fail" >&2
 fi
 
-# Optional: email for MetakatWorker.send_mail (see config.py). Without
+# Worker startup, daily alive and unreported-failure mail (see config.py). Without
 # MAIL_SERVER and MAIL_SENDER_MAIL the worker sends no emails. The password, if
 # the server needs one, is kept in .mail_password beside this script, or in the
 # file MAIL_PASSWORD_FILE names.
