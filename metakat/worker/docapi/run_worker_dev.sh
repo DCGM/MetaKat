@@ -29,9 +29,9 @@ export CLEANUP_JOB_DIR=false
 export CLEANUP_OLD_ENGINES=false
 export PYTHONPATH="$DOCAPI_DIR:$REPO_DIR:$REPO_DIR/libs/text-geometry-aligner"
 export PYTHONUNBUFFERED=1
-# DocAPI masks worker mail; these MetaKat names hold no secrets but contain
-# "key", "token" or "auth", so their values would be hidden there.
-export SECRET_MASKING_ALLOWED_KEYS="${DEV_SECRET_MASKING_ALLOWED_KEYS:-page_key,max_tokens_per_batch,api_key_env,author}"
+# Worker log and mail go to operators; secrets are redacted where they are
+# logged (metakat.logging_utils), so DocAPI's mail masking is turned off.
+export SECRET_MASKING=false
 
 # Default to naki-tools; explicit engine/job keys retain their normal priority.
 OPENROUTER_KEY_FILE="$SCRIPT_DIR/.openrouter_api_key_naki-tools"
