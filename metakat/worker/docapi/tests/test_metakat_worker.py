@@ -566,10 +566,12 @@ def test_worker_loop_reports_only_unexpected_termination(pipeline_worker, failur
         health.close.assert_called_once()
 
 
-def test_worker_formatter_masks_exception_secrets():
+def test_worker_formatter_does_not_mask():
+    # Names such as page_key only look secret; real secrets are redacted where they are logged.
     from metakat.worker.docapi.config import MetakatWorkerFormatter
-    record = logging.LogRecord("worker", logging.ERROR, __file__, 1, "api_key=private-value", (), None)
-    assert "private-value" not in MetakatWorkerFormatter().format(record)
+    message = "unknown page key: uuid:1234, page_key: p1, contains_keyword=True"
+    record = logging.LogRecord("worker", logging.ERROR, __file__, 1, message, (), None)
+    assert message in MetakatWorkerFormatter().format(record)
 
 
 def test_health_mail_defaults_and_source_preferences(monkeypatch):

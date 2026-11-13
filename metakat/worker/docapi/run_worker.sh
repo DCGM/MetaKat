@@ -67,8 +67,8 @@ export STORE_MODS_OVERVIEW=true
 # this environment as editable packages.
 source /home/ikohut/python_env/metakat/bin/activate
 export PYTHONUNBUFFERED=1
-# Worker log and mail are masked by DocAPI; these MetaKat names hold no secrets
-# but contain "key", "token" or "auth", so their values would be hidden.
+# DocAPI masks worker mail; these MetaKat names hold no secrets but contain
+# "key", "token" or "auth", so their values would be hidden there.
 export SECRET_MASKING_ALLOWED_KEYS="page_key,max_tokens_per_batch,api_key_env,author"
 
 # Only one production worker at a time.

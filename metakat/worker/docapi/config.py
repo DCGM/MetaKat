@@ -5,14 +5,14 @@ import time
 import socket
 import math
 
-from doc_api.tools.secrets import mask_secrets_in_text
-
 class MetakatWorkerFormatter(logging.Formatter):
+    """Not masked: the worker log is for operators. Secrets are kept out where they are
+    logged (metakat.logging_utils.redacted_for_logging); DocAPI masks worker mail."""
     converter = time.gmtime
 
     def format(self, record: logging.LogRecord) -> str:
         record.hostname = socket.gethostname()
-        return mask_secrets_in_text(super().format(record))
+        return super().format(record)
 
 
 TRUE_VALUES = {"true", "1"}
