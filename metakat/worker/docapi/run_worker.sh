@@ -66,8 +66,6 @@ export STORE_MODS_OVERVIEW=true
 # No PYTHONPATH: metakat, text-geometry-aligner and doc-api are installed into
 # this environment as editable packages.
 source /home/ikohut/python_env/metakat/bin/activate
-# DocAPI's secret masking of the worker log recognizes keys by this prefix.
-export KEY_PREFIX=metakat
 export PYTHONUNBUFFERED=1
 
 # Only one production worker at a time.
