@@ -19,7 +19,7 @@ from typing import Optional
 from doc_worker.doc_worker_wrapper import DocWorkerWrapper, WorkerResponse
 from doc_api.api.schemas.base_objects import Job
 from doc_api.connector import Connector
-from doc_api.tools.mail.mail_sender import MailSender
+from doc_api.tools.mail_sender import MailSender
 import doc_api
 
 import metakat
@@ -271,12 +271,16 @@ def mail_sender_from_config(config) -> Optional[MailSender]:
         server=config.MAIL_SERVER,
         sender_mail=config.MAIL_SENDER_MAIL,
         port=config.MAIL_PORT,
-        receiver_mails=config.MAIL_RECEIVER_MAILS,
         sender_name=config.MAIL_SENDER_NAME,
         username=config.MAIL_USERNAME,
         password=config.MAIL_PASSWORD,
         security=config.MAIL_SECURITY,
+        ca_file=config.MAIL_CA_FILE,
         timeout=config.MAIL_TIMEOUT_SECONDS,
+        send_receiver_limit=config.MAIL_SEND_RECEIVER_LIMIT,
+        send_receiver_window_seconds=config.MAIL_SEND_RECEIVER_WINDOW_SECONDS,
+        send_server_limit=config.MAIL_SEND_SERVER_LIMIT,
+        send_server_window_seconds=config.MAIL_SEND_SERVER_WINDOW_SECONDS,
     )
 
 
@@ -424,7 +428,8 @@ def main():
         parser.error("Either --base-dir or both --jobs-dir and --engines-dir must be specified")
     
     # Create connector
-    connector = Connector(api_key=config.WORKER_KEY)
+    connector = Connector(api_key=config.WORKER_KEY,
+                          timeout=(config.API_CONNECT_TIMEOUT_SECONDS, config.API_READ_TIMEOUT_SECONDS))
     
     # Health mail is enabled only when this deployment configures mailing.
     mail_sender = mail_sender_from_config(config)
@@ -445,8 +450,11 @@ def main():
         cleanup_old_engines=config.CLEANUP_OLD_ENGINES,
         polling_interval=config.POLLING_INTERVAL,
         mail_sender=mail_sender,
+        mail_receivers=config.MAIL_RECEIVER_MAILS,
         health_config=health_config,
         **worker_mail_identity(config),
+        disconnected_grace_seconds=config.DISCONNECTED_GRACE_SECONDS,
+        disconnected_mail_interval_seconds=config.DISCONNECTED_MAIL_INTERVAL_SECONDS,
         prefer_image_url=config.PREFER_IMAGE_URL,
         prefer_alto_url=config.PREFER_ALTO_URL,
         prefer_page_url=config.PREFER_PAGE_URL,
@@ -454,6 +462,8 @@ def main():
 
     logger.info(f"Starting MetakatWorker connecting to {config.API_URL}")
     logger.info(f"Worker: {worker_description()}")
+    logger.info(f"API timeouts: connect {config.API_CONNECT_TIMEOUT_SECONDS:g} s, "
+                f"read {config.API_READ_TIMEOUT_SECONDS:g} s")
     logger.info(f"Base directory: {config.BASE_DIR}")
     logger.info(f"Jobs directory: {config.JOBS_DIR}")
     logger.info(f"Engines directory: {config.ENGINES_DIR}")
@@ -463,6 +473,11 @@ def main():
         logger.info(f"Mail: {config.MAIL_SENDER_MAIL} via {config.MAIL_SERVER}:{config.MAIL_PORT} "
                     f"({worker.mail_sender.security}), default receivers: "
                     f"{', '.join(config.MAIL_RECEIVER_MAILS) or 'none'}")
+        logger.info(f"Mail limits: {config.MAIL_SEND_RECEIVER_LIMIT} per subject and receiver per "
+                    f"{config.MAIL_SEND_RECEIVER_WINDOW_SECONDS:g} s, {config.MAIL_SEND_SERVER_LIMIT} in total per "
+                    f"{config.MAIL_SEND_SERVER_WINDOW_SECONDS:g} s (0 = no limit); "
+                    f"DocAPI outage mail after {config.DISCONNECTED_GRACE_SECONDS:g} s idle, "
+                    f"reminders every {config.DISCONNECTED_MAIL_INTERVAL_SECONDS:g} s")
     else:
         logger.info("Mail: not set up (MAIL_SERVER and MAIL_SENDER_MAIL), send_mail sends nothing")
     

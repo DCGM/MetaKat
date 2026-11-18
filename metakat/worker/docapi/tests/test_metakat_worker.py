@@ -70,16 +70,59 @@ def test_mailing_reads_its_settings_from_the_environment():
         "MAIL_RECEIVER_MAILS": "admin@example.com, user@example.com",
     }
     with mock.patch.dict("os.environ", environment, clear=True):
-        mail_sender = worker_module.mail_sender_from_config(Config())
+        config = Config()
+        mail_sender = worker_module.mail_sender_from_config(config)
 
-    assert mail_sender.receiver_mails == ["admin@example.com", "user@example.com"]
+    assert config.MAIL_RECEIVER_MAILS == ["admin@example.com", "user@example.com"]
+    assert mail_sender.ca_file is None
+    assert (mail_sender.send_receiver_limit, mail_sender.send_server_limit) == (10, 100)
     with mock.patch("smtplib.SMTP") as smtp_class:
-        assert mail_sender.send("Job done", "body")
+        assert mail_sender.send("Job done", "body", "admin@example.com").status.value == "sent"
     smtp_class.assert_called_once_with("smtp.example.com", 587, timeout=12.5)
     smtp = smtp_class.return_value
-    smtp.starttls.assert_called_once_with()
+    smtp.starttls.assert_called_once()
     smtp.login.assert_called_once_with("login", "secret")
-    assert smtp.sendmail.call_args.args[1] == ["admin@example.com", "user@example.com"]
+    assert smtp.sendmail.call_args.args[1] == ["admin@example.com"]
+
+
+def test_mail_limits_api_timeouts_and_outage_mail_read_the_environment():
+    environment = {
+        "MAIL_SERVER": "smtp.example.com",
+        "MAIL_SENDER_MAIL": "metakat@example.com",
+        "MAIL_SEND_RECEIVER_LIMIT": "0",
+        "MAIL_SEND_RECEIVER_WINDOW_SECONDS": "60",
+        "MAIL_SEND_SERVER_LIMIT": "5",
+        "MAIL_SEND_SERVER_WINDOW_SECONDS": "120",
+        "API_CONNECT_TIMEOUT_SECONDS": "3",
+        "API_READ_TIMEOUT_SECONDS": "30",
+        "DISCONNECTED_GRACE_SECONDS": "0",
+        "DISCONNECTED_MAIL_INTERVAL_SECONDS": "600",
+    }
+    with mock.patch.dict("os.environ", environment, clear=True):
+        config = Config()
+        mail_sender = worker_module.mail_sender_from_config(config)
+    assert (mail_sender.send_receiver_limit, mail_sender.send_receiver_window_seconds) == (0, 60)
+    assert (mail_sender.send_server_limit, mail_sender.send_server_window_seconds) == (5, 120)
+    assert (config.API_CONNECT_TIMEOUT_SECONDS, config.API_READ_TIMEOUT_SECONDS) == (3, 30)
+    assert (config.DISCONNECTED_GRACE_SECONDS, config.DISCONNECTED_MAIL_INTERVAL_SECONDS) == (0, 600)
+
+
+def test_api_timeouts_and_outage_mail_defaults():
+    with mock.patch.dict("os.environ", {}, clear=True):
+        config = Config()
+    assert (config.API_CONNECT_TIMEOUT_SECONDS, config.API_READ_TIMEOUT_SECONDS) == (10, 300)
+    assert (config.DISCONNECTED_GRACE_SECONDS, config.DISCONNECTED_MAIL_INTERVAL_SECONDS) == (60, 3600)
+
+
+@pytest.mark.parametrize("key,value", [
+    ("API_CONNECT_TIMEOUT_SECONDS", "0"), ("API_READ_TIMEOUT_SECONDS", "inf"),
+    ("DISCONNECTED_GRACE_SECONDS", "-1"), ("DISCONNECTED_MAIL_INTERVAL_SECONDS", "0"),
+    ("MAIL_SEND_RECEIVER_LIMIT", "-1"), ("MAIL_SEND_SERVER_WINDOW_SECONDS", "0"),
+])
+def test_timeouts_limits_and_outage_settings_are_validated(key, value):
+    with mock.patch.dict("os.environ", {key: value}, clear=True):
+        with pytest.raises(ValueError, match=key):
+            Config()
 
 
 def test_process_job_prepares_final_config_and_embedded_metadata(
@@ -461,6 +504,7 @@ def pipeline_worker(tmp_path, monkeypatch):
     monkeypatch.setattr(worker_module, "process_batch", mock.Mock())
     worker.health = mock.Mock()
     worker.mail_sender = mock.Mock()
+    worker.mail_receivers = ["admin@example.com"]
     return worker
 
 
@@ -506,7 +550,7 @@ def test_unreportable_job_failure_triggers_worker_failure_mail(pipeline_worker, 
     if raises:
         worker.adapter.patch_job_error.side_effect = ConnectionError("DocAPI unavailable")
     else:
-        worker.adapter.patch_job_error.return_value = types.SimpleNamespace(is_success=False, status=503, code=None, response=None)
+        worker.adapter.patch_job_error.return_value = types.SimpleNamespace(is_success=False, status=500, code=None, response=None)
     assert worker.run_job_pipeline() is None
     worker.mail_sender.send.assert_called_once()
     assert "Could not report" in worker.mail_sender.send.call_args.args[1]
@@ -514,7 +558,7 @@ def test_unreportable_job_failure_triggers_worker_failure_mail(pipeline_worker, 
 
 def test_failed_finish_request_alerts_without_replacing_success(pipeline_worker):
     worker = pipeline_worker
-    worker.adapter.patch_job_finish.return_value = types.SimpleNamespace(is_success=False, status=503, code=None, response=None)
+    worker.adapter.patch_job_finish.return_value = types.SimpleNamespace(is_success=False, status=500, code=None, response=None)
     assert worker.run_job_pipeline() is None
     worker.adapter.patch_job_finish.assert_called_once()
     worker.adapter.patch_job_error.assert_not_called()
@@ -525,7 +569,7 @@ def test_failed_finish_request_alerts_without_replacing_success(pipeline_worker)
 def test_acquisition_failure_cannot_touch_the_previous_job(pipeline_worker):
     worker = pipeline_worker
     worker.current_job = types.SimpleNamespace(id="previous-job")
-    worker.adapter.post_job_lease.return_value = types.SimpleNamespace(is_success=False, data=None, status=503, code=None, response=None)
+    worker.adapter.post_job_lease.return_value = types.SimpleNamespace(is_success=False, data=None, status=500, code=None, response=None)
     assert worker.run_job_pipeline() is None
     assert worker.current_job is None
     worker.adapter.patch_job_error.assert_not_called()
@@ -535,7 +579,7 @@ def test_acquisition_failure_cannot_touch_the_previous_job(pipeline_worker):
 
 def test_failure_to_fetch_leased_job_reports_the_correct_lease(pipeline_worker):
     worker = pipeline_worker
-    worker.adapter.get_job.return_value = types.SimpleNamespace(is_success=False, status=503, code=None, response=None)
+    worker.adapter.get_job.return_value = types.SimpleNamespace(is_success=False, status=500, code=None, response=None)
     assert worker.run_job_pipeline() is None
     assert worker.adapter.patch_job_error.call_args.kwargs["job_id"] == "job-1"
 
@@ -642,7 +686,8 @@ def test_worker_mail_identity_names_the_deployment_in_mail(monkeypatch, tmp_path
     monkeypatch.setenv("WORKER_HOSTNAME", "gpu-host")
     monkeypatch.setenv("MAIL_SUBJECT", "{identity}: {status} on {hostname}")
     worker = MetakatWorker(api_url="http://127.0.0.1:1", connector=mock.Mock(), base_dir=str(tmp_path),
-                           mail_sender=mock.Mock(), **worker_module.worker_mail_identity(Config()))
+                           mail_sender=mock.Mock(), mail_receivers=["admin@example.com"],
+                           **worker_module.worker_mail_identity(Config()))
     worker.send_mail = mock.Mock()
     worker._send_worker_mail("ALIVE", "report")
     assert worker.send_mail.call_args.args[0] == "MetaKat worker prod: ALIVE on gpu-host"

@@ -42,6 +42,20 @@ export MAIL_STARTUP=true
 export MAIL_ALIVE_INTERVAL_SECONDS=86400
 # Names this worker in mail subjects: [MetaKat worker prod] ALIVE (host).
 export WORKER_IDENTITY="MetaKat worker prod"
+# DocAPI outage mail: DISCONNECTED after a minute of unreachable DocAPI while
+# idle (at once during a job), STILL DISCONNECTED hourly, then RECONNECTED.
+export DISCONNECTED_GRACE_SECONDS=60
+export DISCONNECTED_MAIL_INTERVAL_SECONDS=3600
+# Mail sending limits per sliding hour: 5 per subject and receiver, 5 in
+# total; 0 turns a limit off. The server's certificate is checked against the
+# system CAs (MAIL_CA_FILE names another PEM file).
+export MAIL_SEND_RECEIVER_LIMIT=5
+export MAIL_SEND_RECEIVER_WINDOW_SECONDS=3600
+export MAIL_SEND_SERVER_LIMIT=5
+export MAIL_SEND_SERVER_WINDOW_SECONDS=3600
+# How long a request to DocAPI may wait to connect and for each read.
+export API_CONNECT_TIMEOUT_SECONDS=10
+export API_READ_TIMEOUT_SECONDS=300
 MAIL_PASSWORD_FILE="${MAIL_PASSWORD_FILE:-$SCRIPT_DIR/.mail_password}"
 if [ -r "$MAIL_PASSWORD_FILE" ]; then
     export MAIL_PASSWORD="$(<"$MAIL_PASSWORD_FILE")"
