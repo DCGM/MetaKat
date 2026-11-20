@@ -24,7 +24,7 @@ import metakat
 from metakat.process_batch import process_batch
 from metakat.engine_config import prepare_engine_config, require_config_mapping
 from metakat.common.vlm.local_server import local_model_locations
-from metakat.worker.docapi.job_summary import JobSummary, render_log, render_text, summarize_job
+from metakat.worker.docapi.job_summary import render_log, render_text, summarize_job
 
 
 logger = logging.getLogger(__name__)
@@ -180,17 +180,32 @@ class MetakatWorker(DocWorkerWrapper):
                      job_dir: str, duration_s: float) -> WorkerResponse:
         """Add the job summary to the response as its final logs, which the wrapper sends to DocAPI.
 
-        final_log gets the full summary, for admins; final_log_user gets the summary
-        without the error details, followed by the response's own message for the
-        user. The status is kept. The summary also goes to the worker log. If the
-        summary cannot be built, the response is returned unchanged, so a broken
-        summary never changes the outcome.
+        The summary is built from the job, the response, the job's directory (its
+        input, result and meta.json) and the engine definition. final_log gets the
+        full summary, for admins; final_log_user gets the summary without the error
+        details, followed by the response's own message for the user. The status is
+        kept. The summary also goes to the worker log. If the summary cannot be
+        built, the response is returned unchanged, so a broken summary never changes
+        the outcome.
         """
         try:
+            metadata = None
+            meta_file = Path(job_dir) / "meta.json"
+            if meta_file.is_file():
+                try:
+                    metadata = self._load_metadata_envelope(str(meta_file))
+                except Exception:
+                    logger.warning("Job metadata could not be read for the job summary", exc_info=True)
+            definition = job.engine_definition if isinstance(job.engine_definition, dict) else {}
             # The wrapper adds diagnostics from exception/error_adapter_response.
             # Summarize the message here so those details appear only once.
-            summary = self._summarize(
-                job, replace(response, exception=None, error_adapter_response=None), job_dir, duration_s)
+            summary = summarize_job(
+                job, replace(response, exception=None, error_adapter_response=None), duration_s,
+                job_dir=Path(job_dir),
+                has_chapter_stage="chapter" in definition,
+                worker=worker_description(),
+                metadata=metadata,
+            )
             logger.info(render_log(summary))
             user_report = render_text(summary, with_error=False)
             if response.final_log_user:
@@ -200,24 +215,6 @@ class MetakatWorker(DocWorkerWrapper):
             # A broken summary must not change the processing outcome.
             logger.exception("Could not prepare the final job summary")
             return response
-
-    @classmethod
-    def _summarize(cls, job: Job, response: WorkerResponse, job_dir: Optional[str], duration_s: float) -> JobSummary:
-        definition = job.engine_definition if isinstance(job.engine_definition, dict) else {}
-        metadata = None
-        meta_file = Path(job_dir) / "meta.json" if job_dir else None
-        if meta_file is not None and meta_file.is_file():
-            try:
-                metadata = cls._load_metadata_envelope(str(meta_file))
-            except Exception:
-                logger.warning("Job metadata could not be read for the job summary", exc_info=True)
-        return summarize_job(
-            job, response, duration_s,
-            job_dir=Path(job_dir) if job_dir else None,
-            has_chapter_stage="chapter" in definition,
-            worker=worker_description(),
-            metadata=metadata,
-        )
 
     @staticmethod
     def _load_metadata_envelope(meta_file: Optional[str]) -> dict:
