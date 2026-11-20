@@ -577,10 +577,20 @@ command line, in which case the command line wins. Directories and logging
 handlers are set up after the arguments are applied, so an option changes what
 is actually created and installed rather than only what is recorded.
 
+The settings are DocAPI's worker settings (`doc_worker.config.Config`, described
+in DocAPI's
+[`doc_worker/.env_example`](https://github.com/DCGM/DocAPI/blob/main/doc_worker/.env_example))
+with MetaKat's own added in `metakat/worker/docapi/config.py`. DocAPI's settings
+cover the worker's mail: `MAIL_*`, the `ALIVE_MAIL_*` reports, the
+`OUTAGE_*` mail when DocAPI cannot be reached, `WORKER_IDENTITY` and the
+`ERROR_*` texts. They are checked at startup: an invalid value, or mail that is
+only half set up, stops the worker with an error.
+
 | Variable | Flag | Default | Meaning |
 | --- | --- | --- | --- |
 | `API_URL` | `--api-url` | `https://metakat.smart.lib.cas.cz` | DocAPI server to poll |
-| `WORKER_KEY` | `--api-key` | a placeholder that will not authenticate | key issued by the server |
+| `WORKER_KEY_FILE` | | none | file holding the key issued by the server (preferred) |
+| `WORKER_KEY` | `--api-key` | none | the key itself, instead of `WORKER_KEY_FILE` |
 | `BASE_DIR` | `--base-dir` | `./metakat_worker_data` | parent of the directories below |
 | `JOBS_DIR` | `--jobs-dir` | `$BASE_DIR/jobs` | per-job working data |
 | `ENGINES_DIR` | `--engines-dir` | `$BASE_DIR/engines` | downloaded engine files |
@@ -593,9 +603,9 @@ is actually created and installed rather than only what is recorded.
 | `LOGGING_CONSOLE_LEVEL` | `--log-level` | `INFO` | console verbosity |
 | `LOGGING_FILE_LEVEL` | `--log-file-level` | `INFO` | `worker.log` verbosity |
 
-`WORKER_KEY` has a placeholder default that will not authenticate, so it must be
-supplied. Either `BASE_DIR`, or both `JOBS_DIR` and `ENGINES_DIR`, must resolve;
-the worker exits with a usage error otherwise. The three directories are created
+One of `WORKER_KEY_FILE` and `WORKER_KEY` is required; the file keeps the key
+out of the environment and the command line. `JOB_HISTORY_PATH` defaults to
+`job_history.jsonl` in `LOGGING_DIR`; set it empty to keep no history. The three directories are created
 at startup if missing.
 
 Each of the three boolean settings has both forms, so the environment sets the
@@ -627,9 +637,9 @@ process on the worker.
 
 ### Running it
 
-`run_worker.sh` beside the worker is the reference invocation. It reads the
-worker key from `.docapi_worker_key` in the same directory, exports the rest of
-the settings, activates the environment and starts the worker:
+`run_worker.sh` beside the worker is the reference invocation. It passes
+`.docapi_worker_key` in the same directory as `WORKER_KEY_FILE`, exports the
+rest of the settings, activates the environment and starts the worker:
 
 ```bash
 cd metakat/worker/docapi
@@ -646,7 +656,7 @@ submodule dependencies are expected to be installed into the environment.
 The equivalent without the script:
 
 ```bash
-WORKER_KEY=... BASE_DIR=/data/metakat_worker STORE_METAKAT_PDF=true \
+WORKER_KEY_FILE=.docapi_worker_key BASE_DIR=/data/metakat_worker STORE_METAKAT_PDF=true \
   python -m metakat.worker.docapi.metakat_worker
 ```
 

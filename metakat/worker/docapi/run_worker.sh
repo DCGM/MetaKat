@@ -10,7 +10,9 @@ if [ ! -r "$KEY_FILE" ]; then
     exit 1
 fi
 
-export WORKER_KEY="$(<"$KEY_FILE")"
+# The worker reads the key from the file, so it is not in the environment.
+unset WORKER_KEY
+export WORKER_KEY_FILE="$KEY_FILE"
 
 # Optional: an OpenRouter key for the engines that read pages with a VLM. A
 # job then names it with "api_key_env": "OPENROUTER_API_KEY" instead of
@@ -38,14 +40,14 @@ export MAIL_RECEIVER_MAILS=ikohut@fit.vut.cz
 export MAIL_TIMEOUT_SECONDS=60
 # Health reporting: a mail when the worker starts and an alive report every
 # day; 0 disables the periodic report.
-export MAIL_STARTUP=true
-export MAIL_ALIVE_INTERVAL_SECONDS=86400
+export ALIVE_MAIL_STARTUP=true
+export ALIVE_MAIL_INTERVAL_SECONDS=86400
 # Names this worker in mail subjects: [MetaKat worker prod] ALIVE (host).
 export WORKER_IDENTITY="MetaKat worker prod"
 # DocAPI outage mail: DISCONNECTED after a minute of unreachable DocAPI while
 # idle (at once during a job), STILL DISCONNECTED hourly, then RECONNECTED.
-export DISCONNECTED_GRACE_SECONDS=60
-export DISCONNECTED_MAIL_INTERVAL_SECONDS=3600
+export OUTAGE_GRACE_SECONDS=60
+export OUTAGE_MAIL_INTERVAL_SECONDS=3600
 # Mail sending limits per sliding hour: 5 per subject and receiver, 5 in
 # total; 0 turns a limit off. The server's certificate is checked against the
 # system CAs (MAIL_CA_FILE names another PEM file).
