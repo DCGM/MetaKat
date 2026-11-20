@@ -48,14 +48,14 @@ class MetakatWorker(DocWorkerWrapper):
     def process_job(self, job: Job, images_dir: str, result_dir: str, alto_dir: Optional[str] = None,
                     page_xml_dir: Optional[str] = None, meta_file: Optional[str] = None,
                     engine_dir: Optional[str] = None) -> WorkerResponse:
-        """Run MetaKat on the job, then report the job summary to DocAPI as its final logs.
+        """Run MetaKat on the job, then add the job summary to the response as its final logs.
 
         The wrapper sends everything logged meanwhile into the job's worker.log.
         """
         started = time.monotonic()
         response = self._run_metakat(job, images_dir, result_dir, alto_dir, page_xml_dir, meta_file, engine_dir)
-        return self._report_summary(job, response, job_dir=str(Path(result_dir).parent),
-                                    duration_s=time.monotonic() - started)
+        return self._add_summary(job, response, job_dir=str(Path(result_dir).parent),
+                                 duration_s=time.monotonic() - started)
 
     def _run_metakat(self,
                     job: Job,
@@ -176,9 +176,9 @@ class MetakatWorker(DocWorkerWrapper):
             return WorkerResponse.error(final_log="MetakatWorker processing failed",
                                         final_log_user="Processing failed. Please try again later.", exception=e)
 
-    def _report_summary(self, job: Job, response: WorkerResponse,
-                        job_dir: str, duration_s: float) -> WorkerResponse:
-        """The response with the job summary as its final logs, which the wrapper sends to DocAPI.
+    def _add_summary(self, job: Job, response: WorkerResponse,
+                     job_dir: str, duration_s: float) -> WorkerResponse:
+        """Add the job summary to the response as its final logs, which the wrapper sends to DocAPI.
 
         final_log gets the full summary, for admins; final_log_user gets the summary
         without the error details, followed by the response's own message for the
