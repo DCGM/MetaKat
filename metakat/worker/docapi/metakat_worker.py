@@ -29,6 +29,10 @@ from metakat.worker.docapi.job_summary import render_log, render_text, summarize
 
 logger = logging.getLogger(__name__)
 
+# The keys of the job's metadata file, each passed to the pipeline (see
+# MetakatWorker._load_metadata_envelope).
+METADATA_KEYS = ("metakat_json", "proarc_json", "engine_config_override")
+
 
 class MetakatWorker(DocWorkerWrapper):
     # MetaKat's processing settings, with Config's defaults; from_config() passes
@@ -218,44 +222,48 @@ class MetakatWorker(DocWorkerWrapper):
 
     @staticmethod
     def _load_metadata_envelope(meta_file: Optional[str]) -> dict:
-        keys = {
-            "metakat_json",
-            "proarc_json",
-            "engine_config_override",
-        }
+        """The job's metadata file as {key: object or None} for each of METADATA_KEYS.
+
+        The file is the JSON uploaded with PUT /v1/jobs/{job_id}/files/metadata:
+
+        - no file: every key is None;
+        - an envelope, an object with some of METADATA_KEYS: each value must be an
+          object or null, and an absent key means null. Any other key fails the job,
+          so a misspelt one is not silently ignored;
+        - a plain ProArc record, the format before the envelope: it is passed on as
+          proarc_json (see _is_plain_proarc).
+
+        Anything else, e.g. a JSON array, fails the job.
+        """
         if meta_file is None:
-            return {key: None for key in keys}
+            return dict.fromkeys(METADATA_KEYS)
         with open(meta_file, "r", encoding="utf-8") as source:
             value = json.load(source)
         if not isinstance(value, dict):
-            raise ValueError("Job metadata envelope must be a JSON object")
-        if value and not value.keys() & keys:
-            # Jobs that predate the envelope send the plain ProArc
-            # packageInfo.json as the meta file. It carries none of the
-            # envelope keys - only its own "type" and "objects" - so treat the
-            # whole document as proarc_json instead of rejecting those as
-            # unknown envelope keys. An empty object stays an empty envelope:
-            # a ProArc JSON always has at least its own required keys, so {}
-            # cannot be one.
-            logger.info(
-                "Job metadata has none of the envelope keys; processing the "
-                "whole document as a plain ProArc JSON"
-            )
-            return {
-                key: (value if key == "proarc_json" else None)
-                for key in keys
-            }
-        unknown = value.keys() - keys
+            raise ValueError("Job metadata must be a JSON object")
+        if MetakatWorker._is_plain_proarc(value):
+            logger.info("Job metadata has none of the envelope keys; "
+                        "processing the whole document as a plain ProArc JSON")
+            return {**dict.fromkeys(METADATA_KEYS), "proarc_json": value}
+        unknown = value.keys() - set(METADATA_KEYS)
         if unknown:
-            raise ValueError(
-                "Unknown job metadata envelope key(s): "
-                + ", ".join(sorted(unknown))
-            )
-        result = {key: value.get(key) for key in keys}
-        for key, item in result.items():
+            raise ValueError(f"Unknown job metadata key(s): {', '.join(sorted(unknown))}; "
+                             f"expected {', '.join(METADATA_KEYS)}")
+        envelope = {key: value.get(key) for key in METADATA_KEYS}
+        for key, item in envelope.items():
             if item is not None and not isinstance(item, dict):
                 raise ValueError(f"Job metadata {key!r} must be an object or null")
-        return result
+        return envelope
+
+    @staticmethod
+    def _is_plain_proarc(value: dict) -> bool:
+        """Whether the metadata is a plain ProArc record rather than an envelope.
+
+        A ProArc packageInfo.json has its own keys ("type", "objects") and none of
+        METADATA_KEYS, while an envelope has at least one of them. {} is an empty
+        envelope, as a ProArc record is never empty.
+        """
+        return bool(value) and not value.keys() & set(METADATA_KEYS)
 
 
 @functools.lru_cache(maxsize=None)
