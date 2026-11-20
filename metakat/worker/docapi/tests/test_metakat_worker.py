@@ -605,9 +605,9 @@ def test_failure_to_fetch_leased_job_reports_the_correct_lease(pipeline_worker):
     assert worker.adapter.patch_job_error.call_args.kwargs["job_id"] == "job-1"
 
 
-def test_failure_to_summarize_does_not_prevent_reporting(pipeline_worker):
+def test_failure_to_summarize_does_not_prevent_reporting(pipeline_worker, monkeypatch):
     worker = pipeline_worker
-    worker._summarize = mock.Mock(side_effect=ValueError("summary failure"))
+    monkeypatch.setattr(worker_module, "summarize_job", mock.Mock(side_effect=ValueError("summary failure")))
     worker_module.process_batch.side_effect = RuntimeError("private diagnostic")
     assert worker.run_job_pipeline() is None
     report = worker.adapter.patch_job_error.call_args.kwargs
@@ -663,15 +663,15 @@ def test_alive_mail_intervals_must_be_finite_nonnegative(monkeypatch, key, value
         Config()
 
 
-def test_download_failure_uses_wrapper_messages_without_metakat_summary(pipeline_worker):
+def test_download_failure_uses_wrapper_messages_without_metakat_summary(pipeline_worker, monkeypatch):
     worker = pipeline_worker
     worker._download_job_data.side_effect = OSError("private connection detail")
-    worker._summarize = mock.Mock()
+    monkeypatch.setattr(worker_module, "summarize_job", mock.Mock())
     assert worker.run_job_pipeline() is None
     report = worker.adapter.patch_job_error.call_args.kwargs
     assert report["final_log"].startswith("Failed to download job data from server")
     assert report["final_log_user"] == "Failed to download job data from server"
-    worker._summarize.assert_not_called()
+    worker_module.summarize_job.assert_not_called()
 
 
 def test_history_is_off_unless_set(monkeypatch):
