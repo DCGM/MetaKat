@@ -83,9 +83,6 @@ export STORE_MODS_OVERVIEW=true
 # this environment as editable packages.
 source /home/ikohut/python_env/metakat/bin/activate
 export PYTHONUNBUFFERED=1
-# Worker log and mail go to operators; secrets are redacted where they are
-# logged (metakat.logging_utils), so DocAPI's mail masking is turned off.
-export SECRET_MASKING=false
 
 # Only one production worker at a time.
 mkdir -p "$LOGGING_DIR"
