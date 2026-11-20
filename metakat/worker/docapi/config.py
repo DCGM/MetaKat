@@ -16,8 +16,9 @@ from doc_worker.config import Config as DocWorkerConfig
 
 
 class MetakatWorkerFormatter(logging.Formatter):
-    """Not masked: the worker log is for operators. Secrets are kept out where they are
-    logged (metakat.logging_utils.redacted_for_logging); DocAPI masks worker mail."""
+    """Not masked, like the worker's mail, which DocAPI sends as written: both are for
+    operators. Secrets are kept out where they are logged
+    (metakat.logging_utils.redacted_for_logging)."""
     converter = time.gmtime
 
     def format(self, record: logging.LogRecord) -> str:
