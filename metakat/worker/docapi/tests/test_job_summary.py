@@ -248,7 +248,7 @@ def worker():
 def test_the_api_gets_the_same_summary_in_both_logs_of_a_processed_job(tmp_path, worker):
     _job_dir(tmp_path, _periodical(), mods=_all_ids(_periodical()))
 
-    response = worker._report_summary(_job(), WorkerResponse.ok(), str(tmp_path), 10.0)
+    response = worker._add_summary(_job(), WorkerResponse.ok(), str(tmp_path), 10.0)
     log, log_user = response.final_log, response.final_log_user
     worker.mail_sender.send.assert_not_called()
 
@@ -264,7 +264,7 @@ def test_the_user_log_of_a_failed_job_leaves_out_its_error(tmp_path, worker):
         response = WorkerResponse.fail("MetakatWorker processing failed", exception=error)
 
     worker.current_job = _job()
-    response = worker._report_summary(worker.current_job, response, str(tmp_path), 0.0)
+    response = worker._add_summary(worker.current_job, response, str(tmp_path), 0.0)
     log, log_user = worker._prepare_final_logs(response)
 
     assert "status    FAILED, 0m 00s\n" in log and "status    FAILED, 0m 00s\n" in log_user
