@@ -10,16 +10,13 @@ from dataclasses import replace
 from pathlib import Path
 import logging.config
 
-from metakat.worker.docapi.config import config
-from doc_worker.doc_worker_wrapper import WorkerHealthConfig
+from metakat.worker.docapi.config import Config
 
 import argparse
 from typing import Optional
 
 from doc_worker.doc_worker_wrapper import DocWorkerWrapper, WorkerResponse
 from doc_api.api.schemas.base_objects import Job
-from doc_api.connector import Connector
-from doc_api.tools.mail_sender import MailSender
 import doc_api
 
 import metakat
@@ -34,22 +31,38 @@ logger = logging.getLogger(__name__)
 
 
 class MetakatWorker(DocWorkerWrapper):
+    # MetaKat's processing settings (config.py), with Config's defaults.
+    allowed_image_extensions = frozenset({".jpg", ".jpeg", ".png", ".tif", ".tiff"})
+    store_metakat_pdf = False
+    store_mods_overview = False
 
-    def process_job(self, job: Job, job_log_file_handler: logging.FileHandler,
-                    images_dir: str, result_dir: str, alto_dir: Optional[str] = None,
+    def __init__(self, *args, allowed_image_extensions=None, store_metakat_pdf: bool = False,
+                 store_mods_overview: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        if allowed_image_extensions is not None:
+            self.allowed_image_extensions = frozenset(allowed_image_extensions)
+        self.store_metakat_pdf = store_metakat_pdf
+        self.store_mods_overview = store_mods_overview
+
+    @classmethod
+    def subclass_args(cls, config: Config) -> dict:
+        """MetaKat's processing settings; main() applies its logging settings."""
+        return {"allowed_image_extensions": config.ALLOWED_IMAGE_EXTENSIONS,
+                "store_metakat_pdf": config.STORE_METAKAT_PDF,
+                "store_mods_overview": config.STORE_MODS_OVERVIEW}
+
+    def process_job(self, job: Job, images_dir: str, result_dir: str, alto_dir: Optional[str] = None,
                     page_xml_dir: Optional[str] = None, meta_file: Optional[str] = None,
                     engine_dir: Optional[str] = None) -> WorkerResponse:
-        """Process the inputs and return the summary as explicit final reports."""
+        """Process the inputs and return the summary as explicit final reports.
+
+        The wrapper sends everything logged meanwhile into the job's worker.log.
+        """
         started = time.monotonic()
-        root_logger = logging.getLogger()
-        root_logger.addHandler(job_log_file_handler)
-        try:
-            response = self._process_job(
-                job, images_dir, result_dir, alto_dir, page_xml_dir, meta_file, engine_dir)
-            return self._processing_response(
-                job, response, str(Path(result_dir).parent), time.monotonic() - started)
-        finally:
-            root_logger.removeHandler(job_log_file_handler)
+        response = self._process_job(
+            job, images_dir, result_dir, alto_dir, page_xml_dir, meta_file, engine_dir)
+        return self._processing_response(
+            job, response, str(Path(result_dir).parent), time.monotonic() - started)
 
     def _process_job(self,
                     job: Job,
@@ -95,9 +108,9 @@ class MetakatWorker(DocWorkerWrapper):
                         return WorkerResponse.fail(final_log=f"Image file not listed in job images: {image_file.name}",
                                                    final_log_user="An input image is not listed in the job definition.")
                     ext = image_file.suffix.lower()
-                    if ext not in config.ALLOWED_IMAGE_EXTENSIONS:
+                    if ext not in self.allowed_image_extensions:
                         return WorkerResponse.fail(final_log=f"Image file with unsupported extension found: {image_file.name}, "
-                                                   f"allowed extensions are: {', '.join(config.ALLOWED_IMAGE_EXTENSIONS)}",
+                                                   f"allowed extensions are: {', '.join(sorted(self.allowed_image_extensions))}",
                                                    final_log_user="An input image has an unsupported extension.")
                     if image_file.is_file():
                         symlink_path = Path(tmp_batch_dir) / image_file.name
@@ -146,15 +159,15 @@ class MetakatWorker(DocWorkerWrapper):
                     # PDF rather than uploaded with the result.
                     output_mods_overview=(
                         os.path.join(Path(result_dir).parent, "metakat.mods.txt")
-                        if config.STORE_MODS_OVERVIEW
+                        if self.store_mods_overview
                         else None
                     ),
                     output_metakat_pdf=(
                         os.path.join(Path(result_dir).parent, "result.pdf")
-                        if config.STORE_METAKAT_PDF
+                        if self.store_metakat_pdf
                         else None
                     ),
-                    allowed_image_extensions=config.ALLOWED_IMAGE_EXTENSIONS)
+                    allowed_image_extensions=set(self.allowed_image_extensions))
 
                 return WorkerResponse.ok()
             
@@ -263,39 +276,21 @@ def worker_description() -> str:
             f"docapi {commit(Path(doc_api.__file__).parent)}, {socket.gethostname()}")
 
 
-def mail_sender_from_config(config) -> Optional[MailSender]:
-    """The mail sender MetakatWorker.send_mail uses, or None when mailing is not set up."""
-    if not config.MAIL_SERVER or not config.MAIL_SENDER_MAIL:
-        return None
-    return MailSender(
-        server=config.MAIL_SERVER,
-        sender_mail=config.MAIL_SENDER_MAIL,
-        port=config.MAIL_PORT,
-        sender_name=config.MAIL_SENDER_NAME,
-        username=config.MAIL_USERNAME,
-        password=config.MAIL_PASSWORD,
-        security=config.MAIL_SECURITY,
-        ca_file=config.MAIL_CA_FILE,
-        timeout=config.MAIL_TIMEOUT_SECONDS,
-        send_receiver_limit=config.MAIL_SEND_RECEIVER_LIMIT,
-        send_receiver_window_seconds=config.MAIL_SEND_RECEIVER_WINDOW_SECONDS,
-        send_server_limit=config.MAIL_SEND_SERVER_LIMIT,
-        send_server_window_seconds=config.MAIL_SEND_SERVER_WINDOW_SECONDS,
-    )
-
-
-def worker_mail_identity(config) -> dict:
-    """How the wrapper's health and failure mail names this worker."""
-    return {"identity": config.WORKER_IDENTITY, "hostname": config.WORKER_HOSTNAME,
-            "mail_subject": config.MAIL_SUBJECT}
-
-
 def _extension_set(value: str) -> set:
     """Parse a comma-separated extension list the way the environment variable is."""
     extensions = {item.strip() for item in value.split(",") if item.strip()}
     if not extensions:
         raise argparse.ArgumentTypeError("expected at least one extension")
     return extensions
+
+
+def _setting_text(value) -> str:
+    """A command-line value as Config reads it from the environment."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (set, frozenset)):
+        return ",".join(sorted(value))
+    return str(value)
 
 
 def main():
@@ -310,7 +305,7 @@ def main():
     )
     parser.add_argument(
         "--api-key",
-        help="API worker key for authentication"
+        help="API worker key for authentication; prefer WORKER_KEY_FILE, which keeps the key off the command line"
     )
     
     # Directory arguments
@@ -385,10 +380,11 @@ def main():
 
     # An option overrides the environment when it was supplied, which is not the
     # same question as whether its value is truthy: 0 is a legitimate polling
-    # interval and would be discarded by `or`.
+    # interval and would be discarded by `or`. Config takes them as text, as in
+    # the environment, and checks them with the rest.
+    overrides = {}
     for argument_name, setting in (
         ("api_url", "API_URL"),
-        ("api_key", "WORKER_KEY"),
         ("base_dir", "BASE_DIR"),
         ("jobs_dir", "JOBS_DIR"),
         ("engines_dir", "ENGINES_DIR"),
@@ -404,11 +400,16 @@ def main():
     ):
         value = getattr(args, argument_name)
         if value is not None:
-            setattr(config, setting, value)
+            overrides[setting] = _setting_text(value)
+    if args.api_key is not None:
+        # A key given here replaces a key file from the environment as well.
+        overrides.update(WORKER_KEY=args.api_key, WORKER_KEY_FILE="")
+    try:
+        config = Config(overrides)
+    except ValueError as error:
+        parser.error(str(error))
 
-    # Directories and logging are set up only once the overrides are in place,
-    # so that the directories created and the handlers installed are the ones
-    # actually asked for.
+    # Directories and logging are set up from the final settings.
     config.create_dirs()
     logging.config.dictConfig(config.LOGGING_CONFIG)
 
@@ -422,65 +423,32 @@ def main():
             "STORE_MODS_OVERVIEW and CLEANUP_JOB_DIR are both enabled; "
             "the locally stored metakat.mods.txt will be removed after upload"
         )
-        
-    # Validate directory arguments
-    if not config.BASE_DIR and (not config.JOBS_DIR or not config.ENGINES_DIR):
-        parser.error("Either --base-dir or both --jobs-dir and --engines-dir must be specified")
-    
-    # Create connector
-    connector = Connector(api_key=config.WORKER_KEY,
-                          timeout=(config.API_CONNECT_TIMEOUT_SECONDS, config.API_READ_TIMEOUT_SECONDS))
-    
-    # Health mail is enabled only when this deployment configures mailing.
-    mail_sender = mail_sender_from_config(config)
-    health_config = WorkerHealthConfig(
-        mail_startup=config.MAIL_STARTUP,
-        alive_interval_seconds=config.MAIL_ALIVE_INTERVAL_SECONDS,
-    ) if mail_sender is not None else None
 
-    # Create and start worker
-    worker = MetakatWorker(
-        api_url=config.API_URL,
-        connector=connector,
-        base_dir=config.BASE_DIR,
-        job_history_path=config.JOB_HISTORY_PATH,
-        jobs_dir=config.JOBS_DIR,
-        cleanup_job_dir=config.CLEANUP_JOB_DIR,
-        engines_dir=config.ENGINES_DIR,
-        cleanup_old_engines=config.CLEANUP_OLD_ENGINES,
-        polling_interval=config.POLLING_INTERVAL,
-        mail_sender=mail_sender,
-        mail_receivers=config.MAIL_RECEIVER_MAILS,
-        health_config=health_config,
-        **worker_mail_identity(config),
-        disconnected_grace_seconds=config.DISCONNECTED_GRACE_SECONDS,
-        disconnected_mail_interval_seconds=config.DISCONNECTED_MAIL_INTERVAL_SECONDS,
-        prefer_image_url=config.PREFER_IMAGE_URL,
-        prefer_alto_url=config.PREFER_ALTO_URL,
-        prefer_page_url=config.PREFER_PAGE_URL,
-    )
+    worker = MetakatWorker.from_config(config)
 
     logger.info(f"Starting MetakatWorker connecting to {config.API_URL}")
     logger.info(f"Worker: {worker_description()}")
     logger.info(f"API timeouts: connect {config.API_CONNECT_TIMEOUT_SECONDS:g} s, "
                 f"read {config.API_READ_TIMEOUT_SECONDS:g} s")
     logger.info(f"Base directory: {config.BASE_DIR}")
-    logger.info(f"Jobs directory: {config.JOBS_DIR}")
-    logger.info(f"Engines directory: {config.ENGINES_DIR}")
+    logger.info(f"Jobs directory: {config.JOBS_DIR or os.path.join(config.BASE_DIR, 'jobs')}")
+    logger.info(f"Engines directory: {config.ENGINES_DIR or os.path.join(config.BASE_DIR, 'engines')}")
+    logger.info(f"Job history: {config.JOB_HISTORY_PATH or 'off'}")
     logger.info(f"Store MetaKat PDF: {config.STORE_METAKAT_PDF}")
     logger.info(f"Store MODS overview: {config.STORE_MODS_OVERVIEW}")
-    if worker.mail_sender is not None:
+    if config.MAIL_SERVER:
         logger.info(f"Mail: {config.MAIL_SENDER_MAIL} via {config.MAIL_SERVER}:{config.MAIL_PORT} "
-                    f"({worker.mail_sender.security}), default receivers: "
-                    f"{', '.join(config.MAIL_RECEIVER_MAILS) or 'none'}")
+                    f"({config.MAIL_SECURITY}), receivers: {', '.join(config.MAIL_RECEIVER_MAILS)}")
         logger.info(f"Mail limits: {config.MAIL_SEND_RECEIVER_LIMIT} per subject and receiver per "
                     f"{config.MAIL_SEND_RECEIVER_WINDOW_SECONDS:g} s, {config.MAIL_SEND_SERVER_LIMIT} in total per "
-                    f"{config.MAIL_SEND_SERVER_WINDOW_SECONDS:g} s (0 = no limit); "
-                    f"DocAPI outage mail after {config.DISCONNECTED_GRACE_SECONDS:g} s idle, "
-                    f"reminders every {config.DISCONNECTED_MAIL_INTERVAL_SECONDS:g} s")
+                    f"{config.MAIL_SEND_SERVER_WINDOW_SECONDS:g} s (0 = no limit)")
+        logger.info(f"ALIVE mail: {'at startup and ' if config.ALIVE_MAIL_STARTUP else ''}"
+                    f"every {config.ALIVE_MAIL_INTERVAL_SECONDS:g} s (0 = none); "
+                    f"DocAPI outage mail after {config.OUTAGE_GRACE_SECONDS:g} s idle, "
+                    f"reminders every {config.OUTAGE_MAIL_INTERVAL_SECONDS:g} s")
     else:
-        logger.info("Mail: not set up (MAIL_SERVER and MAIL_SENDER_MAIL), send_mail sends nothing")
-    
+        logger.info("Mail: not set up (MAIL_SERVER), the worker sends no mail")
+
     worker.start()
 
 

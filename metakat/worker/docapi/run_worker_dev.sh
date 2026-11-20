@@ -17,7 +17,9 @@ if [[ ! -f "$DOCAPI_DIR/doc_worker/doc_worker_wrapper.py" ]]; then
 fi
 
 export API_URL="http://127.0.0.1:${DOCAPI_PORT:-9999}"
-export WORKER_KEY="$(<"$KEY_FILE")"
+# The worker reads the key from the file, so it is not in the environment.
+unset WORKER_KEY
+export WORKER_KEY_FILE="$KEY_FILE"
 export BASE_DIR="/mnt/kolosus/data/metakat_worker_dev"
 export JOBS_DIR="$BASE_DIR/jobs"
 export ENGINES_DIR="$HOME/data/metakat_worker_dev/engines"
@@ -54,8 +56,8 @@ export MAIL_SECURITY="${DEV_MAIL_SECURITY:-starttls}"
 export MAIL_TIMEOUT_SECONDS="${DEV_MAIL_TIMEOUT_SECONDS:-60}"
 export MAIL_SENDER_MAIL="${DEV_MAIL_SENDER_MAIL:-ikohut@fit.vut.cz}"
 export MAIL_RECEIVER_MAILS="${DEV_MAIL_RECEIVER_MAILS:-ikohut@fit.vut.cz}"
-export MAIL_STARTUP=true
-export MAIL_ALIVE_INTERVAL_SECONDS="${DEV_MAIL_ALIVE_INTERVAL_SECONDS:-86400}"
+export ALIVE_MAIL_STARTUP=true
+export ALIVE_MAIL_INTERVAL_SECONDS="${DEV_MAIL_ALIVE_INTERVAL_SECONDS:-86400}"
 # Tells development mail apart from the production worker on the same host.
 export WORKER_IDENTITY="${DEV_WORKER_IDENTITY:-MetaKat worker dev}"
 if [[ -n "${DEV_MAIL_PASSWORD_FILE:-}" ]]; then

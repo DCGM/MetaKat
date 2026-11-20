@@ -22,6 +22,15 @@ def _job(engine_definition):
     )
 
 
+# Config requires a key; these tests never contact DocAPI.
+KEY = {"WORKER_KEY": "metakat.testkid.testsecret"}
+
+
+@pytest.fixture(autouse=True)
+def worker_key(monkeypatch):
+    monkeypatch.setenv("WORKER_KEY", KEY["WORKER_KEY"])
+
+
 @pytest.fixture
 def worker():
     worker = object.__new__(MetakatWorker)
@@ -43,23 +52,37 @@ def workspace(tmp_path):
 
 
 def test_store_metakat_pdf_defaults_false_and_reads_environment():
-    with mock.patch.dict("os.environ", {}, clear=True):
+    with mock.patch.dict("os.environ", KEY, clear=True):
         assert not Config().STORE_METAKAT_PDF
-    with mock.patch.dict(
-        "os.environ",
-        {"STORE_METAKAT_PDF": "true"},
-        clear=True,
-    ):
+    with mock.patch.dict("os.environ", {**KEY, "STORE_METAKAT_PDF": "true"}, clear=True):
         assert Config().STORE_METAKAT_PDF
 
 
-def test_mailing_is_off_without_a_server():
-    with mock.patch.dict("os.environ", {"MAIL_SENDER_MAIL": "metakat@example.com"}, clear=True):
-        assert worker_module.mail_sender_from_config(Config()) is None
+def test_metakat_settings_reach_the_worker(tmp_path):
+    environment = {**KEY, "BASE_DIR": str(tmp_path), "ALLOWED_IMAGE_EXTENSIONS": ".png, .tif",
+                   "STORE_METAKAT_PDF": "true", "STORE_MODS_OVERVIEW": "true"}
+    with mock.patch.dict("os.environ", environment, clear=True):
+        worker = MetakatWorker.from_config(Config())
+    assert worker.allowed_image_extensions == {".png", ".tif"}
+    assert worker.store_metakat_pdf and worker.store_mods_overview
 
 
-def test_mailing_reads_its_settings_from_the_environment():
+def test_mailing_is_off_without_a_server(tmp_path):
+    with mock.patch.dict("os.environ", {**KEY, "BASE_DIR": str(tmp_path)}, clear=True):
+        worker = MetakatWorker.from_config(Config())
+    assert worker.worker_mail_sender is None
+
+
+def test_half_configured_mail_stops_the_worker():
+    with mock.patch.dict("os.environ", {**KEY, "MAIL_SENDER_MAIL": "metakat@example.com"}, clear=True):
+        with pytest.raises(ValueError, match="MAIL_SERVER is required"):
+            Config()
+
+
+def test_mailing_reads_its_settings_from_the_environment(tmp_path):
     environment = {
+        **KEY,
+        "BASE_DIR": str(tmp_path),
         "MAIL_SERVER": "smtp.example.com",
         "MAIL_PORT": "587",
         "MAIL_TIMEOUT_SECONDS": "12.5",
@@ -71,9 +94,10 @@ def test_mailing_reads_its_settings_from_the_environment():
     }
     with mock.patch.dict("os.environ", environment, clear=True):
         config = Config()
-        mail_sender = worker_module.mail_sender_from_config(config)
+        mail_sender = MetakatWorker.from_config(config).worker_mail_sender.sender
 
     assert config.MAIL_RECEIVER_MAILS == ["admin@example.com", "user@example.com"]
+    assert config.MAIL_SENDER_NAME == "MetaKat worker"
     assert mail_sender.ca_file is None
     assert (mail_sender.send_receiver_limit, mail_sender.send_server_limit) == (10, 100)
     with mock.patch("smtplib.SMTP") as smtp_class:
@@ -85,42 +109,54 @@ def test_mailing_reads_its_settings_from_the_environment():
     assert smtp.sendmail.call_args.args[1] == ["admin@example.com"]
 
 
-def test_mail_limits_api_timeouts_and_outage_mail_read_the_environment():
+def test_mail_limits_api_timeouts_and_outage_mail_read_the_environment(tmp_path):
     environment = {
+        **KEY,
+        "BASE_DIR": str(tmp_path),
         "MAIL_SERVER": "smtp.example.com",
         "MAIL_SENDER_MAIL": "metakat@example.com",
+        "MAIL_RECEIVER_MAILS": "admin@example.com",
         "MAIL_SEND_RECEIVER_LIMIT": "0",
         "MAIL_SEND_RECEIVER_WINDOW_SECONDS": "60",
         "MAIL_SEND_SERVER_LIMIT": "5",
         "MAIL_SEND_SERVER_WINDOW_SECONDS": "120",
         "API_CONNECT_TIMEOUT_SECONDS": "3",
         "API_READ_TIMEOUT_SECONDS": "30",
-        "DISCONNECTED_GRACE_SECONDS": "0",
-        "DISCONNECTED_MAIL_INTERVAL_SECONDS": "600",
+        "OUTAGE_GRACE_SECONDS": "0",
+        "OUTAGE_MAIL_INTERVAL_SECONDS": "600",
     }
     with mock.patch.dict("os.environ", environment, clear=True):
         config = Config()
-        mail_sender = worker_module.mail_sender_from_config(config)
+        mail_sender = MetakatWorker.from_config(config).worker_mail_sender.sender
     assert (mail_sender.send_receiver_limit, mail_sender.send_receiver_window_seconds) == (0, 60)
     assert (mail_sender.send_server_limit, mail_sender.send_server_window_seconds) == (5, 120)
     assert (config.API_CONNECT_TIMEOUT_SECONDS, config.API_READ_TIMEOUT_SECONDS) == (3, 30)
-    assert (config.DISCONNECTED_GRACE_SECONDS, config.DISCONNECTED_MAIL_INTERVAL_SECONDS) == (0, 600)
+    assert (config.OUTAGE_GRACE_SECONDS, config.OUTAGE_MAIL_INTERVAL_SECONDS) == (0, 600)
 
 
 def test_api_timeouts_and_outage_mail_defaults():
-    with mock.patch.dict("os.environ", {}, clear=True):
+    with mock.patch.dict("os.environ", KEY, clear=True):
         config = Config()
     assert (config.API_CONNECT_TIMEOUT_SECONDS, config.API_READ_TIMEOUT_SECONDS) == (10, 300)
-    assert (config.DISCONNECTED_GRACE_SECONDS, config.DISCONNECTED_MAIL_INTERVAL_SECONDS) == (60, 3600)
+    assert (config.OUTAGE_GRACE_SECONDS, config.OUTAGE_MAIL_INTERVAL_SECONDS) == (60, 3600)
+
+
+def test_metakat_defaults_for_docapi_settings():
+    with mock.patch.dict("os.environ", KEY, clear=True):
+        config = Config()
+    assert config.API_URL == "https://metakat.smart.lib.cas.cz"
+    assert config.BASE_DIR == "./metakat_worker_data"
+    assert config.MAIL_SENDER_NAME is None
 
 
 @pytest.mark.parametrize("key,value", [
     ("API_CONNECT_TIMEOUT_SECONDS", "0"), ("API_READ_TIMEOUT_SECONDS", "inf"),
-    ("DISCONNECTED_GRACE_SECONDS", "-1"), ("DISCONNECTED_MAIL_INTERVAL_SECONDS", "0"),
+    ("OUTAGE_GRACE_SECONDS", "-1"), ("OUTAGE_MAIL_INTERVAL_SECONDS", "0"),
     ("MAIL_SEND_RECEIVER_LIMIT", "-1"), ("MAIL_SEND_SERVER_WINDOW_SECONDS", "0"),
+    ("LOGGING_FILE_LEVEL", "LOUD"), ("STORE_METAKAT_PDF", "maybe"),
 ])
 def test_timeouts_limits_and_outage_settings_are_validated(key, value):
-    with mock.patch.dict("os.environ", {key: value}, clear=True):
+    with mock.patch.dict("os.environ", {**KEY, key: value}, clear=True):
         with pytest.raises(ValueError, match=key):
             Config()
 
@@ -170,12 +206,10 @@ def test_process_job_prepares_final_config_and_embedded_metadata(
             "bind": {"name": "chapter_bind_engine_base"},
         }
     }
-    handler = logging.FileHandler(tmp_path / "job.log")
 
     with mock.patch.object(worker_module, "process_batch") as process:
         response = worker.process_job(
             _job(definition),
-            handler,
             str(images),
             str(result),
             alto_dir=str(altos),
@@ -203,12 +237,10 @@ def test_process_job_prepares_final_config_and_embedded_metadata(
 
 def test_no_meta_file_passes_none_metadata(tmp_path, worker, workspace):
     images, altos, result, engines = workspace
-    handler = logging.FileHandler(tmp_path / "job.log")
 
     with mock.patch.object(worker_module, "process_batch") as process:
         response = worker.process_job(
             _job({}),
-            handler,
             str(images),
             str(result),
             alto_dir=str(altos),
@@ -231,7 +263,6 @@ def test_no_meta_file_passes_none_metadata(tmp_path, worker, workspace):
 
 def test_path_escaping_engine_directory_fails_the_job(tmp_path, worker, workspace):
     images, altos, result, engines = workspace
-    handler = logging.FileHandler(tmp_path / "job.log")
     definition = {
         "page_number": {
             "core": {
@@ -245,7 +276,6 @@ def test_path_escaping_engine_directory_fails_the_job(tmp_path, worker, workspac
     with mock.patch.object(worker_module, "process_batch") as process:
         response = worker.process_job(
             _job(definition),
-            handler,
             str(images),
             str(result),
             alto_dir=str(altos),
@@ -302,12 +332,10 @@ def test_plain_proarc_json_reaches_the_pipeline_as_proarc_data(
     images, altos, result, engines = workspace
     path = tmp_path / "packageInfo.json"
     path.write_text(json.dumps(_PLAIN_PROARC_JSON), encoding="utf-8")
-    handler = logging.FileHandler(tmp_path / "job.log")
 
     with mock.patch.object(worker_module, "process_batch") as process:
         response = worker.process_job(
             _job({}),
-            handler,
             str(images),
             str(result),
             alto_dir=str(altos),
@@ -376,15 +404,13 @@ def test_process_job_stores_pdf_beside_result_zip_when_enabled(
     workspace,
 ):
     images, altos, result, engines = workspace
-    handler = logging.FileHandler(tmp_path / "job.log")
 
     with (
         mock.patch.object(worker_module, "process_batch") as process,
-        mock.patch.object(worker_module.config, "STORE_METAKAT_PDF", True),
+        mock.patch.object(worker, "store_metakat_pdf", True),
     ):
         response = worker.process_job(
             _job({}),
-            handler,
             str(images),
             str(result),
             alto_dir=str(altos),
@@ -405,15 +431,13 @@ def test_process_job_stores_mods_overview_beside_result_zip_when_enabled(
     # Like the PDF, the overview is for inspection: kept beside result.zip,
     # never inside the uploaded result.
     images, altos, result, engines = workspace
-    handler = logging.FileHandler(tmp_path / "job.log")
 
     with (
         mock.patch.object(worker_module, "process_batch") as process,
-        mock.patch.object(worker_module.config, "STORE_MODS_OVERVIEW", True),
+        mock.patch.object(worker, "store_mods_overview", True),
     ):
         response = worker.process_job(
             _job({}),
-            handler,
             str(images),
             str(result),
             alto_dir=str(altos),
@@ -433,7 +457,6 @@ def _run_with_override(tmp_path, worker, workspace, definition, override):
     with mock.patch.object(worker_module, "process_batch") as process:
         response = worker.process_job(
             _job(definition),
-            logging.FileHandler(tmp_path / "job.log"),
             str(images),
             str(result),
             alto_dir=str(altos),
@@ -502,9 +525,7 @@ def pipeline_worker(tmp_path, monkeypatch):
 
     worker._download_job_data = mock.Mock(side_effect=download)
     monkeypatch.setattr(worker_module, "process_batch", mock.Mock())
-    worker.health = mock.Mock()
-    worker.mail_sender = mock.Mock()
-    worker.mail_receivers = ["admin@example.com"]
+    worker.worker_mail_sender = mock.Mock()
     return worker
 
 
@@ -517,7 +538,7 @@ def test_finished_job_sends_final_summaries_to_docapi(pipeline_worker, caplog):
     assert reports["final_log"] == reports["final_log_user"]
     assert "Job summary: job job-1 OK" in (Path(worker.jobs_dir) / "unknown.0.job-1" / "worker.log").read_text()
     worker.adapter.patch_job_progress_update.assert_not_called()
-    worker.mail_sender.send.assert_not_called()
+    worker.worker_mail_sender.send.assert_not_called()
 
 
 def test_processing_exception_is_retryable_and_technical_only(pipeline_worker, monkeypatch):
@@ -530,12 +551,12 @@ def test_processing_exception_is_retryable_and_technical_only(pipeline_worker, m
     assert "private diagnostic" not in reports["final_log_user"]
     assert "Please try again" in reports["final_log_user"]
     worker.adapter.patch_job_fail.assert_not_called()
-    worker.mail_sender.send.assert_not_called()
+    worker.worker_mail_sender.send.assert_not_called()
 
 
 def test_invalid_input_is_a_permanent_failure(pipeline_worker, monkeypatch):
     worker = pipeline_worker
-    monkeypatch.setattr(worker_module.config, "ALLOWED_IMAGE_EXTENSIONS", {".png"})
+    monkeypatch.setattr(worker, "allowed_image_extensions", frozenset({".png"}))
     assert worker.run_job_pipeline() is None
     report = worker.adapter.patch_job_fail.call_args.kwargs
     assert "unsupported extension" in report["final_log"]
@@ -552,8 +573,8 @@ def test_unreportable_job_failure_triggers_worker_failure_mail(pipeline_worker, 
     else:
         worker.adapter.patch_job_error.return_value = types.SimpleNamespace(is_success=False, status=500, code=None, response=None)
     assert worker.run_job_pipeline() is None
-    worker.mail_sender.send.assert_called_once()
-    assert "Could not report" in worker.mail_sender.send.call_args.args[1]
+    worker.worker_mail_sender.send.assert_called_once()
+    assert "Could not report" in worker.worker_mail_sender.send.call_args.args[1]
 
 
 def test_failed_finish_request_alerts_without_replacing_success(pipeline_worker):
@@ -563,7 +584,7 @@ def test_failed_finish_request_alerts_without_replacing_success(pipeline_worker)
     worker.adapter.patch_job_finish.assert_called_once()
     worker.adapter.patch_job_error.assert_not_called()
     worker.adapter.patch_job_fail.assert_not_called()
-    worker.mail_sender.send.assert_called_once()
+    worker.worker_mail_sender.send.assert_called_once()
 
 
 def test_acquisition_failure_cannot_touch_the_previous_job(pipeline_worker):
@@ -574,7 +595,7 @@ def test_acquisition_failure_cannot_touch_the_previous_job(pipeline_worker):
     assert worker.current_job is None
     worker.adapter.patch_job_error.assert_not_called()
     worker.adapter.patch_job_fail.assert_not_called()
-    worker.mail_sender.send.assert_called_once()
+    worker.worker_mail_sender.send.assert_called_once()
 
 
 def test_failure_to_fetch_leased_job_reports_the_correct_lease(pipeline_worker):
@@ -598,16 +619,16 @@ def test_failure_to_summarize_does_not_prevent_reporting(pipeline_worker):
 def test_worker_loop_reports_only_unexpected_termination(pipeline_worker, failure):
     worker = pipeline_worker
     worker.run_job_pipeline = mock.Mock(side_effect=failure)
-    with mock.patch.object(worker, "health") as health:
+    with mock.patch.object(worker, "alive_monitor") as alive_monitor:
         if failure is KeyboardInterrupt:
             worker.start()
-            worker.mail_sender.send.assert_not_called()
+            worker.worker_mail_sender.send.assert_not_called()
         else:
             with pytest.raises(RuntimeError):
                 worker.start()
-            worker.mail_sender.send.assert_called_once()
-        health.start.assert_called_once()
-        health.close.assert_called_once()
+            worker.worker_mail_sender.send.assert_called_once()
+        alive_monitor.start.assert_called_once()
+        alive_monitor.close.assert_called_once()
 
 
 def test_worker_formatter_does_not_mask():
@@ -618,25 +639,25 @@ def test_worker_formatter_does_not_mask():
     assert message in MetakatWorkerFormatter().format(record)
 
 
-def test_health_mail_defaults_and_source_preferences(monkeypatch):
-    for key in ("MAIL_STARTUP", "MAIL_ALIVE_INTERVAL_SECONDS",
+def test_alive_mail_defaults_and_source_preferences(monkeypatch):
+    for key in ("ALIVE_MAIL_STARTUP", "ALIVE_MAIL_INTERVAL_SECONDS",
                 "PREFER_IMAGE_URL", "PREFER_ALTO_URL", "PREFER_PAGE_URL"):
         monkeypatch.delenv(key, raising=False)
     config = Config()
-    assert config.MAIL_STARTUP is True
-    assert config.MAIL_ALIVE_INTERVAL_SECONDS == 86400
+    assert config.ALIVE_MAIL_STARTUP is True
+    assert config.ALIVE_MAIL_INTERVAL_SECONDS == 86400
     assert not config.PREFER_IMAGE_URL and not config.PREFER_ALTO_URL and not config.PREFER_PAGE_URL
-    monkeypatch.setenv("MAIL_STARTUP", "false")
-    monkeypatch.setenv("MAIL_ALIVE_INTERVAL_SECONDS", "0")
+    monkeypatch.setenv("ALIVE_MAIL_STARTUP", "false")
+    monkeypatch.setenv("ALIVE_MAIL_INTERVAL_SECONDS", "0")
     monkeypatch.setenv("PREFER_IMAGE_URL", "true")
-    assert Config().MAIL_STARTUP is False
-    assert Config().MAIL_ALIVE_INTERVAL_SECONDS == 0
+    assert Config().ALIVE_MAIL_STARTUP is False
+    assert Config().ALIVE_MAIL_INTERVAL_SECONDS == 0
     assert Config().PREFER_IMAGE_URL is True
 
 
 @pytest.mark.parametrize("value", ["-1", "nan", "inf"])
-@pytest.mark.parametrize("key", ["MAIL_ALIVE_INTERVAL_SECONDS"])
-def test_health_mail_intervals_must_be_finite_nonnegative(monkeypatch, key, value):
+@pytest.mark.parametrize("key", ["ALIVE_MAIL_INTERVAL_SECONDS"])
+def test_alive_mail_intervals_must_be_finite_nonnegative(monkeypatch, key, value):
     monkeypatch.setenv(key, value)
     with pytest.raises(ValueError, match=key):
         Config()
@@ -655,8 +676,7 @@ def test_download_failure_uses_wrapper_messages_without_metakat_summary(pipeline
 
 def test_history_defaults_follow_logging_directory_after_cli_overrides(monkeypatch):
     monkeypatch.delenv('JOB_HISTORY_PATH', raising=False)
-    config = Config()
-    config.LOGGING_DIR = '/tmp/development-worker-logs'
+    config = Config({"LOGGING_DIR": "/tmp/development-worker-logs"})
     assert config.JOB_HISTORY_PATH == '/tmp/development-worker-logs/job_history.jsonl'
 
 
@@ -674,23 +694,27 @@ def test_mail_timeout_must_be_finite_positive(monkeypatch, value):
         Config()
 
 
-def test_worker_mail_identity_defaults_to_wrapper_defaults(monkeypatch):
+def test_worker_mail_identity_defaults_to_wrapper_defaults(monkeypatch, tmp_path):
     for key in ("WORKER_IDENTITY", "WORKER_HOSTNAME", "MAIL_SUBJECT"):
         monkeypatch.delenv(key, raising=False)
-    assert worker_module.worker_mail_identity(Config()) == {
-        "identity": None, "hostname": None, "mail_subject": "[{identity}] {status} ({hostname})"}
+    monkeypatch.setenv("BASE_DIR", str(tmp_path))
+    config = Config()
+    assert (config.WORKER_IDENTITY, config.WORKER_HOSTNAME) == (None, None)
+    assert config.MAIL_SUBJECT == "[{identity}] {status} ({hostname})"
+    # Without an identity, the worker takes its key's label from DocAPI when it starts.
+    assert MetakatWorker.from_config(config).identity == "MetakatWorker"
 
 
 def test_worker_mail_identity_names_the_deployment_in_mail(monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKER_IDENTITY", "MetaKat worker prod")
-    monkeypatch.setenv("WORKER_HOSTNAME", "gpu-host")
-    monkeypatch.setenv("MAIL_SUBJECT", "{identity}: {status} on {hostname}")
-    worker = MetakatWorker(api_url="http://127.0.0.1:1", connector=mock.Mock(), base_dir=str(tmp_path),
-                           mail_sender=mock.Mock(), mail_receivers=["admin@example.com"],
-                           **worker_module.worker_mail_identity(Config()))
-    worker.send_mail = mock.Mock()
-    worker._send_worker_mail("ALIVE", "report")
-    assert worker.send_mail.call_args.args[0] == "MetaKat worker prod: ALIVE on gpu-host"
+    for key, value in {"BASE_DIR": str(tmp_path), "WORKER_IDENTITY": "MetaKat worker prod",
+                       "WORKER_HOSTNAME": "gpu-host", "MAIL_SUBJECT": "{identity}: {status} on {hostname}",
+                       "MAIL_SERVER": "smtp.example.com", "MAIL_SENDER_MAIL": "metakat@example.com",
+                       "MAIL_RECEIVER_MAILS": "admin@example.com"}.items():
+        monkeypatch.setenv(key, value)
+    worker = MetakatWorker.from_config(Config())
+    worker.worker_mail_sender.sender = mock.Mock()
+    worker.worker_mail_sender.send("ALIVE", "report")
+    assert worker.worker_mail_sender.sender.send.call_args.args[0] == "MetaKat worker prod: ALIVE on gpu-host"
 
 
 def test_mail_timeout_defaults_to_sixty_seconds(monkeypatch):
