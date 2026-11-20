@@ -7,7 +7,7 @@ from unittest import mock
 import pytest
 
 from metakat.worker.docapi import metakat_worker as worker_module
-from metakat.worker.docapi.config import Config
+from metakat.worker.docapi.config import Config, LoggingConfig
 from metakat.worker.docapi.metakat_worker import MetakatWorker
 from doc_worker.doc_worker_wrapper import WorkerResponseStatus
 
@@ -153,7 +153,7 @@ def test_metakat_defaults_for_docapi_settings():
     ("API_CONNECT_TIMEOUT_SECONDS", "0"), ("API_READ_TIMEOUT_SECONDS", "inf"),
     ("OUTAGE_GRACE_SECONDS", "-1"), ("OUTAGE_MAIL_INTERVAL_SECONDS", "0"),
     ("MAIL_SEND_RECEIVER_LIMIT", "-1"), ("MAIL_SEND_SERVER_WINDOW_SECONDS", "0"),
-    ("LOGGING_FILE_LEVEL", "LOUD"), ("STORE_METAKAT_PDF", "maybe"),
+    ("STORE_METAKAT_PDF", "maybe"),
 ])
 def test_timeouts_limits_and_outage_settings_are_validated(key, value):
     with mock.patch.dict("os.environ", {**KEY, key: value}, clear=True):
@@ -674,10 +674,38 @@ def test_download_failure_uses_wrapper_messages_without_metakat_summary(pipeline
     worker._summarize.assert_not_called()
 
 
-def test_history_defaults_follow_logging_directory_after_cli_overrides(monkeypatch):
+def test_history_is_off_unless_set(monkeypatch):
     monkeypatch.delenv('JOB_HISTORY_PATH', raising=False)
-    config = Config({"LOGGING_DIR": "/tmp/development-worker-logs"})
-    assert config.JOB_HISTORY_PATH == '/tmp/development-worker-logs/job_history.jsonl'
+    assert Config().JOB_HISTORY_PATH is None
+
+
+def test_logging_defaults_follow_the_base_directory():
+    with mock.patch.dict("os.environ", {}, clear=True):
+        logging_config = LoggingConfig("/data/worker")
+    assert logging_config.LOGGING_DIR == "/data/worker/logs"
+    assert (logging_config.LOGGING_CONSOLE_LEVEL, logging_config.LOGGING_FILE_LEVEL) == ("INFO", "INFO")
+    assert logging_config.LOGGING_CONFIG["handlers"]["file_log"]["filename"] == "/data/worker/logs/worker.log"
+
+
+def test_logging_overrides_win_over_the_environment():
+    environment = {"LOGGING_DIR": "/var/log/worker", "LOGGING_FILE_LEVEL": "DEBUG"}
+    with mock.patch.dict("os.environ", environment, clear=True):
+        logging_config = LoggingConfig("/data/worker", {"LOGGING_DIR": "/tmp/development-worker-logs"})
+    assert logging_config.LOGGING_DIR == "/tmp/development-worker-logs"
+    assert logging_config.LOGGING_FILE_LEVEL == "DEBUG"
+
+
+def test_logging_levels_are_validated():
+    with mock.patch.dict("os.environ", {"LOGGING_FILE_LEVEL": "LOUD"}, clear=True):
+        with pytest.raises(ValueError, match="LOGGING_FILE_LEVEL"):
+            LoggingConfig("/data/worker")
+
+
+def test_logging_settings_are_not_worker_settings():
+    # Config holds only what the worker is built from, so from_config passes every
+    # setting it adds to MetakatWorker without a hand-written subclass_args().
+    assert not any(name.startswith("LOGGING") for name in Config.setting_names())
+    assert "subclass_args" not in vars(MetakatWorker)
 
 
 def test_history_path_can_be_overridden_or_disabled(monkeypatch):

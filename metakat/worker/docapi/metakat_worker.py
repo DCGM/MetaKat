@@ -10,7 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 import logging.config
 
-from metakat.worker.docapi.config import Config
+from metakat.worker.docapi.config import Config, LoggingConfig
 
 import argparse
 from typing import Optional
@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 
 
 class MetakatWorker(DocWorkerWrapper):
-    # MetaKat's processing settings (config.py), with Config's defaults.
+    # MetaKat's processing settings, with Config's defaults; from_config() passes
+    # Config's ALLOWED_IMAGE_EXTENSIONS, STORE_METAKAT_PDF and STORE_MODS_OVERVIEW.
     allowed_image_extensions = frozenset({".jpg", ".jpeg", ".png", ".tif", ".tiff"})
     store_metakat_pdf = False
     store_mods_overview = False
@@ -43,13 +44,6 @@ class MetakatWorker(DocWorkerWrapper):
             self.allowed_image_extensions = frozenset(allowed_image_extensions)
         self.store_metakat_pdf = store_metakat_pdf
         self.store_mods_overview = store_mods_overview
-
-    @classmethod
-    def subclass_args(cls, config: Config) -> dict:
-        """MetaKat's processing settings; main() applies its logging settings."""
-        return {"allowed_image_extensions": config.ALLOWED_IMAGE_EXTENSIONS,
-                "store_metakat_pdf": config.STORE_METAKAT_PDF,
-                "store_mods_overview": config.STORE_MODS_OVERVIEW}
 
     def process_job(self, job: Job, images_dir: str, result_dir: str, alto_dir: Optional[str] = None,
                     page_xml_dir: Optional[str] = None, meta_file: Optional[str] = None,
@@ -404,14 +398,19 @@ def main():
     if args.api_key is not None:
         # A key given here replaces a key file from the environment as well.
         overrides.update(WORKER_KEY=args.api_key, WORKER_KEY_FILE="")
+    logging_overrides = {name: overrides.pop(name)
+                         for name in ("LOGGING_DIR", "LOGGING_CONSOLE_LEVEL", "LOGGING_FILE_LEVEL")
+                         if name in overrides}
     try:
         config = Config(overrides)
+        logging_config = LoggingConfig(config.BASE_DIR, logging_overrides)
     except ValueError as error:
         parser.error(str(error))
 
     # Directories and logging are set up from the final settings.
     config.create_dirs()
-    logging.config.dictConfig(config.LOGGING_CONFIG)
+    logging_config.create_dirs()
+    logging.config.dictConfig(logging_config.LOGGING_CONFIG)
 
     if config.STORE_METAKAT_PDF and config.CLEANUP_JOB_DIR:
         logger.warning(
@@ -433,6 +432,7 @@ def main():
     logger.info(f"Base directory: {config.BASE_DIR}")
     logger.info(f"Jobs directory: {config.JOBS_DIR or os.path.join(config.BASE_DIR, 'jobs')}")
     logger.info(f"Engines directory: {config.ENGINES_DIR or os.path.join(config.BASE_DIR, 'engines')}")
+    logger.info(f"Log directory: {logging_config.LOGGING_DIR}")
     logger.info(f"Job history: {config.JOB_HISTORY_PATH or 'off'}")
     logger.info(f"Store MetaKat PDF: {config.STORE_METAKAT_PDF}")
     logger.info(f"Store MODS overview: {config.STORE_MODS_OVERVIEW}")
