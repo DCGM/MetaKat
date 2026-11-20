@@ -1,16 +1,21 @@
-"""The MetaKat worker's settings: DocAPI's worker settings plus MetaKat's own.
+"""The MetaKat worker's settings.
 
-doc_worker.config.Config reads and checks every setting of DocAPI's worker
-wrapper (the API, the directories, the worker's mail, ALIVE reports and outage
-mail); DocAPI's doc_worker/.env_example documents them. This class adds the
-settings MetaKat's processing and logging need, and MetaKat's defaults where
-they differ from DocAPI's. A Config is built once, from the environment and any
+Config holds what the worker is built from: doc_worker.config.Config reads and
+checks every setting of DocAPI's worker wrapper (the API, the directories, the
+job history, the worker's mail, ALIVE reports and outage mail; DocAPI's
+doc_worker/.env_example documents them), and Config adds MetaKat's processing
+settings, each passed to the MetakatWorker parameter of the same name, and
+MetaKat's defaults where they differ from DocAPI's.
+
+LoggingConfig holds MetaKat's own process log, worker.log, which main() sets up
+before the worker exists. Each is built once, from the environment and any
 command-line overrides (Config({"BASE_DIR": ...})), and is then only read.
 """
 import logging
 import os
 import socket
 import time
+from typing import Mapping, Optional
 
 from doc_worker.config import Config as DocWorkerConfig
 
@@ -47,30 +52,43 @@ class Config(DocWorkerConfig):
         self.STORE_METAKAT_PDF = self._bool("STORE_METAKAT_PDF", False)
         self.STORE_MODS_OVERVIEW = self._bool("STORE_MODS_OVERVIEW", False)
 
-        # Logging
-        ################################################################################################################
-        self.LOGGING_CONSOLE_LEVEL = self._str("LOGGING_CONSOLE_LEVEL", "INFO")
-        self.LOGGING_FILE_LEVEL = self._str("LOGGING_FILE_LEVEL", "INFO")
-        # The directory of worker.log.
-        self.LOGGING_DIR = self._str("LOGGING_DIR", os.path.join(self.BASE_DIR, "logs"))
-        # The job history (DocAPI's JOB_HISTORY_PATH) is kept beside worker.log unless
-        # set; set but empty keeps none.
-        if not self._is_set("JOB_HISTORY_PATH"):
-            self.JOB_HISTORY_PATH = os.path.join(self.LOGGING_DIR, "job_history.jsonl")
-
     def check(self):
         super().check()
         if not self.ALLOWED_IMAGE_EXTENSIONS:
             raise ValueError("ALLOWED_IMAGE_EXTENSIONS must name at least one extension")
-        levels = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
-        for name in ("LOGGING_CONSOLE_LEVEL", "LOGGING_FILE_LEVEL"):
-            if getattr(self, name) not in levels:
-                raise ValueError(f"{name} must be one of {', '.join(levels)}, not {getattr(self, name)!r}")
 
-    def _is_set(self, key: str) -> bool:
-        """Whether key is given at all, even empty: as an override or in the environment."""
-        # setting_names() reads the settings on a probe without overrides.
-        return key in getattr(self, "_overrides", {}) or key in os.environ
+    def create_dirs(self):
+        for directory in (self.JOBS_DIR or os.path.join(self.BASE_DIR, "jobs"),
+                          self.ENGINES_DIR or os.path.join(self.BASE_DIR, "engines")):
+            os.makedirs(directory, exist_ok=True)
+
+
+class LoggingConfig:
+    """The process log: worker.log in LOGGING_DIR, rotated at UTC midnight, and the console.
+
+    The log of each job, worker.log in the job's directory, is DocAPI's wrapper's.
+    An unset or empty variable keeps the default, as in Config.
+    """
+    LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
+    def __init__(self, base_dir: str, overrides: Optional[Mapping[str, str]] = None):
+        """base_dir is the worker's BASE_DIR; overrides replace the environment variables of their names."""
+        overrides = dict(overrides or {})
+        unknown = set(overrides) - {"LOGGING_DIR", "LOGGING_CONSOLE_LEVEL", "LOGGING_FILE_LEVEL"}
+        if unknown:
+            raise TypeError(f"Unknown settings: {', '.join(sorted(unknown))}")
+
+        def read(key: str, default: str) -> str:
+            return (overrides[key] if key in overrides else os.getenv(key, "")) or default
+
+        # The directory of worker.log.
+        self.LOGGING_DIR = read("LOGGING_DIR", os.path.join(base_dir, "logs"))
+        # How much goes to the console (the screen session) and into worker.log.
+        self.LOGGING_CONSOLE_LEVEL = read("LOGGING_CONSOLE_LEVEL", "INFO")
+        self.LOGGING_FILE_LEVEL = read("LOGGING_FILE_LEVEL", "INFO")
+        for name in ("LOGGING_CONSOLE_LEVEL", "LOGGING_FILE_LEVEL"):
+            if getattr(self, name) not in self.LEVELS:
+                raise ValueError(f"{name} must be one of {', '.join(self.LEVELS)}, not {getattr(self, name)!r}")
 
     @property
     def LOGGING_CONFIG(self) -> dict:
@@ -120,7 +138,4 @@ class Config(DocWorkerConfig):
         }
 
     def create_dirs(self):
-        for directory in (self.JOBS_DIR or os.path.join(self.BASE_DIR, "jobs"),
-                          self.ENGINES_DIR or os.path.join(self.BASE_DIR, "engines"),
-                          self.LOGGING_DIR):
-            os.makedirs(directory, exist_ok=True)
+        os.makedirs(self.LOGGING_DIR, exist_ok=True)

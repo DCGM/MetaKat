@@ -604,8 +604,10 @@ only half set up, stops the worker with an error.
 | `LOGGING_FILE_LEVEL` | `--log-file-level` | `INFO` | `worker.log` verbosity |
 
 One of `WORKER_KEY_FILE` and `WORKER_KEY` is required; the file keeps the key
-out of the environment and the command line. `JOB_HISTORY_PATH` defaults to
-`job_history.jsonl` in `LOGGING_DIR`; set it empty to keep no history. The three directories are created
+out of the environment and the command line. The worker keeps a job history
+only when `JOB_HISTORY_PATH` is set; `run_worker.sh` keeps it beside
+`worker.log`. The logging settings (`LOGGING_*`) are MetaKat's own and apply to
+the process log; each job's `worker.log` is written by DocAPI's wrapper. The three directories are created
 at startup if missing.
 
 Each of the three boolean settings has both forms, so the environment sets the
