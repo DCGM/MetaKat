@@ -48,17 +48,16 @@ class MetakatWorker(DocWorkerWrapper):
     def process_job(self, job: Job, images_dir: str, result_dir: str, alto_dir: Optional[str] = None,
                     page_xml_dir: Optional[str] = None, meta_file: Optional[str] = None,
                     engine_dir: Optional[str] = None) -> WorkerResponse:
-        """Process the inputs and return the summary as explicit final reports.
+        """Run MetaKat on the job, then report the job summary to DocAPI as its final logs.
 
         The wrapper sends everything logged meanwhile into the job's worker.log.
         """
         started = time.monotonic()
-        response = self._process_job(
-            job, images_dir, result_dir, alto_dir, page_xml_dir, meta_file, engine_dir)
-        return self._processing_response(
-            job, response, str(Path(result_dir).parent), time.monotonic() - started)
+        response = self._run_metakat(job, images_dir, result_dir, alto_dir, page_xml_dir, meta_file, engine_dir)
+        return self._report_summary(job, response, job_dir=str(Path(result_dir).parent),
+                                    duration_s=time.monotonic() - started)
 
-    def _process_job(self,
+    def _run_metakat(self,
                     job: Job,
                     images_dir: str,
                     result_dir: str,
@@ -66,7 +65,8 @@ class MetakatWorker(DocWorkerWrapper):
                     page_xml_dir: Optional[str] = None,
                     meta_file: Optional[str] = None,
                     engine_dir: Optional[str] = None) -> WorkerResponse:
-        """        
+        """Run MetaKat's pipeline (process_batch) on the job's images and ALTO, writing the result into result_dir.
+
         Args:
             job: The job object containing job metadata
             images_dir: Directory path containing the downloaded images
@@ -176,9 +176,16 @@ class MetakatWorker(DocWorkerWrapper):
             return WorkerResponse.error(final_log="MetakatWorker processing failed",
                                         final_log_user="Processing failed. Please try again later.", exception=e)
 
-    def _processing_response(self, job: Job, response: WorkerResponse,
-                             job_dir: str, duration_s: float) -> WorkerResponse:
-        """Attach MetaKat's summary to the processing outcome, without sending it."""
+    def _report_summary(self, job: Job, response: WorkerResponse,
+                        job_dir: str, duration_s: float) -> WorkerResponse:
+        """The response with the job summary as its final logs, which the wrapper sends to DocAPI.
+
+        final_log gets the full summary, for admins; final_log_user gets the summary
+        without the error details, followed by the response's own message for the
+        user. The status is kept. The summary also goes to the worker log. If the
+        summary cannot be built, the response is returned unchanged, so a broken
+        summary never changes the outcome.
+        """
         try:
             # The wrapper adds diagnostics from exception/error_adapter_response.
             # Summarize the message here so those details appear only once.
